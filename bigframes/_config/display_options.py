@@ -18,9 +18,8 @@ import contextlib
 import dataclasses
 from typing import Literal, Optional
 
+import bigframes_vendored.pandas.core.config_init as vendored_pandas_config
 import pandas as pd
-
-import third_party.bigframes_vendored.pandas.core.config_init as vendored_pandas_config
 
 
 @dataclasses.dataclass
@@ -30,11 +29,15 @@ class DisplayOptions:
     max_columns: int = 20
     max_rows: int = 25
     progress_bar: Optional[str] = "auto"
-    repr_mode: Literal["head", "deferred"] = "head"
+    repr_mode: Literal["head", "deferred", "anywidget"] = "head"
 
     max_info_columns: int = 100
     max_info_rows: Optional[int] = 200000
     memory_usage: bool = True
+
+    blob_display: bool = True
+    blob_display_width: Optional[int] = None
+    blob_display_height: Optional[int] = None
 
 
 @contextlib.contextmanager

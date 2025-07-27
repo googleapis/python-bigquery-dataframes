@@ -18,12 +18,19 @@ class PickleIOMixin:
         filepath_or_buffer: FilePath | ReadPickleBuffer,
         compression: CompressionOptions = "infer",
         storage_options: StorageOptions = None,
+        *,
+        write_engine="default",
     ):
         """Load pickled BigFrames object (or any object) from file.
 
         .. note::
             If the content of the pickle file is a Series and its name attribute is None,
             the name will be set to '0' by default.
+
+        .. note::
+            Data is inlined in the query SQL if it is small enough (roughly 5MB
+            or less in memory). Larger size data is loaded to a BigQuery table
+            instead.
 
         **Examples:**
 
@@ -57,9 +64,13 @@ class PickleIOMixin:
                 starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to
                 fsspec.open. Please see fsspec and urllib for more details, and for more
                 examples on storage options refer here.
+            write_engine (str):
+                How data should be written to BigQuery (if at all). See
+                :func:`bigframes.pandas.read_pandas` for a full description of
+                supported values.
 
         Returns:
-            bigframes.dataframe.DataFrame or bigframes.series.Series: same type as object
+            bigframes.pandas.DataFrame or bigframes.pandas.Series: same type as object
                 stored in file.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

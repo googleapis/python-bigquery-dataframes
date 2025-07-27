@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import datetime
+import re
 from typing import Dict, Union
+import unittest.mock as mock
 
 import geopandas  # type: ignore
 import numpy
@@ -23,7 +25,30 @@ import pandas.testing
 import pyarrow  # type: ignore
 import pytest
 
+import bigframes.core.schema
+import bigframes.features
+import bigframes.pandas
 import bigframes.session._io.pandas
+from bigframes.testing import mocks
+
+_LIST_OF_SCALARS = [
+    [1, 2, 3],
+    [],
+    [4, 5, 6],
+]
+_LIST_OF_STRUCTS = [
+    [
+        {"version": 1, "package": "numpy"},
+        {"version": 2, "package": "pandas"},
+        {"version": 3, "package": "pyarrow"},
+    ],
+    [],
+    [
+        {"version": 4, "package": "awkward-pandas"},
+        {"version": 5, "package": "cyberpandas"},
+        {"version": 6, "package": "geopandas"},
+    ],
+]
 
 
 @pytest.mark.parametrize(
@@ -187,6 +212,111 @@ import bigframes.session._io.pandas
         pytest.param(
             pyarrow.Table.from_pydict(
                 {
+                    "listofscalars": pyarrow.array(
+                        _LIST_OF_SCALARS,
+                        type=pyarrow.list_(pyarrow.int64()),
+                    ),
+                    "listofstructs": pyarrow.array(
+                        _LIST_OF_STRUCTS,
+                        type=pyarrow.list_(
+                            pyarrow.struct(
+                                [
+                                    ("version", pyarrow.int64()),
+                                    ("package", pyarrow.string()),
+                                ]
+                            )
+                        ),
+                    ),
+                },
+            ),
+            {
+                "listofscalars": pandas.ArrowDtype(pyarrow.list_(pyarrow.int64())),
+                "listofstructs": pandas.ArrowDtype(
+                    pyarrow.list_(
+                        pyarrow.struct(
+                            [
+                                ("version", pyarrow.int64()),
+                                ("package", pyarrow.string()),
+                            ]
+                        )
+                    )
+                ),
+            },
+            pandas.DataFrame(
+                {
+                    "listofscalars": pandas.Series(_LIST_OF_SCALARS, dtype="object"),
+                    "listofstructs": pandas.Series(_LIST_OF_STRUCTS, dtype="object"),
+                },
+            ),
+            marks=pytest.mark.skipif(
+                bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+                reason="no need to use object dtype for ARRAY in pandas 2.x",
+            ),
+            id="nested-dtypes-pandas-1-x",
+        ),
+        pytest.param(
+            pyarrow.Table.from_pydict(
+                {
+                    "listofscalars": pyarrow.array(
+                        _LIST_OF_SCALARS,
+                        type=pyarrow.list_(pyarrow.int64()),
+                    ),
+                    "listofstructs": pyarrow.array(
+                        _LIST_OF_STRUCTS,
+                        type=pyarrow.list_(
+                            pyarrow.struct(
+                                [
+                                    ("version", pyarrow.int64()),
+                                    ("package", pyarrow.string()),
+                                ]
+                            )
+                        ),
+                    ),
+                },
+            ),
+            {
+                "listofscalars": pandas.ArrowDtype(pyarrow.list_(pyarrow.int64())),
+                "listofstructs": pandas.ArrowDtype(
+                    pyarrow.list_(
+                        pyarrow.struct(
+                            [
+                                ("version", pyarrow.int64()),
+                                ("package", pyarrow.string()),
+                            ]
+                        )
+                    )
+                ),
+            },
+            pandas.DataFrame(
+                {
+                    "listofscalars": pandas.Series(
+                        _LIST_OF_SCALARS,
+                        dtype=pandas.ArrowDtype(pyarrow.list_(pyarrow.int64())),
+                    ),
+                    "listofstructs": pandas.Series(
+                        _LIST_OF_STRUCTS,
+                        dtype=pandas.ArrowDtype(
+                            pyarrow.list_(
+                                pyarrow.struct(
+                                    [
+                                        ("version", pyarrow.int64()),
+                                        ("package", pyarrow.string()),
+                                    ]
+                                )
+                            )
+                        ),
+                    ),
+                },
+            ),
+            marks=pytest.mark.skipif(
+                not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+                reason="Arrow list type broken in pandas 1.x",
+            ),
+            id="nested-dtypes-pandas-2-x",
+        ),
+        pytest.param(
+            pyarrow.Table.from_pydict(
+                {
                     "bool": [True, None, True, False],
                     "bytes": [b"123", None, b"abc", b"xyz"],
                     "float": pyarrow.array(
@@ -315,7 +445,13 @@ def test_arrow_to_pandas(
     dtypes: Dict,
     expected: pandas.DataFrame,
 ):
-    actual = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+    schema = bigframes.core.schema.ArraySchema(
+        tuple(
+            bigframes.core.schema.SchemaItem(name, dtype)
+            for name, dtype in dtypes.items()
+        )
+    )
+    actual = bigframes.session._io.pandas.arrow_to_pandas(arrow_table, schema)
     pandas.testing.assert_series_equal(actual.dtypes, expected.dtypes)
 
     # assert_frame_equal is converting to numpy internally, which causes some
@@ -348,5 +484,21 @@ def test_arrow_to_pandas(
 def test_arrow_to_pandas_wrong_size_dtypes(
     arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch], dtypes: Dict
 ):
-    with pytest.raises(ValueError, match=f"Number of types {len(dtypes)}"):
-        bigframes.session._io.pandas.arrow_to_pandas(arrow_table, dtypes)
+    schema = bigframes.core.schema.ArraySchema(
+        tuple(
+            bigframes.core.schema.SchemaItem(name, dtype)
+            for name, dtype in dtypes.items()
+        )
+    )
+    with pytest.raises(ValueError, match=f"Number of types {len(schema)}"):
+        bigframes.session._io.pandas.arrow_to_pandas(arrow_table, schema)
+
+
+def test_read_pandas_with_bigframes_dataframe():
+    session = mocks.create_bigquery_session()
+    df = mock.create_autospec(bigframes.pandas.DataFrame, instance=True)
+
+    with pytest.raises(
+        ValueError, match=re.escape("read_pandas() expects a pandas.DataFrame")
+    ):
+        session.read_pandas(df)

@@ -15,17 +15,22 @@
 from __future__ import annotations
 
 import typing
-from typing import List, Tuple, Union
+from typing import Tuple, Union
+import warnings
 
-import ibis
+import bigframes_vendored.constants as constants
+import bigframes_vendored.ibis.common.exceptions as ibis_exceptions
 import pandas as pd
 
-import bigframes.constants as constants
 import bigframes.core.blocks
+import bigframes.core.expression as ex
 import bigframes.core.guid as guid
 import bigframes.core.indexes as indexes
 import bigframes.core.scalar
+import bigframes.core.window_spec as windows
 import bigframes.dataframe
+import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.operations as ops
 import bigframes.series
 
@@ -63,17 +68,14 @@ class LocSeriesIndexer:
         index_column = block.index_columns[0]
 
         # if index == key return value else value_colum
-        block, insert_cond = block.apply_unary_op(
-            index_column, ops.partial_right(ops.eq_op, key)
+        block, result_id = block.project_expr(
+            ops.where_op.as_expr(
+                ex.const(value),
+                ops.eq_op.as_expr(index_column, ex.const(key)),
+                self._series._value_column,
+            )
         )
-        block, result_id = block.apply_binary_op(
-            insert_cond,
-            self._series._value_column,
-            ops.partial_arg1(ops.where_op, value),
-        )
-        block = block.copy_values(result_id, value_column).drop_columns(
-            [insert_cond, result_id]
-        )
+        block = block.copy_values(result_id, value_column).drop_columns([result_id])
 
         self._series._set_block(block)
 
@@ -149,14 +151,27 @@ class LocDataFrameIndexer:
         ...
 
     def __getitem__(self, key):
-        # TODO(swast): If the DataFrame has a MultiIndex, we'll need to
-        # disambiguate this from a single row selection.
+        # TODO(tbergeron): Pandas will try both splitting 2-tuple into row, index or as 2-part
+        # row key. We must choose one, so bias towards treating as multi-part row label
         if isinstance(key, tuple) and len(key) == 2:
-            df = typing.cast(
-                bigframes.dataframe.DataFrame,
-                _loc_getitem_series_or_dataframe(self._dataframe, key[0]),
-            )
-            return df[key[1]]
+            is_row_multi_index = self._dataframe.index.nlevels > 1
+            is_first_item_list_or_tuple = isinstance(key[0], (tuple, list))
+            if not is_row_multi_index or is_first_item_list_or_tuple:
+                df = typing.cast(
+                    bigframes.dataframe.DataFrame,
+                    _loc_getitem_series_or_dataframe(self._dataframe, key[0]),
+                )
+
+                columns = key[1]
+                if isinstance(columns, bigframes.series.Series):
+                    columns = columns.to_pandas()
+                if isinstance(columns, pd.Series) and columns.dtype in (
+                    bool,
+                    pd.BooleanDtype(),
+                ):
+                    columns = df.columns[typing.cast(pd.Series, columns)]
+
+                return df[columns]
 
         return typing.cast(
             bigframes.dataframe.DataFrame,
@@ -186,7 +201,15 @@ class LocDataFrameIndexer:
             and isinstance(key[0], bigframes.series.Series)
             and key[0].dtype == "boolean"
         ) and pd.api.types.is_scalar(value):
-            new_column = key[0].map({True: value, False: None})
+            # For integer scalar, if set value to a new column, the dtype would be default to float.
+            # But if set value to an existing Int64 column, the dtype would still be integer.
+            # So we need to use different NaN type to match this behavior.
+            new_column = key[0].map(
+                {
+                    True: value,
+                    False: pd.NA if key[1] in self._dataframe.columns else None,
+                }
+            )
             try:
                 original_column = self._dataframe[key[1]]
             except KeyError:
@@ -194,7 +217,7 @@ class LocDataFrameIndexer:
                 return
             try:
                 self._dataframe[key[1]] = new_column.fillna(original_column)
-            except ibis.common.exceptions.IbisTypeError:
+            except ibis_exceptions.IbisTypeError:
                 raise TypeError(
                     f"Cannot assign scalar of type {type(value)} to column of type {original_column.dtype}, or index type of series argument does not match dataframe."
                 )
@@ -237,7 +260,7 @@ class IatDataFrameIndexer:
             raise ValueError(error_message)
         if len(key) != 2:
             raise TypeError(error_message)
-        block: bigframes.core.blocks.Block = self._dataframe._block  # type: ignore
+        block: bigframes.core.blocks.Block = self._dataframe._block
         column_block = block.select_columns([block.value_columns[key[1]]])
         column = bigframes.series.Series(column_block)
         return column.iloc[key[0]]
@@ -280,94 +303,40 @@ def _loc_getitem_series_or_dataframe(
     pd.Series,
     bigframes.core.scalar.Scalar,
 ]:
-    if isinstance(key, bigframes.series.Series) and key.dtype == "boolean":
-        return series_or_dataframe[key]
-    elif isinstance(key, bigframes.series.Series):
-        temp_name = guid.generate_guid(prefix="temp_series_name_")
-        if len(series_or_dataframe.index.names) > 1:
-            temp_name = series_or_dataframe.index.names[0]
-        key = key.rename(temp_name)
-        keys_df = key.to_frame()
-        keys_df = keys_df.set_index(temp_name, drop=True)
-        return _perform_loc_list_join(series_or_dataframe, keys_df)
-    elif isinstance(key, bigframes.core.indexes.Index):
-        block = key._data._get_block()
-        block = block.select_columns(())
-        keys_df = bigframes.dataframe.DataFrame(block)
-        return _perform_loc_list_join(series_or_dataframe, keys_df)
-    elif pd.api.types.is_list_like(key):
-        key = typing.cast(List, key)
-        if len(key) == 0:
-            return typing.cast(
-                Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-                series_or_dataframe.iloc[0:0],
-            )
-        if pd.api.types.is_list_like(key[0]):
-            original_index_names = series_or_dataframe.index.names
-            num_index_cols = len(original_index_names)
-
-            entry_col_count_correct = [len(entry) == num_index_cols for entry in key]
-            if not all(entry_col_count_correct):
-                # pandas usually throws TypeError in these cases- tuple causes IndexError, but that
-                # seems like unintended behavior
-                raise TypeError(
-                    "All entries must be of equal length when indexing by list of listlikes"
-                )
-            temporary_index_names = [
-                guid.generate_guid(prefix="temp_loc_index_")
-                for _ in range(len(original_index_names))
-            ]
-            index_cols_dict = {}
-            for i in range(num_index_cols):
-                index_name = temporary_index_names[i]
-                values = [entry[i] for entry in key]
-                index_cols_dict[index_name] = values
-            keys_df = bigframes.dataframe.DataFrame(
-                index_cols_dict, session=series_or_dataframe._get_block().expr.session
-            )
-            keys_df = keys_df.set_index(temporary_index_names, drop=True)
-            keys_df = keys_df.rename_axis(original_index_names)
-        else:
-            # We can't upload a DataFrame with None as the column name, so set it
-            # an arbitrary string.
-            index_name = series_or_dataframe.index.name
-            index_name_is_none = index_name is None
-            if index_name_is_none:
-                index_name = "unnamed_col"
-            keys_df = bigframes.dataframe.DataFrame(
-                {index_name: key},
-                session=series_or_dataframe._get_block().expr.session,
-            )
-            keys_df = keys_df.set_index(index_name, drop=True)
-            if index_name_is_none:
-                keys_df.index.name = None
-        return _perform_loc_list_join(series_or_dataframe, keys_df)
-    elif isinstance(key, slice):
+    if isinstance(key, slice):
         if (key.start is None) and (key.stop is None) and (key.step is None):
             return series_or_dataframe.copy()
         raise NotImplementedError(
             f"loc does not yet support indexing with a slice. {constants.FEEDBACK_LINK}"
         )
-    elif callable(key):
+    if callable(key):
         raise NotImplementedError(
             f"loc does not yet support indexing with a callable. {constants.FEEDBACK_LINK}"
         )
-    elif pd.api.types.is_scalar(key):
-        index_name = "unnamed_col"
-        keys_df = bigframes.dataframe.DataFrame(
-            {index_name: [key]}, session=series_or_dataframe._get_block().expr.session
-        )
-        keys_df = keys_df.set_index(index_name, drop=True)
-        keys_df.index.name = None
-        result = _perform_loc_list_join(series_or_dataframe, keys_df)
-        pandas_result = result.to_pandas()
-        # although loc[scalar_key] returns multiple results when scalar_key
-        # is not unique, we download the results here and return the computed
-        # individual result (as a scalar or pandas series) when the key is unique,
-        # since we expect unique index keys to be more common. loc[[scalar_key]]
-        # can be used to retrieve one-item DataFrames or Series.
-        if len(pandas_result) == 1:
-            return pandas_result.iloc[0]
+    elif isinstance(key, bigframes.series.Series) and key.dtype == "boolean":
+        return series_or_dataframe[key]
+    elif (
+        isinstance(key, bigframes.series.Series)
+        or isinstance(key, indexes.Index)
+        or (pd.api.types.is_list_like(key) and not isinstance(key, tuple))
+    ):
+        index = indexes.Index(key, session=series_or_dataframe._session)
+        index.names = series_or_dataframe.index.names[: index.nlevels]
+        return _perform_loc_list_join(series_or_dataframe, index)
+    elif pd.api.types.is_scalar(key) or isinstance(key, tuple):
+        index = indexes.Index([key], session=series_or_dataframe._session)
+        index.names = series_or_dataframe.index.names[: index.nlevels]
+        result = _perform_loc_list_join(series_or_dataframe, index, drop_levels=True)
+
+        if index.nlevels == series_or_dataframe.index.nlevels:
+            pandas_result = result.to_pandas()
+            # although loc[scalar_key] returns multiple results when scalar_key
+            # is not unique, we download the results here and return the computed
+            # individual result (as a scalar or pandas series) when the key is unique,
+            # since we expect unique index keys to be more common. loc[[scalar_key]]
+            # can be used to retrieve one-item DataFrames or Series.
+            if len(pandas_result) == 1:
+                return pandas_result.iloc[0]
         # when the key is not unique, we return a bigframes data type
         # as usual for methods that return dataframes/series
         return result
@@ -382,7 +351,8 @@ def _loc_getitem_series_or_dataframe(
 @typing.overload
 def _perform_loc_list_join(
     series_or_dataframe: bigframes.series.Series,
-    keys_df: bigframes.dataframe.DataFrame,
+    keys_index: indexes.Index,
+    drop_levels: bool = False,
 ) -> bigframes.series.Series:
     ...
 
@@ -390,32 +360,62 @@ def _perform_loc_list_join(
 @typing.overload
 def _perform_loc_list_join(
     series_or_dataframe: bigframes.dataframe.DataFrame,
-    keys_df: bigframes.dataframe.DataFrame,
+    keys_index: indexes.Index,
+    drop_levels: bool = False,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
 
 def _perform_loc_list_join(
     series_or_dataframe: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    keys_df: bigframes.dataframe.DataFrame,
+    keys_index: indexes.Index,
+    drop_levels: bool = False,
 ) -> Union[bigframes.series.Series, bigframes.dataframe.DataFrame]:
     # right join based on the old index so that the matching rows from the user's
     # original dataframe will be duplicated and reordered appropriately
-    original_index_names = series_or_dataframe.index.names
     if isinstance(series_or_dataframe, bigframes.series.Series):
+        _struct_accessor_check_and_warn(series_or_dataframe, keys_index)
         original_name = series_or_dataframe.name
-        name = series_or_dataframe.name if series_or_dataframe.name is not None else "0"
+        name = series_or_dataframe.name if series_or_dataframe.name is not None else 0
         result = typing.cast(
             bigframes.series.Series,
-            series_or_dataframe.to_frame()._perform_join_by_index(keys_df, how="right")[
-                name
-            ],
+            series_or_dataframe.to_frame()._perform_join_by_index(
+                keys_index, how="right", always_order=True
+            )[name],
         )
         result = result.rename(original_name)
     else:
-        result = series_or_dataframe._perform_join_by_index(keys_df, how="right")  # type: ignore
-    result = result.rename_axis(original_index_names)
+        result = series_or_dataframe._perform_join_by_index(
+            keys_index, how="right", always_order=True
+        )
+
+    if drop_levels and series_or_dataframe.index.nlevels > keys_index.nlevels:
+        # drop common levels
+        levels_to_drop = [
+            name for name in series_or_dataframe.index.names if name in keys_index.names
+        ]
+        result = result.droplevel(levels_to_drop)
     return result
+
+
+def _struct_accessor_check_and_warn(
+    series: bigframes.series.Series, index: indexes.Index
+):
+    if not bigframes.dtypes.is_struct_like(series.dtype):
+        # No need to check series that do not have struct values
+        return
+
+    if not bigframes.dtypes.is_string_like(index.dtype):
+        # No need to check indexing with non-string values.
+        return
+
+    if not bigframes.dtypes.is_string_like(series.index.dtype):
+        msg = bfe.format_message(
+            "Are you trying to access struct fields? If so, please use Series.struct.field(...) "
+            "method instead."
+        )
+        # Stack depth from series.__getitem__ to here
+        warnings.warn(msg, stacklevel=7, category=bfe.BadIndexerKeyWarning)
 
 
 @typing.overload
@@ -428,7 +428,7 @@ def _iloc_getitem_series_or_dataframe(
 @typing.overload
 def _iloc_getitem_series_or_dataframe(
     series_or_dataframe: bigframes.dataframe.DataFrame, key
-) -> Union[bigframes.dataframe.DataFrame, pd.Series]:
+) -> Union[bigframes.dataframe.DataFrame, pd.Series, bigframes.core.scalar.Scalar]:
     ...
 
 
@@ -442,38 +442,63 @@ def _iloc_getitem_series_or_dataframe(
     pd.Series,
 ]:
     if isinstance(key, int):
-        internal_slice_result = series_or_dataframe._slice(key, key + 1, 1)
+        stop_key = key + 1 if key != -1 else None
+        internal_slice_result = series_or_dataframe._slice(key, stop_key, 1)
         result_pd_df = internal_slice_result.to_pandas()
         if result_pd_df.empty:
             raise IndexError("single positional indexer is out-of-bounds")
         return result_pd_df.iloc[0]
     elif isinstance(key, slice):
         return series_or_dataframe._slice(key.start, key.stop, key.step)
-    elif isinstance(key, tuple) and len(key) == 0:
-        return series_or_dataframe
-    elif isinstance(key, tuple) and len(key) == 1:
-        return _iloc_getitem_series_or_dataframe(series_or_dataframe, key[0])
-    elif (
-        isinstance(key, tuple)
-        and isinstance(series_or_dataframe, bigframes.dataframe.DataFrame)
-        and len(key) == 2
-    ):
-        return series_or_dataframe.iat[key]
     elif isinstance(key, tuple):
-        raise pd.errors.IndexingError("Too many indexers")
+        if len(key) > 2 or (
+            len(key) == 2 and isinstance(series_or_dataframe, bigframes.series.Series)
+        ):
+            raise pd.errors.IndexingError("Too many indexers")
+
+        if len(key) == 0:
+            return series_or_dataframe
+
+        if len(key) == 1:
+            return _iloc_getitem_series_or_dataframe(series_or_dataframe, key[0])
+
+        # len(key) == 2
+        df = typing.cast(bigframes.dataframe.DataFrame, series_or_dataframe)
+        if isinstance(key[1], int):
+            return df.iat[key]
+        elif isinstance(key[1], list):
+            columns = df.columns[key[1]]
+            return _iloc_getitem_series_or_dataframe(df[columns], key[0])
+        raise NotImplementedError(
+            f"iloc does not yet support indexing with {key}. {constants.FEEDBACK_LINK}"
+        )
     elif pd.api.types.is_list_like(key):
         if len(key) == 0:
             return typing.cast(
                 Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
                 series_or_dataframe.iloc[0:0],
             )
-        df = series_or_dataframe
+
+        # Check if both positive index and negative index are necessary
+        if isinstance(key, (bigframes.series.Series, indexes.Index)):
+            # Avoid data download
+            is_key_unisigned = False
+        else:
+            first_sign = key[0] >= 0
+            is_key_unisigned = True
+            for k in key:
+                if (k >= 0) != first_sign:
+                    is_key_unisigned = False
+                    break
+
         if isinstance(series_or_dataframe, bigframes.series.Series):
             original_series_name = series_or_dataframe.name
             series_name = (
-                original_series_name if original_series_name is not None else "0"
+                original_series_name if original_series_name is not None else 0
             )
             df = series_or_dataframe.to_frame()
+        else:
+            df = series_or_dataframe
         original_index_names = df.index.names
         temporary_index_names = [
             guid.generate_guid(prefix="temp_iloc_index_")
@@ -483,6 +508,32 @@ def _iloc_getitem_series_or_dataframe(
 
         # set to offset index and use regular loc, then restore index
         df = df.reset_index(drop=False)
+        block = df._block
+        # explicitly set index to offsets, reset_index may not generate offsets in some modes
+        block, offsets_id = block.promote_offsets("temp_iloc_offsets_")
+        pos_block = block.set_index([offsets_id])
+
+        if not is_key_unisigned or key[0] < 0:
+            neg_block, size_col_id = block.apply_window_op(
+                offsets_id,
+                ops.aggregations.SizeUnaryOp(),
+                window_spec=windows.rows(),
+            )
+            neg_block, neg_index_id = neg_block.apply_binary_op(
+                offsets_id, size_col_id, ops.SubOp()
+            )
+
+            neg_block = neg_block.set_index([neg_index_id]).drop_columns(
+                [size_col_id, offsets_id]
+            )
+
+        if is_key_unisigned:
+            block = pos_block if key[0] >= 0 else neg_block
+        else:
+            block = pos_block.concat([neg_block], how="inner")
+
+        df = bigframes.dataframe.DataFrame(block)
+
         result = df.loc[key]
         result = result.set_index(temporary_index_names)
         result = result.rename_axis(original_index_names)
@@ -493,11 +544,6 @@ def _iloc_getitem_series_or_dataframe(
             result = result.rename(original_series_name)
 
         return result
-
-    elif isinstance(key, tuple):
-        raise NotImplementedError(
-            f"iloc does not yet support indexing with a (row, column) tuple. {constants.FEEDBACK_LINK}"
-        )
     elif callable(key):
         raise NotImplementedError(
             f"iloc does not yet support indexing with a callable. {constants.FEEDBACK_LINK}"

@@ -11,34 +11,77 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
-from typing import Dict, Union
+import dataclasses
+import typing
+from typing import Collection, Union
 
+import bigframes_vendored.constants as constants
 import geopandas  # type: ignore
 import pandas
 import pandas.arrays
 import pyarrow  # type: ignore
 import pyarrow.compute  # type: ignore
+import pyarrow.types  # type: ignore
 
-import bigframes.constants
+import bigframes.core.schema
+import bigframes.dtypes
+import bigframes.features
+
+
+@dataclasses.dataclass(frozen=True)
+class DataFrameAndLabels:
+    df: pandas.DataFrame
+    column_labels: Collection
+    index_labels: Collection
+    ordering_col: str
+    col_type_overrides: typing.Dict[str, bigframes.dtypes.Dtype]
+
+
+def _arrow_to_pandas_arrowdtype(
+    column: pyarrow.Array, dtype: pandas.ArrowDtype
+) -> pandas.Series:
+    if (
+        pyarrow.types.is_list(dtype.pyarrow_dtype)
+        and not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable
+    ):
+        # This version of pandas doesn't really support ArrowDtype
+        # well. See internal issue 321013333 where array type has
+        # several problems converting a string.
+        return pandas.Series(
+            column.to_pylist(),  # type: ignore
+            dtype="object",
+        )
+
+    # Avoid conversion logic if we are backing the pandas Series by the
+    # arrow array.
+    return pandas.Series(
+        pandas.arrays.ArrowExtensionArray(column),  # type: ignore
+        dtype=dtype,
+    )
 
 
 def arrow_to_pandas(
-    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch], dtypes: Dict
+    arrow_table: Union[pyarrow.Table, pyarrow.RecordBatch],
+    schema: bigframes.core.schema.ArraySchema,
 ):
-    if len(dtypes) != arrow_table.num_columns:
+    if len(schema) != arrow_table.num_columns:
         raise ValueError(
-            f"Number of types {len(dtypes)} doesn't match number of columns "
-            f"{arrow_table.num_columns}. {bigframes.constants.FEEDBACK_LINK}"
+            f"Number of types {len(schema)} doesn't match number of columns "
+            f"{arrow_table.num_columns}. {constants.FEEDBACK_LINK}"
         )
 
     serieses = {}
     for field, column in zip(arrow_table.schema, arrow_table):
-        dtype = dtypes[field.name]
+        dtype = schema.get_type(field.name)
 
         if dtype == geopandas.array.GeometryDtype():
             series = geopandas.GeoSeries.from_wkt(
-                column,
+                # Use `to_pylist()` is a workaround for TypeError: object of type
+                # 'pyarrow.lib.StringScalar' has no len() on older pyarrow,
+                # geopandas, shapely combinations.
+                column.to_pylist(),
                 # BigQuery geography type is based on the WGS84 reference ellipsoid.
                 crs="EPSG:4326",
             )
@@ -74,13 +117,14 @@ def arrow_to_pandas(
                 else mask.to_numpy(zero_copy_only=False),
             )
             series = pandas.Series(pd_array, dtype=dtype)
-        elif isinstance(dtype, pandas.ArrowDtype):
-            # Avoid conversion logic if we are backing the pandas Series by the
-            # arrow array.
-            series = pandas.Series(
-                pandas.arrays.ArrowExtensionArray(column),  # type: ignore
-                dtype=dtype,
+        elif dtype == bigframes.dtypes.STRING_DTYPE:
+            # Pyarrow may be large_string
+            # Need to manually cast, as some pandas versions break otherwise
+            series = column.cast(pyarrow.string()).to_pandas(
+                types_mapper=lambda _: dtype
             )
+        elif isinstance(dtype, pandas.ArrowDtype):
+            series = _arrow_to_pandas_arrowdtype(column, dtype)
         else:
             series = column.to_pandas(types_mapper=lambda _: dtype)
 

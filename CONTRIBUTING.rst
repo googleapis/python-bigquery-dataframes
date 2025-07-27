@@ -22,7 +22,7 @@ In order to add a feature:
   documentation.
 
 - The feature must work fully on the following CPython versions:
-  3.9, 3.10 and 3.11 on both UNIX and Windows.
+  3.9, 3.10, 3.11, 3.12 and 3.13 on both UNIX and Windows.
 
 - The feature must not add unnecessary dependencies (where
   "unnecessary" is of course subjective, but new dependencies should
@@ -72,7 +72,7 @@ We use `nox <https://nox.readthedocs.io/en/latest/>`__ to instrument our tests.
 
 - To run a single unit test::
 
-    $ nox -s unit-3.11 -- -k <name of test>
+    $ nox -s unit-3.13 -- -k <name of test>
 
 
   .. note::
@@ -143,19 +143,56 @@ Running System Tests
    $ nox -s system
 
    # Run a single system test
-   $ nox -s system-3.11 -- -k <name of test>
+   $ nox -s system-3.13 -- -k <name of test>
 
 
   .. note::
 
-      System tests are only configured to run under Python 3.9 and 3.11.
+      System tests are only configured to run under Python 3.9, 3.11, 3.12 and 3.13.
       For expediency, we do not run them in older versions of Python 3.
 
   This alone will not run the tests. You'll need to change some local
   auth settings and change some configuration in your project to
   run all the tests.
 
-- System tests will be run against an actual project. You should use local credentials from gcloud when possible. See `Best practices for application authentication <https://cloud.google.com/docs/authentication/best-practices-applications#local_development_and_testing_with_the>`__. Some tests require a service account. For those tests see `Authenticating as a service account <https://cloud.google.com/docs/authentication/production>`__.
+- System tests will be run against an actual project. A project can be set in
+  the environment variable ``$GOOGLE_CLOUD_PROJECT``. If not, the project property
+  set in the `Google Cloud CLI <https://cloud.google.com/sdk/gcloud/reference/config/get>`__
+  will be effective, which can be peeked into via ``gcloud config get project``,
+  or set via ``gcloud config set project <project-name>``. The following roles
+  carry the permissions to run the system tests in the project:
+
+  - `BigQuery User <https://cloud.google.com/bigquery/docs/access-control#bigquery.user>`__
+    to be able to create test datasets and run BigQuery jobs in the project.
+
+  - `BigQuery Connection Admin <https://cloud.google.com/bigquery/docs/access-control#bigquery.connectionAdmin>`__
+    to be able to use BigQuery connections in the project.
+
+  - `BigQuery Data Editor <https://cloud.google.com/bigquery/docs/access-control#bigquery.dataEditor>`__
+    to be able to create BigQuery remote functions in the project.
+
+  - `Browser <https://cloud.google.com/resource-manager/docs/access-control-proj#browser>`__
+    to be able to get current IAM policy for the service accounts of the BigQuery connections in the project.
+
+  - `Cloud Functions Developer <https://cloud.google.com/functions/docs/reference/iam/roles#cloudfunctions.developer>`__
+    to be able to create cloud functions to support BigQuery DataFrames remote functions.
+
+  - `Service Account User <https://cloud.google.com/iam/docs/service-account-permissions#user-role>`__
+    to be able to use the project's service accounts.
+
+  - `Vertex AI User <https://cloud.google.com/vertex-ai/docs/general/access-control#aiplatform.user>`__
+    to be able to use the BigQuery DataFrames' ML integration with Vertex AI.
+
+- You can run the script ``scripts/setup-project-for-testing.sh <project-id> [<principal>]``
+  to set up a project for running system tests and optionally set up necessary
+  IAM roles for a principal (user/group/service-account). You need to have the following
+  IAM permission to be able to run the set up script successfully:
+
+  - ``serviceusage.services.enable``
+  - ``bigquery.connections.create``
+  - ``resourcemanager.projects.setIamPolicy``
+
+- You should use local credentials from gcloud when possible. See `Best practices for application authentication <https://cloud.google.com/docs/authentication/best-practices-applications#local_development_and_testing_with_the>`__. Some tests require a service account. For those tests see `Authenticating as a service account <https://cloud.google.com/docs/authentication/production>`__.
 
 *************
 Test Coverage
@@ -224,10 +261,14 @@ We support:
 -  `Python 3.9`_
 -  `Python 3.10`_
 -  `Python 3.11`_
+-  `Python 3.12`_
+-  `Python 3.13`_
 
 .. _Python 3.9: https://docs.python.org/3.9/
 .. _Python 3.10: https://docs.python.org/3.10/
 .. _Python 3.11: https://docs.python.org/3.11/
+.. _Python 3.12: https://docs.python.org/3.12/
+.. _Python 3.13: https://docs.python.org/3.13/
 
 
 Supported versions can be found in our ``noxfile.py`` `config`_.

@@ -19,11 +19,15 @@ API Reference
 
     imported
 
+    impute
+
     linear_model
 
     llm
 
     metrics
+
+    metrics.pairwise
 
     model_selection
 

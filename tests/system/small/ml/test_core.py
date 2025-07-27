@@ -14,7 +14,6 @@
 
 from datetime import datetime
 import typing
-from unittest import TestCase
 
 import pandas as pd
 import pyarrow as pa
@@ -22,8 +21,9 @@ import pytest
 import pytz
 
 import bigframes
+import bigframes.features
 from bigframes.ml import core
-import tests.system.utils
+from bigframes.testing import utils
 
 
 def test_model_eval(
@@ -210,12 +210,12 @@ def test_pca_model_principal_components(penguins_bqml_pca_model: core.BqmlModel)
         .sort_values(["principal_component_id", "feature"])
         .reset_index(drop=True)
     )
-    pd.testing.assert_frame_equal(
+
+    utils.assert_pandas_df_equal_pca_components(
         result,
         expected,
         check_exact=False,
         rtol=0.1,
-        # int64 Index by default in pandas versus Int64 (nullable) Index in BigQuery DataFrame
         check_index_type=False,
         check_dtype=False,
     )
@@ -233,7 +233,7 @@ def test_pca_model_principal_component_info(penguins_bqml_pca_model: core.BqmlMo
             "cumulative_explained_variance_ratio": [0.469357, 0.651283, 0.812383],
         },
     )
-    tests.system.utils.assert_pandas_df_equal(
+    utils.assert_pandas_df_equal(
         result,
         expected,
         check_exact=False,
@@ -260,10 +260,32 @@ def test_model_predict(penguins_bqml_linear_model: core.BqmlModel, new_penguins_
     )
 
 
+def test_model_predict_explain(
+    penguins_bqml_linear_model: core.BqmlModel, new_penguins_df
+):
+    options = {"top_k_features": 3}
+    predictions = penguins_bqml_linear_model.explain_predict(
+        new_penguins_df, options
+    ).to_pandas()
+    expected = pd.DataFrame(
+        {
+            "predicted_body_mass_g": [4030.1, 3280.8, 3177.9],
+            "approximation_error": [0.0, 0.0, 0.0],
+        },
+        dtype="Float64",
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_body_mass_g", "approximation_error"]].sort_index(),
+        expected,
+        check_exact=False,
+        rtol=0.1,
+    )
+
+
 def test_model_predict_with_unnamed_index(
     penguins_bqml_linear_model: core.BqmlModel, new_penguins_df
 ):
-
     # This will result in an index that lacks a name, which the ML library will
     # need to persist through the call to ML.PREDICT
     new_penguins_df = new_penguins_df.reset_index()
@@ -289,14 +311,77 @@ def test_model_predict_with_unnamed_index(
     )
 
 
+def test_model_predict_explain_with_unnamed_index(
+    penguins_bqml_linear_model: core.BqmlModel, new_penguins_df
+):
+    # This will result in an index that lacks a name, which the ML library will
+    # need to persist through the call to ML.PREDICT
+    new_penguins_df = new_penguins_df.reset_index()
+
+    options = {"top_k_features": 3}
+    # remove the middle tag number to ensure we're really keeping the unnamed index
+    new_penguins_df = typing.cast(
+        bigframes.dataframe.DataFrame,
+        new_penguins_df[new_penguins_df.tag_number != 1672],
+    )
+
+    predictions = penguins_bqml_linear_model.explain_predict(
+        new_penguins_df, options
+    ).to_pandas()
+
+    expected = pd.DataFrame(
+        {
+            "predicted_body_mass_g": [4030.1, 3177.9],
+            "approximation_error": [0.0, 0.0],
+        },
+        dtype="Float64",
+        index=pd.Index([0, 2], dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        predictions[["predicted_body_mass_g", "approximation_error"]].sort_index(),
+        expected,
+        check_exact=False,
+        rtol=0.1,
+    )
+
+
+def test_model_detect_anomalies(
+    penguins_bqml_pca_model: core.BqmlModel, new_penguins_df
+):
+    options = {"contamination": 0.25}
+    anomalies = penguins_bqml_pca_model.detect_anomalies(
+        new_penguins_df, options
+    ).to_pandas()
+    expected = pd.DataFrame(
+        {
+            "is_anomaly": [True, True, True],
+            "mean_squared_error": [0.254188, 0.731243, 0.298889],
+        },
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+    pd.testing.assert_frame_equal(
+        anomalies[["is_anomaly", "mean_squared_error"]].sort_index(),
+        expected,
+        check_exact=False,
+        check_dtype=False,
+        rtol=0.1,
+    )
+
+
+@pytest.mark.skip("b/353775058 BQML internal error")
 def test_remote_model_predict(
     bqml_linear_remote_model: core.BqmlModel, new_penguins_df
 ):
-    predictions = bqml_linear_remote_model.predict(new_penguins_df).to_pandas()
     expected = pd.DataFrame(
         {"predicted_body_mass_g": [[3739.54], [3675.79], [3619.54]]},
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+        dtype=(
+            pd.ArrowDtype(pa.list_(pa.float64()))
+            if bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable
+            else "object"
+        ),
     )
+    predictions = bqml_linear_remote_model.predict(new_penguins_df).to_pandas()
     pd.testing.assert_frame_equal(
         predictions[["predicted_body_mass_g"]].sort_index(),
         expected,
@@ -305,50 +390,65 @@ def test_remote_model_predict(
     )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
-def test_model_generate_text(
-    bqml_palm2_text_generator_model: core.BqmlModel, llm_text_df
+@pytest.mark.parametrize("id_col_name", [None, "id"])
+def test_model_forecast(
+    time_series_bqml_arima_plus_model: core.BqmlModel,
+    time_series_bqml_arima_plus_model_w_id: core.BqmlModel,
+    id_col_name,
 ):
-    options = {
-        "temperature": 0.5,
-        "max_output_tokens": 100,
-        "top_k": 20,
-        "top_p": 0.5,
-        "flatten_json_output": True,
-    }
-    df = bqml_palm2_text_generator_model.generate_text(
-        llm_text_df, options=options
-    ).to_pandas()
-
-    TestCase().assertSequenceEqual(df.shape, (3, 4))
-    TestCase().assertSequenceEqual(
-        [
-            "ml_generate_text_llm_result",
-            "ml_generate_text_rai_result",
-            "ml_generate_text_status",
-            "prompt",
-        ],
-        df.columns.to_list(),
-    )
-    series = df["ml_generate_text_llm_result"]
-    assert all(series.str.len() > 20)
-
-
-def test_model_forecast(time_series_bqml_arima_plus_model: core.BqmlModel):
     utc = pytz.utc
-    forecast = time_series_bqml_arima_plus_model.forecast().to_pandas()[
-        ["forecast_timestamp", "forecast_value"]
-    ]
-    expected = pd.DataFrame(
-        {
-            "forecast_timestamp": [
-                datetime(2017, 8, 2, tzinfo=utc),
-                datetime(2017, 8, 3, tzinfo=utc),
-                datetime(2017, 8, 4, tzinfo=utc),
-            ],
-            "forecast_value": [2724.472284, 2593.368389, 2353.613034],
-        }
-    )
+    forecast_cols = ["forecast_timestamp", "forecast_value"]
+    if id_col_name:
+        forecast_cols.insert(0, id_col_name)
+
+    forecast = (
+        time_series_bqml_arima_plus_model_w_id.forecast(
+            {"horizon": 4, "confidence_level": 0.8}
+        )
+        if id_col_name
+        else time_series_bqml_arima_plus_model.forecast(
+            {"horizon": 4, "confidence_level": 0.8}
+        )
+    ).to_pandas()[forecast_cols]
+    if id_col_name:
+        expected = pd.DataFrame(
+            {
+                "id": ["1", "2", "1", "2", "1", "2", "1", "2"],
+                "forecast_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 5, tzinfo=utc),
+                    datetime(2017, 8, 5, tzinfo=utc),
+                ],
+                "forecast_value": [
+                    2634.796023,
+                    2634.796023,
+                    2621.332462,
+                    2621.332462,
+                    2396.095463,
+                    2396.095463,
+                    1742.878278,
+                    1742.878278,
+                ],
+            }
+        )
+        expected["id"] = expected["id"].astype("string[pyarrow]")
+    else:
+        expected = pd.DataFrame(
+            {
+                "forecast_timestamp": [
+                    datetime(2017, 8, 2, tzinfo=utc),
+                    datetime(2017, 8, 3, tzinfo=utc),
+                    datetime(2017, 8, 4, tzinfo=utc),
+                    datetime(2017, 8, 5, tzinfo=utc),
+                ],
+                "forecast_value": [2634.796023, 2621.332462, 2396.095463, 1742.878278],
+            }
+        )
     expected["forecast_value"] = expected["forecast_value"].astype(pd.Float64Dtype())
     expected["forecast_timestamp"] = expected["forecast_timestamp"].astype(
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
@@ -361,16 +461,25 @@ def test_model_forecast(time_series_bqml_arima_plus_model: core.BqmlModel):
     )
 
 
-def test_model_register(ephemera_penguins_bqml_linear_model):
+def test_model_register(ephemera_penguins_bqml_linear_model: core.BqmlModel):
     model = ephemera_penguins_bqml_linear_model
+
+    start_execution_count = model.session._metrics.execution_count
+
     model.register()
 
+    end_execution_count = model.session._metrics.execution_count
+    assert end_execution_count - start_execution_count == 1
+
+    assert model.model.model_id is not None
     model_name = "bigframes_" + model.model.model_id
     # Only registered model contains the field, and the field includes project/dataset. Here only check model_id.
     assert model_name in model.model.training_runs[-1]["vertexAiModelId"]
 
 
-def test_model_register_with_params(ephemera_penguins_bqml_linear_model):
+def test_model_register_with_params(
+    ephemera_penguins_bqml_linear_model: core.BqmlModel,
+):
     model_name = "bigframes_system_test_model"
     model = ephemera_penguins_bqml_linear_model
     model.register(model_name)

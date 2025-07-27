@@ -17,16 +17,15 @@
 
 import datetime
 import random
-from typing import Any, Optional, Union
+from typing import Any, Optional, Type, Union
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions as api_core_exceptions
 import google.cloud.bigquery as bigquery
 import humanize
 import IPython
 import IPython.display as display
 import ipywidgets as widgets
-
-import bigframes.constants as constants
 
 GenericJob = Union[
     bigquery.LoadJob, bigquery.ExtractJob, bigquery.QueryJob, bigquery.CopyJob
@@ -47,6 +46,16 @@ def add_feedback_link(
     ]
 ):
     exception.message = exception.message + f" {constants.FEEDBACK_LINK}"
+
+
+def create_exception_with_feedback_link(
+    exception: Type[Exception],
+    arg: str = "",
+):
+    if arg:
+        return exception(arg + f" {constants.FEEDBACK_LINK}")
+
+    return exception(constants.FEEDBACK_LINK)
 
 
 def repr_query_job_html(query_job: Optional[bigquery.QueryJob]):
@@ -113,6 +122,7 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
 def wait_for_query_job(
     query_job: bigquery.QueryJob,
     max_results: Optional[int] = None,
+    page_size: Optional[int] = None,
     progress_bar: Optional[str] = None,
 ) -> bigquery.table.RowIterator:
     """Return query results. Displays a progress bar while the query is running
@@ -121,6 +131,8 @@ def wait_for_query_job(
             The job representing the execution of the query on the server.
         max_results (int, Optional):
             The maximum number of rows the row iterator should return.
+        page_size (int, Optional):
+            The number of results to return on each results page.
         progress_bar (str, Optional):
             Which progress bar to show.
     Returns:
@@ -134,7 +146,9 @@ def wait_for_query_job(
             display_id = str(random.random())
             loading_bar = display.HTML(get_query_job_loading_html(query_job))
             display.display(loading_bar, display_id=display_id)
-            query_result = query_job.result(max_results=max_results)
+            query_result = query_job.result(
+                max_results=max_results, page_size=page_size
+            )
             query_job.reload()
             display.update_display(
                 display.HTML(get_query_job_loading_html(query_job)),
@@ -143,13 +157,17 @@ def wait_for_query_job(
         elif progress_bar == "terminal":
             initial_loading_bar = get_query_job_loading_string(query_job)
             print(initial_loading_bar)
-            query_result = query_job.result(max_results=max_results)
+            query_result = query_job.result(
+                max_results=max_results, page_size=page_size
+            )
             query_job.reload()
             if initial_loading_bar != get_query_job_loading_string(query_job):
                 print(get_query_job_loading_string(query_job))
         else:
             # No progress bar.
-            query_result = query_job.result(max_results=max_results)
+            query_result = query_job.result(
+                max_results=max_results, page_size=page_size
+            )
             query_job.reload()
         return query_result
     except api_core_exceptions.RetryError as exc:

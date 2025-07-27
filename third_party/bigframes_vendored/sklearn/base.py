@@ -81,13 +81,13 @@ class ClassifierMixin:
     def score(self, X, y):
         """Return the mean accuracy on the given test data and labels.
 
-        In multi-label classification, this is the subset accuracy
-        which is a harsh metric since you require for each sample that
-        each label set be correctly predicted.
+        In multi-label classification, this is the subset accuracy,
+        which is a harsh metric since you require that
+        each label set be correctly predicted for each sample.
 
         .. note::
 
-            Output matches that of the BigQuery ML.EVALUTE function.
+            Output matches that of the BigQuery ML.EVALUATE function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#classification_models
             for the outputs relevant to this model type.
 
@@ -115,7 +115,7 @@ class RegressorMixin:
 
         .. note::
 
-            Output matches that of the BigQuery ML.EVALUTE function.
+            Output matches that of the BigQuery ML.EVALUATE function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#regression_models
             for the outputs relevant to this model type.
 
@@ -153,7 +153,7 @@ class TransformerMixin:
                 Target values (None for unsupervised transformations).
 
         Returns:
-            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_features_new)
+            bigframes.dataframe.DataFrame: DataFrame of shape (n_samples, n_features_new).
                 Transformed DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

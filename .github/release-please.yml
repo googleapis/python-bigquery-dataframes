@@ -1,2 +1,10 @@
 releaseType: python
 handleGHRelease: true
+extraFiles:
+  - bigframes/version.py
+  - third_party/bigframes_vendored/version.py
+
+branches:
+  - branch: v1
+    handleGHRelease: true
+    releaseType: python

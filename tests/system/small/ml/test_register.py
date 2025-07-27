@@ -14,7 +14,7 @@
 
 from typing import cast
 
-from bigframes.ml import core, imported, linear_model, llm
+from bigframes.ml import core, imported, linear_model
 
 
 def test_linear_reg_register(
@@ -42,24 +42,6 @@ def test_linear_reg_register_with_params(
     model = ephemera_penguins_linear_model
     model.register(model_name)
 
-    # Only registered model contains the field, and the field includes project/dataset. Here only check model_id.
-    assert (
-        model_name[:63]  # truncated
-        in cast(core.BqmlModel, model._bqml_model).model.training_runs[-1][
-            "vertexAiModelId"
-        ]
-    )
-
-
-def test_palm2_text_generator_register(
-    ephemera_palm2_text_generator_model: llm.PaLM2TextGenerator,
-):
-    model = ephemera_palm2_text_generator_model
-    model.register()
-
-    model_name = "bigframes_" + cast(
-        str, cast(core.BqmlModel, model._bqml_model).model.model_id
-    )
     # Only registered model contains the field, and the field includes project/dataset. Here only check model_id.
     assert (
         model_name[:63]  # truncated

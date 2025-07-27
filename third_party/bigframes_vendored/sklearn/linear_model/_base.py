@@ -17,12 +17,13 @@ Generalized Linear Models.
 
 from abc import ABCMeta
 
-from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import (
+from bigframes_vendored.sklearn.base import (
     BaseEstimator,
     ClassifierMixin,
     RegressorMixin,
 )
+
+from bigframes import constants
 
 
 class LinearModel(BaseEstimator, metaclass=ABCMeta):
@@ -30,7 +31,7 @@ class LinearModel(BaseEstimator, metaclass=ABCMeta):
         """Predict using the linear model.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). Samples.
 
         Returns:
@@ -44,7 +45,7 @@ class LinearClassifierMixin(ClassifierMixin):
         """Predict class labels for samples in X.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). The data matrix for
                 which we want to get the predictions.
 
@@ -61,27 +62,55 @@ class LinearRegression(RegressorMixin, LinearModel):
     to minimize the residual sum of squares between the observed targets in
     the dataset, and the targets predicted by the linear approximation.
 
+    **Examples:**
+
+        >>> from bigframes.ml.linear_model import LinearRegression
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
+        >>> X = bpd.DataFrame({ \
+                "feature0": [20, 21, 19, 18], \
+                "feature1": [0, 1, 1, 0], \
+                "feature2": [0.2, 0.3, 0.4, 0.5]})
+        >>> y = bpd.DataFrame({"outcome": [0, 0, 1, 1]})
+        >>> # Create the linear model
+        >>> model = LinearRegression()
+        >>> model.fit(X, y)
+        LinearRegression()
+
+        >>> # Score the model
+        >>> score = model.score(X, y)
+        >>> print(score) # doctest:+SKIP
+            mean_absolute_error  mean_squared_error  mean_squared_log_error  \
+        0             0.022812            0.000602                 0.00035
+            median_absolute_error  r2_score  explained_variance
+        0               0.015077  0.997591            0.997591
+
+
     Args:
-        optimize_strategy (str, default "normal_equation"):
+        optimize_strategy (str, default "auto_strategy"):
             The strategy to train linear regression models. Possible values are
             "auto_strategy", "batch_gradient_descent", "normal_equation". Default
-            to "normal_equation".
+            to "auto_strategy".
         fit_intercept (bool, default True):
             Default ``True``. Whether to calculate the intercept for this
             model. If set to False, no intercept will be used in calculations
             (i.e. data is expected to be centered).
+        l1_reg (float or None, default None):
+            The amount of L1 regularization applied. Default to None. Can't be set in "normal_equation" mode. If unset, value 0 is used.
         l2_reg (float, default 0.0):
             The amount of L2 regularization applied. Default to 0.
         max_iterations (int, default 20):
             The maximum number of training iterations or steps. Default to 20.
-        learn_rate_strategy (str, default "line_search"):
+        warm_start (bool, default False):
+            Determines whether to train a model with new training data, new model options, or both. Unless you explicitly override them, the initial options used to train the model are used for the warm start run. Default to False.
+        learning_rate (float or None, default None):
+            The learn rate for gradient descent when learning_rate_strategy='constant'. If unset, value 0.1 is used. If learning_rate_strategy='line_search', an error is returned.
+        learning_rate_strategy (str, default "line_search"):
             The strategy for specifying the learning rate during training. Default to "line_search".
-        early_stop (bool, default True):
-            Whether training should stop after the first iteration in which the relative loss improvement is less than the value specified for min_rel_progress. Default to True.
-        min_rel_progress (float, default 0.01):
+        tol (float, default 0.01):
             The minimum relative loss improvement that is necessary to continue training when EARLY_STOP is set to true. For example, a value of 0.01 specifies that each iteration must reduce the loss by 1% for training to continue. Default to 0.01.
-        ls_init_learn_rate (float, default 0.1):
-            Sets the initial learning rate that learn_rate_strategy='line_search' uses. This option can only be used if line_search is specified. Default to 0.1.
+        ls_init_learning_rate (float or None, default None):
+            Sets the initial learning rate that learning_rate_strategy='line_search' uses. This option can only be used if line_search is specified. If unset, value 0.1 is used.
         calculate_p_values (bool, default False):
             Specifies whether to compute p-values and standard errors during training. Default to False.
         enable_global_explain (bool, default False):
@@ -96,14 +125,21 @@ class LinearRegression(RegressorMixin, LinearModel):
         """Fit linear model.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or DataFrame of shape (n_samples, n_features). Training data.
 
-            y (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            y (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 Series or DataFrame of shape (n_samples,) or (n_samples, n_targets).
                 Target values. Will be cast to X's dtype if necessary.
 
+            X_eval (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or DataFrame of shape (n_samples, n_features). Evaluation data.
+
+            y_eval (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or DataFrame of shape (n_samples,) or (n_samples, n_targets).
+                Evaluation target values. Will be cast to X_eval's dtype if necessary.
+
         Returns:
-            LinearRegression: Fitted Estimator.
+            LinearRegression: Fitted estimator.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

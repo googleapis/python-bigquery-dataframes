@@ -20,6 +20,7 @@ repos:
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
+        exclude: "^tests/unit/core/compile/sqlglot/snapshots"
     -   id: check-yaml
 -   repo: https://github.com/pycqa/isort
     rev: 5.12.0
@@ -31,11 +32,18 @@ repos:
     hooks:
     - id: black
 -   repo: https://github.com/pycqa/flake8
-    rev: 6.1.0
+    rev: 7.1.2
     hooks:
     - id: flake8
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.1.1
+    rev: v1.15.0
     hooks:
     -   id: mypy
-        additional_dependencies: [types-requests, types-tabulate]
+        additional_dependencies: [types-requests, types-tabulate, types-PyYAML, pandas-stubs<=2.2.3.241126]
+        exclude: "^third_party"
+        args: ["--check-untyped-defs", "--explicit-package-bases", "--ignore-missing-imports"]
+-   repo: https://github.com/biomejs/pre-commit
+    rev: v2.0.2
+    hooks:
+    -   id: biome-check
+        files: '\.js$'

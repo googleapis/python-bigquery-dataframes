@@ -13,15 +13,20 @@
 # limitations under the License.
 from __future__ import annotations
 
+import functools
 import typing
+from typing import Optional, Sequence
 
+import bigframes_vendored.constants as constants
 import pandas as pd
 
-import bigframes.constants as constants
+import bigframes.constants
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.core.expression as ex
 import bigframes.core.ordering as ordering
 import bigframes.core.window_spec as windows
+import bigframes.dtypes
 import bigframes.dtypes as dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -37,23 +42,18 @@ def equals(block1: blocks.Block, block2: blocks.Block) -> bool:
     block1 = block1.reset_index(drop=False)
     block2 = block2.reset_index(drop=False)
 
-    joined, (lmap, rmap) = block1.index.join(block2.index, how="outer")
-    joined_block = joined._block
+    joined_block, (lmap, rmap) = block1.join(block2, how="outer")
 
-    equality_ids = []
+    exprs = []
     for lcol, rcol in zip(block1.value_columns, block2.value_columns):
-        lcolmapped = lmap[lcol]
-        rcolmapped = rmap[rcol]
-        joined_block, result_id = joined_block.apply_binary_op(
-            lcolmapped, rcolmapped, ops.eq_nulls_match_op
+        exprs.append(
+            ops.fillna_op.as_expr(
+                ops.eq_null_match_op.as_expr(lmap[lcol], rmap[rcol]), ex.const(False)
+            )
         )
-        joined_block, result_id = joined_block.apply_unary_op(
-            result_id, ops.partial_right(ops.fillna_op, False)
-        )
-        equality_ids.append(result_id)
 
-    joined_block = joined_block.select_columns(equality_ids).with_column_labels(
-        list(range(len(equality_ids)))
+    joined_block = joined_block.project_exprs(
+        exprs, labels=list(range(len(exprs))), drop=True
     )
     stacked_block = joined_block.stack()
     result = stacked_block.get_stat(stacked_block.value_columns[0], agg_ops.all_op)
@@ -70,30 +70,28 @@ def indicate_duplicates(
     if keep == "first":
         # Count how many copies occur up to current copy of value
         # Discard this value if there are copies BEFORE
-        window_spec = windows.WindowSpec(
+        window_spec = windows.cumulative_rows(
             grouping_keys=tuple(columns),
-            following=0,
         )
     elif keep == "last":
         # Count how many copies occur up to current copy of values
         # Discard this value if there are copies AFTER
-        window_spec = windows.WindowSpec(
+        window_spec = windows.inverse_cumulative_rows(
             grouping_keys=tuple(columns),
-            preceding=0,
         )
     else:  # keep == False
         # Count how many copies of the value occur in entire series.
         # Discard this value if there are copies ANYWHERE
-        window_spec = windows.WindowSpec(grouping_keys=tuple(columns))
+        window_spec = windows.unbound(grouping_keys=tuple(columns))
     block, dummy = block.create_constant(1)
+    # use row number as will work even with partial ordering
     block, val_count_col_id = block.apply_window_op(
         dummy,
-        agg_ops.count_op,
+        agg_ops.sum_op,
         window_spec=window_spec,
     )
-    block, duplicate_indicator = block.apply_unary_op(
-        val_count_col_id,
-        ops.partial_right(ops.gt_op, 1),
+    block, duplicate_indicator = block.project_expr(
+        ops.gt_op.as_expr(val_count_col_id, ex.const(1))
     )
     return (
         block.drop_columns(
@@ -104,6 +102,44 @@ def indicate_duplicates(
         ),
         duplicate_indicator,
     )
+
+
+def quantile(
+    block: blocks.Block,
+    columns: Sequence[str],
+    qs: Sequence[float],
+    grouping_column_ids: Sequence[str] = (),
+    dropna: bool = False,
+) -> blocks.Block:
+    # TODO: handle windowing and more interpolation methods
+    window = windows.unbound(
+        grouping_keys=tuple(grouping_column_ids),
+    )
+    quantile_cols = []
+    labels = []
+    if len(columns) * len(qs) > bigframes.constants.MAX_COLUMNS:
+        raise NotImplementedError("Too many aggregates requested.")
+    for col in columns:
+        for q in qs:
+            label = block.col_id_to_label[col]
+            new_label = (*label, q) if isinstance(label, tuple) else (label, q)
+            labels.append(new_label)
+            block, quantile_col = block.apply_window_op(
+                col,
+                agg_ops.QuantileOp(q),
+                window_spec=window,
+            )
+            quantile_cols.append(quantile_col)
+    block, _ = block.aggregate(
+        grouping_column_ids,
+        tuple(
+            ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col))
+            for col in quantile_cols
+        ),
+        column_labels=pd.Index(labels),
+        dropna=dropna,
+    )
+    return block
 
 
 def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
@@ -131,7 +167,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         if len(index_columns) != 1:
             raise ValueError("only method 'linear' supports multi-index")
         xvalues = block.index_columns[0]
-        if block.index_dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES:
+        if block.index.dtypes[0] not in dtypes.NUMERIC_BIGFRAMES_TYPES_PERMISSIVE:
             raise ValueError("Can only interpolate on numeric index.")
 
     for column in original_columns:
@@ -163,8 +199,7 @@ def interpolate(block: blocks.Block, method: str = "linear") -> blocks.Block:
         else:
             output_column_ids.append(column)
 
-    # Force reproject since used `skip_project_unsafe` perviously
-    block = block.select_columns(output_column_ids)._force_reproject()
+    block = block.select_columns(output_column_ids)
     return block.with_column_labels(original_labels)
 
 
@@ -177,14 +212,14 @@ def _interpolate_column(
 ) -> typing.Tuple[blocks.Block, str]:
     if interpolate_method not in ["linear", "nearest", "ffill"]:
         raise ValueError("interpolate method not supported")
-    window_ordering = (ordering.OrderingColumnReference(x_values),)
-    backwards_window = windows.WindowSpec(following=0, ordering=window_ordering)
-    forwards_window = windows.WindowSpec(preceding=0, ordering=window_ordering)
+    window_ordering = (ordering.OrderingExpression(ex.deref(x_values)),)
+    backwards_window = windows.rows(end=0, ordering=window_ordering)
+    forwards_window = windows.rows(start=0, ordering=window_ordering)
 
     # Note, this method may
     block, notnull = block.apply_unary_op(column, ops.notnull_op)
-    block, masked_offsets = block.apply_binary_op(
-        x_values, notnull, ops.partial_arg3(ops.where_op, None)
+    block, masked_offsets = block.project_expr(
+        ops.where_op.as_expr(x_values, notnull, ex.const(None))
     )
 
     block, previous_value = block.apply_window_op(
@@ -271,25 +306,22 @@ def _interpolate_points_nearest(
     xpredict_id: str,
 ) -> typing.Tuple[blocks.Block, str]:
     """Interpolate by taking the y value of the nearest x value"""
-    block, left_diff = block.apply_binary_op(xpredict_id, x0_id, ops.sub_op)
-    block, right_diff = block.apply_binary_op(x1_id, xpredict_id, ops.sub_op)
+    left_diff = ops.sub_op.as_expr(xpredict_id, x0_id)
+    right_diff = ops.sub_op.as_expr(x1_id, xpredict_id)
     # If diffs equal, choose left
-    block, choose_left = block.apply_binary_op(left_diff, right_diff, ops.le_op)
-    block, choose_left = block.apply_unary_op(
-        choose_left, ops.partial_right(ops.fillna_op, False)
+    choose_left = ops.fillna_op.as_expr(
+        ops.le_op.as_expr(left_diff, right_diff), ex.const(False)
     )
 
-    block, nearest = block.apply_ternary_op(y0_id, choose_left, y1_id, ops.where_op)
+    nearest = ops.where_op.as_expr(y0_id, choose_left, y1_id)
 
-    block, y0_exists = block.apply_unary_op(y0_id, ops.notnull_op)
-    block, y1_exists = block.apply_unary_op(y1_id, ops.notnull_op)
-    block, is_interpolation = block.apply_binary_op(y0_exists, y1_exists, ops.and_op)
-
-    block, prediction_id = block.apply_binary_op(
-        nearest, is_interpolation, ops.partial_arg3(ops.where_op, None)
+    is_interpolation = ops.and_op.as_expr(
+        ops.notnull_op.as_expr(y0_id), ops.notnull_op.as_expr(y1_id)
     )
 
-    return block, prediction_id
+    return block.project_expr(
+        ops.where_op.as_expr(nearest, is_interpolation, ex.const(None))
+    )
 
 
 def _interpolate_points_ffill(
@@ -302,11 +334,9 @@ def _interpolate_points_ffill(
 ) -> typing.Tuple[blocks.Block, str]:
     """Interpolates by using the preceding values"""
     # check for existance of y1, otherwise we are extrapolating instead of interpolating
-    block, y1_exists = block.apply_unary_op(y1_id, ops.notnull_op)
-    block, prediction_id = block.apply_binary_op(
-        y0_id, y1_exists, ops.partial_arg3(ops.where_op, None)
+    return block.project_expr(
+        ops.where_op.as_expr(y0_id, ops.notnull_op.as_expr(y1_id), ex.const(None))
     )
-    return block, prediction_id
 
 
 def drop_duplicates(
@@ -314,7 +344,7 @@ def drop_duplicates(
 ) -> blocks.Block:
     block, dupe_indicator_id = indicate_duplicates(block, columns, keep)
     block, keep_indicator_id = block.apply_unary_op(dupe_indicator_id, ops.invert_op)
-    return block.filter(keep_indicator_id).drop_columns(
+    return block.filter_by_id(keep_indicator_id).drop_columns(
         (dupe_indicator_id, keep_indicator_id)
     )
 
@@ -330,13 +360,12 @@ def value_counts(
     block, dummy = block.create_constant(1)
     block, agg_ids = block.aggregate(
         by_column_ids=columns,
-        aggregations=[(dummy, agg_ops.count_op)],
+        aggregations=[ex.UnaryAggregation(agg_ops.count_op, ex.deref(dummy))],
         dropna=dropna,
-        as_index=True,
     )
     count_id = agg_ids[0]
     if normalize:
-        unbound_window = windows.WindowSpec()
+        unbound_window = windows.unbound()
         block, total_count_id = block.apply_window_op(
             count_id, agg_ops.sum_op, unbound_window
         )
@@ -345,34 +374,35 @@ def value_counts(
     if sort:
         block = block.order_by(
             [
-                ordering.OrderingColumnReference(
-                    count_id,
+                ordering.OrderingExpression(
+                    ex.deref(count_id),
                     direction=ordering.OrderingDirection.ASC
                     if ascending
                     else ordering.OrderingDirection.DESC,
                 )
             ]
         )
-    return block.select_column(count_id).with_column_labels(["count"])
+    return block.select_column(count_id).with_column_labels(
+        ["proportion" if normalize else "count"]
+    )
 
 
 def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     column_labels = block.column_labels
-    window_spec = windows.WindowSpec(
-        preceding=periods if periods > 0 else None,
-        following=-periods if periods < 0 else None,
-    )
+
+    # Window framing clause is not allowed for analytic function lag.
+    window_spec = windows.unbound()
 
     original_columns = block.value_columns
     block, shift_columns = block.multi_apply_window_op(
         original_columns, agg_ops.ShiftOp(periods), window_spec=window_spec
     )
-    result_ids = []
+    exprs = []
     for original_col, shifted_col in zip(original_columns, shift_columns):
-        block, change_id = block.apply_binary_op(original_col, shifted_col, ops.sub_op)
-        block, pct_change_id = block.apply_binary_op(change_id, shifted_col, ops.div_op)
-        result_ids.append(pct_change_id)
-    return block.select_columns(result_ids).with_column_labels(column_labels)
+        change_expr = ops.sub_op.as_expr(original_col, shifted_col)
+        pct_change_expr = ops.div_op.as_expr(change_expr, shifted_col)
+        exprs.append(pct_change_expr)
+    return block.project_exprs(exprs, labels=column_labels, drop=True)
 
 
 def rank(
@@ -380,6 +410,8 @@ def rank(
     method: str = "average",
     na_option: str = "keep",
     ascending: bool = True,
+    grouping_cols: tuple[str, ...] = (),
+    columns: tuple[str, ...] = (),
 ):
     if method not in ["average", "min", "max", "first", "dense"]:
         raise ValueError(
@@ -388,8 +420,8 @@ def rank(
     if na_option not in ["keep", "top", "bottom"]:
         raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
 
-    columns = block.value_columns
-    labels = block.column_labels
+    columns = columns or tuple(col for col in block.value_columns)
+    labels = [block.col_id_to_label[id] for id in columns]
     # Step 1: Calculate row numbers for each row
     # Identify null values to be treated according to na_option param
     rownum_col_ids = []
@@ -400,23 +432,26 @@ def rank(
             ops.isnull_op,
         )
         nullity_col_ids.append(nullity_col_id)
-        window = windows.WindowSpec(
-            # BigQuery has syntax to reorder nulls with "NULLS FIRST/LAST", but that is unavailable through ibis presently, so must order on a separate nullity expression first.
-            ordering=(
-                ordering.OrderingColumnReference(
-                    col,
-                    ordering.OrderingDirection.ASC
-                    if ascending
-                    else ordering.OrderingDirection.DESC,
-                    na_last=(na_option in ["bottom", "keep"]),
-                ),
+        window_ordering = (
+            ordering.OrderingExpression(
+                ex.deref(col),
+                ordering.OrderingDirection.ASC
+                if ascending
+                else ordering.OrderingDirection.DESC,
+                na_last=(na_option in ["bottom", "keep"]),
             ),
         )
         # Count_op ignores nulls, so if na_option is "top" or "bottom", we instead count the nullity columns, where nulls have been mapped to bools
         block, rownum_id = block.apply_window_op(
             col if na_option == "keep" else nullity_col_id,
             agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
-            window_spec=window,
+            window_spec=windows.unbound(
+                grouping_keys=grouping_cols, ordering=window_ordering
+            )
+            if method == "dense"
+            else windows.rows(
+                end=0, ordering=window_ordering, grouping_keys=grouping_cols
+            ),
             skip_reproject_unsafe=(col != columns[-1]),
         )
         rownum_col_ids.append(rownum_id)
@@ -434,25 +469,52 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=windows.WindowSpec(grouping_keys=(columns[i],)),
+                window_spec=windows.unbound(grouping_keys=(columns[i], *grouping_cols)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
         rownum_col_ids = post_agg_rownum_col_ids
 
+    # Pandas masks all values where any grouping column is null
+    # Note: we use pd.NA instead of float('nan')
+    if grouping_cols:
+        predicate = functools.reduce(
+            ops.and_op.as_expr,
+            [ops.notnull_op.as_expr(column_id) for column_id in grouping_cols],
+        )
+        block = block.project_exprs(
+            [
+                ops.where_op.as_expr(
+                    ex.deref(col),
+                    predicate,
+                    ex.const(None),
+                )
+                for col in rownum_col_ids
+            ],
+            labels=labels,
+        )
+        rownum_col_ids = list(block.value_columns[-len(rownum_col_ids) :])
+
     # Step 3: post processing: mask null values and cast to float
     if method in ["min", "max", "first", "dense"]:
         # Pandas rank always produces Float64, so must cast for aggregation types that produce ints
-        block = block.multi_apply_unary_op(
-            rownum_col_ids, ops.AsTypeOp(pd.Float64Dtype())
+        return (
+            block.select_columns(rownum_col_ids)
+            .multi_apply_unary_op(ops.AsTypeOp(pd.Float64Dtype()))
+            .with_column_labels(labels)
         )
     if na_option == "keep":
         # For na_option "keep", null inputs must produce null outputs
+        exprs = []
         for i in range(len(columns)):
-            block, null_const = block.create_constant(pd.NA, dtype=pd.Float64Dtype())
-            block, rownum_col_ids[i] = block.apply_ternary_op(
-                null_const, nullity_col_ids[i], rownum_col_ids[i], ops.where_op
+            exprs.append(
+                ops.where_op.as_expr(
+                    ex.const(pd.NA, dtype=pd.Float64Dtype()),
+                    nullity_col_ids[i],
+                    rownum_col_ids[i],
+                )
             )
+        return block.project_exprs(exprs, labels=labels, drop=True)
 
     return block.select_columns(rownum_col_ids).with_column_labels(labels)
 
@@ -460,37 +522,49 @@ def rank(
 def dropna(
     block: blocks.Block,
     column_ids: typing.Sequence[str],
-    how: typing.Literal["all", "any"] = "any",
+    how: str = "any",
+    thresh: typing.Optional[int] = None,
+    subset: Optional[typing.Sequence[str]] = None,
 ):
     """
     Drop na entries from block
     """
-    if how == "any":
-        filtered_block = block
-        for column in column_ids:
-            filtered_block, result_id = filtered_block.apply_unary_op(
-                column, ops.notnull_op
+    if subset is None:
+        subset = column_ids
+
+    # Predicates to check for non-null values in the subset of columns
+    predicates = [
+        ops.notnull_op.as_expr(column_id)
+        for column_id in column_ids
+        if column_id in subset
+    ]
+
+    if len(predicates) == 0:
+        return block
+
+    if thresh is not None:
+        # Handle single predicate case
+        if len(predicates) == 1:
+            count_expr = ops.AsTypeOp(pd.Int64Dtype()).as_expr(predicates[0])
+        else:
+            # Sum the boolean expressions to count non-null values
+            count_expr = functools.reduce(
+                lambda a, b: ops.add_op.as_expr(
+                    ops.AsTypeOp(pd.Int64Dtype()).as_expr(a),
+                    ops.AsTypeOp(pd.Int64Dtype()).as_expr(b),
+                ),
+                predicates,
             )
-            filtered_block = filtered_block.filter(result_id)
-            filtered_block = filtered_block.drop_columns([result_id])
-        return filtered_block
-    else:  # "all"
-        filtered_block = block
-        predicate = None
-        for column in column_ids:
-            filtered_block, partial_predicate = filtered_block.apply_unary_op(
-                column, ops.notnull_op
-            )
-            if predicate:
-                filtered_block, predicate = filtered_block.apply_binary_op(
-                    partial_predicate, predicate, ops.or_op
-                )
-            else:
-                predicate = partial_predicate
-        if predicate:
-            filtered_block = filtered_block.filter(predicate)
-        filtered_block = filtered_block.select_columns(block.value_columns)
-        return filtered_block
+        # Filter rows where count >= thresh
+        predicate = ops.ge_op.as_expr(count_expr, ex.const(thresh))
+    else:
+        # Only handle 'how' parameter when thresh is not specified
+        if how == "any":
+            predicate = functools.reduce(ops.and_op.as_expr, predicates)
+        else:  # "all"
+            predicate = functools.reduce(ops.or_op.as_expr, predicates)
+
+    return block.filter(predicate)
 
 
 def nsmallest(
@@ -504,8 +578,8 @@ def nsmallest(
     if keep == "last":
         block = block.reversed()
     order_refs = [
-        ordering.OrderingColumnReference(
-            col_id, direction=ordering.OrderingDirection.ASC
+        ordering.OrderingExpression(
+            ex.deref(col_id), direction=ordering.OrderingDirection.ASC
         )
         for col_id in column_ids
     ]
@@ -516,12 +590,10 @@ def nsmallest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
+            window_spec=windows.unbound(ordering=tuple(order_refs)),
         )
-        block, condition = block.apply_unary_op(
-            counter, ops.partial_right(ops.le_op, n)
-        )
-        block = block.filter(condition)
+        block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
+        block = block.filter_by_id(condition)
         return block.drop_columns([counter, condition])
 
 
@@ -536,8 +608,8 @@ def nlargest(
     if keep == "last":
         block = block.reversed()
     order_refs = [
-        ordering.OrderingColumnReference(
-            col_id, direction=ordering.OrderingDirection.DESC
+        ordering.OrderingExpression(
+            ex.deref(col_id), direction=ordering.OrderingDirection.DESC
         )
         for col_id in column_ids
     ]
@@ -548,12 +620,10 @@ def nlargest(
         block, counter = block.apply_window_op(
             column_ids[0],
             agg_ops.rank_op,
-            window_spec=windows.WindowSpec(ordering=tuple(order_refs)),
+            window_spec=windows.unbound(ordering=tuple(order_refs)),
         )
-        block, condition = block.apply_unary_op(
-            counter, ops.partial_right(ops.le_op, n)
-        )
-        block = block.filter(condition)
+        block, condition = block.project_expr(ops.le_op.as_expr(counter, ex.const(n)))
+        block = block.filter_by_id(condition)
         return block.drop_columns([counter, condition])
 
 
@@ -572,9 +642,18 @@ def skew(
     # counts, moment3 for each column
     aggregations = []
     for i, col in enumerate(original_columns):
-        count_agg = (col, agg_ops.count_op)
-        moment3_agg = (delta3_ids[i], agg_ops.mean_op)
-        variance_agg = (col, agg_ops.PopVarOp())
+        count_agg = ex.UnaryAggregation(
+            agg_ops.count_op,
+            ex.deref(col),
+        )
+        moment3_agg = ex.UnaryAggregation(
+            agg_ops.mean_op,
+            ex.deref(delta3_ids[i]),
+        )
+        variance_agg = ex.UnaryAggregation(
+            agg_ops.PopVarOp(),
+            ex.deref(col),
+        )
         aggregations.extend([count_agg, moment3_agg, variance_agg])
 
     block, agg_ids = block.aggregate(
@@ -592,9 +671,11 @@ def skew(
 
     block = block.select_columns(skew_ids).with_column_labels(column_labels)
     if not grouping_column_ids:
-        # When ungrouped, stack everything into single column so can be returned as series
-        block = block.stack()
-        block = block.drop_levels([block.index_columns[0]])
+        # When ungrouped, transpose result row into a series
+        # perform transpose last, so as to not invalidate cache
+        block, index_col = block.create_constant(None, None)
+        block = block.set_index([index_col])
+        return block.transpose(original_row_index=pd.Index([None]))
     return block
 
 
@@ -612,9 +693,9 @@ def kurt(
     # counts, moment4 for each column
     aggregations = []
     for i, col in enumerate(original_columns):
-        count_agg = (col, agg_ops.count_op)
-        moment4_agg = (delta4_ids[i], agg_ops.mean_op)
-        variance_agg = (col, agg_ops.PopVarOp())
+        count_agg = ex.UnaryAggregation(agg_ops.count_op, ex.deref(col))
+        moment4_agg = ex.UnaryAggregation(agg_ops.mean_op, ex.deref(delta4_ids[i]))
+        variance_agg = ex.UnaryAggregation(agg_ops.PopVarOp(), ex.deref(col))
         aggregations.extend([count_agg, moment4_agg, variance_agg])
 
     block, agg_ids = block.aggregate(
@@ -632,27 +713,28 @@ def kurt(
 
     block = block.select_columns(kurt_ids).with_column_labels(column_labels)
     if not grouping_column_ids:
-        # When ungrouped, stack everything into single column so can be returned as series
-        block = block.stack()
-        block = block.drop_levels([block.index_columns[0]])
+        # When ungrouped, transpose result row into a series
+        # perform transpose last, so as to not invalidate cache
+        block, index_col = block.create_constant(None, None)
+        block = block.set_index([index_col])
+        return block.transpose(original_row_index=pd.Index([None]))
     return block
 
 
 def _mean_delta_to_power(
     block: blocks.Block,
-    n_power,
+    n_power: int,
     column_ids: typing.Sequence[str],
     grouping_column_ids: typing.Sequence[str],
 ) -> typing.Tuple[blocks.Block, typing.Sequence[str]]:
     """Calculate (x-mean(x))^n. Useful for calculating moment statistics such as skew and kurtosis."""
-    window = windows.WindowSpec(grouping_keys=tuple(grouping_column_ids))
+    window = windows.unbound(grouping_keys=tuple(grouping_column_ids))
     block, mean_ids = block.multi_apply_window_op(column_ids, agg_ops.mean_op, window)
     delta_ids = []
-    cube_op = ops.partial_right(ops.pow_op, n_power)
     for val_id, mean_val_id in zip(column_ids, mean_ids):
-        block, delta_id = block.apply_binary_op(val_id, mean_val_id, ops.sub_op)
-        block, delta_power_id = block.apply_unary_op(delta_id, cube_op)
-        block = block.drop_columns([delta_id])
+        delta = ops.sub_op.as_expr(val_id, mean_val_id)
+        delta_power = ops.pow_op.as_expr(delta, ex.const(n_power))
+        block, delta_power_id = block.project_expr(delta_power)
         delta_ids.append(delta_power_id)
     return block, delta_ids
 
@@ -663,31 +745,26 @@ def _skew_from_moments_and_count(
     # Calculate skew using count, third moment and population variance
     # See G1 estimator:
     # https://en.wikipedia.org/wiki/Skewness#Sample_skewness
-    block, denominator_id = block.apply_unary_op(
-        moment2_id, ops.partial_right(ops.unsafe_pow_op, 3 / 2)
+    moments_estimator = ops.div_op.as_expr(
+        moment3_id, ops.pow_op.as_expr(moment2_id, ex.const(3 / 2))
     )
-    block, base_id = block.apply_binary_op(moment3_id, denominator_id, ops.div_op)
-    block, countminus1_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 1)
+
+    countminus1 = ops.sub_op.as_expr(count_id, ex.const(1))
+    countminus2 = ops.sub_op.as_expr(count_id, ex.const(2))
+    adjustment = ops.div_op.as_expr(
+        ops.unsafe_pow_op.as_expr(
+            ops.mul_op.as_expr(count_id, countminus1), ex.const(1 / 2)
+        ),
+        countminus2,
     )
-    block, countminus2_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 2)
-    )
-    block, adjustment_id = block.apply_binary_op(count_id, countminus1_id, ops.mul_op)
-    block, adjustment_id = block.apply_unary_op(
-        adjustment_id, ops.partial_right(ops.unsafe_pow_op, 1 / 2)
-    )
-    block, adjustment_id = block.apply_binary_op(
-        adjustment_id, countminus2_id, ops.div_op
-    )
-    block, skew_id = block.apply_binary_op(base_id, adjustment_id, ops.mul_op)
+
+    skew = ops.mul_op.as_expr(moments_estimator, adjustment)
 
     # Need to produce NA if have less than 3 data points
-    block, na_cond_id = block.apply_unary_op(count_id, ops.partial_right(ops.ge_op, 3))
-    block, skew_id = block.apply_binary_op(
-        skew_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
+    cleaned_skew = ops.where_op.as_expr(
+        skew, ops.ge_op.as_expr(count_id, ex.const(3)), ex.const(None)
     )
-    return block, skew_id
+    return block.project_expr(cleaned_skew)
 
 
 def _kurt_from_moments_and_count(
@@ -700,49 +777,42 @@ def _kurt_from_moments_and_count(
     # adjustment = 3 * (count - 1) ** 2 / ((count - 2) * (count - 3))
     # kurtosis = (numerator / denominator) - adjustment
 
-    # Numerator
-    block, countminus1_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 1)
+    numerator = ops.mul_op.as_expr(
+        moment4_id,
+        ops.mul_op.as_expr(
+            ops.sub_op.as_expr(count_id, ex.const(1)),
+            ops.add_op.as_expr(count_id, ex.const(1)),
+        ),
     )
-    block, countplus1_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.add_op, 1)
-    )
-    block, num_adj = block.apply_binary_op(countplus1_id, countminus1_id, ops.mul_op)
-    block, numerator_id = block.apply_binary_op(moment4_id, num_adj, ops.mul_op)
 
     # Denominator
-    block, countminus2_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 2)
+    countminus2 = ops.sub_op.as_expr(count_id, ex.const(2))
+    countminus3 = ops.sub_op.as_expr(count_id, ex.const(3))
+
+    # Denominator
+    denominator = ops.mul_op.as_expr(
+        ops.unsafe_pow_op.as_expr(moment2_id, ex.const(2)),
+        ops.mul_op.as_expr(countminus2, countminus3),
     )
-    block, countminus3_id = block.apply_unary_op(
-        count_id, ops.partial_right(ops.sub_op, 3)
-    )
-    block, denom_adj = block.apply_binary_op(countminus2_id, countminus3_id, ops.mul_op)
-    block, popvar_squared = block.apply_unary_op(
-        moment2_id, ops.partial_right(ops.unsafe_pow_op, 2)
-    )
-    block, denominator_id = block.apply_binary_op(popvar_squared, denom_adj, ops.mul_op)
 
     # Adjustment
-    block, countminus1_square = block.apply_unary_op(
-        countminus1_id, ops.partial_right(ops.unsafe_pow_op, 2)
+    adj_num = ops.mul_op.as_expr(
+        ops.unsafe_pow_op.as_expr(
+            ops.sub_op.as_expr(count_id, ex.const(1)), ex.const(2)
+        ),
+        ex.const(3),
     )
-    block, adj_num = block.apply_unary_op(
-        countminus1_square, ops.partial_right(ops.mul_op, 3)
-    )
-    block, adj_denom = block.apply_binary_op(countminus2_id, countminus3_id, ops.mul_op)
-    block, adjustment_id = block.apply_binary_op(adj_num, adj_denom, ops.div_op)
+    adj_denom = ops.mul_op.as_expr(countminus2, countminus3)
+    adjustment = ops.div_op.as_expr(adj_num, adj_denom)
 
     # Combine
-    block, base_id = block.apply_binary_op(numerator_id, denominator_id, ops.div_op)
-    block, kurt_id = block.apply_binary_op(base_id, adjustment_id, ops.sub_op)
+    kurt = ops.sub_op.as_expr(ops.div_op.as_expr(numerator, denominator), adjustment)
 
     # Need to produce NA if have less than 4 data points
-    block, na_cond_id = block.apply_unary_op(count_id, ops.partial_right(ops.ge_op, 4))
-    block, kurt_id = block.apply_binary_op(
-        kurt_id, na_cond_id, ops.partial_arg3(ops.where_op, None)
+    cleaned_kurt = ops.where_op.as_expr(
+        kurt, ops.ge_op.as_expr(count_id, ex.const(4)), ex.const(None)
     )
-    return block, kurt_id
+    return block.project_expr(cleaned_kurt)
 
 
 def align(
@@ -765,14 +835,14 @@ def align_rows(
     right_block: blocks.Block,
     join: str = "outer",
 ):
-    joined_index, (get_column_left, get_column_right) = left_block.index.join(
-        right_block.index, how=join
+    joined_block, (get_column_left, get_column_right) = left_block.join(
+        right_block, how=join
     )
     left_columns = [get_column_left[col] for col in left_block.value_columns]
     right_columns = [get_column_right[col] for col in right_block.value_columns]
 
-    left_block = joined_index._block.select_columns(left_columns)
-    right_block = joined_index._block.select_columns(right_columns)
+    left_block = joined_block.select_columns(left_columns)
+    right_block = joined_block.select_columns(right_columns)
     return left_block, right_block
 
 
@@ -828,7 +898,8 @@ def idxmax(block: blocks.Block) -> blocks.Block:
 def _idx_extrema(
     block: blocks.Block, min_or_max: typing.Literal["min", "max"]
 ) -> blocks.Block:
-    if len(block.index_columns) != 1:
+    block._throw_if_null_index("idx")
+    if len(block.index_columns) > 1:
         # TODO: Need support for tuple dtype
         raise NotImplementedError(
             f"idxmin not support for multi-index. {constants.FEEDBACK_LINK}"
@@ -844,13 +915,13 @@ def _idx_extrema(
         )
         # Have to find the min for each
         order_refs = [
-            ordering.OrderingColumnReference(value_col, direction),
+            ordering.OrderingExpression(ex.deref(value_col), direction),
             *[
-                ordering.OrderingColumnReference(idx_col)
+                ordering.OrderingExpression(ex.deref(idx_col))
                 for idx_col in original_block.index_columns
             ],
         ]
-        window_spec = windows.WindowSpec(ordering=tuple(order_refs))
+        window_spec = windows.unbound(ordering=tuple(order_refs))
         idx_col = original_block.index_columns[0]
         block, result_col = block.apply_window_op(
             idx_col, agg_ops.first_op, window_spec
@@ -863,5 +934,5 @@ def _idx_extrema(
     # Stack the entire column axis to produce single-column result
     # Assumption: uniform dtype for stackability
     return block.aggregate_all_and_stack(
-        agg_ops.AnyValueOp(), dtype=block.dtypes[0]
+        agg_ops.AnyValueOp(),
     ).with_column_labels([original_block.index.name])

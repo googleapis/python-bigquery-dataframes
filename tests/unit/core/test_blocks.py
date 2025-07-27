@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
 import pandas
 import pandas.testing
 import pytest
 
+import bigframes
 import bigframes.core.blocks as blocks
+import bigframes.session.bq_caching_executor
 
 
 @pytest.mark.parametrize(
@@ -74,9 +78,23 @@ import bigframes.core.blocks as blocks
 )
 def test_block_from_local(data):
     expected = pandas.DataFrame(data)
+    mock_session = mock.create_autospec(spec=bigframes.Session)
+    mock_executor = mock.create_autospec(
+        spec=bigframes.session.bq_caching_executor.BigQueryCachingExecutor
+    )
 
-    block = blocks.block_from_local(data)
+    # hard-coded the returned dimension of the session for that each of the test case contains 3 rows.
+    mock_session._executor = mock_executor
+
+    block = blocks.Block.from_local(pandas.DataFrame(data), mock_session)
 
     pandas.testing.assert_index_equal(block.column_labels, expected.columns)
-    assert tuple(block.index_labels) == tuple(expected.index.names)
-    assert block.shape == expected.shape
+    assert tuple(block.index.names) == tuple(expected.index.names)
+
+
+def test_block_compute_dry_run__raises_error_when_sampling_is_enabled():
+    mock_session = mock.create_autospec(spec=bigframes.Session)
+    block = blocks.Block.from_local(pandas.DataFrame(), mock_session)
+
+    with pytest.raises(NotImplementedError):
+        block._compute_dry_run(sampling_method="UNIFORM")

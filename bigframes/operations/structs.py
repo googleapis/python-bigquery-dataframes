@@ -14,29 +14,15 @@
 
 from __future__ import annotations
 
-import typing
-
-import ibis.expr.types as ibis_types
+import bigframes_vendored.pandas.core.arrays.arrow.accessors as vendoracessors
+import pandas as pd
 
 from bigframes.core import log_adapter
 import bigframes.dataframe
+import bigframes.dtypes
 import bigframes.operations
 import bigframes.operations.base
 import bigframes.series
-import third_party.bigframes_vendored.pandas.core.arrays.arrow.accessors as vendoracessors
-
-
-class _StructField(bigframes.operations.UnaryOp):
-    def __init__(self, name_or_index: str | int):
-        self._name_or_index = name_or_index
-
-    def _as_ibis(self, x: ibis_types.Value):
-        struct_value = typing.cast(ibis_types.StructValue, x)
-        if isinstance(self._name_or_index, str):
-            name = self._name_or_index
-        else:
-            name = struct_value.names[self._name_or_index]
-        return struct_value[name].name(name)
 
 
 @log_adapter.class_logger
@@ -46,7 +32,7 @@ class StructAccessor(
     __doc__ = vendoracessors.StructAccessor.__doc__
 
     def field(self, name_or_index: str | int) -> bigframes.series.Series:
-        series = self._apply_unary_op(_StructField(name_or_index))
+        series = self._apply_unary_op(bigframes.operations.StructFieldOp(name_or_index))
         if isinstance(name_or_index, str):
             name = name_or_index
         else:
@@ -61,3 +47,36 @@ class StructAccessor(
         return bigframes.pandas.concat(
             [self.field(i) for i in range(pa_type.num_fields)], axis="columns"
         )
+
+    def dtypes(self) -> pd.Series:
+        pa_type = self._dtype.pyarrow_dtype
+        return pd.Series(
+            data=[
+                bigframes.dtypes.arrow_dtype_to_bigframes_dtype(pa_type.field(i).type)
+                for i in range(pa_type.num_fields)
+            ],
+            index=[pa_type.field(i).name for i in range(pa_type.num_fields)],
+        )
+
+
+@log_adapter.class_logger
+class StructFrameAccessor(vendoracessors.StructFrameAccessor):
+    __doc__ = vendoracessors.StructAccessor.__doc__
+
+    def __init__(self, data: bigframes.dataframe.DataFrame) -> None:
+        self._parent = data
+
+    def explode(self, column, *, separator: str = ".") -> bigframes.dataframe.DataFrame:
+        df = self._parent
+        column_labels = bigframes.core.explode.check_column(column)
+
+        for label in column_labels:
+            position = df.columns.to_list().index(label)
+            df = df.drop(columns=label)
+            subfields = self._parent[label].struct.explode()
+            for subfield in reversed(subfields.columns):
+                df.insert(
+                    position, f"{label}{separator}{subfield}", subfields[subfield]
+                )
+
+        return df

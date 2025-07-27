@@ -15,39 +15,59 @@
 import re
 import tempfile
 
+import numpy as np
 import pandas as pd
+import pytest
 
 import bigframes as bf
 import bigframes.formatting_helpers as formatting_helpers
+from bigframes.session import MAX_INLINE_DF_BYTES
 
 job_load_message_regex = r"\w+ job [\w-]+ is \w+\."
+EXPECTED_DRY_RUN_MESSAGE = "Computation deferred. Computation will process"
 
 
 def test_progress_bar_dataframe(
     penguins_df_default_index: bf.dataframe.DataFrame, capsys
 ):
-    bf.options.display.progress_bar = "terminal"
     capsys.readouterr()  # clear output
-    penguins_df_default_index.to_pandas()
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index.to_pandas(allow_large_results=True)
 
     assert_loading_msg_exist(capsys.readouterr().out)
     assert penguins_df_default_index.query_job is not None
 
 
 def test_progress_bar_series(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
-    bf.options.display.progress_bar = "terminal"
     series = penguins_df_default_index["body_mass_g"].head(10)
     capsys.readouterr()  # clear output
-    series.to_pandas()
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        series.to_pandas(allow_large_results=True)
 
     assert_loading_msg_exist(capsys.readouterr().out)
     assert series.query_job is not None
 
 
 def test_progress_bar_scalar(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
-    bf.options.display.progress_bar = "terminal"
     capsys.readouterr()  # clear output
-    penguins_df_default_index["body_mass_g"].head(10).mean()
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index["body_mass_g"].head(10).mean()
+
+    assert capsys.readouterr().out == ""
+
+
+def test_progress_bar_scalar_allow_large_results(
+    penguins_df_default_index: bf.dataframe.DataFrame, capsys
+):
+    capsys.readouterr()  # clear output
+
+    with bf.option_context(
+        "display.progress_bar", "terminal", "compute.allow_large_results", "True"
+    ):
+        penguins_df_default_index["body_mass_g"].head(10).mean()
 
     assert_loading_msg_exist(capsys.readouterr().out)
 
@@ -55,10 +75,11 @@ def test_progress_bar_scalar(penguins_df_default_index: bf.dataframe.DataFrame, 
 def test_progress_bar_extract_jobs(
     penguins_df_default_index: bf.dataframe.DataFrame, gcs_folder, capsys
 ):
-    bf.options.display.progress_bar = "terminal"
     path = gcs_folder + "test_read_csv_progress_bar*.csv"
     capsys.readouterr()  # clear output
-    penguins_df_default_index.to_csv(path)
+
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index.to_csv(path)
 
     assert_loading_msg_exist(capsys.readouterr().out)
 
@@ -66,10 +87,16 @@ def test_progress_bar_extract_jobs(
 def test_progress_bar_load_jobs(
     session: bf.Session, penguins_pandas_df_default_index: pd.DataFrame, capsys
 ):
-    bf.options.display.progress_bar = "terminal"
-    with tempfile.TemporaryDirectory() as dir:
+    # repeat the DF to be big enough to trigger the load job.
+    df = penguins_pandas_df_default_index
+    while len(df) < MAX_INLINE_DF_BYTES:
+        df = pd.DataFrame(np.repeat(df.values, 2, axis=0))
+
+    with bf.option_context(
+        "display.progress_bar", "terminal"
+    ), tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_progress_bar*.csv"
-        penguins_pandas_df_default_index.to_csv(path, index=False)
+        df.to_csv(path, index=False)
         capsys.readouterr()  # clear output
         session.read_csv(path)
 
@@ -89,11 +116,12 @@ def assert_loading_msg_exist(capystOut: str, pattern=job_load_message_regex):
 
 
 def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
-    bf.options.display.progress_bar = "terminal"
-    penguins_df_default_index.to_pandas()
-    query_job_repr = formatting_helpers.repr_query_job_html(
-        penguins_df_default_index.query_job
-    ).value
+    with bf.option_context("display.progress_bar", "terminal"):
+        penguins_df_default_index.to_pandas(allow_large_results=True)
+        query_job_repr = formatting_helpers.repr_query_job_html(
+            penguins_df_default_index.query_job
+        ).value
+
     string_checks = [
         "Job Id",
         "Destination Table",
@@ -106,7 +134,7 @@ def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
 
 
 def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
-    penguins_df_default_index.to_pandas()
+    penguins_df_default_index.to_pandas(allow_large_results=True)
     query_job_repr = formatting_helpers.repr_query_job(
         penguins_df_default_index.query_job
     )
@@ -121,11 +149,34 @@ def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
         assert string in query_job_repr
 
 
-def test_query_job_dry_run(penguins_df_default_index: bf.dataframe.DataFrame, capsys):
+def test_query_job_dry_run_dataframe(penguins_df_default_index: bf.dataframe.DataFrame):
     with bf.option_context("display.repr_mode", "deferred"):
-        repr(penguins_df_default_index)
-        repr(penguins_df_default_index["body_mass_g"])
-        lines = capsys.readouterr().out.split("\n")
-        lines = filter(None, lines)
-        for line in lines:
-            assert "Computation deferred. Computation will process" in line
+        df_result = repr(penguins_df_default_index)
+        assert EXPECTED_DRY_RUN_MESSAGE in df_result
+
+
+def test_query_job_dry_run_index(penguins_df_default_index: bf.dataframe.DataFrame):
+    with bf.option_context("display.repr_mode", "deferred"):
+        index_result = repr(penguins_df_default_index.index)
+        assert EXPECTED_DRY_RUN_MESSAGE in index_result
+
+
+def test_query_job_dry_run_series(penguins_df_default_index: bf.dataframe.DataFrame):
+    with bf.option_context("display.repr_mode", "deferred"):
+        series_result = repr(penguins_df_default_index["body_mass_g"])
+        assert EXPECTED_DRY_RUN_MESSAGE in series_result
+
+
+def test_repr_anywidget_dataframe(penguins_df_default_index: bf.dataframe.DataFrame):
+    pytest.importorskip("anywidget")
+    with bf.option_context("display.repr_mode", "anywidget"):
+        actual_repr = repr(penguins_df_default_index)
+        assert EXPECTED_DRY_RUN_MESSAGE in actual_repr
+
+
+def test_repr_anywidget_index(penguins_df_default_index: bf.dataframe.DataFrame):
+    pytest.importorskip("anywidget")
+    with bf.option_context("display.repr_mode", "anywidget"):
+        index = penguins_df_default_index.index
+        actual_repr = repr(index)
+        assert EXPECTED_DRY_RUN_MESSAGE in actual_repr

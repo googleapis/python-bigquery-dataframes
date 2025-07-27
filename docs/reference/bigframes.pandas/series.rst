@@ -22,7 +22,7 @@ Accessors
 Datetime properties
 ^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: bigframes.operations.datetimes
+.. autoclass:: bigframes.operations.datetimes.DatetimeMethods
     :members:
     :inherited-members:
     :undoc-members:
@@ -30,7 +30,15 @@ Datetime properties
 String handling
 ^^^^^^^^^^^^^^^
 
-.. automodule:: bigframes.operations.strings
+.. autoclass:: bigframes.operations.strings.StringMethods
+    :members:
+    :inherited-members:
+    :undoc-members:
+
+List handling
+^^^^^^^^^^^^^
+
+.. autoclass:: bigframes.operations.lists.ListAccessor
     :members:
     :inherited-members:
     :undoc-members:
@@ -38,7 +46,24 @@ String handling
 Struct handling
 ^^^^^^^^^^^^^^^
 
-.. automodule:: bigframes.operations.structs
+.. autoclass:: bigframes.operations.structs.StructAccessor
     :members:
     :inherited-members:
     :undoc-members:
+
+Blob handling
+^^^^^^^^^^^^^
+
+.. autoclass:: bigframes.operations.blob.BlobAccessor
+    :members:
+    :inherited-members:
+    :undoc-members:
+
+Plotting handling
+^^^^^^^^^^^^^^^^^
+
+.. autoclass:: bigframes.operations.plotting.PlotAccessor
+    :members:
+    :inherited-members:
+    :undoc-members:
+    :noindex:

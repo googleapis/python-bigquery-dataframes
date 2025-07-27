@@ -16,6 +16,7 @@
 
 import pathlib
 import re
+import textwrap
 
 from synthtool import gcp
 import synthtool as s
@@ -29,8 +30,9 @@ common = gcp.CommonTemplates()
 # Add templated files
 # ----------------------------------------------------------------------------
 templated_files = common.py_library(
-    unit_test_python_versions=["3.9", "3.10", "3.11"],
-    system_test_python_versions=["3.9", "3.11"],
+    default_python_version="3.10",
+    unit_test_python_versions=["3.9", "3.10", "3.11", "3.12", "3.13"],
+    system_test_python_versions=["3.9", "3.11", "3.12", "3.13"],
     cov_level=35,
     intersphinx_dependencies={
         "pandas": "https://pandas.pydata.org/pandas-docs/stable/",
@@ -40,17 +42,23 @@ templated_files = common.py_library(
 s.move(
     templated_files,
     excludes=[
+        # Need a combined LICENSE for all vendored packages.
+        "LICENSE",
         # Multi-processing note isn't relevant, as bigframes is responsible for
         # creating clients, not the end user.
         "docs/multiprocessing.rst",
         "noxfile.py",
         ".pre-commit-config.yaml",
         "README.rst",
+        "CONTRIBUTING.rst",
         ".github/release-trigger.yml",
+        ".github/release-please.yml",
         # BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
         ".kokoro/build.sh",
         ".kokoro/continuous/common.cfg",
         ".kokoro/presubmit/common.cfg",
+        # Temporary workaround to update docs job to use python 3.10
+        ".github/workflows/docs.yml",
     ],
 )
 
@@ -58,52 +66,59 @@ s.move(
 # Fixup files
 # ----------------------------------------------------------------------------
 
+# Encourage sharring all relevant versions in bug reports.
+assert 1 == s.replace(  # bug_report.md
+    [".github/ISSUE_TEMPLATE/bug_report.md"],
+    re.escape("#### Steps to reproduce\n"),
+    textwrap.dedent(
+        """
+        ```python
+        import sys
+        import bigframes
+        import google.cloud.bigquery
+        import pandas
+        import pyarrow
+        import sqlglot
+
+        print(f"Python: {sys.version}")
+        print(f"bigframes=={bigframes.__version__}")
+        print(f"google-cloud-bigquery=={google.cloud.bigquery.__version__}")
+        print(f"pandas=={pandas.__version__}")
+        print(f"pyarrow=={pyarrow.__version__}")
+        print(f"sqlglot=={sqlglot.__version__}")
+        ```
+
+        #### Steps to reproduce
+        """,
+    ),
+)
+
 # Make sure build includes all necessary files.
-s.replace(
+assert 1 == s.replace(  # MANIFEST.in
     ["MANIFEST.in"],
     re.escape("recursive-include google"),
-    "recursive-include third_party *\nrecursive-include bigframes",
+    "recursive-include third_party/bigframes_vendored *\nrecursive-include bigframes",
 )
 
-# Even though BigQuery DataFrames isn't technically a client library, we are
-# opting into Cloud RAD for docs hosting.
-s.replace(
-    [".kokoro/docs/common.cfg"],
-    re.escape('value: "docs-staging-v2-staging"'),
-    'value: "docs-staging-v2"',
-)
-
-# Use a custom table of contents since the default one isn't organized well
-# enough for the number of classes we have.
-s.replace(
-    [".kokoro/publish-docs.sh"],
-    (
-        re.escape("# upload docs")
-        + "\n"
-        + re.escape(
-            'python3 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
-        )
-    ),
-    (
-        "# Replace toc.yml template file\n"
-        + "mv docs/templates/toc.yml docs/_build/html/docfx_yaml/toc.yml\n\n"
-        + "# upload docs\n"
-        + 'python3 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
-    ),
+# Include JavaScript files for display widgets
+assert 1 == s.replace(  # MANIFEST.in
+    ["MANIFEST.in"],
+    re.escape("recursive-include bigframes *.json *.proto py.typed"),
+    "recursive-include bigframes *.json *.proto *.js py.typed",
 )
 
 # Fixup the documentation.
-s.replace(
+assert 1 == s.replace(  # docs/conf.py
     ["docs/conf.py"],
     re.escape("Google Cloud Client Libraries for bigframes"),
     "BigQuery DataFrames provides DataFrame APIs on the BigQuery engine",
 )
 
-# Update the contributing guide to reflect some differences in this repo.
-s.replace(
-    ["CONTRIBUTING.rst"],
-    re.escape("blacken"),
-    "format",
+# Don't omit `*/core/*.py` when counting test coverages
+assert 1 == s.replace(  # .coveragerc
+    [".coveragerc"],
+    re.escape("  */core/*.py\n"),
+    "",
 )
 
 # ----------------------------------------------------------------------------
@@ -117,3 +132,5 @@ python.py_samples(skip_readmes=True)
 # ----------------------------------------------------------------------------
 
 s.shell.run(["nox", "-s", "format"], hide_output=False)
+for noxfile in REPO_ROOT.glob("samples/**/noxfile.py"):
+    s.shell.run(["nox", "-s", "format"], cwd=noxfile.parent, hide_output=False)

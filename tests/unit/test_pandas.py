@@ -21,6 +21,7 @@ import pandas as pd
 import pytest
 
 import bigframes.core.global_session
+import bigframes.dataframe
 import bigframes.pandas as bpd
 import bigframes.session
 
@@ -34,6 +35,8 @@ def all_session_methods():
         if not attribute.startswith("_")
     )
     session_attributes.remove("close")
+    # streaming isn't in pandas
+    session_attributes.remove("read_gbq_table_streaming")
 
     for attribute in sorted(session_attributes):
         session_method = getattr(bigframes.session.Session, attribute)
@@ -49,7 +52,7 @@ def all_session_methods():
     [(method_name,) for method_name in all_session_methods()],
 )
 def test_method_matches_session(method_name: str):
-    if sys.version_info <= (3, 10):
+    if sys.version_info < (3, 10):
         pytest.skip(
             "Need Python 3.10 to reconcile deferred annotations."
         )  # pragma: no cover
@@ -67,7 +70,11 @@ def test_method_matches_session(method_name: str):
 
     # Add `eval_str = True` so that deferred annotations are turned into their
     # corresponding type objects. Need Python 3.10 for eval_str parameter.
-    session_signature = inspect.signature(session_method, eval_str=True)
+    session_signature = inspect.signature(
+        session_method,
+        eval_str=True,
+        globals={**vars(bigframes.session), **{"dataframe": bigframes.dataframe}},
+    )
     pandas_signature = inspect.signature(pandas_method, eval_str=True)
     assert [
         # Kind includes position, which will be an offset.
@@ -84,22 +91,76 @@ def test_method_matches_session(method_name: str):
     assert pandas_signature.return_annotation == session_signature.return_annotation
 
 
-def test_cut_raises_with_labels():
-    with pytest.raises(NotImplementedError, match="Only labels=False"):
-        mock_series = mock.create_autospec(bigframes.pandas.Series, instance=True)
-        bigframes.pandas.cut(mock_series, 4, labels=["a", "b", "c", "d"])
+@pytest.mark.parametrize(
+    ("bins", "labels", "error_message"),
+    [
+        pytest.param(
+            5,
+            True,
+            "Bin labels must either be False, None or passed in as a list-like argument",
+            id="true",
+        ),
+        pytest.param(
+            5,
+            1.5,
+            "Bin labels must either be False, None or passed in as a list-like argument",
+            id="invalid_types",
+        ),
+        pytest.param(
+            2,
+            ["A"],
+            "must be same as the value of bins",
+            id="int_bins_mismatch",
+        ),
+        pytest.param(
+            [1, 2, 3],
+            ["A"],
+            "must be same as the number of bin edges",
+            id="iterator_bins_mismatch",
+        ),
+    ],
+)
+def test_cut_raises_with_invalid_labels(bins: int, labels, error_message: str):
+    mock_series = mock.create_autospec(bigframes.pandas.Series, instance=True)
+    with pytest.raises(ValueError, match=error_message):
+        bigframes.pandas.cut(mock_series, bins, labels=labels)
+
+
+def test_cut_raises_with_unsupported_labels():
+    mock_series = mock.create_autospec(bigframes.pandas.Series, instance=True)
+    labels = [1, 2]
+    with pytest.raises(
+        NotImplementedError, match=r".*only iterables of strings are supported.*"
+    ):
+        bigframes.pandas.cut(mock_series, 2, labels=labels)  # type: ignore
 
 
 @pytest.mark.parametrize(
-    ("bins",),
-    (
-        (0,),
-        (-1,),
-    ),
+    ("bins", "error_message"),
+    [
+        pytest.param(1.5, "`bins` must be an integer or interable.", id="float"),
+        pytest.param(0, "`bins` should be a positive integer.", id="zero_int"),
+        pytest.param(-1, "`bins` should be a positive integer.", id="neg_int"),
+        pytest.param(
+            ["notabreak"],
+            "`bins` iterable should contain tuples or numerics",
+            id="iterable_w_wrong_type",
+        ),
+        pytest.param(
+            [10, 3],
+            "left side of interval must be <= right side",
+            id="decreased_breaks",
+        ),
+        pytest.param(
+            [(1, 10), (2, 25)],
+            "Overlapping IntervalIndex is not accepted.",
+            id="overlapping_intervals",
+        ),
+    ],
 )
-def test_cut_raises_with_invalid_bins(bins: int):
-    with pytest.raises(ValueError, match="`bins` should be a positive integer."):
-        mock_series = mock.create_autospec(bigframes.pandas.Series, instance=True)
+def test_cut_raises_with_invalid_bins(bins: int, error_message: str):
+    mock_series = mock.create_autospec(bigframes.pandas.Series, instance=True)
+    with pytest.raises(ValueError, match=error_message):
         bigframes.pandas.cut(mock_series, bins, labels=False)
 
 

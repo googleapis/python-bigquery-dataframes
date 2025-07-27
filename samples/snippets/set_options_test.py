@@ -13,22 +13,33 @@
 # limitations under the License.
 
 
-def test_bigquery_dataframes_set_options():
+def test_bigquery_dataframes_set_options() -> None:
     # Close the session before resetting the options
     import bigframes.pandas as bpd
 
     bpd.close_session()
 
-    # [START bigquery_dataframes_set_options]
-    import bigframes.pandas as bpd
+    try:
+        # [START bigquery_dataframes_set_options]
+        import bigframes.pandas as bpd
 
-    PROJECT_ID = "bigframes-dec"  # @param {type:"string"}
-    REGION = "US"  # @param {type:"string"}
+        PROJECT_ID = "bigframes-dev"  # @param {type:"string"}
+        REGION = "US"  # @param {type:"string"}
 
-    # Set BigQuery DataFrames options
-    bpd.options.bigquery.project = PROJECT_ID
-    bpd.options.bigquery.location = REGION
+        # Set BigQuery DataFrames options
+        # Note: The project option is not required in all environments.
+        # On BigQuery Studio, the project ID is automatically detected.
+        bpd.options.bigquery.project = PROJECT_ID
 
-    # [END bigquery_dataframes_set_options]
-    assert bpd.options.bigquery.project == PROJECT_ID
-    assert bpd.options.bigquery.location == REGION
+        # Note: The location option is not required.
+        # It defaults to the location of the first table or query
+        # passed to read_gbq(). For APIs where a location can't be
+        # auto-detected, the location defaults to the "US" location.
+        bpd.options.bigquery.location = REGION
+
+        # [END bigquery_dataframes_set_options]
+        assert bpd.options.bigquery.project == PROJECT_ID
+        assert bpd.options.bigquery.location == REGION
+    finally:
+        bpd.close_session()
+        bpd.options.reset()

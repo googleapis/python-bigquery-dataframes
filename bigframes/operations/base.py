@@ -15,21 +15,24 @@
 from __future__ import annotations
 
 import typing
+from typing import List, Sequence, Union
 
+import bigframes_vendored.constants as constants
+import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
 import pandas as pd
 
-import bigframes.constants as constants
 import bigframes.core.blocks as blocks
+import bigframes.core.convert
+import bigframes.core.expression as ex
+import bigframes.core.identifiers as ids
+import bigframes.core.indexes as indexes
 import bigframes.core.scalar as scalars
+import bigframes.core.utils as bf_utils
 import bigframes.dtypes
 import bigframes.operations as ops
+import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
-import third_party.bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
-
-# BigQuery has 1 MB query size limit, 5000 items shouldn't take more than 10% of this depending on data type.
-# TODO(tbergeron): Convert to bytes-based limit
-MAX_INLINE_SERIES_SIZE = 5000
 
 
 class SeriesMethods:
@@ -45,63 +48,91 @@ class SeriesMethods:
         *,
         session: typing.Optional[bigframes.session.Session] = None,
     ):
-        block = None
+        import bigframes.pandas
+
+        # Ignore object dtype if provided, as it provides no additional
+        # information about what BigQuery type to use.
+        if dtype is not None and bigframes.dtypes.is_object_like(dtype):
+            dtype = None
+
+        read_pandas_func = (
+            session.read_pandas
+            if (session is not None)
+            else (lambda x: bigframes.pandas.read_pandas(x))
+        )
+
+        block: typing.Optional[blocks.Block] = None
+        if (name is not None) and not isinstance(name, typing.Hashable):
+            raise ValueError(
+                f"BigQuery DataFrames only supports hashable series names. {constants.FEEDBACK_LINK}"
+            )
         if copy is not None and not copy:
             raise ValueError(
                 f"Series constructor only supports copy=True. {constants.FEEDBACK_LINK}"
             )
-        if isinstance(data, blocks.Block):
-            assert len(data.value_columns) == 1
-            assert len(data.column_labels) == 1
-            block = data
 
+        if isinstance(data, blocks.Block):
+            block = data
         elif isinstance(data, SeriesMethods):
             block = data._get_block()
+        # special case where data is local scalar, but index is bigframes index (maybe very big)
+        elif (
+            not bf_utils.is_list_like(data) and not isinstance(data, indexes.Index)
+        ) and isinstance(index, indexes.Index):
+            block = index._block
+            block, _ = block.create_constant(data)
+            block = block.with_column_labels([None])
+            # prevents no-op reindex later
+            index = None
+        elif isinstance(data, indexes.Index) or isinstance(index, indexes.Index):
+            data = indexes.Index(data, dtype=dtype, name=name, session=session)
+            # set to none as it has already been applied, avoid re-cast later
+            if data.nlevels != 1:
+                raise NotImplementedError("Cannot interpret multi-index as Series.")
+            # Reset index to promote index columns to value columns, set default index
+            data_block = data._block.reset_index(drop=False).with_column_labels(
+                data.names
+            )
+            if index is not None:  # Align data and index by offset
+                bf_index = indexes.Index(index, session=session)
+                idx_block = bf_index._block.reset_index(
+                    drop=False
+                )  # reset to align by offsets, and then reset back
+                idx_cols = idx_block.value_columns
+                data_block, (l_mapping, _) = idx_block.join(data_block, how="left")
+                data_block = data_block.set_index([l_mapping[col] for col in idx_cols])
+                data_block = data_block.with_index_labels(bf_index.names)
+                # prevents no-op reindex later
+                index = None
+            block = data_block
 
         if block:
+            assert len(block.value_columns) == 1
+            assert len(block.column_labels) == 1
+            if index is not None:  # reindexing operation
+                bf_index = indexes.Index(index)
+                idx_block = bf_index._block
+                idx_cols = idx_block.index_columns
+                block, _ = idx_block.join(block, how="left")
+                block = block.with_index_labels(bf_index.names)
             if name:
-                if not isinstance(name, typing.Hashable):
-                    raise ValueError(
-                        f"BigQuery DataFrames only supports hashable series names. {constants.FEEDBACK_LINK}"
-                    )
                 block = block.with_column_labels([name])
-            if index:
-                raise NotImplementedError(
-                    f"Series 'index' constructor parameter not supported when passing BigQuery-backed objects. {constants.FEEDBACK_LINK}"
-                )
             if dtype:
-                block = block.multi_apply_unary_op(
-                    block.value_columns, ops.AsTypeOp(dtype)
-                )
-            self._block = block
-
+                bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
         else:
-            import bigframes.pandas
-
+            if isinstance(dtype, str) and dtype.lower() == "json":
+                dtype = bigframes.dtypes.JSON_DTYPE
             pd_series = pd.Series(
-                data=data, index=index, dtype=dtype, name=name  # type:ignore
+                data=data,
+                index=index,  # type:ignore
+                dtype=dtype,  # type:ignore
+                name=name,
             )
-            pd_dataframe = pd_series.to_frame()
-            if pd_series.name is None:
-                # to_frame will set default numeric column label if unnamed, but we do not support int column label, so must rename
-                pd_dataframe = pd_dataframe.set_axis(["unnamed_col"], axis=1)
-            if (
-                pd_dataframe.size < MAX_INLINE_SERIES_SIZE
-                # TODO(swast): Workaround data types limitation in inline data.
-                and not any(
-                    dt.pyarrow_dtype
-                    for dt in pd_dataframe.dtypes
-                    if isinstance(dt, pd.ArrowDtype)
-                )
-            ):
-                self._block = blocks.block_from_local(pd_dataframe)
-            elif session:
-                self._block = session.read_pandas(pd_dataframe)._get_block()
-            else:
-                # Uses default global session
-                self._block = bigframes.pandas.read_pandas(pd_dataframe)._get_block()
-            if pd_series.name is None:
-                self._block = self._block.with_column_labels([None])
+            block = read_pandas_func(pd_series)._get_block()  # type:ignore
+
+        assert block is not None
+        self._block: blocks.Block = block
 
     @property
     def _value_column(self) -> str:
@@ -136,41 +167,77 @@ class SeriesMethods:
         other: typing.Any,
         op: ops.BinaryOp,
         alignment: typing.Literal["outer", "left"] = "outer",
+        reverse: bool = False,
     ) -> series.Series:
         """Applies a binary operator to the series and other."""
-        if isinstance(other, pd.Series):
-            # TODO: Convert to BigQuery DataFrames series
-            raise NotImplementedError(
-                f"Pandas series not supported as operand. {constants.FEEDBACK_LINK}"
+        if bigframes.core.convert.can_convert_to_series(other):
+            self_index = indexes.Index(self._block)
+            other_series = bigframes.core.convert.to_bf_series(
+                other, self_index, self._block.session
             )
-        if isinstance(other, series.Series):
-            (left, right, block) = self._align(other, how=alignment)
-
-            block, result_id = block.apply_binary_op(
-                left, right, op, self._value_column
-            )
+            (self_col, other_col, block) = self._align(other_series, how=alignment)
 
             name = self._name
+            # Drop name if both objects have name attr, but they don't match
             if (
-                isinstance(other, series.Series)
-                and other.name != self._name
+                hasattr(other, "name")
+                and other_series.name != self._name
                 and alignment == "outer"
             ):
                 name = None
-
-            return series.Series(
-                block.select_column(result_id).assign_label(result_id, name)
+            expr = op.as_expr(
+                other_col if reverse else self_col, self_col if reverse else other_col
             )
-        else:
-            partial_op = ops.BinopPartialRight(op, other)
-            return self._apply_unary_op(partial_op)
+            block, result_id = block.project_expr(expr, name)
+            return series.Series(block.select_column(result_id))
 
-    def _apply_corr_aggregation(self, other: series.Series) -> float:
+        else:  # Scalar binop
+            name = self._name
+            expr = op.as_expr(
+                ex.const(other) if reverse else self._value_column,
+                self._value_column if reverse else ex.const(other),
+            )
+            block, result_id = self._block.project_expr(expr, name)
+            return series.Series(block.select_column(result_id))
+
+    def _apply_nary_op(
+        self,
+        op: ops.NaryOp,
+        others: Sequence[typing.Union[series.Series, scalars.Scalar]],
+        ignore_self=False,
+    ):
+        """Applies an n-ary operator to the series and others."""
+        values, block = self._align_n(
+            others, ignore_self=ignore_self, cast_scalars=False
+        )
+        block, result_id = block.project_expr(op.as_expr(*values))
+        return series.Series(block.select_column(result_id))
+
+    def _apply_binary_aggregation(
+        self, other: series.Series, stat: agg_ops.BinaryAggregateOp
+    ) -> float:
         (left, right, block) = self._align(other, how="outer")
+        assert isinstance(left, ex.DerefOp)
+        assert isinstance(right, ex.DerefOp)
+        return block.get_binary_stat(left.id.name, right.id.name, stat)
 
-        return block.get_corr_stat(left, right)
+    AlignedExprT = Union[ex.ScalarConstantExpression, ex.DerefOp]
 
-    def _align(self, other: series.Series, how="outer") -> tuple[str, str, blocks.Block]:  # type: ignore
+    @typing.overload
+    def _align(
+        self, other: series.Series, how="outer"
+    ) -> tuple[ex.DerefOp, ex.DerefOp, blocks.Block,]:
+        ...
+
+    @typing.overload
+    def _align(
+        self, other: typing.Union[series.Series, scalars.Scalar], how="outer"
+    ) -> tuple[ex.DerefOp, AlignedExprT, blocks.Block,]:
+        ...
+
+    def _align(
+        self, other: typing.Union[series.Series, scalars.Scalar], how="outer"
+    ) -> tuple[ex.DerefOp, AlignedExprT, blocks.Block,]:
         """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
         values, block = self._align_n(
             [
@@ -178,29 +245,62 @@ class SeriesMethods:
             ],
             how,
         )
-        return (values[0], values[1], block)
+        return (typing.cast(ex.DerefOp, values[0]), values[1], block)
+
+    def _align3(self, other1: series.Series | scalars.Scalar, other2: series.Series | scalars.Scalar, how="left", cast_scalars: bool = True) -> tuple[ex.DerefOp, AlignedExprT, AlignedExprT, blocks.Block]:  # type: ignore
+        """Aligns the series value with 2 other scalars or series objects. Returns new values and joined tabled expression."""
+        values, index = self._align_n([other1, other2], how, cast_scalars=cast_scalars)
+        return (
+            typing.cast(ex.DerefOp, values[0]),
+            values[1],
+            values[2],
+            index,
+        )
 
     def _align_n(
         self,
         others: typing.Sequence[typing.Union[series.Series, scalars.Scalar]],
         how="outer",
-    ) -> tuple[typing.Sequence[str], blocks.Block]:
-        value_ids = [self._value_column]
+        ignore_self=False,
+        cast_scalars: bool = False,
+    ) -> tuple[
+        typing.Sequence[Union[ex.ScalarConstantExpression, ex.DerefOp]],
+        blocks.Block,
+    ]:
+        if ignore_self:
+            value_ids: List[Union[ex.ScalarConstantExpression, ex.DerefOp]] = []
+        else:
+            value_ids = [ex.deref(self._value_column)]
+
         block = self._block
         for other in others:
             if isinstance(other, series.Series):
-                combined_index, (
+                block, (
                     get_column_left,
                     get_column_right,
-                ) = block.index.join(other._block.index, how=how)
+                ) = block.join(other._block, how=how)
+                rebindings = {
+                    ids.ColumnId(old): ids.ColumnId(new)
+                    for old, new in get_column_left.items()
+                }
+                remapped_value_ids = (
+                    value.remap_column_refs(rebindings) for value in value_ids
+                )
                 value_ids = [
-                    *[get_column_left[value] for value in value_ids],
-                    get_column_right[other._value_column],
+                    *remapped_value_ids,  # type: ignore
+                    ex.deref(get_column_right[other._value_column]),
                 ]
-                block = combined_index._block
             else:
                 # Will throw if can't interpret as scalar.
                 dtype = typing.cast(bigframes.dtypes.Dtype, self._dtype)
-                block, constant_col_id = block.create_constant(other, dtype=dtype)
-                value_ids = [*value_ids, constant_col_id]
+                value_ids = [
+                    *value_ids,
+                    ex.const(other, dtype=dtype if cast_scalars else None),
+                ]
         return (value_ids, block)
+
+    def _throw_if_null_index(self, opname: str):
+        if len(self._block.index_columns) == 0:
+            raise bigframes.exceptions.NullIndexError(
+                f"Series cannot perform {opname} as it has no index. Set an index using set_index."
+            )

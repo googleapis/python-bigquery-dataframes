@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import cast
 import uuid
 
@@ -28,14 +29,8 @@ from bigframes.ml import (
     globals,
     imported,
     linear_model,
-    llm,
     remote,
 )
-
-
-@pytest.fixture(scope="session")
-def bq_connection() -> str:
-    return "bigframes-dev.us.bigframes-rf-conn"
 
 
 @pytest.fixture(scope="session")
@@ -46,12 +41,11 @@ def penguins_bqml_linear_model(session, penguins_linear_model_name) -> core.Bqml
 
 @pytest.fixture(scope="function")
 def ephemera_penguins_bqml_linear_model(
-    penguins_bqml_linear_model,
+    session: bigframes.Session,
+    penguins_bqml_linear_model: core.BqmlModel,
 ) -> core.BqmlModel:
     model = penguins_bqml_linear_model
-    return model.copy(
-        f"{model._model.project}.{model._model.dataset_id}.{uuid.uuid4().hex}"
-    )
+    return model.copy(f"{session._anonymous_dataset}.{uuid.uuid4().hex}")
 
 
 @pytest.fixture(scope="session")
@@ -86,6 +80,15 @@ def ephemera_penguins_linear_model(
 ) -> linear_model.LinearRegression:
     bf_model = linear_model.LinearRegression()
     bf_model._bqml_model = ephemera_penguins_bqml_linear_model
+    return bf_model
+
+
+@pytest.fixture(scope="function")
+def penguins_linear_model_w_global_explain(
+    penguins_bqml_linear_model: core.BqmlModel,
+) -> linear_model.LinearRegression:
+    bf_model = linear_model.LinearRegression(enable_global_explain=True)
+    bf_model._bqml_model = penguins_bqml_linear_model
     return bf_model
 
 
@@ -158,20 +161,6 @@ def penguins_pca_model(
 
 
 @pytest.fixture(scope="session")
-def llm_text_pandas_df():
-    """Additional data matching the penguins dataset, with a new index"""
-    return pd.DataFrame(
-        {
-            "prompt": [
-                "What is BigQuery?",
-                "What is BQML?",
-                "What is BigQuery DataFrame?",
-            ],
-        }
-    )
-
-
-@pytest.fixture(scope="session")
 def onnx_iris_pandas_df():
     """Data matching the iris dataset."""
     return pd.DataFrame(
@@ -190,72 +179,41 @@ def onnx_iris_pandas_df():
 
 
 @pytest.fixture(scope="session")
+def xgboost_iris_pandas_df():
+    """Data matching the iris dataset."""
+    return pd.DataFrame(
+        {
+            "sepal_length": [4.9, 5.1, 34.7],
+            "sepal_width": [3.0, 5.1, 24.7],
+            "petal_length": [1.4, 1.5, 13.3],
+            "petal_width": [0.4, 0.2, 18.3],
+        }
+    )
+
+
+@pytest.fixture(scope="session")
 def onnx_iris_df(session, onnx_iris_pandas_df):
     return session.read_pandas(onnx_iris_pandas_df)
 
 
 @pytest.fixture(scope="session")
-def llm_text_df(session, llm_text_pandas_df):
-    return session.read_pandas(llm_text_pandas_df)
-
-
-@pytest.fixture(scope="session")
-def bqml_palm2_text_generator_model(session, bq_connection) -> core.BqmlModel:
-    options = {
-        "remote_service_type": "CLOUD_AI_LARGE_LANGUAGE_MODEL_V1",
-    }
-    return globals.bqml_model_factory().create_remote_model(
-        session=session, connection_name=bq_connection, options=options
-    )
-
-
-@pytest.fixture(scope="session")
-def palm2_text_generator_model(session, bq_connection) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(session=session, connection_name=bq_connection)
-
-
-@pytest.fixture(scope="session")
-def palm2_text_generator_32k_model(session, bq_connection) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(
-        model_name="text-bison-32k", session=session, connection_name=bq_connection
-    )
-
-
-@pytest.fixture(scope="function")
-def ephemera_palm2_text_generator_model(
-    session, bq_connection
-) -> llm.PaLM2TextGenerator:
-    return llm.PaLM2TextGenerator(session=session, connection_name=bq_connection)
-
-
-@pytest.fixture(scope="session")
-def palm2_embedding_generator_model(
-    session, bq_connection
-) -> llm.PaLM2TextEmbeddingGenerator:
-    return llm.PaLM2TextEmbeddingGenerator(
-        session=session, connection_name=bq_connection
-    )
-
-
-@pytest.fixture(scope="session")
-def palm2_embedding_generator_multilingual_model(
-    session, bq_connection
-) -> llm.PaLM2TextEmbeddingGenerator:
-    return llm.PaLM2TextEmbeddingGenerator(
-        model_name="textembedding-gecko-multilingual",
-        session=session,
-        connection_name=bq_connection,
-    )
+def xgboost_iris_df(session, xgboost_iris_pandas_df):
+    return session.read_pandas(xgboost_iris_pandas_df)
 
 
 @pytest.fixture(scope="session")
 def linear_remote_model_params() -> dict:
     # Pre-deployed endpoint of linear reg model in Vertex.
     # bigframes-test-linreg2 -> bigframes-test-linreg-endpoint2
+    model_vertex_endpoint = os.environ.get(
+        "BIGFRAMES_TEST_MODEL_VERTEX_ENDPOINT",
+        "https://us-central1-aiplatform.googleapis.com/v1/projects/1084210331973/locations/us-central1/endpoints/3193318217619603456",
+    )
+
     return {
         "input": {"culmen_length_mm": "float64"},
         "output": {"predicted_body_mass_g": "array<float64>"},
-        "endpoint": "https://us-central1-aiplatform.googleapis.com/v1/projects/1084210331973/locations/us-central1/endpoints/3193318217619603456",
+        "endpoint": model_vertex_endpoint,
     }
 
 
@@ -297,12 +255,30 @@ def time_series_bqml_arima_plus_model(
 
 
 @pytest.fixture(scope="session")
+def time_series_bqml_arima_plus_model_w_id(
+    session, time_series_arima_plus_model_name_w_id
+) -> core.BqmlModel:
+    model = session.bqclient.get_model(time_series_arima_plus_model_name_w_id)
+    return core.BqmlModel(session, model)
+
+
+@pytest.fixture(scope="session")
 def time_series_arima_plus_model(
     session, time_series_arima_plus_model_name
 ) -> forecasting.ARIMAPlus:
     return cast(
         forecasting.ARIMAPlus,
         session.read_gbq_model(time_series_arima_plus_model_name),
+    )
+
+
+@pytest.fixture(scope="session")
+def time_series_arima_plus_model_w_id(
+    session, time_series_arima_plus_model_name_w_id
+) -> forecasting.ARIMAPlus:
+    return cast(
+        forecasting.ARIMAPlus,
+        session.read_gbq_model(time_series_arima_plus_model_name_w_id),
     )
 
 
@@ -314,6 +290,11 @@ def imported_tensorflow_model_path() -> str:
 @pytest.fixture(scope="session")
 def imported_onnx_model_path() -> str:
     return "gs://cloud-samples-data/bigquery/ml/onnx/pipeline_rf.onnx"
+
+
+@pytest.fixture(scope="session")
+def imported_xgboost_array_model_path() -> str:
+    return "gs://bigframes-dev-testing/xgboost-testdata/model.bst"
 
 
 @pytest.fixture(scope="session")
@@ -339,4 +320,21 @@ def imported_onnx_model(session, imported_onnx_model_path) -> imported.ONNXModel
     return imported.ONNXModel(
         session=session,
         model_path=imported_onnx_model_path,
+    )
+
+
+@pytest.fixture(scope="session")
+def imported_xgboost_model(
+    session, imported_xgboost_array_model_path
+) -> imported.XGBoostModel:
+    return imported.XGBoostModel(
+        session=session,
+        input={
+            "petal_length": "float64",
+            "petal_width": "float64",
+            "sepal_length": "float64",
+            "sepal_width": "float64",
+        },
+        output={"predicted_label": "float64"},
+        model_path=imported_xgboost_array_model_path,
     )

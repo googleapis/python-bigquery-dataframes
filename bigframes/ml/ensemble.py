@@ -12,52 +12,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Ensemble models. This module is styled after Scikit-Learn's ensemble module:
+"""Ensemble models. This module is styled after scikit-learn's ensemble module:
 https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional
 
+import bigframes_vendored.sklearn.ensemble._forest
+import bigframes_vendored.xgboost.sklearn
 from google.cloud import bigquery
 
-import bigframes
 from bigframes.core import log_adapter
+import bigframes.dataframe
 from bigframes.ml import base, core, globals, utils
-import bigframes.pandas as bpd
-import third_party.bigframes_vendored.sklearn.ensemble._forest
-import third_party.bigframes_vendored.xgboost.sklearn
+import bigframes.session
 
 _BQML_PARAMS_MAPPING = {
     "booster": "boosterType",
+    "dart_normalized_type": "dartNormalizeType",
     "tree_method": "treeMethod",
-    "early_stop": "earlyStop",
-    "colsample_bytree": "colsampleBylevel",
-    "colsample_bylevel": "colsampleBytree",
+    "colsample_bytree": "colsampleBytree",
+    "colsample_bylevel": "colsampleBylevel",
     "colsample_bynode": "colsampleBynode",
     "gamma": "minSplitLoss",
     "subsample": "subsample",
     "reg_alpha": "l1Regularization",
     "reg_lambda": "l2Regularization",
     "learning_rate": "learnRate",
-    "min_rel_progress": "minRelativeProgress",
-    "num_parallel_tree": "numParallelTree",
+    "tol": "minRelativeProgress",
+    "n_estimators": "numParallelTree",
     "min_tree_child_weight": "minTreeChildWeight",
     "max_depth": "maxTreeDepth",
     "max_iterations": "maxIterations",
+    "enable_global_explain": "enableGlobalExplain",
+    "xgboost_version": "xgboostVersion",
 }
 
 
 @log_adapter.class_logger
 class XGBRegressor(
-    base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor,
+    base.SupervisedTrainableWithEvaluationPredictor,
+    bigframes_vendored.xgboost.sklearn.XGBRegressor,
 ):
-    __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
+    __doc__ = bigframes_vendored.xgboost.sklearn.XGBRegressor.__doc__
 
     def __init__(
         self,
-        num_parallel_tree: int = 1,
+        n_estimators: int = 1,
+        *,
         booster: Literal["gbtree", "dart"] = "gbtree",
         dart_normalized_type: Literal["tree", "forest"] = "tree",
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
@@ -70,14 +73,13 @@ class XGBRegressor(
         subsample: float = 1.0,
         reg_alpha: float = 0.0,
         reg_lambda: float = 1.0,
-        early_stop: float = True,
         learning_rate: float = 0.3,
         max_iterations: int = 20,
-        min_rel_progress: float = 0.01,
+        tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
-        self.num_parallel_tree = num_parallel_tree
+        self.n_estimators = n_estimators
         self.booster = booster
         self.dart_normalized_type = dart_normalized_type
         self.tree_method = tree_method
@@ -90,10 +92,9 @@ class XGBRegressor(
         self.subsample = subsample
         self.reg_alpha = reg_alpha
         self.reg_lambda = reg_lambda
-        self.early_stop = early_stop
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
-        self.min_rel_progress = min_rel_progress
+        self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
@@ -101,24 +102,17 @@ class XGBRegressor(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> XGBRegressor:
-        assert model.model_type == "BOOSTED_TREE_REGRESSOR"
+        assert bq_model.model_type == "BOOSTED_TREE_REGRESSOR"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_regressor = cls()
-        for bf_param, bf_value in dummy_regressor.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_xgb_regressor = cls(**kwargs)
-        new_xgb_regressor._bqml_model = core.BqmlModel(session, model)
-        return new_xgb_regressor
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
@@ -126,7 +120,8 @@ class XGBRegressor(
         return {
             "model_type": "BOOSTED_TREE_REGRESSOR",
             "data_split_method": "NO_SPLIT",
-            "num_parallel_tree": self.num_parallel_tree,
+            "early_stop": True,
+            "num_parallel_tree": self.n_estimators,
             "booster_type": self.booster,
             "tree_method": self.tree_method,
             "min_tree_child_weight": self.min_tree_child_weight,
@@ -138,49 +133,58 @@ class XGBRegressor(
             "subsample": self.subsample,
             "l1_reg": self.reg_alpha,
             "l2_reg": self.reg_lambda,
-            "early_stop": self.early_stop,
             "learn_rate": self.learning_rate,
             "max_iterations": self.max_iterations,
-            "min_rel_progress": self.min_rel_progress,
+            "min_rel_progress": self.tol,
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> XGBRegressor:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-    ) -> bpd.DataFrame:
+        X: utils.ArrayType,
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
-        X, y = utils.convert_to_dataframe(X, y)
-
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
+
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -192,11 +196,11 @@ class XGBRegressor(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
-        Returns: saved model."""
+        Returns: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -206,15 +210,16 @@ class XGBRegressor(
 
 @log_adapter.class_logger
 class XGBClassifier(
-    base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier,
+    base.SupervisedTrainableWithEvaluationPredictor,
+    bigframes_vendored.xgboost.sklearn.XGBClassifier,
 ):
 
-    __doc__ = third_party.bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
+    __doc__ = bigframes_vendored.xgboost.sklearn.XGBClassifier.__doc__
 
     def __init__(
         self,
-        num_parallel_tree: int = 1,
+        n_estimators: int = 1,
+        *,
         booster: Literal["gbtree", "dart"] = "gbtree",
         dart_normalized_type: Literal["tree", "forest"] = "tree",
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
@@ -227,14 +232,13 @@ class XGBClassifier(
         subsample: float = 1.0,
         reg_alpha: float = 0.0,
         reg_lambda: float = 1.0,
-        early_stop: bool = True,
         learning_rate: float = 0.3,
         max_iterations: int = 20,
-        min_rel_progress: float = 0.01,
+        tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
-        self.num_parallel_tree = num_parallel_tree
+        self.n_estimators = n_estimators
         self.booster = booster
         self.dart_normalized_type = dart_normalized_type
         self.tree_method = tree_method
@@ -247,10 +251,9 @@ class XGBClassifier(
         self.subsample = subsample
         self.reg_alpha = reg_alpha
         self.reg_lambda = reg_lambda
-        self.early_stop = early_stop
         self.learning_rate = learning_rate
         self.max_iterations = max_iterations
-        self.min_rel_progress = min_rel_progress
+        self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
@@ -258,24 +261,17 @@ class XGBClassifier(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> XGBClassifier:
-        assert model.model_type == "BOOSTED_TREE_CLASSIFIER"
+        assert bq_model.model_type == "BOOSTED_TREE_CLASSIFIER"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_classifier = XGBClassifier()
-        for bf_param, bf_value in dummy_classifier.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param is not None:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_xgb_classifier = cls(**kwargs)
-        new_xgb_classifier._bqml_model = core.BqmlModel(session, model)
-        return new_xgb_classifier
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
@@ -283,7 +279,8 @@ class XGBClassifier(
         return {
             "model_type": "BOOSTED_TREE_CLASSIFIER",
             "data_split_method": "NO_SPLIT",
-            "num_parallel_tree": self.num_parallel_tree,
+            "early_stop": True,
+            "num_parallel_tree": self.n_estimators,
             "booster_type": self.booster,
             "tree_method": self.tree_method,
             "min_tree_child_weight": self.min_tree_child_weight,
@@ -295,46 +292,55 @@ class XGBClassifier(
             "subsample": self.subsample,
             "l1_reg": self.reg_alpha,
             "l2_reg": self.reg_lambda,
-            "early_stop": self.early_stop,
             "learn_rate": self.learning_rate,
             "max_iterations": self.max_iterations,
-            "min_rel_progress": self.min_rel_progress,
+            "min_rel_progress": self.tol,
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> XGBClassifier:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -346,12 +352,12 @@ class XGBClassifier(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            XGBClassifier: saved model."""
+            XGBClassifier: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -361,33 +367,31 @@ class XGBClassifier(
 
 @log_adapter.class_logger
 class RandomForestRegressor(
-    base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
+    base.SupervisedTrainableWithEvaluationPredictor,
+    bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor,
 ):
 
-    __doc__ = (
-        third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor.__doc__
-    )
+    __doc__ = bigframes_vendored.sklearn.ensemble._forest.RandomForestRegressor.__doc__
 
     def __init__(
         self,
-        num_parallel_tree: int = 100,
+        n_estimators: int = 100,
+        *,
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
         min_tree_child_weight: int = 1,
-        colsample_bytree=1.0,
-        colsample_bylevel=1.0,
-        colsample_bynode=0.8,
-        gamma=0.00,
+        colsample_bytree: float = 1.0,
+        colsample_bylevel: float = 1.0,
+        colsample_bynode: float = 0.8,
+        gamma: float = 0.0,
         max_depth: int = 15,
-        subsample=0.8,
-        reg_alpha=0.0,
-        reg_lambda=1.0,
-        early_stop=True,
-        min_rel_progress=0.01,
-        enable_global_explain=False,
+        subsample: float = 0.8,
+        reg_alpha: float = 0.0,
+        reg_lambda: float = 1.0,
+        tol: float = 0.01,
+        enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
-        self.num_parallel_tree = num_parallel_tree
+        self.n_estimators = n_estimators
         self.tree_method = tree_method
         self.min_tree_child_weight = min_tree_child_weight
         self.colsample_bytree = colsample_bytree
@@ -398,8 +402,7 @@ class RandomForestRegressor(
         self.subsample = subsample
         self.reg_alpha = reg_alpha
         self.reg_lambda = reg_lambda
-        self.early_stop = early_stop
-        self.min_rel_progress = min_rel_progress
+        self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
@@ -407,31 +410,25 @@ class RandomForestRegressor(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> RandomForestRegressor:
-        assert model.model_type == "RANDOM_FOREST_REGRESSOR"
+        assert bq_model.model_type == "RANDOM_FOREST_REGRESSOR"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_model = cls()
-        for bf_param, bf_value in dummy_model.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_random_forest_regressor = cls(**kwargs)
-        new_random_forest_regressor._bqml_model = core.BqmlModel(session, model)
-        return new_random_forest_regressor
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
         """The model options as they will be set for BQML"""
         return {
             "model_type": "RANDOM_FOREST_REGRESSOR",
-            "num_parallel_tree": self.num_parallel_tree,
+            "early_stop": True,
+            "num_parallel_tree": self.n_estimators,
             "tree_method": self.tree_method,
             "min_tree_child_weight": self.min_tree_child_weight,
             "colsample_bytree": self.colsample_bytree,
@@ -442,8 +439,7 @@ class RandomForestRegressor(
             "subsample": self.subsample,
             "l1_reg": self.reg_alpha,
             "l2_reg": self.reg_lambda,
-            "early_stop": self.early_stop,
-            "min_rel_progress": self.min_rel_progress,
+            "min_rel_progress": self.tol,
             "data_split_method": "NO_SPLIT",
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
@@ -451,40 +447,50 @@ class RandomForestRegressor(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> RandomForestRegressor:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-    ) -> bpd.DataFrame:
+        X: utils.ArrayType,
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
         """Calculate evaluation metrics of the model.
 
         .. note::
 
-            Output matches that of the BigQuery ML.EVALUTE function.
+            Output matches that of the BigQuery ML.EVALUATE function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#regression_models
             for the outputs relevant to this model type.
 
@@ -500,7 +506,7 @@ class RandomForestRegressor(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -512,12 +518,12 @@ class RandomForestRegressor(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            RandomForestRegressor: saved model."""
+            RandomForestRegressor: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -527,17 +533,16 @@ class RandomForestRegressor(
 
 @log_adapter.class_logger
 class RandomForestClassifier(
-    base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
+    base.SupervisedTrainableWithEvaluationPredictor,
+    bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier,
 ):
 
-    __doc__ = (
-        third_party.bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier.__doc__
-    )
+    __doc__ = bigframes_vendored.sklearn.ensemble._forest.RandomForestClassifier.__doc__
 
     def __init__(
         self,
-        num_parallel_tree: int = 100,
+        n_estimators: int = 100,
+        *,
         tree_method: Literal["auto", "exact", "approx", "hist"] = "auto",
         min_tree_child_weight: int = 1,
         colsample_bytree: float = 1.0,
@@ -548,12 +553,11 @@ class RandomForestClassifier(
         subsample: float = 0.8,
         reg_alpha: float = 0.0,
         reg_lambda: float = 1.0,
-        early_stop=True,
-        min_rel_progress: float = 0.01,
-        enable_global_explain=False,
+        tol: float = 0.01,
+        enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
     ):
-        self.num_parallel_tree = num_parallel_tree
+        self.n_estimators = n_estimators
         self.tree_method = tree_method
         self.min_tree_child_weight = min_tree_child_weight
         self.colsample_bytree = colsample_bytree
@@ -564,8 +568,7 @@ class RandomForestClassifier(
         self.subsample = subsample
         self.reg_alpha = reg_alpha
         self.reg_lambda = reg_lambda
-        self.early_stop = early_stop
-        self.min_rel_progress = min_rel_progress
+        self.tol = tol
         self.enable_global_explain = enable_global_explain
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
@@ -573,31 +576,25 @@ class RandomForestClassifier(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> RandomForestClassifier:
-        assert model.model_type == "RANDOM_FOREST_CLASSIFIER"
+        assert bq_model.model_type == "RANDOM_FOREST_CLASSIFIER"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_model = RandomForestClassifier()
-        for bf_param, bf_value in dummy_model.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param is not None:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_random_forest_classifier = cls(**kwargs)
-        new_random_forest_classifier._bqml_model = core.BqmlModel(session, model)
-        return new_random_forest_classifier
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
         """The model options as they will be set for BQML"""
         return {
             "model_type": "RANDOM_FOREST_CLASSIFIER",
-            "num_parallel_tree": self.num_parallel_tree,
+            "early_stop": True,
+            "num_parallel_tree": self.n_estimators,
             "tree_method": self.tree_method,
             "min_tree_child_weight": self.min_tree_child_weight,
             "colsample_bytree": self.colsample_bytree,
@@ -608,8 +605,7 @@ class RandomForestClassifier(
             "subsample": self.subsample,
             "l1_reg": self.reg_alpha,
             "l2_reg": self.reg_lambda,
-            "early_stop": self.early_stop,
-            "min_rel_progress": self.min_rel_progress,
+            "min_rel_progress": self.tol,
             "data_split_method": "NO_SPLIT",
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
@@ -617,40 +613,50 @@ class RandomForestClassifier(
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> RandomForestClassifier:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-    ) -> bpd.DataFrame:
+        X: utils.ArrayType,
+    ) -> bigframes.dataframe.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ):
         """Calculate evaluation metrics of the model.
 
         .. note::
 
-            Output matches that of the BigQuery ML.EVALUTE function.
+            Output matches that of the BigQuery ML.EVALUATE function.
             See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate#classification_models
             for the outputs relevant to this model type.
 
@@ -666,7 +672,7 @@ class RandomForestClassifier(
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = (
             X.join(y, how="outer") if (X is not None) and (y is not None) else None
@@ -678,12 +684,12 @@ class RandomForestClassifier(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            RandomForestClassifier: saved model."""
+            RandomForestClassifier: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 

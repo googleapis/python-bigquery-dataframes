@@ -55,7 +55,9 @@ rm -rf build dist
 # internal issue b/261050975.
 git config --global --add safe.directory "${PROJECT_ROOT}"
 
-python3.10 -m pip install --require-hashes -r .kokoro/requirements.txt
+# Workaround for older pip not able to resolve dependencies. See internal
+# issue 316909553.
+python3.10 -m pip install pip==25.0.1
 
 # Disable buffering, so that the logs stream through.
 export PYTHONUNBUFFERED=1
@@ -103,6 +105,7 @@ for gcs_path in gs://vertex_sdk_private_releases/bigframe/ \
     # write access to
     COVERAGE_TABLE=bigframes-metrics.coverage_report.bigframes_coverage_nightly
     python3.10 scripts/publish_api_coverage.py \
+      bigquery \
       --bigframes_version=$BIGFRAMES_VERSION \
       --release_version=$RELEASE_VERSION \
       --bigquery_table=$COVERAGE_TABLE

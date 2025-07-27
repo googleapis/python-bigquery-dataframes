@@ -3,8 +3,9 @@
 
 # License: BSD
 
+from bigframes_vendored.sklearn.base import BaseEstimator, TransformerMixin
+
 from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import BaseEstimator, TransformerMixin
 
 
 class KBinsDiscretizer(TransformerMixin, BaseEstimator):
@@ -17,14 +18,14 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator):
         strategy ({'uniform', 'quantile'}, default='quantile'):
             Strategy used to define the widths of the bins. 'uniform': All bins
             in each feature have identical widths. 'quantile': All bins in each
-            feature have the same number of points. Only `uniform` is supported now.
+            feature have the same number of points.
     """
 
     def fit(self, X, y=None):
         """Fit the estimator.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 The Dataframe or Series with training data.
 
             y (default None):
@@ -39,7 +40,7 @@ class KBinsDiscretizer(TransformerMixin, BaseEstimator):
         """Discretize the data.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 The DataFrame or Series to be transformed.
 
         Returns:

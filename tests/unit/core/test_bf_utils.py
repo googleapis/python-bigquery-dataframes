@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+
+import numpy as np
+import pandas as pd
+import pytest
+
 from bigframes.core import utils
 
 
@@ -26,7 +32,7 @@ def test_get_standardized_ids_columns():
         utils.UNNAMED_COLUMN_ID,
         "duplicate",
         "duplicate_1",
-        "with_space",
+        "with space",
     ]
     assert idx_ids == []
 
@@ -35,12 +41,12 @@ def test_get_standardized_ids_indexes():
     col_labels = ["duplicate"]
     idx_labels = ["string", 0, None, "duplicate", "duplicate", "with space"]
 
-    col_ids, idx_ids = utils.get_standardized_ids(col_labels, idx_labels)
+    col_ids, idx_ids = utils.get_standardized_ids(col_labels, idx_labels, strict=True)
 
     assert col_ids == ["duplicate_2"]
     assert idx_ids == [
         "string",
-        "0",
+        "_0",
         utils.UNNAMED_INDEX_ID,
         "duplicate",
         "duplicate_1",
@@ -53,4 +59,16 @@ def test_get_standardized_ids_tuple():
 
     col_ids, _ = utils.get_standardized_ids(col_labels)
 
-    assert col_ids == ["('foo',_1)", "('foo',_2)", "('bar',_1)"]
+    assert col_ids == ["_'foo'_ 1_", "_'foo'_ 2_", "_'bar'_ 1_"]
+
+
+@pytest.mark.parametrize(
+    "input",
+    [
+        datetime.timedelta(days=2, hours=3, seconds=4, milliseconds=5, microseconds=6),
+        pd.Timedelta("2d3h4s5ms6us"),
+        np.timedelta64(pd.Timedelta("2d3h4s5ms6us")),
+    ],
+)
+def test_timedelta_to_micros(input):
+    assert utils.timedelta_to_micros(input) == 183604005006

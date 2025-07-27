@@ -4,6 +4,18 @@
   - href: changelog.md
     name: Changelog
   - items:
+    - href: summary_overview.html
+      name: Overview
+    - href: summary_class.html
+      name: Classes
+    - href: summary_method.html
+      name: Methods
+    - href: summary_property.html
+      name: Properties and Attributes
+    - href: supported_pandas_apis.html
+      name: Supported pandas APIs
+    name: BigQuery DataFrames API
+  - items:
     - items:
       - name: Options
         uid: bigframes._config.Options
@@ -20,18 +32,49 @@
       - name: Session
         uid: bigframes.session.Session
       name: Session
+    - name: Enumerations
+      uid: bigframes.enums
+    - name: Exceptions and warnings
+      uid: bigframes.exceptions
     name: Core Objects
   - items:
-    - name: DataFrame
-      uid: bigframes.dataframe.DataFrame
+    - items:
+      - name: DataFrame
+        uid: bigframes.dataframe.DataFrame
+      - name: PlotAccessor
+        uid: bigframes.operations.plotting.PlotAccessor
+      - name: StructAccessor
+        uid: bigframes.operations.structs.StructFrameAccessor
+      - name: AI
+        uid: bigframes.operations.ai.AIAccessor
+        status: beta
+      name: DataFrame
     - items:
       - name: DataFrameGroupBy
         uid: bigframes.core.groupby.DataFrameGroupBy
       - name: SeriesGroupBy
         uid: bigframes.core.groupby.SeriesGroupBy
       name: Groupby
-    - name: Indexes
-      uid: bigframes.core.indexes.index.Index
+    - name: Index
+      uid: bigframes.core.indexes.base.Index
+    - items:
+      - name: AtDataFrameIndexer
+        uid: bigframes.core.indexers.AtDataFrameIndexer
+      - name: AtSeriesIndexer
+        uid: bigframes.core.indexers.AtSeriesIndexer
+      - name: IatDataFrameIndexer
+        uid: bigframes.core.indexers.IatDataFrameIndexer
+      - name: IatSeriesIndexer
+        uid: bigframes.core.indexers.IatSeriesIndexer
+      - name: ILocDataFrameIndexer
+        uid: bigframes.core.indexers.ILocDataFrameIndexer
+      - name: IlocSeriesIndexer
+        uid: bigframes.core.indexers.IlocSeriesIndexer
+      - name: LocDataFrameIndexer
+        uid: bigframes.core.indexers.LocDataFrameIndexer
+      - name: LocSeriesIndexer
+        uid: bigframes.core.indexers.LocSeriesIndexer
+      name: Indexers
     - name: pandas
       uid: bigframes.pandas
     - items:
@@ -43,6 +86,13 @@
         uid: bigframes.operations.strings.StringMethods
       - name: StructAccessor
         uid: bigframes.operations.structs.StructAccessor
+      - name: ListAccessor
+        uid: bigframes.operations.lists.ListAccessor
+      - name: PlotAccessor
+        uid: bigframes.operations.plotting.PlotAccessor
+      - name: BlobAccessor
+        uid: bigframes.operations.blob.BlobAccessor
+        status: beta
       name: Series
     - name: Window
       uid: bigframes.core.window.Window
@@ -65,6 +115,8 @@
         uid: bigframes.ml.decomposition
       - name: PCA
         uid: bigframes.ml.decomposition.PCA
+      - name: MatrixFactorization
+        uid: bigframes.ml.decomposition.MatrixFactorization
       name: decomposition
     - items:
       - name: Overview
@@ -91,7 +143,15 @@
         uid: bigframes.ml.imported.ONNXModel
       - name: TensorFlowModel
         uid: bigframes.ml.imported.TensorFlowModel
+      - name: XGBoostModel
+        uid: bigframes.ml.imported.XGBoostModel
       name: imported
+    - items:
+      - name: Overview
+        uid: bigframes.ml.impute
+      - name: SimpleImputer
+        uid: bigframes.ml.impute.SimpleImputer
+      name: impute
     - items:
       - name: Overview
         uid: bigframes.ml.linear_model
@@ -103,21 +163,25 @@
     - items:
       - name: Overview
         uid: bigframes.ml.llm
+      - name: GeminiTextGenerator
+        uid: bigframes.ml.llm.GeminiTextGenerator
       - name: PaLM2TextGenerator
         uid: bigframes.ml.llm.PaLM2TextGenerator
       - name: PaLM2TextEmbeddingGenerator
         uid: bigframes.ml.llm.PaLM2TextEmbeddingGenerator
+      - name: TextEmbeddingGenerator
+        uid: bigframes.ml.llm.TextEmbeddingGenerator
+      - name: Claude3TextGenerator
+        uid: bigframes.ml.llm.Claude3TextGenerator
       name: llm
-    - items:
-      - name: Overview
-        uid: bigframes.ml.remote
-      - name: VertexAIModel
-        uid: bigframes.ml.remote.VertexAIModel
-      name: remote
     - items:
       - name: metrics
         uid: bigframes.ml.metrics
       name: metrics
+    - items:
+      - name: metrics.pairwise
+        uid: bigframes.ml.metrics.pairwise
+      name: metrics.pairwise
     - items:
       - name: model_selection
         uid: bigframes.ml.model_selection
@@ -144,6 +208,26 @@
       - name: OneHotEncoder
         uid: bigframes.ml.preprocessing.OneHotEncoder
       name: preprocessing
+    - items:
+      - name: Overview
+        uid: bigframes.ml.remote
+      - name: VertexAIModel
+        uid: bigframes.ml.remote.VertexAIModel
+      name: remote
     name: bigframes.ml
+  - items:
+    - name: BigQuery built-in functions
+      uid: bigframes.bigquery
+    name: bigframes.bigquery
+  - items:
+    - name: GeoSeries
+      uid: bigframes.geopandas.GeoSeries
+    name: bigframes.geopandas
+  - items:
+    - name: Overview
+      uid: bigframes.streaming
+    - name: StreamingDataFrame
+      uid: bigframes.streaming.dataframe.StreamingDataFrame
+    name: bigframes.streaming
+    status: beta
   name: BigQuery DataFrames
-  status: beta

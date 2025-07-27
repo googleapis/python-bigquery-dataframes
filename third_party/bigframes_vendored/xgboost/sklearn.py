@@ -1,4 +1,4 @@
-"""Scikit-Learn Wrapper interface for XGBoost."""
+"""scikit-learn Wrapper interface for XGBoost."""
 
 from typing import Any
 
@@ -37,8 +37,15 @@ class XGBModel(XGBModelBase):
                 DataFrame of shape (n_samples,) or (n_samples, n_targets).
                 Target values. Will be cast to X's dtype if necessary.
 
+            X_eval (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                Series or DataFrame of shape (n_samples, n_features). Evaluation data.
+
+            y_eval (bigframes.dataframe.DataFrame or bigframes.series.Series):
+                DataFrame of shape (n_samples,) or (n_samples, n_targets).
+                Evaluation target values. Will be cast to X_eval's dtype if necessary.
+
         Returns:
-            XGBModel: Fitted Estimator.
+            XGBModel: Fitted estimator.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -55,7 +62,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
     XGBoost regression model.
 
     Args:
-        num_parallel_tree (Optional[int]):
+        n_estimators (Optional[int]):
             Number of parallel trees constructed during each iteration. Default to 1.
         booster (Optional[str]):
             Specify which booster to use: gbtree or dart. Default to "gbtree".
@@ -63,7 +70,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
             Type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
         tree_method (Optional[str]):
             Specify which tree method to use.  Default to "auto". If this parameter is set to
-            default, XGBoost will choose the most conservative option available. Possible values: ""exact", "approx",
+            default, XGBoost will choose the most conservative option available. Possible values: "exact", "approx",
             "hist".
         min_child_weight (Optional[float]):
             Minimum sum of instance weight(hessian) needed in a child. Default to 1.
@@ -84,14 +91,12 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
             L1 regularization term on weights (xgb's alpha). Default to 0.0.
         reg_lambda (Optional[float]):
             L2 regularization term on weights (xgb's lambda). Default to 1.0.
-        early_stop (Optional[bool]):
-            Whether training should stop after the first iteration. Default to True.
         learning_rate (Optional[float]):
             Boosting learning rate (xgb's "eta"). Default to 0.3.
         max_iterations (Optional[int]):
             Maximum number of rounds for boosting. Default to 20.
-        min_rel_progress (Optional[float]):
-            Minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
+        tol (Optional[float]):
+            Minimum relative loss improvement necessary to continue training. Default to 0.01.
         enable_global_explain (Optional[bool]):
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version (Optional[str]):
@@ -104,7 +109,7 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
     XGBoost classifier model.
 
     Args:
-        num_parallel_tree (Optional[int]):
+        n_estimators (Optional[int]):
             Number of parallel trees constructed during each iteration. Default to 1.
         booster (Optional[str]):
             Specify which booster to use: gbtree or dart. Default to "gbtree".
@@ -112,7 +117,7 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             Type of normalization algorithm for DART booster. Possible values: "TREE", "FOREST". Default to "TREE".
         tree_method (Optional[str]):
             Specify which tree method to use.  Default to "auto". If this parameter is set to
-            default, XGBoost will choose the most conservative option available. Possible values: ""exact", "approx",
+            default, XGBoost will choose the most conservative option available. Possible values: "exact", "approx",
             "hist".
         min_child_weight (Optional[float]):
             Minimum sum of instance weight(hessian) needed in a child. Default to 1.
@@ -133,14 +138,12 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             L1 regularization term on weights (xgb's alpha). Default to 0.0.
         reg_lambda (Optional[float]):
             L2 regularization term on weights (xgb's lambda). Default to 1.0.
-        early_stop (Optional[bool]):
-            Whether training should stop after the first iteration. Default to True.
         learning_rate (Optional[float]):
             Boosting learning rate (xgb's "eta"). Default to 0.3.
         max_iterations (Optional[int]):
             Maximum number of rounds for boosting. Default to 20.
-        min_rel_progress (Optional[float]):
-            Minimum relative loss improvement necessary to continue training when early_stop is set to True. Default to 0.01.
+        tol (Optional[float]):
+            Minimum relative loss improvement necessary to continue training. Default to 0.01.
         enable_global_explain (Optional[bool]):
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version (Optional[str]):

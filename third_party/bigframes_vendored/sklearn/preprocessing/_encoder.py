@@ -2,8 +2,9 @@
 #          Joris Van den Bossche <jorisvandenbossche@gmail.com>
 # License: BSD 3 clause
 
+from bigframes_vendored.sklearn.base import BaseEstimator
+
 from bigframes import constants
-from third_party.bigframes_vendored.sklearn.base import BaseEstimator
 
 
 class OneHotEncoder(BaseEstimator):
@@ -22,15 +23,21 @@ class OneHotEncoder(BaseEstimator):
         Given a dataset with two features, we let the encoder find the unique
         values per feature and transform the data to a binary one-hot encoding.
 
-        .. code-block::
+        >>> from bigframes.ml.preprocessing import OneHotEncoder
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
 
-            from bigframes.ml.preprocessing import OneHotEncoder
-            import bigframes.pandas as bpd
+        >>> enc = OneHotEncoder()
+        >>> X = bpd.DataFrame({"a": ["Male", "Female", "Female"], "b": ["1", "3", "2"]})
+        >>> enc.fit(X)
+        OneHotEncoder()
 
-            enc = OneHotEncoder()
-            X = bpd.DataFrame({"a": ["Male", "Female", "Female"], "b": ["1", "3", "2"]})
-            enc.fit(X)
-            print(enc.transform(bpd.DataFrame({"a": ["Female", "Male"], "b": ["1", "4"]})))
+        >>> print(enc.transform(bpd.DataFrame({"a": ["Female", "Male"], "b": ["1", "4"]})))
+                        onehotencoded_a               onehotencoded_b
+        0  [{'index': 1, 'value': 1.0}]  [{'index': 1, 'value': 1.0}]
+        1  [{'index': 2, 'value': 1.0}]  [{'index': 0, 'value': 1.0}]
+        <BLANKLINE>
+        [2 rows x 2 columns]
 
     Args:
         drop (Optional[Literal["most_frequent"]], default None):
@@ -51,14 +58,14 @@ class OneHotEncoder(BaseEstimator):
             Specifies an upper limit to the number of output features for each input feature
             when considering infrequent categories. If there are infrequent categories,
             max_categories includes the category representing the infrequent categories along with the frequent categories.
-            Default None, set limit to 1,000,000.
+            Default None. Set limit to 1,000,000.
     """
 
     def fit(self, X, y=None):
         """Fit OneHotEncoder to X.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 The DataFrame or Series with training data.
 
             y (default None):
@@ -73,10 +80,10 @@ class OneHotEncoder(BaseEstimator):
         """Transform X using one-hot encoding.
 
         Args:
-            X (bigframes.dataframe.DataFrame or bigframes.series.Series):
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or pandas.core.frame.DataFrame or pandas.core.series.Series):
                 The DataFrame or Series to be transformed.
 
         Returns:
-            bigframes.dataframe.DataFrame: The result is categorized as index: number, value: number.
-                Where index is the position of the dict that seeing the category, and value is 0 or 1."""
+            bigframes.dataframe.DataFrame: The result is categorized as index: number, value: number,
+                where index is the position of the dict seeing the category, and value is 0 or 1."""
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

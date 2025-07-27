@@ -15,10 +15,13 @@
 import pandas as pd
 
 from bigframes.ml import decomposition
-import tests.system.utils
+import bigframes.pandas as bpd
+import bigframes.testing.utils
 
 
-def test_pca_predict(penguins_pca_model, new_penguins_df):
+def test_pca_predict(
+    penguins_pca_model: decomposition.PCA, new_penguins_df: bpd.DataFrame
+):
     predictions = penguins_pca_model.predict(new_penguins_df).to_pandas()
     expected = pd.DataFrame(
         {
@@ -29,10 +32,52 @@ def test_pca_predict(penguins_pca_model, new_penguins_df):
         dtype="Float64",
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
+
+    bigframes.testing.utils.assert_pandas_df_equal_pca(
+        predictions, expected, check_exact=False, rtol=0.1
+    )
+
+
+def test_pca_detect_anomalies(
+    penguins_pca_model: decomposition.PCA, new_penguins_df: bpd.DataFrame
+):
+    anomalies = penguins_pca_model.detect_anomalies(new_penguins_df).to_pandas()
+    expected = pd.DataFrame(
+        {
+            "is_anomaly": [False, True, False],
+            "mean_squared_error": [0.254188, 0.731243, 0.298889],
+        },
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
     pd.testing.assert_frame_equal(
-        predictions.sort_index(),
+        anomalies[["is_anomaly", "mean_squared_error"]].sort_index(),
         expected,
         check_exact=False,
+        check_dtype=False,
+        rtol=0.1,
+    )
+
+
+def test_pca_detect_anomalies_params(
+    penguins_pca_model: decomposition.PCA, new_penguins_df: bpd.DataFrame
+):
+    anomalies = penguins_pca_model.detect_anomalies(
+        new_penguins_df, contamination=0.2
+    ).to_pandas()
+    expected = pd.DataFrame(
+        {
+            "is_anomaly": [False, True, True],
+            "mean_squared_error": [0.254188, 0.731243, 0.298889],
+        },
+        index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
+    )
+
+    pd.testing.assert_frame_equal(
+        anomalies[["is_anomaly", "mean_squared_error"]].sort_index(),
+        expected,
+        check_exact=False,
+        check_dtype=False,
         rtol=0.1,
     )
 
@@ -115,7 +160,8 @@ def test_pca_components_(penguins_pca_model: decomposition.PCA):
         .sort_values(["principal_component_id", "feature"])
         .reset_index(drop=True)
     )
-    pd.testing.assert_frame_equal(
+
+    bigframes.testing.utils.assert_pandas_df_equal_pca_components(
         result,
         expected,
         check_exact=False,
@@ -134,7 +180,7 @@ def test_pca_explained_variance_(penguins_pca_model: decomposition.PCA):
             "explained_variance": [3.278657, 1.270829, 1.125354],
         },
     )
-    tests.system.utils.assert_pandas_df_equal(
+    bigframes.testing.utils.assert_pandas_df_equal(
         result,
         expected,
         check_exact=False,
@@ -154,7 +200,7 @@ def test_pca_explained_variance_ratio_(penguins_pca_model: decomposition.PCA):
             "explained_variance_ratio": [0.469357, 0.181926, 0.1611],
         },
     )
-    tests.system.utils.assert_pandas_df_equal(
+    bigframes.testing.utils.assert_pandas_df_equal(
         result,
         expected,
         check_exact=False,

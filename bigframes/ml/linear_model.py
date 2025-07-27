@@ -19,15 +19,15 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 
+import bigframes_vendored.constants as constants
+import bigframes_vendored.sklearn.linear_model._base
+import bigframes_vendored.sklearn.linear_model._logistic
 from google.cloud import bigquery
 
-import bigframes
-import bigframes.constants as constants
 from bigframes.core import log_adapter
 from bigframes.ml import base, core, globals, utils
 import bigframes.pandas as bpd
-import third_party.bigframes_vendored.sklearn.linear_model._base
-import third_party.bigframes_vendored.sklearn.linear_model._logistic
+import bigframes.session
 
 _BQML_PARAMS_MAPPING = {
     "optimize_strategy": "optimizationStrategy",
@@ -35,50 +35,51 @@ _BQML_PARAMS_MAPPING = {
     "l1_reg": "l1Regularization",
     "l2_reg": "l2Regularization",
     "max_iterations": "maxIterations",
-    "learn_rate_strategy": "learnRateStrategy",
-    "learn_rate": "learnRate",
-    "early_stop": "earlyStop",
-    "min_rel_progress": "minRelativeProgress",
-    "ls_init_learn_rate": "initialLearnRate",
+    "learning_rate_strategy": "learnRateStrategy",
+    "learning_rate": "learnRate",
+    "tol": "minRelativeProgress",
+    "ls_init_learning_rate": "initialLearnRate",
     "warm_start": "warmStart",
     "calculate_p_values": "calculatePValues",
     "enable_global_explain": "enableGlobalExplain",
-    "category_encoding_method": "categoryEncodingMethod",
 }
 
 
 @log_adapter.class_logger
 class LinearRegression(
-    base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression,
+    base.SupervisedTrainableWithEvaluationPredictor,
+    bigframes_vendored.sklearn.linear_model._base.LinearRegression,
 ):
-    __doc__ = (
-        third_party.bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
-    )
+    __doc__ = bigframes_vendored.sklearn.linear_model._base.LinearRegression.__doc__
 
     def __init__(
         self,
+        *,
         optimize_strategy: Literal[
             "auto_strategy", "batch_gradient_descent", "normal_equation"
-        ] = "normal_equation",
+        ] = "auto_strategy",
         fit_intercept: bool = True,
+        l1_reg: Optional[float] = None,
         l2_reg: float = 0.0,
         max_iterations: int = 20,
-        learn_rate_strategy: Literal["line_search", "constant"] = "line_search",
-        early_stop: bool = True,
-        min_rel_progress: float = 0.01,
-        ls_init_learn_rate: float = 0.1,
+        warm_start: bool = False,
+        learning_rate: Optional[float] = None,
+        learning_rate_strategy: Literal["line_search", "constant"] = "line_search",
+        tol: float = 0.01,
+        ls_init_learning_rate: Optional[float] = None,
         calculate_p_values: bool = False,
         enable_global_explain: bool = False,
     ):
         self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
+        self.l1_reg = l1_reg
         self.l2_reg = l2_reg
         self.max_iterations = max_iterations
-        self.learn_rate_strategy = learn_rate_strategy
-        self.early_stop = early_stop
-        self.min_rel_progress = min_rel_progress
-        self.ls_init_learn_rate = ls_init_learn_rate
+        self.warm_start = warm_start
+        self.learning_rate = learning_rate
+        self.learning_rate_strategy = learning_rate_strategy
+        self.tol = tol
+        self.ls_init_learning_rate = ls_init_learning_rate
         self.calculate_p_values = calculate_p_values
         self.enable_global_explain = enable_global_explain
         self._bqml_model: Optional[core.BqmlModel] = None
@@ -86,78 +87,151 @@ class LinearRegression(
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> LinearRegression:
-        assert model.model_type == "LINEAR_REGRESSION"
+        assert bq_model.model_type == "LINEAR_REGRESSION"
 
-        # TODO(bmil): construct a standard way to extract these properties
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-
-        dummy_linear = cls()
-        for bf_param, bf_value in dummy_linear.__dict__.items():
-            bqml_param = _BQML_PARAMS_MAPPING.get(bf_param)
-            if bqml_param in last_fitting:
-                kwargs[bf_param] = type(bf_value)(last_fitting[bqml_param])
-
-        new_linear_regression = cls(**kwargs)
-        new_linear_regression._bqml_model = core.BqmlModel(session, model)
-        return new_linear_regression
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        # TODO: Support l1_reg, warm_start, and learn_rate with error catching.
-        return {
+        options = {
             "model_type": "LINEAR_REG",
             "data_split_method": "NO_SPLIT",
             "optimize_strategy": self.optimize_strategy,
             "fit_intercept": self.fit_intercept,
             "l2_reg": self.l2_reg,
             "max_iterations": self.max_iterations,
-            "learn_rate_strategy": self.learn_rate_strategy,
-            "early_stop": self.early_stop,
-            "min_rel_progress": self.min_rel_progress,
-            "ls_init_learn_rate": self.ls_init_learn_rate,
+            "learn_rate_strategy": self.learning_rate_strategy,
+            "min_rel_progress": self.tol,
             "calculate_p_values": self.calculate_p_values,
             "enable_global_explain": self.enable_global_explain,
         }
+        if self.l1_reg is not None:
+            options["l1_reg"] = self.l1_reg
+        if self.learning_rate is not None:
+            options["learn_rate"] = self.learning_rate
+        if self.ls_init_learning_rate is not None:
+            options["ls_init_learn_rate"] = self.ls_init_learning_rate
+        # Even presenting warm_start returns error for NORMAL_EQUATION optimizer
+        if self.warm_start:
+            options["warm_start"] = self.warm_start
+
+        return options
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LinearRegression:
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
-    def predict(self, X: Union[bpd.DataFrame, bpd.Series]) -> bpd.DataFrame:
+    def predict(self, X: utils.ArrayType) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
-
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
+    def predict_explain(
+        self,
+        X: utils.ArrayType,
+        *,
+        top_k_features: int = 5,
+    ) -> bpd.DataFrame:
+        """
+        Explain predictions for a linear regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to explain its predictions.
+            top_k_features (int, default 5):
+                an INT64 value that specifies how many top feature attribution
+                pairs are generated for each row of input data. The features are
+                ranked by the absolute values of their attributions.
+
+                By default, top_k_features is set to 5. If its value is greater
+                than the number of features in the training data, the
+                attributions of all features are returned.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                The predicted DataFrames with explanation columns.
+        """
+        if top_k_features < 1:
+            raise ValueError(
+                f"top_k_features must be at least 1, but is {top_k_features}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        return self._bqml_model.explain_predict(
+            X, options={"top_k_features": top_k_features}
+        )
+
+    def global_explain(
+        self,
+    ) -> bpd.DataFrame:
+        """
+        Provide explanations for an entire linear regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.GLOBAL_EXPLAIN function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-global-explain
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                Dataframes containing feature importance values and corresponding attributions, designed to provide a global explanation of feature influence.
+        """
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        return self._bqml_model.global_explain({})
+
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
@@ -167,12 +241,12 @@ class LinearRegression(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            LinearRegression: saved model."""
+            LinearRegression: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
@@ -182,96 +256,191 @@ class LinearRegression(
 
 @log_adapter.class_logger
 class LogisticRegression(
-    base.SupervisedTrainablePredictor,
-    third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
+    base.SupervisedTrainableWithEvaluationPredictor,
+    bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression,
 ):
     __doc__ = (
-        third_party.bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression.__doc__
+        bigframes_vendored.sklearn.linear_model._logistic.LogisticRegression.__doc__
     )
 
-    # TODO(ashleyxu) support class_weights in the constructor.
+    # TODO(ashleyxu) support class_weight in the constructor.
     def __init__(
         self,
+        *,
+        optimize_strategy: Literal[
+            "auto_strategy", "batch_gradient_descent"
+        ] = "auto_strategy",
         fit_intercept: bool = True,
-        class_weights: Optional[Union[Literal["balanced"], Dict[str, float]]] = None,
+        l1_reg: Optional[float] = None,
+        l2_reg: float = 0.0,
+        max_iterations: int = 20,
+        warm_start: bool = False,
+        learning_rate: Optional[float] = None,
+        learning_rate_strategy: Literal["line_search", "constant"] = "line_search",
+        tol: float = 0.01,
+        ls_init_learning_rate: Optional[float] = None,
+        calculate_p_values: bool = False,
+        enable_global_explain: bool = False,
+        class_weight: Optional[Union[Literal["balanced"], Dict[str, float]]] = None,
     ):
+        self.optimize_strategy = optimize_strategy
         self.fit_intercept = fit_intercept
-        self.class_weights = class_weights
-        self._auto_class_weight = class_weights == "balanced"
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
+        self.max_iterations = max_iterations
+        self.warm_start = warm_start
+        self.learning_rate = learning_rate
+        self.learning_rate_strategy = learning_rate_strategy
+        self.tol = tol
+        self.ls_init_learning_rate = ls_init_learning_rate
+        self.calculate_p_values = calculate_p_values
+        self.enable_global_explain = enable_global_explain
+        self.class_weight = class_weight
+        self._auto_class_weight = class_weight == "balanced"
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
 
     @classmethod
     def _from_bq(
-        cls, session: bigframes.Session, model: bigquery.Model
+        cls, session: bigframes.session.Session, bq_model: bigquery.Model
     ) -> LogisticRegression:
-        assert model.model_type == "LOGISTIC_REGRESSION"
+        assert bq_model.model_type == "LOGISTIC_REGRESSION"
 
-        kwargs = {}
+        kwargs = utils.retrieve_params_from_bq_model(
+            cls, bq_model, _BQML_PARAMS_MAPPING
+        )
 
-        # See https://cloud.google.com/bigquery/docs/reference/rest/v2/models#trainingrun
-        last_fitting = model.training_runs[-1]["trainingOptions"]
-        if "fitIntercept" in last_fitting:
-            kwargs["fit_intercept"] = last_fitting["fitIntercept"]
+        last_fitting = bq_model.training_runs[-1]["trainingOptions"]
         if last_fitting["autoClassWeights"]:
-            kwargs["class_weights"] = "balanced"
-        # TODO(ashleyxu) support class_weights in the constructor.
+            kwargs["class_weight"] = "balanced"
+        # TODO(ashleyxu) support class_weight in the constructor.
         # if "labelClassWeights" in last_fitting:
-        #     kwargs["class_weights"] = last_fitting["labelClassWeights"]
+        #     kwargs["class_weight"] = last_fitting["labelClassWeights"]
 
-        new_logistic_regression = cls(**kwargs)
-        new_logistic_regression._bqml_model = core.BqmlModel(session, model)
-        return new_logistic_regression
+        model = cls(**kwargs)
+        model._bqml_model = core.BqmlModel(session, bq_model)
+        return model
 
     @property
-    def _bqml_options(self) -> Dict[str, str | int | float | List[str]]:
+    def _bqml_options(self) -> dict:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "LOGISTIC_REG",
             "data_split_method": "NO_SPLIT",
             "fit_intercept": self.fit_intercept,
             "auto_class_weights": self._auto_class_weight,
-            # TODO(ashleyxu): support class_weights (struct array as dict in our API)
-            # "class_weights": self.class_weights,
+            "optimize_strategy": self.optimize_strategy,
+            "l2_reg": self.l2_reg,
+            "max_iterations": self.max_iterations,
+            "learn_rate_strategy": self.learning_rate_strategy,
+            "min_rel_progress": self.tol,
+            "calculate_p_values": self.calculate_p_values,
+            "enable_global_explain": self.enable_global_explain,
+            # TODO(ashleyxu): support class_weight (struct array as dict in our API)
+            # "class_weight": self.class_weight,
         }
+        if self.l1_reg is not None:
+            options["l1_reg"] = self.l1_reg
+        if self.learning_rate is not None:
+            options["learn_rate"] = self.learning_rate
+        if self.ls_init_learning_rate is not None:
+            options["ls_init_learn_rate"] = self.ls_init_learning_rate
+        # Even presenting warm_start returns error for NORMAL_EQUATION optimizer
+        if self.warm_start:
+            options["warm_start"] = self.warm_start
+
+        return options
 
     def _fit(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
         transforms: Optional[List[str]] = None,
+        X_eval: Optional[utils.ArrayType] = None,
+        y_eval: Optional[utils.ArrayType] = None,
     ) -> LogisticRegression:
-        """Fit model with transforms."""
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y)
+
+        bqml_options = self._bqml_options
+
+        if X_eval is not None and y_eval is not None:
+            X_eval, y_eval = utils.batch_convert_to_dataframe(X_eval, y_eval)
+            X, y, bqml_options = utils.combine_training_and_evaluation_data(
+                X, y, X_eval, y_eval, bqml_options
+            )
 
         self._bqml_model = self._bqml_model_factory.create_model(
             X,
             y,
             transforms=transforms,
-            options=self._bqml_options,
+            options=bqml_options,
         )
         return self
 
     def predict(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before predict")
 
-        (X,) = utils.convert_to_dataframe(X)
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
         return self._bqml_model.predict(X)
 
+    def predict_explain(
+        self,
+        X: utils.ArrayType,
+        *,
+        top_k_features: int = 5,
+    ) -> bpd.DataFrame:
+        """
+        Explain predictions for a logistic regression model.
+
+        .. note::
+            Output matches that of the BigQuery ML.EXPLAIN_PREDICT function.
+            See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict
+
+        Args:
+            X (bigframes.dataframe.DataFrame or bigframes.series.Series or
+            pandas.core.frame.DataFrame or pandas.core.series.Series):
+                Series or a DataFrame to explain its predictions.
+            top_k_features (int, default 5):
+                an INT64 value that specifies how many top feature attribution
+                pairs are generated for each row of input data. The features are
+                ranked by the absolute values of their attributions.
+
+                By default, top_k_features is set to 5. If its value is greater
+                than the number of features in the training data, the
+                attributions of all features are returned.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                The predicted DataFrames with explanation columns.
+        """
+        if top_k_features < 1:
+            raise ValueError(
+                f"top_k_features must be at least 1, but is {top_k_features}."
+            )
+
+        if not self._bqml_model:
+            raise RuntimeError("A model must be fitted before predict")
+
+        (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
+
+        return self._bqml_model.explain_predict(
+            X, options={"top_k_features": top_k_features}
+        )
+
     def score(
         self,
-        X: Union[bpd.DataFrame, bpd.Series],
-        y: Union[bpd.DataFrame, bpd.Series],
+        X: utils.ArrayType,
+        y: utils.ArrayType,
     ) -> bpd.DataFrame:
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before score")
 
-        X, y = utils.convert_to_dataframe(X, y)
+        X, y = utils.batch_convert_to_dataframe(X, y, session=self._bqml_model.session)
 
         input_data = X.join(y, how="outer")
         return self._bqml_model.evaluate(input_data)
@@ -281,19 +450,19 @@ class LogisticRegression(
 
         Args:
             model_name (str):
-                the name of the model.
+                The name of the model.
             replace (bool, default False):
-                whether to replace if the model already exists. Default to False.
+                Determine whether to replace if the model already exists. Default to False.
 
         Returns:
-            LogisticRegression: saved model."""
+            LogisticRegression: Saved model."""
         if not self._bqml_model:
             raise RuntimeError("A model must be fitted before it can be saved")
 
-        # TODO(ashleyxu): support class_weights (struct array as dict in our API)
-        if self.class_weights not in (None, "balanced"):
+        # TODO(ashleyxu): support class_weight (struct array as dict in our API)
+        if self.class_weight not in (None, "balanced"):
             raise NotImplementedError(
-                f"class_weights is not supported yet. {constants.FEEDBACK_LINK}"
+                f"class_weight is not supported yet. {constants.FEEDBACK_LINK}"
             )
 
         new_model = self._bqml_model.copy(model_name, replace)
