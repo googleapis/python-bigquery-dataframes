@@ -1198,20 +1198,17 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         # At this point other must be a DataFrame
         if len(other.columns.names) == 1:
-            # Single level columns in other
-            na_df = other.isna().any()
-            mul_df = Series(
-                [(self * other[col]).sum() for col in other.columns],
-                index=other.columns,
-                name=self.name,
-                session=self._session,
-            )
-            result = mul_df.mask(na_df)
+            # Process single level columns in other
+            # Let's leverage the DataFrame.dot
+            na_mask = other.isna().any()
+            self_as_row = self.to_frame().T
+            frame_dot_result_as_row = self_as_row.dot(other)
+            frame_dot_result_as_col = frame_dot_result_as_row.T
+            series_dot_result = frame_dot_result_as_col[self.name]
+            result = series_dot_result.mask(na_mask)
         else:
-            # Multi level columns in other
-            # TODO(b/313747368): Remove this once DataFrame.any() honors
-            # multi-level index, as the logic in the if clause should generalize
-            # for multi-level columns in other
+            # TODO: Remove this special code path after DataFrame.dot supports
+            # multi-level columns.
             result = Series(
                 [
                     pandas.NA if other[col].isna().any() else (self * other[col]).sum()
