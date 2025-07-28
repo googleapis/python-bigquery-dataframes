@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterator
+from typing import Iterator, Generator
 
 from google.cloud import bigquery
 import pytest
 import test_utils.prefixer
+from google.cloud import storage
 
 import bigframes.pandas as bpd
 
@@ -43,8 +44,24 @@ def bigquery_client() -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
+def storage_client(project_id) -> storage.Client:
+    return storage.Client(project=project_id)
+
+
+@pytest.fixture(scope="session")
 def project_id(bigquery_client: bigquery.Client) -> str:
     return bigquery_client.project
+
+
+@pytest.fixture(scope="session")
+def gcs_bucket(storage_client) -> Generator[str, None, None]:
+    bucket_name =  "bigframes-gcs-test"
+
+    yield bucket_name
+
+    bucket = storage_client.get_bucket(bucket_name)
+    for blob in bucket.list_blobs():
+        blob.delete()
 
 
 @pytest.fixture(autouse=True)
@@ -76,11 +93,6 @@ def dataset_id_eu(bigquery_client: bigquery.Client, project_id: str) -> Iterator
     bigquery_client.create_dataset(dataset)
     yield dataset_id
     bigquery_client.delete_dataset(dataset, delete_contents=True, not_found_ok=True)
-
-
-@pytest.fixture(scope="session")
-def gcs_dst_bucket() -> str:
-    return "gs://bigframes_blob_test"
 
 
 @pytest.fixture
