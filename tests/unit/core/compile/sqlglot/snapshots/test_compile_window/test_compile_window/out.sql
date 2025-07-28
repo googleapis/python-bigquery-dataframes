@@ -1,0 +1,32 @@
+SELECT
+`rowindex` AS `rowindex`,
+`int64_col` AS `int64_col`
+FROM
+(SELECT
+  `t1`.`rowindex`,
+  CASE
+    WHEN COALESCE(
+      SUM(CAST((
+        `t1`.`int64_col`
+      ) IS NOT NULL AS INT64)) OVER (
+        ORDER BY `t1`.`rowindex` IS NULL ASC, `t1`.`rowindex` ASC
+        ROWS BETWEEN 2 preceding AND CURRENT ROW
+      ),
+      0
+    ) < 3
+    THEN NULL
+    ELSE COALESCE(
+      SUM(`t1`.`int64_col`) OVER (
+        ORDER BY `t1`.`rowindex` IS NULL ASC, `t1`.`rowindex` ASC
+        ROWS BETWEEN 2 preceding AND CURRENT ROW
+      ),
+      0
+    )
+  END AS `int64_col`
+FROM (
+  SELECT
+    `t0`.`int64_col`,
+    `t0`.`rowindex`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`)
+ORDER BY `rowindex` ASC NULLS LAST
