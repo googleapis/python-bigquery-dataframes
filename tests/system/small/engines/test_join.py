@@ -27,7 +27,7 @@ pytest.importorskip("polars")
 REFERENCE_ENGINE = polars_executor.PolarsExecutor()
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 @pytest.mark.parametrize("join_type", ["left", "inner", "right", "outer"])
 def test_engines_join_on_key(
     scalars_array_value: array_value.ArrayValue,
@@ -41,7 +41,7 @@ def test_engines_join_on_key(
     assert_equivalence_execution(result.node, REFERENCE_ENGINE, engine)
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 @pytest.mark.parametrize("join_type", ["left", "inner", "right", "outer"])
 def test_engines_join_on_coerced_key(
     scalars_array_value: array_value.ArrayValue,
@@ -80,11 +80,30 @@ def test_engines_join_multi_key(
     assert_equivalence_execution(result.node, REFERENCE_ENGINE, engine)
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 def test_engines_cross_join(
     scalars_array_value: array_value.ArrayValue,
     engine,
 ):
     result, _ = scalars_array_value.relational_join(scalars_array_value, type="cross")
+
+    assert_equivalence_execution(result.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize(
+    ("left_key", "right_key"),
+    [
+        ("int64_col", "float64_col"),
+        ("float64_col", "int64_col"),
+        ("int64_too", "int64_col"),
+    ],
+)
+def test_engines_isin(
+    scalars_array_value: array_value.ArrayValue, engine, left_key, right_key
+):
+    result, _ = scalars_array_value.isin(
+        scalars_array_value, lcol=left_key, rcol=right_key
+    )
 
     assert_equivalence_execution(result.node, REFERENCE_ENGINE, engine)

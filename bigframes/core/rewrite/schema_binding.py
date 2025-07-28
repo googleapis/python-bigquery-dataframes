@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import dataclasses
+import typing
 
 from bigframes.core import bigframe_node
 from bigframes.core import expression as ex
@@ -63,6 +64,61 @@ def bind_schema_to_node(
         return dataclasses.replace(
             node,
             conditions=conditions,
+        )
+    if isinstance(node, nodes.InNode):
+        return dataclasses.replace(
+            node,
+            left_col=ex.ResolvedDerefOp.from_field(
+                node.left_child.field_by_id[node.left_col.id]
+            ),
+            right_col=ex.ResolvedDerefOp.from_field(
+                node.right_child.field_by_id[node.right_col.id]
+            ),
+        )
+
+    if isinstance(node, nodes.AggregateNode):
+        aggregations = []
+        for aggregation, id in node.aggregations:
+            if isinstance(aggregation, ex.UnaryAggregation):
+                replaced = typing.cast(
+                    ex.Aggregation,
+                    dataclasses.replace(
+                        aggregation,
+                        arg=typing.cast(
+                            ex.RefOrConstant,
+                            ex.bind_schema_fields(
+                                aggregation.arg, node.child.field_by_id
+                            ),
+                        ),
+                    ),
+                )
+                aggregations.append((replaced, id))
+            elif isinstance(aggregation, ex.BinaryAggregation):
+                replaced = typing.cast(
+                    ex.Aggregation,
+                    dataclasses.replace(
+                        aggregation,
+                        left=typing.cast(
+                            ex.RefOrConstant,
+                            ex.bind_schema_fields(
+                                aggregation.left, node.child.field_by_id
+                            ),
+                        ),
+                        right=typing.cast(
+                            ex.RefOrConstant,
+                            ex.bind_schema_fields(
+                                aggregation.right, node.child.field_by_id
+                            ),
+                        ),
+                    ),
+                )
+                aggregations.append((replaced, id))
+            else:
+                aggregations.append((aggregation, id))
+
+        return dataclasses.replace(
+            node,
+            aggregations=tuple(aggregations),
         )
 
     return node
