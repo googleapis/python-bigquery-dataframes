@@ -43,7 +43,7 @@ def bigquery_client() -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
-def storage_client(project_id) -> storage.Client:
+def storage_client(project_id: str) -> storage.Client:
     return storage.Client(project=project_id)
 
 
@@ -53,7 +53,7 @@ def project_id(bigquery_client: bigquery.Client) -> str:
 
 
 @pytest.fixture(scope="session")
-def gcs_bucket(storage_client) -> Generator[str, None, None]:
+def gcs_bucket(storage_client: storage.Client) -> Generator[str, None, None]:
     bucket_name = "bigframes-gcs-test"
 
     yield bucket_name
