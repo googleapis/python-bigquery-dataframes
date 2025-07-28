@@ -1480,10 +1480,10 @@ class Series(NDFrame):  # type: ignore[misc]
             ...                        "b" : [-10, 20, -30, 40],
             ...                        "c" : [-1, 2, -3, bpd.NA]})
             >>> s @ other
-            a     8.0
-            b    80.0
+            a       8
+            b      80
             c    <NA>
-            dtype: Float64
+            dtype: Int64
 
         Args:
             other (Series, or DataFrame):
