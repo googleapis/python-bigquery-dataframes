@@ -3559,7 +3559,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         rsuffix: str,
         should_duplicate_on_key: bool,
     ) -> DataFrame:
-        left, right = self, other
+        left, right = self.copy(), other
         # Replace all columns names with unique names for reordering.
         left_col_original_names = left.columns
         on_col_name = "bigframes_left_col_on"
@@ -3638,6 +3638,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         rsuffix: str = "",
         extra_col: typing.Optional[str] = None,
     ):
+        """Applies suffixes to overlapping column names to mimic a pandas join.
+
+        This method identifies columns that are common to both a "left" and "right"
+        set of columns and renames them using the provided suffixes. Columns that
+        are not in the intersection are kept with their original names.
+
+        Args:
+            left_columns (pandas.Index):
+                The column labels from the left DataFrame.
+            right_columns (pandas.Index):
+                The column labels from the right DataFrame.
+            lsuffix (str):
+                The suffix to apply to overlapping column names from the left side.
+            rsuffix (str):
+                The suffix to apply to overlapping column names from the right side.
+            extra_col (typing.Optional[str]):
+                An optional column name to prepend to the final list of columns.
+                This argument is used specifically to match the behavior of a
+                pandas join. When a join key (i.e., the 'on' column) exists
+                in both the left and right DataFrames, pandas creates two versions
+                of that column: one copy keeps its original name and is placed as
+                the first column, while the other instances receive the normal
+                suffix. Passing the join key's name here replicates that behavior.
+
+        Returns:
+            DataFrame:
+                A new DataFrame with the columns renamed to resolve overlaps.
+        """
+        combined_df = self.copy()
         col_intersection = left_columns.intersection(right_columns)
         final_col_names = [] if extra_col is None else [extra_col]
         for col_name in left_columns:
@@ -3651,8 +3680,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 final_col_names.append(f"{col_name}{rsuffix}")
             else:
                 final_col_names.append(col_name)
-        self.columns = pandas.Index(final_col_names)
-        return self
+        combined_df.columns = pandas.Index(final_col_names)
+        return combined_df
 
     @validations.requires_ordering()
     def rolling(
