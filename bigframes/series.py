@@ -53,6 +53,7 @@ from bigframes.core import groupby, log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
+import bigframes.core.guid as guid
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
@@ -1200,12 +1201,20 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         if len(other.columns.names) == 1:
             # Process single level columns in other
             # Let's leverage the DataFrame.dot
-            na_mask = other.isna().any()
-            self_as_row = self.to_frame().T
+            self_named = self
+            if self_named.name is None:
+                self_named = self.copy()
+                self_named.name = guid.generate_guid()
+
+            self_as_row = self_named.to_frame().T
             frame_dot_result_as_row = self_as_row.dot(other)
             frame_dot_result_as_col = frame_dot_result_as_row.T
-            series_dot_result = frame_dot_result_as_col[self.name]
+            series_dot_result = frame_dot_result_as_col[self_named.name]
+
+            # take care of the NA values
+            na_mask = other.isna().any()
             result = series_dot_result.mask(na_mask)
+            result.name = self.name
         else:
             # TODO: Remove this special code path after DataFrame.dot supports
             # multi-level columns.

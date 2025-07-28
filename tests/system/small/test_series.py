@@ -3195,6 +3195,29 @@ def test_dot_df_with_na(scalars_dfs):
     )
 
 
+def test_dot_df_unnamed(session):
+    ps = pd.Series([0, 1, 2, 3])
+    assert ps.name is None  # this is the scenario we are testing specifically
+
+    pdf = pd.DataFrame(
+        {"a": [-1, 2, -3, 4], "b": [-10, 20, -30, 40], "c": [-1, 2, -3, pd.NA]}
+    )
+
+    s = session.read_pandas(ps)
+    df = session.read_pandas(pdf)
+
+    pd_result = ps @ pdf
+    bf_result = s @ df
+
+    pd.testing.assert_series_equal(
+        bf_result.to_pandas(),
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+        check_exact=False,
+    )
+
+
 @pytest.mark.parametrize(
     ("left", "right", "inclusive"),
     [
