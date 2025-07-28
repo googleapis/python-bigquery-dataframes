@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterator, Generator
+from typing import Generator, Iterator
 
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 import pytest
 import test_utils.prefixer
-from google.cloud import storage
 
 import bigframes.pandas as bpd
 
@@ -55,7 +54,7 @@ def project_id(bigquery_client: bigquery.Client) -> str:
 
 @pytest.fixture(scope="session")
 def gcs_bucket(storage_client) -> Generator[str, None, None]:
-    bucket_name =  "bigframes-gcs-test"
+    bucket_name = "bigframes-gcs-test"
 
     yield bucket_name
 
