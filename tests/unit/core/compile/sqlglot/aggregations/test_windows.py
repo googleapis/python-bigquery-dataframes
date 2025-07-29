@@ -19,7 +19,7 @@ import pytest
 import sqlglot.expressions as sge
 
 from bigframes.core import window_spec
-from bigframes.core.compile.sqlglot.aggregations.window import (
+from bigframes.core.compile.sqlglot.aggregations.windows import (
     apply_window_if_present,
     get_window_order_by,
 )
@@ -27,7 +27,7 @@ import bigframes.core.expression as ex
 import bigframes.core.ordering as ordering
 
 
-class WindowTest(unittest.TestCase):
+class WindowsTest(unittest.TestCase):
     def test_get_window_order_by_empty(self):
         self.assertIsNone(get_window_order_by(tuple()))
 

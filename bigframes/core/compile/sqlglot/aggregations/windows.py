@@ -76,8 +76,8 @@ def apply_window_if_present(
         start = window.bounds.start
         end = window.bounds.end
 
-    start_value, start_side = _get_window_bounds(start, is_start_bounds=True)
-    end_value, end_side = _get_window_bounds(end, is_start_bounds=False)
+    start_value, start_side = _get_window_bounds(start, is_preceding=True)
+    end_value, end_side = _get_window_bounds(end, is_preceding=False)
 
     spec = sge.WindowSpec(
         kind=kind,
@@ -139,11 +139,11 @@ def get_window_order_by(
 
 
 def _get_window_bounds(
-    value, is_start_bounds: bool
+    value, is_preceding: bool
 ) -> tuple[typing.Union[str, sge.Expression], typing.Optional[str]]:
     """Compiles a single boundary value into its SQL components."""
     if value is None:
-        side = "PRECEDING" if is_start_bounds else "FOLLOWING"
+        side = "PRECEDING" if is_preceding else "FOLLOWING"
         return "UNBOUNDED", side
 
     if value == 0:
