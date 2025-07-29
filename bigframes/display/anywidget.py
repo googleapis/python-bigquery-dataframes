@@ -66,29 +66,35 @@ class TableWidget(WIDGET_BASE):
         super().__init__()
         self._dataframe = dataframe
 
-        # Initialize attributes that might be needed by observers FIRST
+        # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: List[pd.DataFrame] = []
 
-        # respect display options for initial page size
+        # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
+        try:
+            # Fetches initial data batches and row count for display.
+            # `to_pandas_batches` provides an iterable of pandas DataFrames
+            # and eagerly retrieves the total row count
+            self._batches = dataframe.to_pandas_batches(
+                page_size=initial_page_size,
+            )
 
-        # Get total rows efficiently by executing the query once
-        execute_result = dataframe._block.session._executor.execute(
-            dataframe._block.expr, ordered=True
-        )
-        self.row_count = execute_result.total_rows or 0
+            # Access the total_rows property directly
+            self.row_count = self._batches.total_rows or 0
+            self.page_size = initial_page_size
 
-        # set traitlets properties that trigger observers
-        self.page_size = initial_page_size
+            # Generates the initial HTML table content
+            self._set_table_html()
 
-        # get the initial page
-        self._set_table_html()
+        except Exception:
+            self.row_count = 0
+            self.page_size = initial_page_size
+            self._batches = iter([])
+            self.table_html = ""
 
     @functools.cached_property
     def _esm(self):
