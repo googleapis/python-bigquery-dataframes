@@ -19,7 +19,6 @@ import inspect
 import logging
 import os
 import random
-import re
 import shutil
 import string
 import tempfile
@@ -270,43 +269,6 @@ class FunctionClient:
         )
 
         udf_name = func.__name__
-        if capture_references:
-            # This code path ensures that if the udf body contains any
-            # references to variables and/or imports outside the body, they are
-            # captured as well.
-            import cloudpickle
-
-            pickled = cloudpickle.dumps(func)
-            func_code = textwrap.dedent(
-                f"""
-                import cloudpickle
-                {udf_name} = cloudpickle.loads({pickled})
-            """
-            )
-        else:
-            # This code path ensures that if the udf body is self contained,
-            # i.e. there are no references to variables or imports outside the
-            # body.
-            func_code = textwrap.dedent(inspect.getsource(func))
-            match = re.search(r"^def ", func_code, flags=re.MULTILINE)
-            if match is None:
-                raise ValueError("The UDF is not defined correctly.")
-            func_code = func_code[match.start() :]
-
-        if is_row_processor:
-            udf_code = textwrap.dedent(inspect.getsource(bff_template.get_pd_series))
-            udf_code = udf_code[udf_code.index("def") :]
-            bigframes_handler_code = textwrap.dedent(
-                f"""def bigframes_handler(str_arg):
-                    return {udf_name}({bff_template.get_pd_series.__name__}(str_arg))"""
-            )
-        else:
-            udf_code = ""
-            bigframes_handler_code = textwrap.dedent(
-                f"""def bigframes_handler(*args):
-                    return {udf_name}(*args)"""
-            )
-        udf_code = f"{udf_code}\n{func_code}"
 
         with_connection_clause = (
             (
@@ -314,6 +276,13 @@ class FunctionClient:
             )
             if bq_connection_id
             else ""
+        )
+
+        # Generate the complete Python code block for the managed Python UDF,
+        # including the user's function, necessary imports, and the BigQuery
+        # handler wrapper.
+        python_code_block = bff_template.generate_managed_function_code(
+            func, udf_name, is_row_processor, capture_references
         )
 
         create_function_ddl = (
@@ -326,12 +295,11 @@ class FunctionClient:
                 OPTIONS ({managed_function_options_str})
                 AS r'''
                 __UDF_PLACE_HOLDER__
-                {bigframes_handler_code}
                 '''
             """
             )
             .strip()
-            .replace("__UDF_PLACE_HOLDER__", udf_code)
+            .replace("__UDF_PLACE_HOLDER__", python_code_block)
         )
 
         self._ensure_dataset_exists()

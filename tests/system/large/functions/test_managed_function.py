@@ -659,6 +659,7 @@ def test_managed_function_df_apply_axis_1(session, dataset_id, scalars_dfs):
             # BigFrames and pandas. Without it, BigFrames return plain Python
             # types, e.g. 0, while pandas return NumPy types, e.g. np.int64(0),
             # which could lead to mismatches and requires further investigation.
+            # See b/435021126.
             custom = {
                 "name": int(row.name),
                 "index": [idx for idx in row.index],
@@ -719,6 +720,7 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
             # BigFrames and pandas. Without it, BigFrames return plain Python
             # types, e.g. 0, while pandas return NumPy types, e.g. np.int64(0),
             # which could lead to mismatches and requires further investigation.
+            # See b/435021126.
             return str(
                 {
                     "dtype": row.dtype,
@@ -731,12 +733,17 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
                 }
             )
 
-        analyze_mf = session.udf(
-            input_types=bigframes.series.Series,
-            output_type=str,
-            dataset=dataset_id,
-            name=prefixer.create_prefix(),
-        )(analyze)
+        with pytest.warns(
+            bfe.PreviewWarning,
+            match=("Numpy version may not precisely match your local environment."),
+        ):
+
+            analyze_mf = session.udf(
+                input_types=bigframes.series.Series,
+                output_type=str,
+                dataset=dataset_id,
+                name=prefixer.create_prefix(),
+            )(analyze)
 
         assert getattr(analyze_mf, "is_row_processor")
 
@@ -831,6 +838,7 @@ def test_managed_function_df_apply_axis_1_complex(session, dataset_id, pd_df):
             # BigFrames and pandas. Without it, BigFrames return plain Python
             # types, e.g. 0, while pandas return NumPy types, e.g. np.int64(0),
             # which could lead to mismatches and requires further investigation.
+            # See b/435021126.
             custom = {
                 "name": int(row.name),
                 "index": [idx for idx in row.index],
@@ -869,4 +877,70 @@ def test_managed_function_df_apply_axis_1_complex(session, dataset_id, pd_df):
         # clean up the gcp assets created for the managed function.
         cleanup_function_assets(
             serialize_row_mf, session.bqclient, session.cloudfunctionsclient
+        )
+
+
+@pytest.mark.skip(reason="Revert after this bug b/435018880 is fixed.")
+def test_managed_function_df_apply_axis_1_na_nan_inf(dataset_id, session):
+    """This test is for special cases of float values, to make sure any (nan,
+    inf, -inf) produced by user code is honored.
+    """
+    bf_df = session.read_gbq(
+        """\
+SELECT "1" AS text, 1 AS num
+UNION ALL
+SELECT "2.5" AS text, 2.5 AS num
+UNION ALL
+SELECT "nan" AS text, IEEE_DIVIDE(0, 0) AS num
+UNION ALL
+SELECT "inf" AS text, IEEE_DIVIDE(1, 0) AS num
+UNION ALL
+SELECT "-inf" AS text, IEEE_DIVIDE(-1, 0) AS num
+UNION ALL
+SELECT "numpy nan" AS text, IEEE_DIVIDE(0, 0) AS num
+UNION ALL
+SELECT "pandas na" AS text, NULL AS num
+                             """
+    )
+
+    pd_df = bf_df.to_pandas()
+
+    try:
+
+        def float_parser(row):
+            import numpy as mynp
+            import pandas as mypd
+
+            if row["text"] == "pandas na":
+                return mypd.NA
+            if row["text"] == "numpy nan":
+                return mynp.nan
+            return float(row["text"])
+
+        float_parser_mf = session.udf(
+            input_types=bigframes.series.Series,
+            output_type=float,
+            dataset=dataset_id,
+            name=prefixer.create_prefix(),
+        )(float_parser)
+
+        assert getattr(float_parser_mf, "is_row_processor")
+
+        pd_result = pd_df.apply(float_parser, axis=1)
+        bf_result = bf_df.apply(float_parser_mf, axis=1).to_pandas()
+
+        # bf_result.dtype is 'Float64' while pd_result.dtype is 'object'
+        # , ignore this mismatch by using check_dtype=False.
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+        # Let's also assert that the data is consistent in this round trip
+        # (BQ -> BigFrames -> BQ -> GCF -> BQ -> BigFrames) w.r.t. their
+        # expected values in BQ.
+        bq_result = bf_df["num"].to_pandas()
+        bq_result.name = None
+        pandas.testing.assert_series_equal(bq_result, bf_result)
+    finally:
+        # clean up the gcp assets created for the managed function.
+        cleanup_function_assets(
+            float_parser_mf, session.bqclient, session.cloudfunctionsclient
         )

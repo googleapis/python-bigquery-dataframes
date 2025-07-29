@@ -18,6 +18,7 @@ import json
 import sys
 import typing
 from typing import cast, Optional, Set
+import warnings
 
 import cloudpickle
 import google.api_core.exceptions
@@ -26,6 +27,7 @@ import numpy
 import pandas
 import pyarrow
 
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as bf_formatting
 from bigframes.functions import function_typing
 
@@ -81,9 +83,14 @@ def _get_updated_package_requirements(
         # Due to current limitations on the numpy version in Python UDFs, we use
         # `ignore_numpy_version` to optionally omit the version for managed
         # functions only.
-        numpy_package = (
-            "numpy" if ignore_numpy_version else f"numpy=={numpy.__version__}"
-        )
+        if ignore_numpy_version:
+            msg = bfe.format_message(
+                "Numpy version may not precisely match your local environment."
+            )
+            warnings.warn(msg, category=bfe.PreviewWarning)
+            numpy_package = "numpy"
+        else:
+            numpy_package = f"numpy=={numpy.__version__}"
         requirements.append(numpy_package)
 
     if package_requirements:
