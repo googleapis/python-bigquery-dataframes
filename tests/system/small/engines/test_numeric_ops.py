@@ -53,7 +53,7 @@ def apply_op_pairwise(
     return new_arr
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 def test_engines_project_add(
     scalars_array_value: array_value.ArrayValue,
     engine,
