@@ -107,6 +107,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.AsTypeOp)
 def _(op: ops.AsTypeOp, expr: TypedExpr) -> sge.Expression:
+    # TODO: Support more types for casting, such as JSON, etc.
     return sge.Cast(this=expr.expr, to=op.to_type)
 
 
@@ -241,6 +242,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.FloorDtOp)
 def _(op: ops.FloorDtOp, expr: TypedExpr) -> sge.Expression:
+    # TODO: Remove this method when it is covered by ops.FloorOp
     return sge.TimestampTrunc(this=expr.expr, unit=sge.Identifier(this=op.freq))
 
 
