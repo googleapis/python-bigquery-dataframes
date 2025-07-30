@@ -476,14 +476,21 @@ def test_widget_row_count_should_be_immutable_after_creation(
     assert widget.row_count == initial_row_count
 
 
+class FaultyIterator:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise ValueError("Simulated read error")
+
+
 @pytest.mark.parametrize(
     "total_rows_param, arrow_batches_param",
     [
-        # Corresponds to mock_execute_total_rows_is_none
+        # Case 1: total_rows is None, which should be handled gracefully.
         (None, []),
-        # Corresponds to mock_execute_batches_are_invalid (assuming empty list
-        # for invalid batches for now)
-        (100, []),
+        # Case 2: Batches are invalid and will raise an error during iteration.
+        (100, FaultyIterator()),
     ],
     ids=[
         "when_total_rows_is_None",

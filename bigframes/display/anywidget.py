@@ -17,13 +17,14 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-from typing import Any, Dict, Iterator, List, Optional, Type
+import typing
+from typing import Any, cast, Dict, Iterator, List, Optional, Type
 import uuid
 
 import pandas as pd
 
 import bigframes
-import bigframes.dataframe
+import bigframes.core.blocks
 import bigframes.display.html
 
 # anywidget and traitlets are optional dependencies. We don't want the import of this
@@ -70,6 +71,7 @@ class TableWidget(WIDGET_BASE):
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
+        self._batches: Optional[bigframes.core.blocks.PandasBatches] = None
         self._cached_batches: List[pd.DataFrame] = []
 
         # Respect display options for initial page size
@@ -77,14 +79,16 @@ class TableWidget(WIDGET_BASE):
 
         try:
             # Fetches initial data batches and row count for display.
-            # `to_pandas_batches` provides an iterable of pandas DataFrames
-            # and eagerly retrieves the total row count
-            self._batches = dataframe.to_pandas_batches(
+            batches = dataframe.to_pandas_batches(
                 page_size=initial_page_size,
             )
+            self._batches = cast(bigframes.core.blocks.PandasBatches, batches)
 
-            # Access the total_rows property directly
-            self.row_count = self._batches.total_rows or 0
+            # Use total_rows if available, otherwise default to 0.
+            if self._batches:
+                self.row_count = self._batches.total_rows or 0
+            else:
+                self.row_count = 0
             self.page_size = initial_page_size
 
             # Generates the initial HTML table content
@@ -93,7 +97,7 @@ class TableWidget(WIDGET_BASE):
         except Exception:
             self.row_count = 0
             self.page_size = initial_page_size
-            self._batches = iter([])
+            self._batches = None
             self.table_html = ""
 
     @functools.cached_property
@@ -177,7 +181,10 @@ class TableWidget(WIDGET_BASE):
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
         if self._batch_iter is None:
-            self._batch_iter = iter(self._batches)
+            if self._batches is None:
+                self._batch_iter = iter([])
+            else:
+                self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
@@ -189,7 +196,8 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe._to_pandas_batches(page_size=self.page_size)
+        batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        self._batches = typing.cast(bigframes.core.blocks.PandasBatches, batches)
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False
