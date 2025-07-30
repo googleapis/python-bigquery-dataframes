@@ -41,6 +41,10 @@ class PreviewWarning(Warning):
     """The feature is in preview."""
 
 
+class FunctionRedundantTypeHintWarning(UserWarning):
+    """Redundant or conflicting type hints in a BigFrames function."""
+
+
 class NullIndexPreviewWarning(PreviewWarning):
     """Unused. Kept for backwards compatibility.
 
