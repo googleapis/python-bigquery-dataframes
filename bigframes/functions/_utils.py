@@ -66,32 +66,33 @@ def _get_updated_package_requirements(
     package_requirements=None,
     is_row_processor=False,
     capture_references=True,
-    ignore_numpy_version=False,
+    ignore_package_version=False,
 ):
     requirements = []
     if capture_references:
         requirements.append(f"cloudpickle=={cloudpickle.__version__}")
 
     if is_row_processor:
-        # bigframes function will send an entire row of data as json, which
-        # would be converted to a pandas series and processed Ensure numpy
-        # versions match to avoid unpickling problems. See internal issue
-        # b/347934471.
-        requirements.append(f"pandas=={pandas.__version__}")
-        requirements.append(f"pyarrow=={pyarrow.__version__}")
-        # TODO(jialuo): Add back the version after b/410924784 is resolved.
-        # Due to current limitations on the numpy version in Python UDFs, we use
-        # `ignore_numpy_version` to optionally omit the version for managed
-        # functions only.
-        if ignore_numpy_version:
+        if ignore_package_version:
+            # TODO(jialuo): Add back the version after b/410924784 is resolved.
+            # Due to current limitations on the packages version in Python UDFs,
+            # we use `ignore_package_version` to optionally omit the version for
+            # managed functions only.
             msg = bfe.format_message(
-                "Numpy version may not precisely match your local environment."
+                "Numpy, Pandas, and Pyarrow version may not precisely match your local environment."
             )
             warnings.warn(msg, category=bfe.PreviewWarning)
-            numpy_package = "numpy"
+            requirements.append("pandas")
+            requirements.append("pyarrow")
+            requirements.append("numpy")
         else:
-            numpy_package = f"numpy=={numpy.__version__}"
-        requirements.append(numpy_package)
+            # bigframes function will send an entire row of data as json, which
+            # would be converted to a pandas series and processed Ensure numpy
+            # versions match to avoid unpickling problems. See internal issue
+            # b/347934471.
+            requirements.append(f"pandas=={pandas.__version__}")
+            requirements.append(f"pyarrow=={pyarrow.__version__}")
+            requirements.append(f"numpy=={numpy.__version__}")
 
     if package_requirements:
         requirements.extend(package_requirements)

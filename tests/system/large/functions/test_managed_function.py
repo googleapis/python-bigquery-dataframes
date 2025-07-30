@@ -655,11 +655,9 @@ def test_managed_function_df_apply_axis_1(session, dataset_id, scalars_dfs):
     try:
 
         def serialize_row(row):
-            # Explicitly casting types ensures consistent behavior between
-            # BigFrames and pandas. Without it, BigFrames return plain Python
-            # types, e.g. 0, while pandas return NumPy types, e.g. np.int64(0),
-            # which could lead to mismatches and requires further investigation.
-            # See b/435021126.
+            # TODO(b/435021126): Remove explicit type conversion of the field
+            # "name" after the issue has been addressed. It is added only to
+            # accept partial pandas parity for the time being.
             custom = {
                 "name": int(row.name),
                 "index": [idx for idx in row.index],
@@ -705,7 +703,7 @@ def test_managed_function_df_apply_axis_1(session, dataset_id, scalars_dfs):
     finally:
         # clean up the gcp assets created for the managed function.
         cleanup_function_assets(
-            serialize_row_mf, session.bqclient, session.cloudfunctionsclient
+            serialize_row_mf, session.bqclient, ignore_failures=False
         )
 
 
@@ -716,11 +714,9 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
     try:
 
         def analyze(row):
-            # Explicitly casting types ensures consistent behavior between
-            # BigFrames and pandas. Without it, BigFrames return plain Python
-            # types, e.g. 0, while pandas return NumPy types, e.g. np.int64(0),
-            # which could lead to mismatches and requires further investigation.
-            # See b/435021126.
+            # TODO(b/435021126): Remove explicit type conversion of the field
+            # "name" after the issue has been addressed. It is added only to
+            # accept partial pandas parity for the time being.
             return str(
                 {
                     "dtype": row.dtype,
@@ -735,7 +731,7 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
 
         with pytest.warns(
             bfe.PreviewWarning,
-            match=("Numpy version may not precisely match your local environment."),
+            match=("Numpy, Pandas, and Pyarrow version may not precisely match."),
         ):
 
             analyze_mf = session.udf(
@@ -756,9 +752,7 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
 
     finally:
         # clean up the gcp assets created for the managed function.
-        cleanup_function_assets(
-            analyze_mf, session.bqclient, session.cloudfunctionsclient
-        )
+        cleanup_function_assets(analyze_mf, session.bqclient, ignore_failures=False)
 
 
 @pytest.mark.parametrize(
@@ -834,11 +828,9 @@ def test_managed_function_df_apply_axis_1_complex(session, dataset_id, pd_df):
     try:
 
         def serialize_row(row):
-            # Explicitly casting types ensures consistent behavior between
-            # BigFrames and pandas. Without it, BigFrames return plain Python
-            # types, e.g. 0, while pandas return NumPy types, e.g. np.int64(0),
-            # which could lead to mismatches and requires further investigation.
-            # See b/435021126.
+            # TODO(b/435021126): Remove explicit type conversion of the field
+            # "name" after the issue has been addressed. It is added only to
+            # accept partial pandas parity for the time being.
             custom = {
                 "name": int(row.name),
                 "index": [idx for idx in row.index],
@@ -876,7 +868,7 @@ def test_managed_function_df_apply_axis_1_complex(session, dataset_id, pd_df):
     finally:
         # clean up the gcp assets created for the managed function.
         cleanup_function_assets(
-            serialize_row_mf, session.bqclient, session.cloudfunctionsclient
+            serialize_row_mf, session.bqclient, ignore_failures=False
         )
 
 
@@ -942,5 +934,5 @@ SELECT "pandas na" AS text, NULL AS num
     finally:
         # clean up the gcp assets created for the managed function.
         cleanup_function_assets(
-            float_parser_mf, session.bqclient, session.cloudfunctionsclient
+            float_parser_mf, session.bqclient, ignore_failures=False
         )

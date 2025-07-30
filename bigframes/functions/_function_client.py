@@ -246,7 +246,7 @@ class FunctionClient:
         # Augment user package requirements with any internal package
         # requirements.
         packages = _utils._get_updated_package_requirements(
-            packages, is_row_processor, capture_references, ignore_numpy_version=True
+            packages, is_row_processor, capture_references, ignore_package_version=True
         )
         if packages:
             managed_function_options["packages"] = packages

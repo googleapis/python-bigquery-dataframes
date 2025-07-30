@@ -105,8 +105,8 @@ class FunctionAxisOnePreviewWarning(PreviewWarning):
 
 class FunctionPackageVersionWarning(PreviewWarning):
     """
-    Managed UDF package versions may not precisely match users' local
-    environment or the exact versions specified.
+    Managed UDF package versions for Numpy, Pandas, and Pyarrow may not
+    precisely match users' local environment or the exact versions specified.
     """
 
 
