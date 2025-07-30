@@ -13,12 +13,21 @@
 # limitations under the License.
 
 import numpy as np
+from packaging import version
 import pandas as pd
 import pytest
+import sqlglot
 
 import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
+
+
+if version.Version(sqlglot.__version__) < version.Version("25.0.0"):
+    pytest.skip(
+        "Skip tests for sqlglot < 25.0.0 due to SQL formatting issues",
+        allow_module_level=True,
+    )
 
 
 def test_compile_window_w_rolling(scalar_types_df: bpd.DataFrame, snapshot):
