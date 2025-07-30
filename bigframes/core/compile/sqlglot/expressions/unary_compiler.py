@@ -680,8 +680,3 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.year_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="YEAR"), expression=expr.expr)
-
-
-@UNARY_OP_REGISTRATION.register(ops.UnixMicros)
-def _(op: ops.UnixMicros, expr: TypedExpr) -> sge.Expression:
-    return sge.func("UNIX_MICROS", expr.expr)
