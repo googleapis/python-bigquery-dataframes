@@ -54,7 +54,7 @@ def project_id(bigquery_client: bigquery.Client) -> str:
 
 @pytest.fixture(scope="session")
 def gcs_bucket(storage_client: storage.Client) -> Generator[str, None, None]:
-    bucket_name = "bigframes_blob_test"
+    bucket_name = "bigframes_blob_test_with_data_wipeout"
 
     yield bucket_name
 
