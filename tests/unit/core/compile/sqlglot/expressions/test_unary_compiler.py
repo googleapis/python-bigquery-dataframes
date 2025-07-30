@@ -468,14 +468,16 @@ def test_strftime(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
-def test_struct_field(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["int64_col"]]
-    bf_df["struct_col"] = bpd.DataFrame(
-        {"field1": bf_df["int64_col"], "field2": bf_df["int64_col"] * 2}
-    ).to_struct()
-    sql = _apply_unary_op(bf_df, ops.StructFieldOp("field1"), "struct_col")
+def test_struct_field(nested_structs_types_df: bpd.DataFrame, snapshot):
+    bf_df = nested_structs_types_df[["people"]]
 
-    snapshot.assert_match(sql, "out_sql")
+    # When a name string is provided.
+    sql = _apply_unary_op(bf_df, ops.StructFieldOp("name"), "people")
+    snapshot.assert_match(sql, "out.sql")
+
+    # When an index integer is provided.
+    sql = _apply_unary_op(bf_df, ops.StructFieldOp(0), "people")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_str_contains(scalar_types_df: bpd.DataFrame, snapshot):

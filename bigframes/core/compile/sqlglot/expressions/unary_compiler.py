@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import typing
 
+import pandas as pd
+import pyarrow as pa
 import sqlglot
 import sqlglot.expressions as sge
 
@@ -561,7 +563,17 @@ def _(op: ops.StrftimeOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.StructFieldOp)
 def _(op: ops.StructFieldOp, expr: TypedExpr) -> sge.Expression:
-    return sge.StructExtract(this=expr.expr, expression=sge.convert(op.name_or_index))
+    if isinstance(op.name_or_index, str):
+        name = op.name_or_index
+    else:
+        pa_type = typing.cast(pd.ArrowDtype, expr.dtype)
+        pa_struct_type = typing.cast(pa.StructType, pa_type.pyarrow_dtype)
+        name = pa_struct_type.field(op.name_or_index).name
+
+    return sge.Column(
+        this=sge.to_identifier(name, quoted=True),
+        catalog=expr.expr,
+    )
 
 
 @UNARY_OP_REGISTRATION.register(ops.tan_op)
