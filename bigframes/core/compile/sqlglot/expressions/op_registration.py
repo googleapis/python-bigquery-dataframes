@@ -48,7 +48,7 @@ class OpRegistration:
 
         return decorator
 
-    def __getitem__(self, key: str | ops.ScalarOp) -> CompilationFunc:
-        if isinstance(key, ops.ScalarOp):
-            return self._registered_ops[key.name]
-        return self._registered_ops[key]
+    def __getitem__(self, op: str | ops.ScalarOp) -> CompilationFunc:
+        if isinstance(op, ops.ScalarOp):
+            return self._registered_ops[op.name]
+        return self._registered_ops[op]
