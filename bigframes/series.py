@@ -44,12 +44,11 @@ import google.cloud.bigquery as bigquery
 import numpy
 import pandas
 from pandas.api import extensions as pd_ext
-import pandas.core.dtypes.common
 import pyarrow as pa
 import typing_extensions
 
 import bigframes.core
-from bigframes.core import groupby, log_adapter
+from bigframes.core import groupby, log_adapter, transpile
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -1860,6 +1859,25 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             # Then it must be a vectorized function that applies to the Series
             # as a whole.
             if by_row:
+                expr = transpile.fn_to_expr(func)
+                if expr is not None:
+                    if len(expr.free_variables) == 1:
+                        variable = next(iter(expr.free_variables))
+                        bound_expr = expr.bind_variables(
+                            {variable: ex.deref(self._value_column)}
+                        )
+                        block, result_id = self._block.project_expr(
+                            bound_expr, self.name
+                        )
+                        return Series(block.select_column(result_id))
+                    elif len(expr.free_variables) == 0:
+                        block, result_id = self._block.project_expr(expr, self.name)
+                        return Series(block.select_column(result_id))
+                    else:
+                        raise ValueError(
+                            f"Too many free variables: {expr.free_variables}"
+                        )
+
                 raise ValueError(
                     "You have passed a function as-is. If your intention is to "
                     "apply this function in a vectorized way (i.e. to the "
@@ -1877,12 +1895,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
             try:
                 return func(self)
-            except Exception as ex:
+            except Exception as excpt:
                 # This could happen if any of the operators in func is not
                 # supported on a Series. Let's guide the customer to use a
                 # bigquery function instead
-                if hasattr(ex, "message"):
-                    ex.message += f"\n{_bigquery_function_recommendation_message}"
+                if hasattr(excpt, "message"):
+                    excpt.message += f"\n{_bigquery_function_recommendation_message}"
                 raise
 
         # We are working with bigquery function at this point

@@ -677,7 +677,7 @@ class Index(vendored_pandas_index.Index):
         """Applies a unary operator to the index."""
         if len(op.free_variables) != 1:
             raise ValueError("Expression must have exactly 1 unbound variable.")
-        unbound_variable = op.free_variables[0]
+        unbound_variable = next(iter(op.free_variables))
 
         block = self._block
         result_ids = []

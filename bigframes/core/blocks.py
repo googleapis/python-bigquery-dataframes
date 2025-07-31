@@ -1029,7 +1029,7 @@ class Block:
             input_varnames = op.free_variables
             assert len(input_varnames) == 1
             expr = op
-            input_varname = input_varnames[0]
+            input_varname = next(iter(input_varnames))
 
         block = self
 

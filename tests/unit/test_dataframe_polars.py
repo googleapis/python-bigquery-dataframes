@@ -4425,3 +4425,45 @@ def test_dataframe_explode_reserve_order(session, ignore_index, ordered):
 def test_dataframe_explode_xfail(col_names):
     df = bpd.DataFrame({"A": [[0, 1, 2], [], [3, 4]]})
     df.explode(col_names)
+
+
+def my_foo(x: int):
+    return x + 1
+
+
+def test_local_series_apply_simple(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].apply(my_foo).to_pandas()
+    pd_result = scalars_pandas_df_index["int64_col"].apply(my_foo)
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def my_numpy_foo(x: int):
+    return np.add(x, x) * (x - 3)
+
+
+def test_local_series_apply_w_numpy(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].apply(my_numpy_foo).to_pandas()
+    pd_result = scalars_pandas_df_index["int64_col"].apply(my_numpy_foo)
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_local_series_apply_w_simple_lamdba(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["int64_col"].apply(lambda x: x + 3).to_pandas()
+    pd_result = scalars_pandas_df_index["int64_col"].apply(lambda x: x + 3)
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_local_series_apply_w_ternary_lamdba(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index["int64_col"]
+        .apply(lambda x: "positive" if x > 0 else "negative")
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index["int64_col"].apply(
+        lambda x: "positive" if x > 0 else "negative"
+    )
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)

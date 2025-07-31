@@ -164,8 +164,8 @@ class Expression(abc.ABC):
     """An expression represents a computation taking N scalar inputs and producing a single output scalar."""
 
     @property
-    def free_variables(self) -> typing.Tuple[str, ...]:
-        return ()
+    def free_variables(self) -> set[str]:
+        return set()
 
     @property
     def children(self) -> typing.Tuple[Expression, ...]:
@@ -326,8 +326,10 @@ class UnboundVariableExpression(Expression):
     id: str
 
     @property
-    def free_variables(self) -> typing.Tuple[str, ...]:
-        return (self.id,)
+    def free_variables(self) -> set[str]:
+        return set(
+            self.id,
+        )
 
     @property
     def is_const(self) -> bool:
@@ -470,8 +472,8 @@ class OpExpression(Expression):
         )
 
     @property
-    def free_variables(self) -> typing.Tuple[str, ...]:
-        return tuple(
+    def free_variables(self) -> set[str]:
+        return set(
             itertools.chain.from_iterable(map(lambda x: x.free_variables, self.inputs))
         )
 
