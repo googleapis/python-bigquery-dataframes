@@ -262,7 +262,7 @@ def image_blur_to_bytes_func(
         )
         return json.dumps(result_dict)
     else:
-        return result_dict["content"]
+        return base64.b64encode(result_dict["content"]).decode("utf-8")
 
 
 image_blur_to_bytes_def = FunctionDef(
@@ -384,7 +384,7 @@ def image_resize_to_bytes_func(
         )
         return json.dumps(result_dict)
     else:
-        return result_dict["content"]
+        return base64.b64encode(result_dict["content"]).decode("utf-8")
 
 
 image_resize_to_bytes_def = FunctionDef(
@@ -530,7 +530,7 @@ image_normalize_to_bytes_def = FunctionDef(
 
 
 # Extracts all text from a PDF url
-def pdf_extract_func(src_obj_ref_rt: str) -> str:
+def pdf_extract_func(src_obj_ref_rt: str, verbose: bool) -> str:
     try:
         import io
         import json
@@ -563,8 +563,10 @@ def pdf_extract_func(src_obj_ref_rt: str) -> str:
     except Exception as e:
         result_dict = {"status": str(e), "content": ""}
 
-    result_json = json.dumps(result_dict)
-    return result_json
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 pdf_extract_def = FunctionDef(
@@ -573,7 +575,9 @@ pdf_extract_def = FunctionDef(
 
 
 # Extracts text from a PDF url and chunks it simultaneously
-def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> str:
+def pdf_chunk_func(
+    src_obj_ref_rt: str, chunk_size: int, overlap_size: int, verbose: bool
+) -> str:
     try:
         import io
         import json
@@ -619,8 +623,10 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
     except Exception as e:
         result_dict = {"status": str(e), "content": []}
 
-    result_json = json.dumps(result_dict)
-    return result_json
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return json.dumps(result_dict["content"])
 
 
 pdf_chunk_def = FunctionDef(
