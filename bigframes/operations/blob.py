@@ -427,6 +427,12 @@ class BlobAccessor(base.SeriesMethods):
             ).rename("blurred_content")
 
             if verbose:
+                blurred_content_b64_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.content")
+                )
+                blurred_content_series = bbq.sql_scalar(
+                    "FROM_BASE64({0})", columns=[blurred_content_b64_series]
+                )
                 blurred_status_series = res._apply_unary_op(
                     ops.JSONValue(json_path="$.status")
                 )
@@ -436,7 +442,10 @@ class BlobAccessor(base.SeriesMethods):
                 results_struct = bbq.struct(results_df).rename("blurred_results")
                 return results_struct
             else:
-                return blurred_content_series
+                blurred_bytes = bbq.sql_scalar(
+                    "FROM_BASE64({0})", columns=[res]
+                ).rename("blurred_bytes")
+                return blurred_bytes
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")
@@ -552,16 +561,26 @@ class BlobAccessor(base.SeriesMethods):
             ).rename("resized_content")
 
             if verbose:
+                resized_content_b64_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.content")
+                )
+                resized_content_series = bbq.sql_scalar(
+                    "FROM_BASE64({0})", columns=[resized_content_b64_series]
+                )
+
                 resized_status_series = res._apply_unary_op(
                     ops.JSONValue(json_path="$.status")
                 )
                 results_df = bpd.DataFrame(
                     {"status": resized_status_series, "content": resized_content_series}
                 )
-                results_struct = bbq.strcut(results_df).rename("resized_results")
+                results_struct = bbq.struct(results_df).rename("resized_results")
                 return results_struct
             else:
-                return resized_content_series
+                resized_bytes = bbq.sql_scalar(
+                    "FROM_BASE64({0})", columns=[res]
+                ).rename("resized_bytes")
+                return resized_bytes
 
         if isinstance(dst, str):
             dst = os.path.join(dst, "")

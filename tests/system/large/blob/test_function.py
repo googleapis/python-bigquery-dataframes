@@ -53,39 +53,50 @@ def images_output_uris(images_output_folder: str) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    "verbose, expected_type",
+    "verbose",
     [
-        (True, "struct"),
-        (False, "json"),
+        (True),
+        (False),
     ],
 )
 def test_blob_exif(
     bq_connection: str,
     session: bigframes.Session,
     verbose: bool,
-    expected_type: str,
 ):
     exif_image_df = session.from_glob_path(
         "gs://bigframes_blob_test/images_exif/*",
         name="blob_col",
         connection=bq_connection,
-        verbose=verbose,
     )
 
     actual = exif_image_df["blob_col"].blob.exif(
-        engine="pillow", connection=bq_connection
+        engine="pillow", connection=bq_connection, verbose=verbose
     )
-    expected = bpd.Series(
-        ['{"ExifOffset": 47, "Make": "MyCamera"}'],
-        session=session,
-        dtype=dtypes.JSON_DTYPE,
-    )
-    pd.testing.assert_series_equal(
-        actual.to_pandas(),
-        expected.to_pandas(),
-        check_dtype=False,
-        check_index_type=False,
-    )
+    if verbose:
+        assert hasattr(actual, "struct")
+        actual_exploded = actual.struct.explode()
+        assert "status" in actual_exploded.columns
+        assert "content" in actual_exploded.columns
+
+        status_series = actual_exploded["status"]
+        assert status_series.dtype == dtypes.STRING_DTYPE
+
+        content_series = actual_exploded["content"]
+        assert content_series.dtype == dtypes.JSON_DTYPE
+
+    else:
+        expected = bpd.Series(
+            ['{"ExifOffset": 47, "Make": "MyCamera"}'],
+            session=session,
+            dtype=dtypes.JSON_DTYPE,
+        )
+        pd.testing.assert_series_equal(
+            actual.to_pandas(),
+            expected.to_pandas(),
+            check_dtype=False,
+            check_index_type=False,
+        )
 
 
 @pytest.mark.parametrize("verbose", [True, False])
