@@ -113,6 +113,9 @@ def _pull_up_order(
         elif isinstance(node, bigframes.core.nodes.ProjectionNode):
             child_result, child_order = pull_up_order_inner(node.child)
             return node.replace_child(child_result), child_order
+        elif isinstance(node, bigframes.core.nodes.CteNode):
+            child_result, child_order = pull_up_order_inner(node.child)
+            return node.replace_child(child_result), child_order
         elif isinstance(node, bigframes.core.nodes.JoinNode):
             if node.propogate_order:
                 return pull_order_join(node)
