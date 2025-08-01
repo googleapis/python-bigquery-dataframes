@@ -5753,3 +5753,16 @@ def test_agg_with_dict_containing_non_existing_col_raise_key_error(scalars_dfs):
 
     with pytest.raises(KeyError):
         bf_df.agg(agg_funcs)
+
+
+def test_series_apply_w_ternary_lamdba(scalars_df_index, scalars_pandas_df_index):
+    bf_result = (
+        scalars_df_index["int64_col"]
+        .apply(lambda x: "positive" if x > 0 else "negative")
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index["int64_col"].apply(
+        lambda x: "positive" if x > 0 else "negative"
+    )
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)

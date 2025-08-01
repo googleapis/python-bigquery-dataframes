@@ -6,7 +6,8 @@ import dis
 import inspect
 from typing import Any, Optional
 
-from bigframes.core import expression
+from bigframes.core import expression, py_exprs
+from bigframes.operations import NUMPY_TO_BINOP, NUMPY_TO_OP
 import bigframes.operations as ops
 
 LabelType = str
@@ -55,20 +56,51 @@ _COMPARE_OPARGS = [
     ops.ge_op,
 ]
 
-# --- CFG and SSA Infrastructure ---
+_CALLABLE_TO_OP = {
+    **NUMPY_TO_OP,
+    **NUMPY_TO_BINOP,
+}
+
+
 VERSIONING_SEPERATOR = "%"
 
 
-@dataclasses.dataclass(eq=False)
+# Operand ontology here is rough, early vs late resolution?
+@dataclasses.dataclass(frozen=True)
 class Operand:
     """Represents an operand for an instruction, which can be a constant or a variable."""
 
+    @property
+    def is_const(self) -> bool:
+        return False
+
+
+@dataclasses.dataclass(frozen=True)
+class ConstArg(Operand):  # represents non-arguments: could be from closure, module, etc
     value: Any
-    is_const: bool = False
 
     def __repr__(self):
-        # Represent constants directly, and variables as is.
-        return f"{self.value}" if self.is_const else f"{self.value}"
+        return f"{self.value}"
+
+    @property
+    def is_const(self):
+        return True
+
+
+# Maybe create a separate class for temp args?
+@dataclasses.dataclass(frozen=True)
+class VariableRef(Operand):  # represents
+    name: str
+
+    def __post_init__(self):
+        assert isinstance(self.name, str)
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def is_const(self):
+        return False
 
 
 @dataclasses.dataclass(eq=False)
@@ -177,8 +209,10 @@ class SSATranspiler:
         self.cfg.entry_block = self.cfg.get_block("B0")
 
         current_block = self.cfg.entry_block
-        stack = []
+        stack: list[Operand] = []
 
+        # General philosophy here is we try to nomralize a bit between python versions, but mostly leave instructions intact
+        # Also, mostly be strict about recognizing stuff?
         for i, instr in enumerate(self.bytecode):
             print(instr)
 
@@ -186,33 +220,55 @@ class SSATranspiler:
                 current_block = self.cfg.get_block(f"B{instr.offset}")
 
             opname = instr.opname
-            arg = instr.argval
 
             if opname.startswith("LOAD_"):
                 if "CONST" in opname:
-                    stack.append(Operand(arg, is_const=True))
+                    stack.append(ConstArg(instr.argval))
+                elif opname in {"LOAD_METHOD", "LOAD_ATTR"}:
+                    module_or_object = stack.pop()
+                    temp_target = f"t{instr.offset}"
+                    new_instr = Instruction(
+                        "LOAD_ATTR", oparg=instr.arg, target=temp_target
+                    )
+                    new_instr.args = [module_or_object, ConstArg(instr.argval)]
+                    current_block.add_instruction(new_instr)
+                    stack.append(VariableRef(temp_target))
                 else:  # LOAD_FAST, etc.
-                    stack.append(Operand(arg, is_const=False))
+                    stack.append(VariableRef(instr.argval))
 
             elif opname.startswith("STORE_"):  # STORE_FAST
                 value_operand = stack.pop()
                 # Create an assignment instruction. This is a variable definition.
-                new_instr = Instruction("ASSIGN", target=arg)
+                new_instr = Instruction("ASSIGN", target=instr.argval)
                 new_instr.args = [value_operand]
                 current_block.add_instruction(new_instr)
 
             elif opname.startswith("BINARY_") or opname == "COMPARE_OP":
+                # We might want to just normalize down here?
                 right, left = stack.pop(), stack.pop()
                 # Operation produces a temporary value, which we push back for the next instruction.
                 temp_target = f"t{instr.offset}"
                 new_instr = Instruction(opname, oparg=instr.arg, target=temp_target)
-                # For compare, we also store the operation (e.g., '>', '<')
-                # if opname == 'COMPARE_OP':
-                #    new_instr.opname = f"COMPARE_OP_{arg}"
                 new_instr.args = [left, right]
                 current_block.add_instruction(new_instr)
-                stack.append(Operand(temp_target, is_const=False))
+                stack.append(VariableRef(temp_target))
 
+            elif opname.startswith("CALL"):
+                # TODO: More CALL variations
+                if (
+                    opname == "CALL"
+                ):  # 3.11+ stack = callable, self/NULL, posarg1, posarg2, ...
+                    nargs = instr.arg
+                    assert nargs is not None
+                    args = []
+                    for _ in range(nargs):
+                        args.append(stack.pop())
+                    function = stack.pop()  # expecting actualy python callable
+                    new_instr = Instruction("CALL")
+                    new_instr.args = [function, *args]
+                    current_block.add_instruction(new_instr)
+                else:
+                    raise ValueError(f"Unrecognized operation: {instr}")
             elif opname == "RETURN_VALUE":
                 new_instr = Instruction("RETURN")
                 new_instr.args = [stack.pop()]
@@ -224,7 +280,7 @@ class SSATranspiler:
                 branch_instr.args = [cond_operand]
                 current_block.add_instruction(branch_instr)
 
-                target_block = self.cfg.get_block(f"B{arg}")
+                target_block = self.cfg.get_block(f"B{instr.argval}")
                 fallthrough_block = self.cfg.get_block(
                     f"B{self.bytecode[i + 1].offset}"
                 )
@@ -236,7 +292,7 @@ class SSATranspiler:
                 fallthrough_block.predecessors.add(current_block)
 
             elif opname in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
-                target_block = self.cfg.get_block(f"B{arg}")
+                target_block = self.cfg.get_block(f"B{instr.argval}")
                 current_block.successors.add(target_block)
                 target_block.predecessors.add(current_block)
 
@@ -280,7 +336,7 @@ class SSATranspiler:
             exit_block.predecessors.add(block)
 
         final_return_instr = Instruction("RETURN")
-        final_return_instr.args = [Operand(return_var_name, is_const=False)]
+        final_return_instr.args = [VariableRef(return_var_name)]
         exit_block.add_instruction(final_return_instr)
 
     def compute_dominators(self):
@@ -403,18 +459,17 @@ class SSATranspiler:
             # rename references
             for instr in block.instructions:
                 if not isinstance(instr, PhiFunction):
-                    renamed_args = []
+                    renamed_args: list[Operand] = []
                     for arg in instr.args:
-                        if not arg.is_const:
-                            if not stacks[arg.value]:
+                        if isinstance(arg, VariableRef):
+                            if not stacks[arg.name]:
                                 raise Exception(
-                                    f"Compiler error: variable '{arg.value}' used before definition."
+                                    f"Compiler error: variable '{arg}' used before definition."
                                 )
-                            version = stacks[arg.value][-1]
+                            version = stacks[arg.name][-1]
                             renamed_args.append(
-                                Operand(
-                                    f"{arg.value}{VERSIONING_SEPERATOR}{version}",
-                                    is_const=False,
+                                VariableRef(
+                                    f"{arg.name}{VERSIONING_SEPERATOR}{version}",
                                 )
                             )
                         else:
@@ -428,11 +483,11 @@ class SSATranspiler:
                         assert instr.target is not None
                         var = instr.target.split(VERSIONING_SEPERATOR)[0]
                         if not stacks[var]:
-                            versioned_operand = Operand("UNDEFINED", is_const=True)
+                            versioned_operand = VariableRef("UNDEFINED")
                         else:
                             version = stacks[var][-1]
-                            versioned_operand = Operand(
-                                f"{var}{VERSIONING_SEPERATOR}{version}", is_const=False
+                            versioned_operand = VariableRef(
+                                f"{var}{VERSIONING_SEPERATOR}{version}"
                             )
                         instr.args.append(versioned_operand)
 
@@ -451,6 +506,7 @@ class SSATranspiler:
         assert self.cfg.entry_block is not None
         rename_recursive(self.cfg.entry_block)
 
+    # TODO: A second mode that takes a single-arg function, and treats LOAD_ATTR, BINARY_SUBSCR as the main way to get columns
     def to_sql_expr(self) -> expression.Expression:
         """Converts the SSA CFG into a single SQL expression tree."""
         memo: dict[str, expression.Expression] = {}  # SSA var name -> Expression
@@ -513,9 +569,29 @@ class SSATranspiler:
                         pass
 
                 elif instr.opname == "RETURN":
-                    # This is the final expression
+                    # This is the final expression (this assumes we have reduced to single-return form)
                     return self._operand_to_expr(instr.args[0], memo)
-
+                elif instr.opname == "LOAD_ATTR":
+                    assert instr.target is not None
+                    # So there are basically a few main cases we want to handle here
+                    # 1. Loading a module method such as np.add , may or may not be callable (eg math.pi vs math.sqrt())
+                    # 2. Getting an attribute on a const (eg "hello".upper()). May or may not be callable (eg str.upper() )
+                    # 3. Getting an attribuge on a variable (eg x.abs()) (May or may not be callable)
+                    # When do we know if it is callable? Eh, we can generally decide right now.
+                    # OK, so what are the options
+                    # 1. Throw an attr op on the expression - fairly clean conceptually, though we will have to rewrite later (either at call)
+                    obj, attr = instr.args
+                    assert isinstance(attr, ConstArg)  # No dynamic attribute support
+                    memo[instr.target] = py_exprs.GetAttr(
+                        self._operand_to_expr(obj, memo), attr.value
+                    )
+                elif instr.opname == "CALL":
+                    assert instr.target is not None
+                    (callable, *call_args) = instr.args
+                    memo[instr.target] = py_exprs.Call(
+                        self._operand_to_expr(callable, memo),
+                        tuple(self._operand_to_expr(arg, memo) for arg in call_args),
+                    )
                 elif instr.target:  # All other ops that define a variable
                     op_args = [self._operand_to_expr(arg, memo) for arg in instr.args]
                     op_name = instr.opname
@@ -524,31 +600,26 @@ class SSATranspiler:
                         assert instr.oparg is not None
                         sql_op = _BINARY_OPARGS[instr.oparg]
                         assert sql_op is not None
-
                     elif op_name.startswith("BINARY_"):
                         sql_op = _BINARY_OPNAMES[op_name]
-
                     elif op_name.startswith("COMPARE_OP"):
                         assert instr.oparg is not None
                         # are these consistent across python versions??
                         sql_op = _COMPARE_OPARGS[instr.oparg >> 4]
-
                     memo[instr.target] = sql_op.as_expr(*op_args)  # type: ignore
                 else:  # usually jump instructions, which maybe blocks should track separately?
                     pass
                     # raise Exception(f"Unhandled instruction {instr}")
 
-        # print(memo)
-        # if "_return_value__0" in memo:
-        #    return memo["_return_value__0"]
         raise Exception("Could not find RETURN instruction in single exit block.")
 
     def _operand_to_expr(self, operand: Operand, memo: dict) -> expression.Expression:
         """Helper to convert an Operand to an Expression."""
-        if operand.is_const:
+        if isinstance(operand, ConstArg):
             return expression.const(operand.value)
         else:
-            return memo[operand.value]
+            assert isinstance(operand, VariableRef)
+            return memo[operand.name]
 
     def _topological_sort(self) -> list[BasicBlock]:
         """Performs a topological sort of the basic blocks."""
