@@ -16,11 +16,18 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+from types import ModuleType
 from typing import Callable, Mapping, Tuple
 
 from bigframes import dtypes
 from bigframes.core import identifiers
-from bigframes.core.expression import Expression
+from bigframes.core.expression import Expression, OpExpression
+from bigframes.operations import NUMPY_TO_BINOP, NUMPY_TO_OP
+
+_CALLABLE_TO_OP = {
+    **NUMPY_TO_OP,
+    **NUMPY_TO_BINOP,
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -94,6 +101,53 @@ class GetAttr(Expression):
             ),
             self.attr,
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class Module(Expression):
+    """An expression representing a module reference."""
+
+    module: ModuleType
+
+    @property
+    def is_const(self) -> bool:
+        return True
+
+    @property
+    def column_references(self) -> Tuple[identifiers.ColumnId, ...]:
+        return ()
+
+    @property
+    def nullable(self) -> bool:
+        return True  # type: ignore
+
+    @property
+    def is_resolved(self) -> bool:
+        return False
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        raise ValueError("Module expresion has not type")
+
+    def bind_variables(
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
+    ) -> Expression:
+        return self
+
+    def bind_refs(
+        self,
+        bindings: Mapping[identifiers.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
+    ) -> Module:
+        return self
+
+    @property
+    def is_bijective(self) -> bool:
+        # () <-> value
+        return True
+
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -187,6 +241,21 @@ class Call(Expression):
                 for input in self.inputs
             ),
         )
+
+
+def resolve_call(call: Call) -> Expression:
+    callable = call.callable
+    if isinstance(callable, GetAttr):
+        attr = callable.attr
+        if isinstance(callable.input, Module):
+            fn = getattr(callable.input.module, attr)
+            if fn in _CALLABLE_TO_OP:
+                op = _CALLABLE_TO_OP[fn]
+                return OpExpression(op, call.inputs)
+
+    raise NotImplementedError(
+        f"No implementation available for call expression: {call}"
+    )
 
 
 # def resolve_as_callable(callable: Expression) ->:

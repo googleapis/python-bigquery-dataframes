@@ -7,7 +7,6 @@ import inspect
 from typing import Any, Optional
 
 from bigframes.core import expression, py_exprs
-from bigframes.operations import NUMPY_TO_BINOP, NUMPY_TO_OP
 import bigframes.operations as ops
 
 LabelType = str
@@ -55,11 +54,6 @@ _COMPARE_OPARGS = [
     ops.gt_op,
     ops.ge_op,
 ]
-
-_CALLABLE_TO_OP = {
-    **NUMPY_TO_OP,
-    **NUMPY_TO_BINOP,
-}
 
 
 VERSIONING_SEPERATOR = "%"
@@ -224,6 +218,8 @@ class SSATranspiler:
             if opname.startswith("LOAD_"):
                 if "CONST" in opname:
                     stack.append(ConstArg(instr.argval))
+                elif opname == "LOAD_GLOBAL":
+                    stack.append(ConstArg(self.func.__globals__[instr.argval]))
                 elif opname in {"LOAD_METHOD", "LOAD_ATTR"}:
                     module_or_object = stack.pop()
                     temp_target = f"t{instr.offset}"
@@ -258,15 +254,17 @@ class SSATranspiler:
                 if (
                     opname == "CALL"
                 ):  # 3.11+ stack = callable, self/NULL, posarg1, posarg2, ...
+                    temp_target = f"t{instr.offset}"
                     nargs = instr.arg
                     assert nargs is not None
                     args = []
                     for _ in range(nargs):
                         args.append(stack.pop())
                     function = stack.pop()  # expecting actualy python callable
-                    new_instr = Instruction("CALL")
+                    new_instr = Instruction("CALL", target=temp_target)
                     new_instr.args = [function, *args]
                     current_block.add_instruction(new_instr)
+                    stack.append(VariableRef(temp_target))
                 else:
                     raise ValueError(f"Unrecognized operation: {instr}")
             elif opname == "RETURN_VALUE":
@@ -588,10 +586,12 @@ class SSATranspiler:
                 elif instr.opname == "CALL":
                     assert instr.target is not None
                     (callable, *call_args) = instr.args
-                    memo[instr.target] = py_exprs.Call(
+                    call_expr = py_exprs.Call(
                         self._operand_to_expr(callable, memo),
                         tuple(self._operand_to_expr(arg, memo) for arg in call_args),
                     )
+                    # we are resolving a little bit early rn, maybe should defer??
+                    memo[instr.target] = py_exprs.resolve_call(call_expr)
                 elif instr.target:  # All other ops that define a variable
                     op_args = [self._operand_to_expr(arg, memo) for arg in instr.args]
                     op_name = instr.opname
@@ -616,6 +616,11 @@ class SSATranspiler:
     def _operand_to_expr(self, operand: Operand, memo: dict) -> expression.Expression:
         """Helper to convert an Operand to an Expression."""
         if isinstance(operand, ConstArg):
+            # We are still being pretty permissive here, and just stuffing things in the expression
+            # Later steps will try to resolve and translate these and may fail, thats fine though
+            # we don't necessarily have all the context right now to know what is acceptable.
+            if inspect.ismodule(operand.value):
+                return py_exprs.Module(operand.value)
             return expression.const(operand.value)
         else:
             assert isinstance(operand, VariableRef)
