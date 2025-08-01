@@ -86,8 +86,8 @@ class TableWidget(WIDGET_BASE):
         # Use total_rwos from batches directly
         self.row_count = self._batches.total_rows or 0
 
-        # Set page_size after _batches is initialized so observers have
-        # access to batch data
+        # Set page_size after _batches is available since traitlets observers
+        # may depend on _batches being initialized when the change trigger happens
         self.page_size = initial_page_size
 
         # Generates the initial HTML table content
