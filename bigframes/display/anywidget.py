@@ -17,12 +17,14 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-from typing import Any, Dict, Iterator, List, Optional, Type
+import typing
+from typing import Any, cast, Dict, Iterator, List, Optional, Type
 import uuid
 
 import pandas as pd
 
 import bigframes
+import bigframes.core.blocks
 
 # anywidget and traitlets are optional dependencies. We don't want the import of this
 # module to fail if they aren't installed, though. Instead, we try to limit the surface that
@@ -44,8 +46,10 @@ else:
 
 
 class TableWidget(WIDGET_BASE):
-    """
-    An interactive, paginated table widget for BigFrames DataFrames.
+    """An interactive, paginated table widget for BigFrames DataFrames.
+
+    This widget provides a user-friendly way to display and navigate through
+    large BigQuery DataFrames within a Jupyter environment.
     """
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
@@ -62,28 +66,30 @@ class TableWidget(WIDGET_BASE):
         super().__init__()
         self._dataframe = dataframe
 
-        # Initialize attributes that might be needed by observers FIRST
+        # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
+        self._batches: Optional[bigframes.core.blocks.PandasBatches] = None
         self._cached_batches: List[pd.DataFrame] = []
 
-        # respect display options for initial page size
+        # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
+        # Fetches initial data batches and row count for display.
+        batches = dataframe.to_pandas_batches(
+            page_size=initial_page_size,
+        )
+        self._batches = cast(bigframes.core.blocks.PandasBatches, batches)
 
-        # set traitlets properties that trigger observers
+        # Use total_rwos from batches directly
+        self.row_count = self._batches.total_rows or 0
+
+        # Set page_size after _batches is available since traitlets observers
+        # may depend on _batches being initialized when the change trigger happens
         self.page_size = initial_page_size
 
-        # len(dataframe) is expensive, since it will trigger a
-        # SELECT COUNT(*) query. It is a must have however.
-        # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
-        # before we get here so that the count might already be cached.
-        self.row_count = len(dataframe)
-
-        # get the initial page
+        # Generates the initial HTML table content
         self._set_table_html()
 
     @functools.cached_property
@@ -167,7 +173,10 @@ class TableWidget(WIDGET_BASE):
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
         if self._batch_iter is None:
-            self._batch_iter = iter(self._batches)
+            if self._batches is None:
+                self._batch_iter = iter([])
+            else:
+                self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
@@ -179,7 +188,8 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        self._batches = typing.cast(bigframes.core.blocks.PandasBatches, batches)
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False
