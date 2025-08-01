@@ -79,7 +79,8 @@ def _get_updated_package_requirements(
             # we use `ignore_package_version` to optionally omit the version for
             # managed functions only.
             msg = bfe.format_message(
-                "Numpy, Pandas, and Pyarrow version may not precisely match your local environment."
+                "numpy, pandas, and pyarrow versions in the function execution"
+                " environment may not precisely match your local environment."
             )
             warnings.warn(msg, category=bfe.FunctionPackageVersionWarning)
             requirements.append("pandas")

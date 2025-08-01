@@ -731,7 +731,10 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
 
         with pytest.warns(
             bfe.FunctionPackageVersionWarning,
-            match=("Numpy, Pandas, and Pyarrow version may not precisely match."),
+            match=(
+                "numpy, pandas, and pyarrow versions in the function execution"
+                "\nenvironment may not precisely match your local environment."
+            ),
         ):
 
             analyze_mf = session.udf(
