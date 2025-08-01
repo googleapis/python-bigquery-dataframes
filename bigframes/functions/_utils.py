@@ -14,6 +14,7 @@
 
 
 import hashlib
+import inspect
 import json
 import sys
 import typing
@@ -269,3 +270,16 @@ def _build_unnest_post_routine(py_list_type: type[list]):
         return bbq.json_extract_string_array(input, value_dtype=result_dtype)
 
     return post_process
+
+
+def has_input_type(signature: inspect.Signature) -> bool:
+    """Checks if any parameter in the signature has a type annotation."""
+    for param in signature.parameters.values():
+        if param.annotation is not inspect.Parameter.empty:
+            return True
+    return False
+
+
+def has_output_type(signature: inspect.Signature) -> bool:
+    """Checks if the signature has a return type annotation."""
+    return signature.return_annotation is not inspect.Parameter.empty
