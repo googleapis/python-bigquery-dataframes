@@ -81,7 +81,7 @@ def _get_updated_package_requirements(
             msg = bfe.format_message(
                 "Numpy, Pandas, and Pyarrow version may not precisely match your local environment."
             )
-            warnings.warn(msg, category=bfe.PreviewWarning)
+            warnings.warn(msg, category=bfe.FunctionPackageVersionWarning)
             requirements.append("pandas")
             requirements.append("pyarrow")
             requirements.append("numpy")
@@ -94,6 +94,8 @@ def _get_updated_package_requirements(
             requirements.append(f"pyarrow=={pyarrow.__version__}")
             requirements.append(f"numpy=={numpy.__version__}")
 
+    # TODO(b/435023957): Fix the issue of potential duplicate package versions
+    # when `package_requirements` also contains `pandas/pyarrow/numpy`.
     if package_requirements:
         requirements.extend(package_requirements)
 

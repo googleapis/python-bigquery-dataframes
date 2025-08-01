@@ -714,9 +714,9 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
     try:
 
         def analyze(row):
-            # TODO(b/435021126): Remove explicit type conversion of the field
-            # "name" after the issue has been addressed. It is added only to
-            # accept partial pandas parity for the time being.
+            # TODO(b/435021126): Remove explicit type conversion of the fields
+            # after the issue has been addressed. It is added only to accept
+            # partial pandas parity for the time being.
             return str(
                 {
                     "dtype": row.dtype,
@@ -730,7 +730,7 @@ def test_managed_function_df_apply_axis_1_aggregates(session, dataset_id, scalar
             )
 
         with pytest.warns(
-            bfe.PreviewWarning,
+            bfe.FunctionPackageVersionWarning,
             match=("Numpy, Pandas, and Pyarrow version may not precisely match."),
         ):
 
