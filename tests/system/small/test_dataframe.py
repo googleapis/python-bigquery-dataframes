@@ -2987,6 +2987,42 @@ def test_df_join_series(scalars_dfs, how):
         assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
+def test_assign_series_with_null_index_should_add_column_correctly(
+    scalars_df_null_index_partial_ordering: bigframes.dataframe.DataFrame,
+    scalars_series_null_index_partial_ordering: bigframes.series.Series,
+):
+    """Test that DataFrame column assignment works with null indices in partial ordering mode."""
+    df = scalars_df_null_index_partial_ordering[["int64_col", "string_col"]].head(3)
+    series_to_assign = scalars_series_null_index_partial_ordering.head(3)
+    expected_series = pd.Series(
+        [
+            -987654321,
+            -987654321,
+            -987654321,
+            314159,
+            314159,
+            314159,
+            123456789,
+            123456789,
+            123456789,
+        ],
+        dtype="Int64",
+    )
+
+    #  Assign the Series as a new column in the DataFrame
+    df["new_col"] = series_to_assign
+
+    # Materialize the full DataFrame to a pandas object to get the computed result.
+    result_df = df[["int64_col", "new_col"]].to_pandas()
+    result_series = result_df["new_col"]
+
+    pd.testing.assert_series_equal(
+        result_series.sort_values().reset_index(drop=True),
+        expected_series,
+        check_names=False,
+    )
+
+
 @pytest.mark.parametrize(
     ("by", "ascending", "na_position"),
     [
