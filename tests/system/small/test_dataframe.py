@@ -2958,7 +2958,7 @@ def test_join_different_table_with_duplicate_column_name(
 
     # Ensure no inplace changes
     pd.testing.assert_index_equal(bf_df_a.columns, pd_df_a.columns)
-    pd.testing.assert_index_equal(bf_df_b.columns, pd_df_b.columns)
+    pd.testing.assert_index_equal(bf_df_b.index.to_pandas(), pd_df_b.index)
     pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
 
 
