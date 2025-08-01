@@ -4,6 +4,24 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.13.1](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.13.0...v2.13.1) (2025-08-01)
+
+
+### Features
+
+* Dynamic table widht for better display across devices ([#1948](https://github.com/googleapis/python-bigquery-dataframes/issues/1948)) ([a6d30ae](https://github.com/googleapis/python-bigquery-dataframes/commit/a6d30ae3f4358925c999c53b558c1ecd3ee03e6c))
+
+
+### Bug Fixes
+
+* Enhance type error messages for bigframes functions ([#1958](https://github.com/googleapis/python-bigquery-dataframes/issues/1958)) ([770918e](https://github.com/googleapis/python-bigquery-dataframes/commit/770918e998bf1fde7a656e8f8a0ff0a8c68509f2))
+
+
+### Documentation
+
+* Add code snippet for storing dataframes to a CSV file ([#1943](https://github.com/googleapis/python-bigquery-dataframes/issues/1943)) ([a511e09](https://github.com/googleapis/python-bigquery-dataframes/commit/a511e09e6924d2e8302af2eb4a602c6b9e5d2d72))
+* Add code snippet for storing dataframes to a CSV file ([#1953](https://github.com/googleapis/python-bigquery-dataframes/issues/1953)) ([a298a02](https://github.com/googleapis/python-bigquery-dataframes/commit/a298a02b451f03ca200fe0756b9a7b57e3d1bf0e))
+
 ## [2.13.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.12.0...v2.13.0) (2025-07-25)
 
 
