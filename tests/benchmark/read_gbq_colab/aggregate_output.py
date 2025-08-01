@@ -15,19 +15,15 @@ import pathlib
 
 import benchmark.utils as utils
 
-import bigframes.session
+import bigframes.pandas as bpd
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
 
 
-def aggregate_output(
-    *, project_id, dataset_id, table_id, session: bigframes.session.Session
-):
+def aggregate_output(*, project_id, dataset_id, table_id):
     # TODO(tswast): Support alternative query if table_id is a local DataFrame,
     # e.g. "{local_inline}" or "{local_large}"
-    df = session._read_gbq_colab(
-        f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
-    )
+    df = bpd._read_gbq_colab(f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}")
 
     # Simulate getting the first page, since we'll always do that first in the UI.
     df.shape
@@ -52,7 +48,7 @@ def aggregate_output(
 
 
 if __name__ == "__main__":
-    config = utils.get_configuration(include_table_id=True)
+    config = utils.get_configuration(include_table_id=True, start_session=False)
     current_path = pathlib.Path(__file__).absolute()
 
     utils.get_execution_time(
@@ -62,5 +58,4 @@ if __name__ == "__main__":
         project_id=config.project_id,
         dataset_id=config.dataset_id,
         table_id=config.table_id,
-        session=config.session,
     )
