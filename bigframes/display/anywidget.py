@@ -77,28 +77,21 @@ class TableWidget(WIDGET_BASE):
         # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        try:
-            # Fetches initial data batches and row count for display.
-            batches = dataframe.to_pandas_batches(
-                page_size=initial_page_size,
-            )
-            self._batches = cast(bigframes.core.blocks.PandasBatches, batches)
+        # Fetches initial data batches and row count for display.
+        batches = dataframe.to_pandas_batches(
+            page_size=initial_page_size,
+        )
+        self._batches = cast(bigframes.core.blocks.PandasBatches, batches)
 
-            # Use total_rows if available, otherwise default to 0.
-            if self._batches:
-                self.row_count = self._batches.total_rows or 0
-            else:
-                self.row_count = 0
-            self.page_size = initial_page_size
+        # Use total_rwos from batches directly
+        self.row_count = self._batches.total_rows or 0
 
-            # Generates the initial HTML table content
-            self._set_table_html()
+        # Set page_size after _batches is initialized so observers have
+        # access to batch data
+        self.page_size = initial_page_size
 
-        except Exception:
-            self.row_count = 0
-            self.page_size = initial_page_size
-            self._batches = None
-            self.table_html = ""
+        # Generates the initial HTML table content
+        self._set_table_html()
 
     @functools.cached_property
     def _esm(self):
