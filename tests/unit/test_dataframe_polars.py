@@ -4439,7 +4439,7 @@ def test_local_series_apply_simple(scalars_df_index, scalars_pandas_df_index):
 
 
 def my_numpy_foo(x: int):
-    return np.add(x, x) * (x - 3)
+    return np.add(x, x) * (np.cos(x) - np.sin(3))
 
 
 def test_local_series_apply_w_numpy(scalars_df_index, scalars_pandas_df_index):

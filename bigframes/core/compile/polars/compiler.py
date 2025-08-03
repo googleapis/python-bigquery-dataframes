@@ -246,6 +246,14 @@ if polars_installed:
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             return input.is_not_null()
 
+        @compile_op.register(num_ops.SinOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.sin()
+
+        @compile_op.register(num_ops.CosOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.cos()
+
         @compile_op.register(gen_ops.FillNaOp)
         @compile_op.register(gen_ops.CoalesceOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:

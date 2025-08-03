@@ -4,7 +4,7 @@ from collections import defaultdict
 import dataclasses
 import dis
 import inspect
-from typing import Any, Optional
+from typing import Any, Literal, Mapping, Optional, Sequence, Union
 
 from bigframes.core import expression, py_exprs
 import bigframes.operations as ops
@@ -55,7 +55,7 @@ _COMPARE_OPARGS = [
     ops.ge_op,
 ]
 
-
+PREDICATE_T = Literal["IS NONE", "IS TRUE"]
 VERSIONING_SEPERATOR = "%"
 
 
@@ -67,6 +67,9 @@ class Operand:
     @property
     def is_const(self) -> bool:
         return False
+
+    def rename_refs(self, renamings: Mapping[str, str]) -> Operand:
+        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -96,7 +99,11 @@ class VariableRef(Operand):  # represents
     def is_const(self):
         return False
 
+    def rename_refs(self, renamings: Mapping[str, str]) -> Operand:
+        return VariableRef(renamings[self.name]) if self.name in renamings else self
 
+
+# TODO: Maybe type all the instructions? Eg LOAD, ASSIGN, OP, ATTR, CALL?
 @dataclasses.dataclass(eq=False)
 class Instruction:
     """Represents a single instruction in a basic block using a 3-address-code like format."""
@@ -121,9 +128,62 @@ class PhiFunction(Instruction):
 
     def __init__(self, target):
         super().__init__("phi", target=target)
+        # blocks holds references to the predecessor blocks for each argument in args.
+        self.blocks: list[BasicBlock] = []
 
     def __repr__(self):
+        # After renaming, blocks and args are parallel arrays
+        if self.blocks:
+            arg_str = ", ".join(
+                f"{block.label}:{op}" for block, op in zip(self.blocks, self.args)
+            )
+            return f"{self.target} = phi({arg_str})"
         return f"{self.target} = phi({', '.join(map(str, self.args))})"
+
+
+# Block Terminators: Branch, Jump or Return
+@dataclasses.dataclass(frozen=True)
+class BinaryBranchCondition:
+    predicate: PREDICATE_T
+    target: Operand
+    true_case: BasicBlock
+    false_case: BasicBlock
+
+    @property
+    def successors(self) -> Sequence[BasicBlock]:
+        return (self.true_case, self.false_case)
+
+    def rename_refs(self, renamings: Mapping[str, str]) -> BinaryBranchCondition:
+        return BinaryBranchCondition(
+            self.predicate,
+            self.target.rename_refs(renamings),
+            self.true_case,
+            self.false_case,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class Jump:
+    to: BasicBlock
+
+    @property
+    def successors(self) -> Sequence[BasicBlock]:
+        return (self.to,)
+
+    def rename_refs(self, renamings: Mapping[str, str]) -> Jump:
+        return self
+
+
+@dataclasses.dataclass(frozen=True)
+class Return:
+    target: Operand
+
+    @property
+    def successors(self) -> Sequence[BasicBlock]:
+        return ()
+
+    def rename_refs(self, renamings: Mapping[str, str]) -> Return:
+        return Return(self.target.rename_refs(renamings))
 
 
 @dataclasses.dataclass(eq=False)
@@ -132,8 +192,9 @@ class BasicBlock:
 
     label: LabelType
     instructions: list[Instruction] = dataclasses.field(default_factory=list)
-    successors: set[BasicBlock] = dataclasses.field(default_factory=set)
     predecessors: set[BasicBlock] = dataclasses.field(default_factory=set)
+    then: Union[BinaryBranchCondition, Jump, Return, None] = None
+
     # Define dominance structure, which is important for minimizing phi set
     dominators: set[BasicBlock] = dataclasses.field(default_factory=set)
     idom: Optional[BasicBlock] = None
@@ -144,6 +205,21 @@ class BasicBlock:
 
     def add_instruction(self, instruction):
         self.instructions.append(instruction)
+
+    @property
+    def successors(self) -> Sequence[BasicBlock]:
+        if self.then is None:
+            raise ValueError("Block isn't fully defined yet")
+        else:
+            return self.then.successors
+
+    def rename_refs(self, renamings: Mapping[str, str]) -> None:
+        """Renames all references to variables. Useful when converting to SSA"""
+        for instr in self.instructions:
+            if not isinstance(instr, PhiFunction):
+                instr.args = list(map(lambda x: x.rename_refs(renamings), instr.args))
+        if self.then is not None:
+            self.then = self.then.rename_refs(renamings)
 
 
 @dataclasses.dataclass(eq=False)
@@ -180,9 +256,12 @@ class SSATranspiler:
         self.cfg = ControlFlowGraph()
         self.build_cfg()
         self.convert_to_single_exit()
+        # https://en.wikipedia.org/wiki/Dominator_(graph_theory)
         self.compute_dominators()
         self.compute_dominance_frontiers()
         self.insert_phi_functions()
+        # Converts to static single-assignment form (SSA for short)
+        # https://en.wikipedia.org/wiki/Static_single-assignment_form
         self.rename_variables()
 
     def build_cfg(self):
@@ -207,9 +286,10 @@ class SSATranspiler:
 
         # General philosophy here is we try to nomralize a bit between python versions, but mostly leave instructions intact
         # Also, mostly be strict about recognizing stuff?
-        for i, instr in enumerate(self.bytecode):
+        for instr in self.bytecode:
             print(instr)
 
+        for i, instr in enumerate(self.bytecode):
             if instr.offset in block_starts and instr.offset != 0:
                 current_block = self.cfg.get_block(f"B{instr.offset}")
 
@@ -219,7 +299,16 @@ class SSATranspiler:
                 if "CONST" in opname:
                     stack.append(ConstArg(instr.argval))
                 elif opname == "LOAD_GLOBAL":
-                    stack.append(ConstArg(self.func.__globals__[instr.argval]))
+                    if instr.argval in self.func.__globals__:
+                        stack.append(ConstArg(self.func.__globals__[instr.argval]))
+                    else:
+                        # It must be a builtin. The __builtins__ can be a dict or a module.
+                        builtins = self.func.__globals__["__builtins__"]
+                        if isinstance(builtins, dict):
+                            val = builtins[instr.argval]
+                        else:  # It's the builtins module
+                            val = getattr(builtins, instr.argval)
+                        stack.append(ConstArg(val))
                 elif opname in {"LOAD_METHOD", "LOAD_ATTR"}:
                     module_or_object = stack.pop()
                     temp_target = f"t{instr.offset}"
@@ -233,12 +322,12 @@ class SSATranspiler:
                     stack.append(VariableRef(instr.argval))
 
             elif opname.startswith("STORE_"):  # STORE_FAST
+                # TODO: Maybe block storing to closure vars? Users may expect info passing between invocations.
                 value_operand = stack.pop()
                 # Create an assignment instruction. This is a variable definition.
                 new_instr = Instruction("ASSIGN", target=instr.argval)
                 new_instr.args = [value_operand]
                 current_block.add_instruction(new_instr)
-
             elif opname.startswith("BINARY_") or opname == "COMPARE_OP":
                 # We might want to just normalize down here?
                 right, left = stack.pop(), stack.pop()
@@ -260,7 +349,7 @@ class SSATranspiler:
                     args = []
                     for _ in range(nargs):
                         args.append(stack.pop())
-                    function = stack.pop()  # expecting actualy python callable
+                    function = stack.pop()  # expecting actual python callable
                     new_instr = Instruction("CALL", target=temp_target)
                     new_instr.args = [function, *args]
                     current_block.add_instruction(new_instr)
@@ -268,35 +357,47 @@ class SSATranspiler:
                 else:
                     raise ValueError(f"Unrecognized operation: {instr}")
             elif opname == "RETURN_VALUE":
-                new_instr = Instruction("RETURN")
-                new_instr.args = [stack.pop()]
-                current_block.add_instruction(new_instr)
-
-            elif opname == "POP_JUMP_IF_FALSE":
+                current_block.then = Return(stack.pop())
+            elif opname.startswith("POP_JUMP"):
                 cond_operand = stack.pop()
-                branch_instr = Instruction("BRANCH_IF_FALSE")
-                branch_instr.args = [cond_operand]
-                current_block.add_instruction(branch_instr)
-
-                target_block = self.cfg.get_block(f"B{instr.argval}")
+                jump_block = self.cfg.get_block(f"B{instr.argval}")
                 fallthrough_block = self.cfg.get_block(
                     f"B{self.bytecode[i + 1].offset}"
                 )
+                predicate: Literal["IS TRUE", "IS NONE"] = "IS TRUE"
+                if opname == "POP_JUMP_IF_TRUE":
+                    true_case = jump_block
+                    false_case = fallthrough_block
+                elif opname == "POP_JUMP_IF_FALSE":
+                    false_case = jump_block
+                    true_case = fallthrough_block
+                elif opname == "POP_JUMP_IF_NONE":
+                    predicate = "IS NONE"
+                    true_case = jump_block
+                    false_case = fallthrough_block
+                elif opname == "POP_JUMP_IF_NOT_NONE":
+                    predicate = "IS NONE"
+                    false_case = jump_block
+                    true_case = fallthrough_block
+                else:
+                    raise ValueError(f"unrecognized instruction: {opname}")
 
-                # Successors: False path first, then True path
-                current_block.successors.add(target_block)  # False path
-                current_block.successors.add(fallthrough_block)  # True path
-                target_block.predecessors.add(current_block)
+                current_block.then = BinaryBranchCondition(
+                    predicate, cond_operand, true_case, false_case
+                )
+                jump_block.predecessors.add(current_block)
                 fallthrough_block.predecessors.add(current_block)
 
             elif opname in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
                 target_block = self.cfg.get_block(f"B{instr.argval}")
-                current_block.successors.add(target_block)
+                current_block.then = Jump(target_block)
                 target_block.predecessors.add(current_block)
-
             elif opname == "POP_TOP":
                 stack.pop()
 
+            elif opname in {"COPY_FREE_VARS"}:
+                # we don't need to copy this in, we can just directly dereference later
+                continue
             elif opname == "RESUME":
                 # literal no-op
                 continue
@@ -309,11 +410,10 @@ class SSATranspiler:
         All RETURN instructions are replaced with assignments to a special
         return variable, and those blocks now jump to a single exit block.
         """
-        return_blocks = []
+        return_blocks: list[BasicBlock] = []
         for block in self.cfg.blocks.values():
-            for i, instr in enumerate(block.instructions):
-                if instr.opname == "RETURN":
-                    return_blocks.append((block, instr, i))
+            if isinstance(block.then, Return):
+                return_blocks.append(block)
 
         if not return_blocks:
             return
@@ -321,21 +421,19 @@ class SSATranspiler:
         exit_block = self.cfg.get_block("B_EXIT")
         return_var_name = "_return_value_"
 
-        for block, return_instr, instr_index in return_blocks:
-            return_operand = return_instr.args[0]
+        for block in return_blocks:
+            assert isinstance(block.then, Return)
+            return_operand = block.then.target
 
             assign_instr = Instruction("ASSIGN", target=return_var_name)
             assign_instr.args = [return_operand]
-            block.instructions[instr_index] = assign_instr
+            block.instructions.append(assign_instr)
 
             assert len(block.successors) == 0
-            # block.successors.clear() # Should be clear already???
-            block.successors.add(exit_block)
+            block.then = Jump(exit_block)
             exit_block.predecessors.add(block)
 
-        final_return_instr = Instruction("RETURN")
-        final_return_instr.args = [VariableRef(return_var_name)]
-        exit_block.add_instruction(final_return_instr)
+        exit_block.then = Return(VariableRef(return_var_name))
 
     def compute_dominators(self):
         """Computes the dominators for each basic block using the standard iterative algorithm."""
@@ -432,7 +530,7 @@ class SSATranspiler:
         Performs a pass over the CFG to rename all variables, putting the graph into SSA form.
         """
         counters = defaultdict(int)
-        stacks = defaultdict(list)
+        stacks: dict[str, list[int]] = defaultdict(list)
 
         arg_names = inspect.signature(self.func).parameters.keys()
         for name in arg_names:
@@ -455,24 +553,12 @@ class SSATranspiler:
                     instr.target = f"{var}{VERSIONING_SEPERATOR}{version}"
 
             # rename references
-            for instr in block.instructions:
-                if not isinstance(instr, PhiFunction):
-                    renamed_args: list[Operand] = []
-                    for arg in instr.args:
-                        if isinstance(arg, VariableRef):
-                            if not stacks[arg.name]:
-                                raise Exception(
-                                    f"Compiler error: variable '{arg}' used before definition."
-                                )
-                            version = stacks[arg.name][-1]
-                            renamed_args.append(
-                                VariableRef(
-                                    f"{arg.name}{VERSIONING_SEPERATOR}{version}",
-                                )
-                            )
-                        else:
-                            renamed_args.append(arg)
-                    instr.args = renamed_args
+            block.rename_refs(
+                {
+                    var: f"{var}{VERSIONING_SEPERATOR}{version[-1]}"
+                    for var, version in stacks.items()
+                }
+            )
 
             # Peek ahead and modify downstream phi functions
             for succ in sorted(block.successors, key=lambda b: b.label):
@@ -481,12 +567,14 @@ class SSATranspiler:
                         assert instr.target is not None
                         var = instr.target.split(VERSIONING_SEPERATOR)[0]
                         if not stacks[var]:
+                            # TODO: Typed undefined? Or just don't put in the phi instruction
                             versioned_operand = VariableRef("UNDEFINED")
                         else:
                             version = stacks[var][-1]
                             versioned_operand = VariableRef(
                                 f"{var}{VERSIONING_SEPERATOR}{version}"
                             )
+                        instr.blocks.append(block)
                         instr.args.append(versioned_operand)
 
             # and now fully process children in the dominance tree
@@ -505,6 +593,7 @@ class SSATranspiler:
         rename_recursive(self.cfg.entry_block)
 
     # TODO: A second mode that takes a single-arg function, and treats LOAD_ATTR, BINARY_SUBSCR as the main way to get columns
+    # Maybe also possible to spit out multiple expressions instead to minimize expression size?
     def to_sql_expr(self) -> expression.Expression:
         """Converts the SSA CFG into a single SQL expression tree."""
         memo: dict[str, expression.Expression] = {}  # SSA var name -> Expression
@@ -528,47 +617,11 @@ class SSATranspiler:
 
                 elif isinstance(instr, PhiFunction):
                     assert instr.target is not None
-
-                    # This is the conditional logic
-                    # Find the branching block that is the idom of this phi's block
-                    branch_block = block.idom
-                    assert branch_block is not None
-                    branch_instr = next(
-                        (
-                            i
-                            for i in branch_block.instructions
-                            if i.opname == "BRANCH_IF_FALSE"
-                        ),
-                        None,
+                    # zip the blocks and args back together for the resolver
+                    zipped_args = list(zip(instr.blocks, instr.args))
+                    memo[instr.target] = self._resolve_phi_to_expr(
+                        zipped_args, block, memo
                     )
-
-                    if branch_instr:
-                        predicate_expr = self._operand_to_expr(
-                            branch_instr.args[0], memo
-                        )
-
-                        # Determine true/false path based on successor order
-                        # preds = sorted(block.predecessors, key=lambda b: b.label)
-
-                        # This logic assumes a simple if/else diamond shape
-                        true_path_val = self._operand_to_expr(
-                            instr.args[0], memo
-                        )  # Fallthrough
-                        false_path_val = self._operand_to_expr(
-                            instr.args[1], memo
-                        )  # Jump target
-
-                        memo[instr.target] = ops.where_op.as_expr(
-                            true_path_val, predicate_expr, false_path_val
-                        )
-                    else:
-                        # Handle more complex cases like CASE WHEN here if needed
-                        raise ValueError(f"Unhandled branch instruction {instr}")
-                        pass
-
-                elif instr.opname == "RETURN":
-                    # This is the final expression (this assumes we have reduced to single-return form)
-                    return self._operand_to_expr(instr.args[0], memo)
                 elif instr.opname == "LOAD_ATTR":
                     assert instr.target is not None
                     # So there are basically a few main cases we want to handle here
@@ -611,6 +664,9 @@ class SSATranspiler:
                     pass
                     # raise Exception(f"Unhandled instruction {instr}")
 
+            if isinstance(block.then, Return):
+                return self._operand_to_expr(block.then.target, memo)
+
         raise Exception("Could not find RETURN instruction in single exit block.")
 
     def _operand_to_expr(self, operand: Operand, memo: dict) -> expression.Expression:
@@ -619,6 +675,7 @@ class SSATranspiler:
             # We are still being pretty permissive here, and just stuffing things in the expression
             # Later steps will try to resolve and translate these and may fail, thats fine though
             # we don't necessarily have all the context right now to know what is acceptable.
+            # TODO: Also builtins like abs, str etc need to work
             if inspect.ismodule(operand.value):
                 return py_exprs.Module(operand.value)
             return expression.const(operand.value)
@@ -645,3 +702,67 @@ class SSATranspiler:
                     queue.append(successor)
 
         return result
+
+    def _resolve_phi_to_expr(
+        self,
+        args: list[tuple[BasicBlock, Operand]],
+        merge_block: BasicBlock,
+        memo: dict,
+    ) -> expression.Expression:
+        """
+        Recursively resolves a phi function's arguments into a nested conditional expression.
+        """
+        # Base case: only one incoming path, so no merge logic needed. It's just an alias.
+        if len(args) == 1:
+            _pred_block, operand = args[0]
+            return self._operand_to_expr(operand, memo)
+
+        # Find the immediate dominator of the merge block, which is where the control flow split.
+        branch_block = merge_block.idom
+        if not branch_block or not isinstance(branch_block.then, BinaryBranchCondition):
+            raise Exception(
+                f"Cannot resolve phi in {merge_block.label} without a branching immediate dominator."
+            )
+
+        branch = branch_block.then
+        if branch.predicate == "IS NONE":
+            predicate_expr = ops.isnull_op.as_expr(
+                self._operand_to_expr(branch.target, memo)
+            )
+        else:
+            assert branch.predicate == "IS TRUE"
+            predicate_expr = self._operand_to_expr(branch.target, memo)
+
+        # Partition the incoming values based on which path they took from the branch.
+        true_path_args = []
+        false_path_args = []
+
+        for pred_block, operand in args:
+            # A predecessor is on the true path if it IS the true-case successor of the branch,
+            # or if it is DOMINATED by the true-case successor.
+            if pred_block == branch.true_case or self._is_dominated_by(
+                pred_block, branch.true_case
+            ):
+                true_path_args.append((pred_block, operand))
+            elif pred_block == branch.false_case or self._is_dominated_by(
+                pred_block, branch.false_case
+            ):
+                false_path_args.append((pred_block, operand))
+            else:
+                raise Exception(
+                    f"Cannot trace predecessor {pred_block.label} of phi in {merge_block.label} back to branch in {branch_block.label}"
+                )
+
+        # Recursively resolve the expressions for each path. The new merge block for the
+        # recursion is the entry point of that specific path.
+        true_expr = self._resolve_phi_to_expr(true_path_args, branch.true_case, memo)
+        false_expr = self._resolve_phi_to_expr(false_path_args, branch.false_case, memo)
+
+        # where(condition, value_if_true, value_if_false)
+        return ops.where_op.as_expr(true_expr, predicate_expr, false_expr)
+
+    def _is_dominated_by(
+        self, block: BasicBlock, potential_dominator: BasicBlock
+    ) -> bool:
+        """Checks if `block` is dominated by `potential_dominator`."""
+        return potential_dominator in block.dominators

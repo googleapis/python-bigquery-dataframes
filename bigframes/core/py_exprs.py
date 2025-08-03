@@ -256,10 +256,3 @@ def resolve_call(call: Call) -> Expression:
     raise NotImplementedError(
         f"No implementation available for call expression: {call}"
     )
-
-
-# def resolve_as_callable(callable: Expression) ->:
-#    # Case 1: Resolve Attr->Module
-#    if isinstance(expr, GetAttr):
-#        attr = expr.attr
-#        if isinstance(expr.input, e)
