@@ -258,15 +258,38 @@ Raster functions: Functions for analyzing geospatial rasters using geographies.
 *Break down the implementation into small, actionable steps.*
 *This section will guide the development process.*
 
-### 1. Step One
+### Implementing a new scalar geography operation
 
-- [ ] Action 1.1
-- [ ] Action 1.2
-
-### 2. Step Two
-
-- [ ] Action 2.1
-- [ ] Action 2.2
+- [ ] **Define the operation dataclass:**
+    - [ ] In `bigframes/operations/geo_ops.py`, create a new dataclass inheriting from `base_ops.UnaryOp` or `base_ops.BinaryOp`.
+    - [ ] Define the `name` of the operation and any parameters it requires.
+    - [ ] Implement the `output_type` method to specify the data type of the result.
+- [ ] **Export the new operation:**
+    - [ ] In `bigframes/operations/__init__.py`, import your new operation dataclass and add it to the `__all__` list.
+- [ ] **Implement the compilation logic:**
+    - [ ] In `bigframes/core/compile/scalar_op_compiler.py`:
+    - [ ] If the BigQuery function has a direct equivalent in Ibis, you can often reuse an existing Ibis method.
+    - [ ] If not, define a new Ibis UDF using `@ibis_udf.scalar.builtin` to map to the specific BigQuery function signature.
+    - [ ] Create a new compiler implementation function (e.g., `geo_length_op_impl`).
+    - [ ] Register this function to your operation dataclass using `@scalar_op_compiler.register_unary_op` or `@scalar_op_compiler.register_binary_op`.
+- [ ] **Implement the user-facing function or property:**
+    - [ ] For a `bigframes.bigquery` function:
+        - [ ] In `bigframes/bigquery/_operations/geo.py`, create the user-facing function (e.g., `st_length`).
+        - [ ] The function should take a `Series` and any other parameters.
+        - [ ] Inside the function, call `series._apply_unary_op` or `series._apply_binary_op`, passing the operation dataclass you created.
+        - [ ] Add a comprehensive docstring with examples.
+        - [ ] In `bigframes/bigquery/__init__.py`, import your new user-facing function and add it to the `__all__` list.
+    - [ ] For a `GeoSeries` property or method:
+        - [ ] In `bigframes/geopandas/geoseries.py`, create the property or method.
+        - [ ] If the operation is not possible to be supported, such as if the
+              geopandas method returns values in units corresponding to the
+              coordinate system rather than meters that BigQuery uses, raise a
+              `NotImplementedError` with a helpful message.
+        - [ ] Otherwise, call `series._apply_unary_op` or `series._apply_binary_op`, passing the operation dataclass.
+        - [ ] Add a comprehensive docstring with examples.
+- [ ] **Add Tests:**
+    - [ ] Add system tests in `tests/system/small/bigquery/test_geo.py` or `tests/system/small/geopandas/test_geoseries.py` to verify the end-to-end functionality. Test various inputs, including edge cases and `NULL` values.
+    - [ ] If you are overriding a pandas or GeoPandas property and raising `NotImplementedError`, add a unit test to ensure the correct error is raised.
 
 ## Verification
 
