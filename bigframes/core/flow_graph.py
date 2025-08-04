@@ -121,6 +121,9 @@ class Instruction:
 
         return self.opname + oparg_part + args_part
 
+    def references(self) -> set[str]:
+        return {item.name for item in self.args if isinstance(item, VariableRef)}
+
 
 @dataclasses.dataclass(eq=False)
 class PhiFunction(Instruction):
@@ -141,7 +144,7 @@ class PhiFunction(Instruction):
         return f"{self.target} = phi({', '.join(map(str, self.args))})"
 
 
-# Block Terminators: Branch, Jump or Return
+# Block Terminators: Branch, Goto or Return
 @dataclasses.dataclass(frozen=True)
 class BinaryBranchCondition:
     predicate: PREDICATE_T
@@ -161,17 +164,23 @@ class BinaryBranchCondition:
             self.false_case,
         )
 
+    def references(self) -> set[str]:
+        return {item.name for item in [self.target] if isinstance(item, VariableRef)}
+
 
 @dataclasses.dataclass(frozen=True)
-class Jump:
+class Goto:
     to: BasicBlock
 
     @property
     def successors(self) -> Sequence[BasicBlock]:
         return (self.to,)
 
-    def rename_refs(self, renamings: Mapping[str, str]) -> Jump:
+    def rename_refs(self, renamings: Mapping[str, str]) -> Goto:
         return self
+
+    def references(self) -> set[str]:
+        return set()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -185,6 +194,9 @@ class Return:
     def rename_refs(self, renamings: Mapping[str, str]) -> Return:
         return Return(self.target.rename_refs(renamings))
 
+    def references(self) -> set[str]:
+        return {item.name for item in [self.target] if isinstance(item, VariableRef)}
+
 
 @dataclasses.dataclass(eq=False)
 class BasicBlock:
@@ -193,7 +205,7 @@ class BasicBlock:
     label: LabelType
     instructions: list[Instruction] = dataclasses.field(default_factory=list)
     predecessors: set[BasicBlock] = dataclasses.field(default_factory=set)
-    then: Union[BinaryBranchCondition, Jump, Return, None] = None
+    then: Union[BinaryBranchCondition, Goto, Return, None] = None
 
     # Define dominance structure, which is important for minimizing phi set
     dominators: set[BasicBlock] = dataclasses.field(default_factory=set)
@@ -356,6 +368,7 @@ class SSATranspiler:
                     stack.append(VariableRef(temp_target))
                 else:
                     raise ValueError(f"Unrecognized operation: {instr}")
+            # Terminal cases
             elif opname == "RETURN_VALUE":
                 current_block.then = Return(stack.pop())
             elif opname.startswith("POP_JUMP"):
@@ -390,7 +403,7 @@ class SSATranspiler:
 
             elif opname in ("JUMP_FORWARD", "JUMP_ABSOLUTE"):
                 target_block = self.cfg.get_block(f"B{instr.argval}")
-                current_block.then = Jump(target_block)
+                current_block.then = Goto(target_block)
                 target_block.predecessors.add(current_block)
             elif opname == "POP_TOP":
                 stack.pop()
@@ -403,6 +416,15 @@ class SSATranspiler:
                 continue
             else:
                 raise ValueError(f"Unrecognized operation: {instr}")
+
+            # Finally, this might end the block, in that case, goto next instruction
+            if current_block.then is None:
+                if (len(self.bytecode) > i + 1) and (
+                    self.bytecode[i + 1].offset in block_starts
+                ):
+                    next_block = self.cfg.get_block(f"B{self.bytecode[i + 1].offset}")
+                    current_block.then = Goto(next_block)
+                    next_block.predecessors.add(current_block)
 
     def convert_to_single_exit(self):
         """
@@ -430,7 +452,7 @@ class SSATranspiler:
             block.instructions.append(assign_instr)
 
             assert len(block.successors) == 0
-            block.then = Jump(exit_block)
+            block.then = Goto(exit_block)
             exit_block.predecessors.add(block)
 
         exit_block.then = Return(VariableRef(return_var_name))
@@ -529,13 +551,21 @@ class SSATranspiler:
         """
         Performs a pass over the CFG to rename all variables, putting the graph into SSA form.
         """
+
+        # OK, so what does this state represent?
+
+        # current counters for each variable
         counters = defaultdict(int)
+
         stacks: dict[str, list[int]] = defaultdict(list)
 
         arg_names = inspect.signature(self.func).parameters.keys()
         for name in arg_names:
             stacks[name].append(0)
             counters[name] = 1
+
+        def versioned_name(name: str, version: int) -> str:
+            return f"{name}{VERSIONING_SEPERATOR}{version}"
 
         def rename_recursive(block: BasicBlock):
             pushed_on_stack = []
@@ -544,21 +574,31 @@ class SSATranspiler:
 
             # rename definitions
             for instr in block.instructions:
+                if not isinstance(instr, PhiFunction):
+                    for name in instr.references():
+                        if len(stacks[name]) < 1:
+                            raise ValueError(f"Name {name} reffed before decl")
+                    # TODO: Aghhhhh
+                    renames = {
+                        name: versioned_name(name, stacks[name][-1])
+                        for name in instr.references()
+                    }
+                    instr.args = list(map(lambda x: x.rename_refs(renames), instr.args))
                 if instr.target:
                     var = instr.target
                     version = counters[var]
                     counters[var] += 1
                     stacks[var].append(version)
                     pushed_on_stack.append(var)
-                    instr.target = f"{var}{VERSIONING_SEPERATOR}{version}"
+                    instr.target = versioned_name(var, version)
 
             # rename references
-            block.rename_refs(
-                {
-                    var: f"{var}{VERSIONING_SEPERATOR}{version[-1]}"
-                    for var, version in stacks.items()
+            if block.then is not None:
+                renames = {
+                    name: versioned_name(name, stacks[name][-1])
+                    for name in block.then.references()
                 }
-            )
+                block.then = block.then.rename_refs(renames)
 
             # Peek ahead and modify downstream phi functions
             for succ in sorted(block.successors, key=lambda b: b.label):
@@ -644,7 +684,7 @@ class SSATranspiler:
                         tuple(self._operand_to_expr(arg, memo) for arg in call_args),
                     )
                     # we are resolving a little bit early rn, maybe should defer??
-                    memo[instr.target] = py_exprs.resolve_call(call_expr)
+                    memo[instr.target] = call_expr  # py_exprs.resolve_call(call_expr)
                 elif instr.target:  # All other ops that define a variable
                     op_args = [self._operand_to_expr(arg, memo) for arg in instr.args]
                     op_name = instr.opname
@@ -661,11 +701,12 @@ class SSATranspiler:
                         sql_op = _COMPARE_OPARGS[instr.oparg >> 4]
                     memo[instr.target] = sql_op.as_expr(*op_args)  # type: ignore
                 else:  # usually jump instructions, which maybe blocks should track separately?
-                    pass
-                    # raise Exception(f"Unhandled instruction {instr}")
+                    # pass
+                    raise Exception(f"Unhandled instruction {instr}")
 
             if isinstance(block.then, Return):
-                return self._operand_to_expr(block.then.target, memo)
+                unresolved = self._operand_to_expr(block.then.target, memo)
+                return py_exprs.resolve_py_exprs(unresolved)
 
         raise Exception("Could not find RETURN instruction in single exit block.")
 
@@ -678,9 +719,12 @@ class SSATranspiler:
             # TODO: Also builtins like abs, str etc need to work
             if inspect.ismodule(operand.value):
                 return py_exprs.Module(operand.value)
-            return expression.const(operand.value)
+            else:
+                return py_exprs.PyObject(operand.value)
         else:
             assert isinstance(operand, VariableRef)
+            if operand.name not in memo:
+                raise ValueError("Variable referenced before def")
             return memo[operand.name]
 
     def _topological_sort(self) -> list[BasicBlock]:

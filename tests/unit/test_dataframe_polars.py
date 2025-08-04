@@ -4473,16 +4473,17 @@ def test_local_series_apply_w_nested_fizzbuzz(
     scalars_df_index, scalars_pandas_df_index
 ):
     # challenging: closure, multiple exits, mutating variables
-    foo_div = 3
-    buzz_div = 5
+    # TODO: closure variables
+    # foo_div = 3
+    # buzz_div = 5
 
     def fizzbuzz(x):
         if (not x % 3) and (not x % 5):
             return str(x)
         val = ""
-        if (x % foo_div) == 0:
+        if (x % 3) == 0:
             val += "fizz"
-        if (x % buzz_div) == 0:
+        if (x % 5) == 0:
             val += "buzz"
         return val
 

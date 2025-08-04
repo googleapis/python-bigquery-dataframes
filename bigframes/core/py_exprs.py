@@ -17,16 +17,21 @@ from __future__ import annotations
 import dataclasses
 import itertools
 from types import ModuleType
-from typing import Callable, Mapping, Tuple
+from typing import Callable, Hashable, Mapping, Tuple
 
 from bigframes import dtypes
 from bigframes.core import identifiers
-from bigframes.core.expression import Expression, OpExpression
-from bigframes.operations import NUMPY_TO_BINOP, NUMPY_TO_OP
+from bigframes.core.expression import const, Expression, OpExpression
+from bigframes.operations import generic_ops, numeric_ops, NUMPY_TO_BINOP, NUMPY_TO_OP
 
 _CALLABLE_TO_OP = {
     **NUMPY_TO_OP,
     **NUMPY_TO_BINOP,
+}
+
+_BUILTIN_CALLABLES = {
+    str: generic_ops.AsTypeOp(dtypes.STRING_DTYPE),
+    abs: numeric_ops.abs_op,
 }
 
 
@@ -151,6 +156,53 @@ class Module(Expression):
 
 
 @dataclasses.dataclass(frozen=True)
+class PyObject(Expression):
+    """An expression representing a module reference."""
+
+    value: Hashable
+
+    @property
+    def is_const(self) -> bool:
+        return True
+
+    @property
+    def column_references(self) -> Tuple[identifiers.ColumnId, ...]:
+        return ()
+
+    @property
+    def nullable(self) -> bool:
+        return True  # type: ignore
+
+    @property
+    def is_resolved(self) -> bool:
+        return False
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        raise ValueError("Module expresion has not type")
+
+    def bind_variables(
+        self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
+    ) -> Expression:
+        return self
+
+    def bind_refs(
+        self,
+        bindings: Mapping[identifiers.ColumnId, Expression],
+        allow_partial_bindings: bool = False,
+    ) -> PyObject:
+        return self
+
+    @property
+    def is_bijective(self) -> bool:
+        # () <-> value
+        return True
+
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
+
+
+@dataclasses.dataclass(frozen=True)
 class Call(Expression):
     """An expression representing a scalar constant."""
 
@@ -243,6 +295,37 @@ class Call(Expression):
         )
 
 
+# TODO: Mode that resolves free variable attrs as columns
+def resolve_py_exprs(
+    expression: Expression,
+) -> Expression:
+    """Replace all PyObject, attribute, call expressions. Bottom-up."""
+
+    def resolve_expr_if_call(expression: Expression) -> Expression:
+        if isinstance(expression, Call):
+            return resolve_call(expression)
+        return expression
+
+    # this function assumes attrs that become callables have been resolved
+    # also, we don't yet handle resolving attrs that are column accesses
+    def resolve_attrs(expression: Expression) -> Expression:
+        if isinstance(expression, GetAttr):
+            if isinstance(expression.input, Module):
+                # resolves things like Math.pi
+                return PyObject(getattr(expression.input.module, expression.attr))
+        return expression
+
+    def resolve_pyobjs(expression: Expression) -> Expression:
+        if isinstance(expression, PyObject):
+            return const(expression.value)
+        return expression
+
+    wo_calls = expression.bottom_up(resolve_expr_if_call)
+    wo_attrs = wo_calls.bottom_up(resolve_attrs)
+    wo_pyobjs = wo_attrs.bottom_up(resolve_pyobjs)
+    return wo_pyobjs
+
+
 def resolve_call(call: Call) -> Expression:
     callable = call.callable
     if isinstance(callable, GetAttr):
@@ -252,6 +335,8 @@ def resolve_call(call: Call) -> Expression:
             if fn in _CALLABLE_TO_OP:
                 op = _CALLABLE_TO_OP[fn]
                 return OpExpression(op, call.inputs)
+    elif isinstance(callable, PyObject):
+        return OpExpression(_BUILTIN_CALLABLES[callable.value], call.inputs)
 
     raise NotImplementedError(
         f"No implementation available for call expression: {call}"

@@ -253,6 +253,12 @@ class Expression(abc.ABC):
     def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
         ...
 
+    def top_down(self, t: Callable[[Expression], Expression]) -> Expression:
+        return t(self).transform_children(lambda child: child.top_down(t))
+
+    def bottom_up(self, t: Callable[[Expression], Expression]) -> Expression:
+        return t(self.transform_children(lambda child: child.bottom_up(t)))
+
     def walk(self) -> Generator[Expression, None, None]:
         yield self
         for child in self.children:
