@@ -43,7 +43,20 @@ _BINARY_OPARGS = (
     ops.sub_op,
     ops.div_op,
     ops.xor_op,
-    # ops 12-24 are unimplemented inplace ops
+    # These are the inplace variants, but should work same at bytecode level for the relevant types?
+    ops.add_op,
+    ops.and_op,
+    ops.floordiv_op,
+    None,  # lshift
+    None,  # matrix multiply
+    ops.mul_op,
+    ops.mod_op,
+    ops.or_op,
+    ops.pow_op,
+    None,  # rshift
+    ops.sub_op,
+    ops.div_op,
+    ops.xor_op,
 )
 
 _COMPARE_OPARGS = [
@@ -484,19 +497,23 @@ class SSATranspiler:
                     block.dominators = new_doms
                     changed = True
 
+        # o(n**2) algo, not great
         for block in self.cfg.blocks.values():
-            immediate_dominators = {d for d in block.dominators if d != block}
-            idom = next(
-                (
-                    d
-                    for d in immediate_dominators
-                    if all(
-                        dom not in d.dominators
-                        for dom in immediate_dominators
-                        if dom != d
-                    )
-                ),
-                None,
+
+            non_self_doms = block.dominators.difference([block])
+            # select the immediate dominator d (sus) such that no other immediate dominator dominates it
+            idom = (
+                next(  # we want the dominator that doesn't dominate any other dominator
+                    (
+                        d
+                        for d in non_self_doms
+                        if all(
+                            d not in other_dom.dominators
+                            for other_dom in non_self_doms.difference([d])
+                        )
+                    ),
+                    None,
+                )
             )
             block.idom = idom
 
@@ -749,14 +766,17 @@ class SSATranspiler:
 
     def _resolve_phi_to_expr(
         self,
-        args: list[tuple[BasicBlock, Operand]],
-        merge_block: BasicBlock,
+        args: list[
+            tuple[BasicBlock, Operand]
+        ],  # the inputs to the phi function and where they come from
+        merge_block: BasicBlock,  # the block where the phi function is located
         memo: dict,
     ) -> expression.Expression:
         """
         Recursively resolves a phi function's arguments into a nested conditional expression.
         """
         # Base case: only one incoming path, so no merge logic needed. It's just an alias.
+        # Ideally, this phi function would not exist in the first place
         if len(args) == 1:
             _pred_block, operand = args[0]
             return self._operand_to_expr(operand, memo)
