@@ -17,14 +17,241 @@ functions should be exposed in the `bigframes.bigquery` module.
 *Define the specific, measurable outcomes that indicate the task is complete.*
 *Use a checklist format for clarity.*
 
-GeoSeries methods and properties
+### GeoSeries methods and properties
 
-- [ ] Criterion 1
-- [ ] Criterion 2
+- [x] Constructor
+- [x] GeoSeries.area
+- [x] GeoSeries.boundary
+- [ ] GeoSeries.bounds
+- [ ] GeoSeries.total_bounds
+- [x] GeoSeries.length
+- [ ] GeoSeries.geom_type
+- [ ] GeoSeries.offset_curve
+- [x] GeoSeries.distance
+- [ ] GeoSeries.hausdorff_distance
+- [ ] GeoSeries.frechet_distance
+- [ ] GeoSeries.representative_point
+- [ ] GeoSeries.exterior
+- [ ] GeoSeries.interiors
+- [ ] GeoSeries.minimum_bounding_radius
+- [ ] GeoSeries.minimum_clearance
+- [x] GeoSeries.x
+- [x] GeoSeries.y
+- [ ] GeoSeries.z
+- [ ] GeoSeries.m
+- [ ] GeoSeries.get_coordinates
+- [ ] GeoSeries.count_coordinates
+- [ ] GeoSeries.count_geometries
+- [ ] GeoSeries.count_interior_rings
+- [ ] GeoSeries.set_precision
+- [ ] GeoSeries.get_precision
+- [ ] GeoSeries.get_geometry
+- [x] GeoSeries.is_closed
+- [ ] GeoSeries.is_empty
+- [ ] GeoSeries.is_ring
+- [ ] GeoSeries.is_simple
+- [ ] GeoSeries.is_valid
+- [ ] GeoSeries.is_valid_reason
+- [ ] GeoSeries.is_valid_coverage
+- [ ] GeoSeries.invalid_coverage_edges
+- [ ] GeoSeries.has_m
+- [ ] GeoSeries.has_z
+- [ ] GeoSeries.is_ccw
+- [ ] GeoSeries.contains
+- [ ] GeoSeries.contains_properly
+- [ ] GeoSeries.crosses
+- [ ] GeoSeries.disjoint
+- [ ] GeoSeries.dwithin
+- [ ] GeoSeries.geom_equals
+- [ ] GeoSeries.geom_equals_exact
+- [ ] GeoSeries.geom_equals_identical
+- [ ] GeoSeries.intersects
+- [ ] GeoSeries.overlaps
+- [ ] GeoSeries.touches
+- [ ] GeoSeries.within
+- [ ] GeoSeries.covers
+- [ ] GeoSeries.covered_by
+- [ ] GeoSeries.relate
+- [ ] GeoSeries.relate_pattern
+- [ ] GeoSeries.clip_by_rect
+- [x] GeoSeries.difference
+- [x] GeoSeries.intersection
+- [ ] GeoSeries.symmetric_difference
+- [ ] GeoSeries.union
+- [x] GeoSeries.boundary
+- [ ] GeoSeries.buffer
+- [ ] GeoSeries.centroid
+- [ ] GeoSeries.concave_hull
+- [ ] GeoSeries.convex_hull
+- [ ] GeoSeries.envelope
+- [ ] GeoSeries.extract_unique_points
+- [ ] GeoSeries.force_2d
+- [ ] GeoSeries.force_3d
+- [ ] GeoSeries.make_valid
+- [ ] GeoSeries.minimum_bounding_circle
+- [ ] GeoSeries.maximum_inscribed_circle
+- [ ] GeoSeries.minimum_clearance
+- [ ] GeoSeries.minimum_clearance_line
+- [ ] GeoSeries.minimum_rotated_rectangle
+- [ ] GeoSeries.normalize
+- [ ] GeoSeries.orient_polygons
+- [ ] GeoSeries.remove_repeated_points
+- [ ] GeoSeries.reverse
+- [ ] GeoSeries.sample_points
+- [ ] GeoSeries.segmentize
+- [ ] GeoSeries.shortest_line
+- [ ] GeoSeries.simplify
+- [ ] GeoSeries.simplify_coverage
+- [ ] GeoSeries.snap
+- [ ] GeoSeries.transform
+- [ ] GeoSeries.affine_transform
+- [ ] GeoSeries.rotate
+- [ ] GeoSeries.scale
+- [ ] GeoSeries.skew
+- [ ] GeoSeries.translate
+- [ ] GeoSeries.interpolate
+- [ ] GeoSeries.line_merge
+- [ ] GeoSeries.project
+- [ ] GeoSeries.shared_paths
+- [ ] GeoSeries.build_area
+- [ ] GeoSeries.constrained_delaunay_triangles
+- [ ] GeoSeries.delaunay_triangles
+- [ ] GeoSeries.explode
+- [ ] GeoSeries.intersection_all
+- [ ] GeoSeries.polygonize
+- [ ] GeoSeries.union_all
+- [ ] GeoSeries.voronoi_polygons
+- [ ] GeoSeries.from_arrow
+- [ ] GeoSeries.from_file
+- [ ] GeoSeries.from_wkb
+- [x] GeoSeries.from_wkt
+- [x] GeoSeries.from_xy
+- [ ] GeoSeries.to_arrow
+- [ ] GeoSeries.to_file
+- [ ] GeoSeries.to_json
+- [ ] GeoSeries.to_wkb
+- [x] GeoSeries.to_wkt
+- [ ] GeoSeries.crs
+- [ ] GeoSeries.set_crs
+- [ ] GeoSeries.to_crs
+- [ ] GeoSeries.estimate_utm_crs
+- [ ] GeoSeries.fillna
+- [ ] GeoSeries.isna
+- [ ] GeoSeries.notna
+- [ ] GeoSeries.clip
+- [ ] GeoSeries.plot
+- [ ] GeoSeries.explore
+- [ ] GeoSeries.sindex
+- [ ] GeoSeries.has_sindex
+- [ ] GeoSeries.cx
+- [ ] GeoSeries.__geo_interface__
 
-`bigframes.pandas` methods
+### `bigframes.pandas` methods
 
-- [ ] Criterion 3
+Constructors: Functions that build new geography values from coordinates or
+existing geographies.
+
+- [x] ST_GEOGPOINT
+- [ ] ST_MAKELINE
+- [ ] ST_MAKEPOLYGON
+- [ ] ST_MAKEPOLYGONORIENTED
+
+Parsers	ST_GEOGFROM: Functions that create geographies from an external format
+such as WKT and GeoJSON.
+
+- [ ] ST_GEOGFROMGEOJSON
+- [x] ST_GEOGFROMTEXT
+- [ ] ST_GEOGFROMWKB
+- [ ] ST_GEOGPOINTFROMGEOHASH
+
+Formatters: Functions that export geographies to an external format such as WKT.
+
+- [ ] ST_ASBINARY
+- [ ] ST_ASGEOJSON
+- [x] ST_ASTEXT
+- [ ] ST_GEOHASH
+
+Transformations: Functions that generate a new geography based on input.
+
+- [x] ST_BOUNDARY
+- [ ] ST_BUFFER
+- [ ] ST_BUFFERWITHTOLERANCE
+- [ ] ST_CENTROID
+- [ ] ST_CENTROID_AGG (Aggregate)
+- [ ] ST_CLOSESTPOINT
+- [ ] ST_CONVEXHULL
+- [x] ST_DIFFERENCE
+- [ ] ST_EXTERIORRING
+- [ ] ST_INTERIORRINGS
+- [x] ST_INTERSECTION
+- [ ] ST_LINEINTERPOLATEPOINT
+- [ ] ST_LINESUBSTRING
+- [ ] ST_SIMPLIFY
+- [ ] ST_SNAPTOGRID
+- [ ] ST_UNION
+- [ ] ST_UNION_AGG (Aggregate)
+
+Accessors: Functions that provide access to properties of a geography without
+side-effects.
+
+- [ ] ST_DIMENSION
+- [ ] ST_DUMP
+- [ ] ST_ENDPOINT
+- [ ] ST_GEOMETRYTYPE
+- [x] ST_ISCLOSED
+- [ ] ST_ISCOLLECTION
+- [ ] ST_ISEMPTY
+- [ ] ST_ISRING
+- [ ] ST_NPOINTS
+- [ ] ST_NUMGEOMETRIES
+- [ ] ST_NUMPOINTS
+- [ ] ST_POINTN
+- [ ] ST_STARTPOINT
+- [x] ST_X
+- [x] ST_Y
+
+Predicates: Functions that return TRUE or FALSE for some spatial relationship
+between two geographies or some property of a geography. These functions are
+commonly used in filter clauses.
+
+- [ ] ST_CONTAINS
+- [ ] ST_COVEREDBY
+- [ ] ST_COVERS
+- [ ] ST_DISJOINT
+- [ ] ST_DWITHIN
+- [ ] ST_EQUALS
+- [ ] ST_HAUSDORFFDWITHIN
+- [ ] ST_INTERSECTS
+- [ ] ST_INTERSECTSBOX
+- [ ] ST_TOUCHES
+- [ ] ST_WITHIN
+
+Measures: Functions that compute measurements of one or more geographies.
+
+- [ ] ST_ANGLE
+- [x] ST_AREA
+- [ ] ST_AZIMUTH
+- [ ] ST_BOUNDINGBOX
+- [x] ST_DISTANCE
+- [ ] ST_EXTENT (Aggregate)
+- [ ] ST_HAUSDORFFDISTANCE
+- [ ] ST_LINELOCATEPOINT
+- [x] ST_LENGTH
+- [ ] ST_MAXDISTANCE
+- [ ] ST_PERIMETER
+
+Clustering: Functions that perform clustering on geographies.
+
+- [ ] ST_CLUSTERDBSCAN
+
+S2 functions: Functions for working with S2 cell coverings of GEOGRAPHY.
+
+- [ ] S2_CELLIDFROMPOINT
+- [ ] S2_COVERINGCELLIDS
+
+Raster functions: Functions for analyzing geospatial rasters using geographies.
+
+- [ ] 	ST_REGIONSTATS
 
 ## Detailed Steps
 
