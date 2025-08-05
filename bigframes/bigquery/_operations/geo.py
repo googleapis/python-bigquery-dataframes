@@ -137,8 +137,8 @@ def st_buffer(
         dtype: geometry
 
         >>> bbq.st_buffer(series, 1000)
-        0    POLYGON ((0.00899 0, 0.00898 0.00016, 0.00896 ...
-        1    POLYGON ((1.00899 1, 1.00898 1.00016, 1.00896 ...
+        0    POLYGON ((-0.00899 0.00005, -0.00883 -0.00171,...
+        1    POLYGON ((0.99101 1.00005, 0.99117 0.99829, 0....
         dtype: geometry
 
     Args:
@@ -196,7 +196,7 @@ def st_centroid(
 
         >>> bbq.st_centroid(series)
         0    POINT (0.03333 0.06667)
-        1          POINT (0.5 0.70711)
+        1    POINT (0.49998 0.70712)
         2                  POINT (0 1)
         dtype: geometry
 
