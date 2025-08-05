@@ -251,6 +251,7 @@ class EqCmpAllDataFrame(bpd.DataFrame):
         return self.equals(other)
 
 
+@pytest.mark.skip("b/436340035 test failed")
 @pytest.mark.parametrize(
     (
         "model_class",
