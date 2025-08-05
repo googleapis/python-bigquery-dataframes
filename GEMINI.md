@@ -53,6 +53,17 @@ corresponding `third_party/bigframes_vendored/package_name` directory, not in
 the `bigframes` directory. Implementations may be placed in the `bigframes`
 directory, though.
 
+### Testing code samples
+
+Code samples are very important for accurate documentation. We use the "doctest"
+framework to ensure the samples are functioning as expected. After adding a code
+sample, please ensure it is correct by running doctest. To run the samples
+doctests for just a single method, refer to the following example:
+
+```bash
+pytest --doctest-modules bigframes/pandas/__init__.py::bigframes.pandas.cut
+```
+
 ## Tips for implementing common BigFrames features
 
 ### Adding a scalar operator
