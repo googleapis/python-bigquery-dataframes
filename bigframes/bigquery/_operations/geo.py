@@ -171,15 +171,14 @@ def st_buffer(
       bigframes.pandas.Series:
           A series of geography objects representing the buffered geometries.
     """
-    op = ops.GeoStBufferOp()
-    series = series._apply_nary_op(
-        op,
-        buffer_radius,
-        num_seg_quarter_circle,
-        use_spheroid,
-        endcap,
-        side,
+    op = ops.GeoStBufferOp(
+        buffer_radius=buffer_radius,
+        num_seg_quarter_circle=num_seg_quarter_circle,
+        use_spheroid=use_spheroid,
+        endcap=endcap,
+        side=side,
     )
+    series = series._apply_unary_op(op)
     series.name = None
     return series
 

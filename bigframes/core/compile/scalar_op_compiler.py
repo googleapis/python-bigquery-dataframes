@@ -1038,9 +1038,16 @@ def geo_st_boundary_op_impl(x: ibis_types.Value):
     return st_boundary(x)
 
 
-@scalar_op_compiler.register_nary_op(ops.GeoStBufferOp, pass_op=True)
-def geo_st_buffer_op_impl(*args, op: ops.GeoStBufferOp):
-    return st_buffer(*args)
+@scalar_op_compiler.register_unary_op(ops.GeoStBufferOp, pass_op=True)
+def geo_st_buffer_op_impl(x: ibis_types.Value, op: ops.GeoStBufferOp):
+    return st_buffer(
+        x,
+        op.buffer_radius,
+        num_seg_quarter_circle=op.num_seg_quarter_circle,
+        use_spheroid=op.use_spheroid,
+        endcap=op.endcap,
+        side=op.side,
+    )
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_centroid_op, pass_op=False)

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import dataclasses
+import typing
 
 from bigframes import dtypes
 from bigframes.operations import base_ops
@@ -107,8 +108,13 @@ geo_st_intersection_op = GeoStIntersectionOp()
 
 
 @dataclasses.dataclass(frozen=True)
-class GeoStBufferOp(base_ops.NaryOp):
+class GeoStBufferOp(base_ops.UnaryOp):
     name = "st_buffer"
+    buffer_radius: float
+    num_seg_quarter_circle: typing.Optional[float] = None
+    use_spheroid: typing.Optional[bool] = None
+    endcap: typing.Optional[str] = None
+    side: typing.Optional[str] = None
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.GEO_DTYPE
