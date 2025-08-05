@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Optional, Union
 
 import shapely  # type: ignore
 
@@ -105,7 +105,11 @@ def st_area(
 
 def st_buffer(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
-    distance: float,
+    buffer_radius: float,
+    num_seg_quarter_circle: Optional[float] = None,
+    use_spheroid: Optional[bool] = None,
+    endcap: Optional[str] = None,
+    side: Optional[str] = None,
 ) -> bigframes.series.Series:
     """
     Computes a `GEOGRAPHY` that represents all points whose distance from the
@@ -144,14 +148,38 @@ def st_buffer(
     Args:
         series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
             A series containing geography objects.
-        distance (float):
+        buffer_radius (float):
             The distance in meters.
+        num_seg_quarter_circle (float, optional):
+            Specifies the number of segments that are used to approximate a
+            quarter circle. The default value is 8.0.
+        use_spheroid (bool, optional):
+            Determines how this function measures distance. If use_spheroid is
+            FALSE, the function measures distance on the surface of a perfect
+            sphere. The use_spheroid parameter currently only supports the
+            value FALSE. The default value of use_spheroid is FALSE.
+        endcap (str, optional):
+            Allows you to specify one of two endcap styles: ROUND and FLAT.
+            The default value is ROUND. This option only affects the endcaps
+            of buffered linestrings.
+        side (str, optional):
+            Allows you to specify one of three possibilities for lines: BOTH,
+            LEFT, and RIGHT. The default is BOTH. This option only affects
+            how linestrings are buffered.
 
     Returns:
       bigframes.pandas.Series:
           A series of geography objects representing the buffered geometries.
     """
-    series = series._apply_unary_op(ops.GeoStBufferOp(distance=distance))
+    op = ops.GeoStBufferOp()
+    series = series._apply_nary_op(
+        op,
+        buffer_radius,
+        num_seg_quarter_circle,
+        use_spheroid,
+        endcap,
+        side,
+    )
     series.name = None
     return series
 

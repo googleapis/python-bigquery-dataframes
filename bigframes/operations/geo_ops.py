@@ -107,9 +107,8 @@ geo_st_intersection_op = GeoStIntersectionOp()
 
 
 @dataclasses.dataclass(frozen=True)
-class GeoStBufferOp(base_ops.UnaryOp):
+class GeoStBufferOp(base_ops.NaryOp):
     name = "st_buffer"
-    distance: float
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.GEO_DTYPE

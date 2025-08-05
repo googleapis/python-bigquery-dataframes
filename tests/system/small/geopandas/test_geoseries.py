@@ -440,3 +440,104 @@ def test_geo_intersection_with_similar_geometry_objects():
     assert expected.iloc[0].equals(bf_result.iloc[0])
     assert expected.iloc[1].equals(bf_result.iloc[1])
     assert expected.iloc[2].equals(bf_result.iloc[2])
+
+
+def test_geo_is_closed_not_supported():
+    s = bigframes.pandas.Series(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+        dtype=GeometryDtype(),
+    )
+    bf_series: bigframes.geopandas.GeoSeries = s.geo
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"GeoSeries.is_closed is not supported. Use bigframes.bigquery.st_isclosed(series), instead. {constants.FEEDBACK_LINK}"
+        ),
+    ):
+        bf_series.is_closed
+
+
+def test_geo_buffer(session):
+    s = bigframes.geopandas.GeoSeries(
+        [
+            Point(0, 0),
+        ],
+        session=session,
+    )
+    bf_result = s.buffer(1000).to_pandas()
+    assert bf_result.iloc[0].geom_type == "Polygon"
+
+
+def test_geo_centroid():
+    bf_s = bigframes.pandas.Series(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+    )
+
+    pd_s = geopandas.GeoSeries(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+        index=pd.Index([0, 1, 2, 3, 4], dtype="Int64"),
+    )
+
+    bf_result = bf_s.geo.centroid.to_pandas()
+    pd_result = pd_s.centroid
+
+    geopandas.testing.assert_geoseries_equal(
+        bf_result,
+        pd_result,
+        check_series_type=False,
+        check_index_type=False,
+        # BigQuery geography calculations are on a sphere, so results will be
+        # slightly different.
+        tolerance=0.1,
+    )
+
+
+def test_geo_convex_hull():
+    bf_s = bigframes.pandas.Series(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+    )
+
+    pd_s = geopandas.GeoSeries(
+        [
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            Polygon([(10, 0), (10, 5), (0, 0)]),
+            Polygon([(0, 0), (2, 2), (2, 0)]),
+            LineString([(0, 0), (1, 1), (0, 1)]),
+            Point(0, 1),
+        ],
+        index=pd.Index([0, 1, 2, 3, 4], dtype="Int64"),
+    )
+
+    bf_result = bf_s.geo.convex_hull.to_pandas()
+    pd_result = pd_s.convex_hull
+
+    geopandas.testing.assert_geoseries_equal(
+        bf_result,
+        pd_result,
+        check_series_type=False,
+        check_index_type=False,
+    )

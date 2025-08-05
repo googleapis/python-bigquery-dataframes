@@ -455,3 +455,12 @@ def test_geo_st_isclosed():
         # We default to Int64 (nullable) dtype, but pandas defaults to int64 index.
         check_index_type=False,
     )
+
+
+def test_st_buffer(session):
+    geoseries = bigframes.geopandas.GeoSeries(
+        [Point(0, 0), LineString([(1, 1), (2, 2)])], session=session
+    )
+    result = bbq.st_buffer(geoseries, 1000).to_pandas()
+    assert result.iloc[0].geom_type == "Polygon"
+    assert result.iloc[1].geom_type == "Polygon"

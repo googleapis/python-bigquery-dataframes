@@ -1038,9 +1038,9 @@ def geo_st_boundary_op_impl(x: ibis_types.Value):
     return st_boundary(x)
 
 
-@scalar_op_compiler.register_unary_op(ops.GeoStBufferOp, pass_op=True)
-def geo_st_buffer_op_impl(x: ibis_types.Value, op: ops.GeoStBufferOp):
-    return typing.cast(ibis_types.GeoSpatialValue, x).buffer(op.distance)
+@scalar_op_compiler.register_nary_op(ops.GeoStBufferOp, pass_op=True)
+def geo_st_buffer_op_impl(*args, op: ops.GeoStBufferOp):
+    return st_buffer(*args)
 
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_centroid_op, pass_op=False)
@@ -2155,6 +2155,18 @@ def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
 @ibis_udf.scalar.builtin
 def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
     """Find the boundary of a geography."""
+
+
+@ibis_udf.scalar.builtin
+def st_buffer(
+    geography: ibis_types.GeoValue,
+    buffer_radius: ibis_dtypes.Float64,
+    num_seg_quarter_circle: typing.Optional[ibis_dtypes.Float64] = None,
+    use_spheroid: typing.Optional[ibis_types.BooleanValue] = None,
+    endcap: typing.Optional[ibis_types.StringValue] = None,
+    side: typing.Optional[ibis_types.StringValue] = None,
+) -> ibis_types.GeoValue:
+    ...
 
 
 @ibis_udf.scalar.builtin
