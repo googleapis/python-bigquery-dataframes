@@ -108,8 +108,6 @@ def st_buffer(
     buffer_radius: float,
     num_seg_quarter_circle: float = 8.0,
     use_spheroid: bool = False,
-    endcap: str = "ROUND",
-    side: str = "BOTH",
 ) -> bigframes.series.Series:
     """
     Computes a `GEOGRAPHY` that represents all points whose distance from the
@@ -158,14 +156,6 @@ def st_buffer(
             FALSE, the function measures distance on the surface of a perfect
             sphere. The use_spheroid parameter currently only supports the
             value FALSE. The default value of use_spheroid is FALSE.
-        endcap (str, optional):
-            Allows you to specify one of two endcap styles: ROUND and FLAT.
-            The default value is ROUND. This option only affects the endcaps
-            of buffered linestrings.
-        side (str, optional):
-            Allows you to specify one of three possibilities for lines: BOTH,
-            LEFT, and RIGHT. The default is BOTH. This option only affects
-            how linestrings are buffered.
 
     Returns:
       bigframes.pandas.Series:
@@ -175,8 +165,6 @@ def st_buffer(
         buffer_radius=buffer_radius,
         num_seg_quarter_circle=num_seg_quarter_circle,
         use_spheroid=use_spheroid,
-        endcap=endcap,
-        side=side,
     )
     series = series._apply_unary_op(op)
     series.name = None

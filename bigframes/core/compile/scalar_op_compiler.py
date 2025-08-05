@@ -1045,8 +1045,6 @@ def geo_st_buffer_op_impl(x: ibis_types.Value, op: ops.GeoStBufferOp):
         op.buffer_radius,
         op.num_seg_quarter_circle,
         op.use_spheroid,
-        op.endcap,
-        op.side,
     )
 
 
@@ -2168,10 +2166,8 @@ def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ign
 def st_buffer(
     geography: ibis_dtypes.Geography,
     buffer_radius: ibis_dtypes.Float64,
-    num_seg_quarter_circle: ibis_dtypes.Float64 = 8.0,
-    use_spheroid: ibis_dtypes.Boolean = False,
-    endcap: ibis_dtypes.String = "ROUND",
-    side: ibis_dtypes.String = "BOTH",
+    num_seg_quarter_circle: ibis_dtypes.Float64,
+    use_spheroid: ibis_dtypes.Boolean,
 ) -> ibis_dtypes.Geography:
     ...
 
