@@ -79,9 +79,9 @@ functions should be exposed in the `bigframes.bigquery` module.
 - [ ] GeoSeries.symmetric_difference
 - [ ] GeoSeries.union
 - [x] GeoSeries.boundary
-- [WIP] GeoSeries.buffer
-- [WIP] GeoSeries.centroid
-- [WIP] GeoSeries.concave_hull
+- [x] GeoSeries.buffer
+- [x] GeoSeries.centroid
+- [ ] GeoSeries.concave_hull
 - [ ] GeoSeries.convex_hull
 - [ ] GeoSeries.envelope
 - [ ] GeoSeries.extract_unique_points
