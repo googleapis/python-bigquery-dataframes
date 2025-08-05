@@ -86,6 +86,10 @@ _VALID_CASTS = set(
             dtypes.INT_DTYPE,
         ),
         (
+            dtypes.TIMEDELTA_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
             dtypes.STRING_DTYPE,
             dtypes.INT_DTYPE,
         ),
@@ -133,6 +137,10 @@ _VALID_CASTS = set(
         ),
         # String casts
         (
+            dtypes.BYTES_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
             dtypes.BOOL_DTYPE,
             dtypes.STRING_DTYPE,
         ),
@@ -163,6 +171,11 @@ _VALID_CASTS = set(
         (
             dtypes.JSON_DTYPE,
             dtypes.STRING_DTYPE,
+        ),
+        # bytes casts
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.BYTES_DTYPE,
         ),
         # decimal casts
         (
