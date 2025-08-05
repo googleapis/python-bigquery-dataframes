@@ -3,10 +3,12 @@ from __future__ import annotations
 from collections import defaultdict
 import dataclasses
 import dis
+import functools
 import inspect
 from typing import Any, Literal, Mapping, Optional, Sequence, Union
 
 from bigframes.core import expression, py_exprs
+import bigframes.dtypes
 import bigframes.operations as ops
 
 LabelType = str
@@ -99,7 +101,7 @@ class ConstArg(Operand):  # represents non-arguments: could be from closure, mod
 
 # Maybe create a separate class for temp args?
 @dataclasses.dataclass(frozen=True)
-class VariableRef(Operand):  # represents
+class VariableRef(Operand):  # represents a reference to a variable
     name: str
 
     def __post_init__(self):
@@ -114,6 +116,21 @@ class VariableRef(Operand):  # represents
 
     def rename_refs(self, renamings: Mapping[str, str]) -> Operand:
         return VariableRef(renamings[self.name]) if self.name in renamings else self
+
+
+@dataclasses.dataclass(frozen=True)
+class Undefined(
+    Operand
+):  # represents variable state in control flow paths where the variable is undefined
+    def __repr__(self):
+        return "UNDEFINED"
+
+    @property
+    def is_const(self):
+        return True
+
+    def rename_refs(self, renamings: Mapping[str, str]) -> Operand:
+        return self
 
 
 # TODO: Maybe type all the instructions? Eg LOAD, ASSIGN, OP, ATTR, CALL?
@@ -180,6 +197,9 @@ class BinaryBranchCondition:
     def references(self) -> set[str]:
         return {item.name for item in [self.target] if isinstance(item, VariableRef)}
 
+    def __repr__(self):
+        return f"BRANCH {self.target} {self.predicate} ? {self.true_case.label} : {self.false_case.label}"
+
 
 @dataclasses.dataclass(frozen=True)
 class Goto:
@@ -195,6 +215,9 @@ class Goto:
     def references(self) -> set[str]:
         return set()
 
+    def __repr__(self):
+        return f"GOTO {self.to.label}"
+
 
 @dataclasses.dataclass(frozen=True)
 class Return:
@@ -209,6 +232,9 @@ class Return:
 
     def references(self) -> set[str]:
         return {item.name for item in [self.target] if isinstance(item, VariableRef)}
+
+    def __repr__(self):
+        return f"RETURN {self.target}"
 
 
 @dataclasses.dataclass(eq=False)
@@ -265,9 +291,16 @@ class ControlFlowGraph:
         dot += 'node [shape=box, fontname="Courier"];\n'
         for label, block in sorted(self.blocks.items()):
             instr_str = "\\l".join(str(i) for i in block.instructions) + "\\l"
+            if block.then:
+                instr_str += "-" * 30 + "\\l"
+                instr_str += str(block.then) + "\\l"
             dot += f'  {label} [label="{label}:\\l{instr_str}"];\n'
             for succ in sorted(block.successors, key=lambda b: b.label):
                 dot += f"  {label} -> {succ.label};\n"
+            if block.idom is not None:
+                dot += (
+                    f'  {block.idom.label} -> {label} [color=red, label="dominates"];\n'
+                )
         dot += "}"
         return dot
 
@@ -344,7 +377,12 @@ class SSATranspiler:
                     current_block.add_instruction(new_instr)
                     stack.append(VariableRef(temp_target))
                 else:  # LOAD_FAST, etc.
-                    stack.append(VariableRef(instr.argval))
+                    if instr.argval in self.func.__code__.co_varnames:
+                        stack.append(VariableRef(instr.argval))
+                    elif instr.argval in self.func.__code__.co_freevars:
+                        stack.append(ConstArg(self._closure_vars[instr.argval]))
+                    else:
+                        raise ValueError(f"Can't identify source of load: {instr}")
 
             elif opname.startswith("STORE_"):  # STORE_FAST
                 # TODO: Maybe block storing to closure vars? Users may expect info passing between invocations.
@@ -439,6 +477,23 @@ class SSATranspiler:
                     current_block.then = Goto(next_block)
                     next_block.predecessors.add(current_block)
 
+    @functools.cached_property
+    def _closure_vars(self):
+        """
+        Returns a dictionary of a function's closed-over variables and their values.
+        """
+        if not self.func.__closure__:
+            return {}
+
+        # Get names and cell objects from the function
+        var_names = self.func.__code__.co_freevars
+        closure_cells = self.func.__closure__
+
+        # Zip them together and get the value from each cell
+        return {
+            name: cell.cell_contents for name, cell in zip(var_names, closure_cells)
+        }
+
     def convert_to_single_exit(self):
         """
         Modifies the CFG to have a single exit block.
@@ -500,16 +555,16 @@ class SSATranspiler:
         # o(n**2) algo, not great
         for block in self.cfg.blocks.values():
 
-            non_self_doms = block.dominators.difference([block])
+            strict_dominators = block.dominators.difference([block])
             # select the immediate dominator d (sus) such that no other immediate dominator dominates it
             idom = (
                 next(  # we want the dominator that doesn't dominate any other dominator
                     (
                         d
-                        for d in non_self_doms
+                        for d in strict_dominators
                         if all(
                             d not in other_dom.dominators
-                            for other_dom in non_self_doms.difference([d])
+                            for other_dom in strict_dominators.difference([d])
                         )
                     ),
                     None,
@@ -530,7 +585,11 @@ class SSATranspiler:
                         runner = runner.idom
 
     def insert_phi_functions(self):
-        """Inserts phi functions where needed for variables with multiple definitions."""
+        """
+        Inserts phi functions where needed for variables with multiple definitions.
+
+        Note: This must be done **before** converting to ssa.
+        """
         defs: dict[str, set[BasicBlock]] = defaultdict(set)
         variables = set()
 
@@ -624,8 +683,7 @@ class SSATranspiler:
                         assert instr.target is not None
                         var = instr.target.split(VERSIONING_SEPERATOR)[0]
                         if not stacks[var]:
-                            # TODO: Typed undefined? Or just don't put in the phi instruction
-                            versioned_operand = VariableRef("UNDEFINED")
+                            versioned_operand: Operand = Undefined()
                         else:
                             version = stacks[var][-1]
                             versioned_operand = VariableRef(
@@ -676,8 +734,12 @@ class SSATranspiler:
                     assert instr.target is not None
                     # zip the blocks and args back together for the resolver
                     zipped_args = list(zip(instr.blocks, instr.args))
+                    assert block.idom is not None
                     memo[instr.target] = self._resolve_phi_to_expr(
-                        zipped_args, block, memo
+                        zipped_args,
+                        branch_block=block.idom,
+                        merge_block=block,
+                        memo=memo,
                     )
                 elif instr.opname == "LOAD_ATTR":
                     assert instr.target is not None
@@ -723,7 +785,9 @@ class SSATranspiler:
 
             if isinstance(block.then, Return):
                 unresolved = self._operand_to_expr(block.then.target, memo)
-                return py_exprs.resolve_py_exprs(unresolved)
+                resolved = py_exprs.resolve_py_exprs(unresolved)
+                print(print_expr_tree(resolved))
+                return resolved
 
         raise Exception("Could not find RETURN instruction in single exit block.")
 
@@ -739,9 +803,13 @@ class SSATranspiler:
             else:
                 return py_exprs.PyObject(operand.value)
         else:
+            if isinstance(operand, Undefined):
+                return py_exprs.PyObject(None)
             assert isinstance(operand, VariableRef)
             if operand.name not in memo:
-                raise ValueError("Variable referenced before def")
+                raise ValueError(
+                    f"Variable {operand.name} referenced before def. Defined vars: {memo.keys()}"
+                )
             return memo[operand.name]
 
     def _topological_sort(self) -> list[BasicBlock]:
@@ -769,64 +837,76 @@ class SSATranspiler:
         args: list[
             tuple[BasicBlock, Operand]
         ],  # the inputs to the phi function and where they come from
-        merge_block: BasicBlock,  # the block where the phi function is located
+        branch_block: BasicBlock,
+        merge_block: BasicBlock,
         memo: dict,
     ) -> expression.Expression:
-        """
-        Recursively resolves a phi function's arguments into a nested conditional expression.
-        """
-        # Base case: only one incoming path, so no merge logic needed. It's just an alias.
-        # Ideally, this phi function would not exist in the first place
-        if len(args) == 1:
-            _pred_block, operand = args[0]
-            return self._operand_to_expr(operand, memo)
-
-        # Find the immediate dominator of the merge block, which is where the control flow split.
-        branch_block = merge_block.idom
-        if not branch_block or not isinstance(branch_block.then, BinaryBranchCondition):
-            raise Exception(
-                f"Cannot resolve phi in {merge_block.label} without a branching immediate dominator."
-            )
-
-        branch = branch_block.then
-        if branch.predicate == "IS NONE":
-            predicate_expr = ops.isnull_op.as_expr(
-                self._operand_to_expr(branch.target, memo)
-            )
-        else:
-            assert branch.predicate == "IS TRUE"
-            predicate_expr = self._operand_to_expr(branch.target, memo)
-
-        # Partition the incoming values based on which path they took from the branch.
-        true_path_args = []
-        false_path_args = []
-
-        for pred_block, operand in args:
-            # A predecessor is on the true path if it IS the true-case successor of the branch,
-            # or if it is DOMINATED by the true-case successor.
-            if pred_block == branch.true_case or self._is_dominated_by(
-                pred_block, branch.true_case
-            ):
-                true_path_args.append((pred_block, operand))
-            elif pred_block == branch.false_case or self._is_dominated_by(
-                pred_block, branch.false_case
-            ):
-                false_path_args.append((pred_block, operand))
+        if isinstance(branch_block.then, BinaryBranchCondition):
+            branch = branch_block.then
+            if branch.predicate == "IS TRUE":
+                pred_expr = ops.AsTypeOp(bigframes.dtypes.BOOL_DTYPE).as_expr(
+                    self._operand_to_expr(branch.target, memo)
+                )
             else:
-                raise Exception(
-                    f"Cannot trace predecessor {pred_block.label} of phi in {merge_block.label} back to branch in {branch_block.label}"
+                pred_expr = ops.isnull_op.as_expr(
+                    self._operand_to_expr(branch.target, memo)
                 )
 
-        # Recursively resolve the expressions for each path. The new merge block for the
-        # recursion is the entry point of that specific path.
-        true_expr = self._resolve_phi_to_expr(true_path_args, branch.true_case, memo)
-        false_expr = self._resolve_phi_to_expr(false_path_args, branch.false_case, memo)
+            if branch.true_case == merge_block:
+                true_expr = next(
+                    self._operand_to_expr(op, memo)
+                    for block, op in args
+                    if block == branch_block
+                )
+            else:  # recursive call
+                true_expr = self._resolve_phi_to_expr(
+                    args, branch.true_case, merge_block, memo
+                )
 
-        # where(condition, value_if_true, value_if_false)
-        return ops.where_op.as_expr(true_expr, predicate_expr, false_expr)
+            if branch.false_case == merge_block:
+                false_expr = next(
+                    self._operand_to_expr(op, memo)
+                    for block, op in args
+                    if block == branch_block
+                )
+            else:  # recursive call
+                false_expr = self._resolve_phi_to_expr(
+                    args, branch.false_case, merge_block, memo
+                )
+
+            return ops.where_op.as_expr(true_expr, pred_expr, false_expr)
+        elif isinstance(branch_block.then, Goto):
+            if branch_block.then.to == merge_block:
+                return next(
+                    self._operand_to_expr(op, memo)
+                    for block, op in args
+                    if block == branch_block
+                )
+            return self._resolve_phi_to_expr(
+                args, branch_block.then.to, merge_block, memo
+            )
+        raise ValueError("Invalid branch block")
 
     def _is_dominated_by(
         self, block: BasicBlock, potential_dominator: BasicBlock
     ) -> bool:
         """Checks if `block` is dominated by `potential_dominator`."""
         return potential_dominator in block.dominators
+
+
+def print_expr_tree(expr: expression.Expression, indent=0):
+    # Print the current node's value with indentation
+    str = " " * indent + print_expr_node(expr) + "\n"
+    # Recursively call the function on each child node
+    for child in expr.children:
+        str += print_expr_tree(child, indent + 4)  # Increase indentation for children
+    return str
+
+
+def print_expr_node(expr: expression.Expression) -> str:
+    if isinstance(expr, expression.OpExpression):
+        return f"op: {expr.op}"
+    elif isinstance(expr, py_exprs.GetAttr):
+        return f"attr: {expr.attr}"
+    else:
+        return str(expr)
