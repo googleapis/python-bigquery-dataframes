@@ -29,6 +29,9 @@ from bigframes.bigquery._operations.datetime import (
 )
 from bigframes.bigquery._operations.geo import (
     st_area,
+    st_buffer,
+    st_centroid,
+    st_convex_hull,
     st_difference,
     st_distance,
     st_intersection,
@@ -59,6 +62,9 @@ __all__ = [
     "array_to_string",
     # geo ops
     "st_area",
+    "st_buffer",
+    "st_centroid",
+    "st_convex_hull",
     "st_difference",
     "st_distance",
     "st_intersection",

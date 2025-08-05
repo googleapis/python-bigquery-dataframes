@@ -1038,6 +1038,21 @@ def geo_st_boundary_op_impl(x: ibis_types.Value):
     return st_boundary(x)
 
 
+@scalar_op_compiler.register_unary_op(ops.GeoStBufferOp, pass_op=True)
+def geo_st_buffer_op_impl(x: ibis_types.Value, op: ops.GeoStBufferOp):
+    return typing.cast(ibis_types.GeoSpatialValue, x).buffer(op.distance)
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_centroid_op, pass_op=False)
+def geo_st_centroid_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).centroid()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_convexhull_op, pass_op=False)
+def geo_st_convexhull_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).convex_hull()
+
+
 @scalar_op_compiler.register_binary_op(ops.geo_st_difference_op, pass_op=False)
 def geo_st_difference_op_impl(x: ibis_types.Value, y: ibis_types.Value):
     return typing.cast(ibis_types.GeoSpatialValue, x).difference(

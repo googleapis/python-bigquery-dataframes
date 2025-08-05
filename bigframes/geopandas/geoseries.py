@@ -92,6 +92,15 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         series.name = None
         return series
 
+    def buffer(self: GeoSeries, distance: float) -> bigframes.series.Series:  # type: ignore
+        return self._apply_unary_op(ops.GeoStBufferOp(distance=distance))
+
+    def centroid(self: GeoSeries) -> bigframes.series.Series:  # type: ignore
+        return self._apply_unary_op(ops.geo_st_centroid_op)
+
+    def convex_hull(self: GeoSeries) -> bigframes.series.Series:  # type: ignore
+        return self._apply_unary_op(ops.geo_st_convexhull_op)
+
     def difference(self: GeoSeries, other: GeoSeries) -> bigframes.series.Series:  # type: ignore
         return self._apply_binary_op(other, ops.geo_st_difference_op)
 

@@ -79,9 +79,9 @@ functions should be exposed in the `bigframes.bigquery` module.
 - [ ] GeoSeries.symmetric_difference
 - [ ] GeoSeries.union
 - [x] GeoSeries.boundary
-- [ ] GeoSeries.buffer
-- [ ] GeoSeries.centroid
-- [ ] GeoSeries.concave_hull
+- [WIP] GeoSeries.buffer
+- [WIP] GeoSeries.centroid
+- [WIP] GeoSeries.concave_hull
 - [ ] GeoSeries.convex_hull
 - [ ] GeoSeries.envelope
 - [ ] GeoSeries.extract_unique_points
@@ -174,12 +174,12 @@ Formatters: Functions that export geographies to an external format such as WKT.
 Transformations: Functions that generate a new geography based on input.
 
 - [x] ST_BOUNDARY
-- [ ] ST_BUFFER
+- [WIP] ST_BUFFER
 - [ ] ST_BUFFERWITHTOLERANCE
-- [ ] ST_CENTROID
+- [WIP] ST_CENTROID
 - [ ] ST_CENTROID_AGG (Aggregate)
 - [ ] ST_CLOSESTPOINT
-- [ ] ST_CONVEXHULL
+- [WIP] ST_CONVEXHULL
 - [x] ST_DIFFERENCE
 - [ ] ST_EXTERIORRING
 - [ ] ST_INTERIORRINGS
