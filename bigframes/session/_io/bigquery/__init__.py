@@ -249,7 +249,6 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
-    job_retry: Optional[google.api_core.retry.Retry],
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
     ...
 
@@ -265,7 +264,38 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[False],
-    job_retry: Optional[google.api_core.retry.Retry],
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[True],
+    job_retry: google.api_core.retry.Retry,
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[False],
+    job_retry: google.api_core.retry.Retry,
 ) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     ...
 
@@ -284,9 +314,7 @@ def start_query_with_client(
     # google-cloud-bigquery version with
     # https://github.com/googleapis/python-bigquery/pull/2256 merged, likely
     # version 3.36.0 or later.
-    job_retry: Optional[
-        google.api_core.retry.Retry
-    ] = third_party_gcb_retry.DEFAULT_JOB_RETRY,
+    job_retry: google.api_core.retry.Retry = third_party_gcb_retry.DEFAULT_JOB_RETRY,
 ) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
