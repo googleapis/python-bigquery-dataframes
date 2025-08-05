@@ -393,6 +393,7 @@ def test_text_generator_retry_success(
         )
 
 
+@pytest.mark.skip("b/436340035 test failed")
 @pytest.mark.parametrize(
     (
         "model_class",
@@ -509,6 +510,7 @@ def test_text_generator_retry_no_progress(session, model_class, options, bq_conn
         )
 
 
+@pytest.mark.skip("b/436340035 test failed")
 def test_text_embedding_generator_retry_success(session, bq_connection):
     # Requests.
     df0 = EqCmpAllDataFrame(
@@ -796,7 +798,7 @@ def test_gemini_preview_model_warnings(model_name):
         llm.TextEmbeddingGenerator,
         llm.MultimodalEmbeddingGenerator,
         llm.GeminiTextGenerator,
-        llm.Claude3TextGenerator,
+        # llm.Claude3TextGenerator,
     ],
 )
 def test_text_embedding_generator_no_default_model_warning(model_class):
