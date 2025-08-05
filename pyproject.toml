@@ -1,9 +1,3 @@
 [build-system]
-requires = ["setuptools", "setuptools_scm"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
-
-[project]
-dynamic=['version']
-
-[tool.setuptools_scm]
-version_file = "bigframes/version.py"
