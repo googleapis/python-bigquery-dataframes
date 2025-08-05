@@ -216,10 +216,11 @@ def _iter_table(
         elif dtype == bigframes.dtypes.TIMEDELTA_DTYPE:
             if duration_type == "int":
                 yield from map(
-                    lambda x: ((x.days * 3600 * 24) + x.seconds) * 1_000_000
-                    + x.microseconds
-                    if x is not None
-                    else x,
+                    lambda x: (
+                        ((x.days * 3600 * 24) + x.seconds) * 1_000_000 + x.microseconds
+                        if x is not None
+                        else x
+                    ),
                     values,
                 )
             else:
@@ -234,7 +235,7 @@ def _iter_table(
         value_generator = iter_array(
             array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
         )
-        for (start, end) in _pairwise(array.offsets):
+        for start, end in _pairwise(array.offsets):
             arr_size = end.as_py() - start.as_py()
             yield list(itertools.islice(value_generator, arr_size))
 
@@ -374,7 +375,7 @@ def _get_managed_storage_type(dtype: bigframes.dtypes.Dtype) -> pa.DataType:
 
 
 def _recursive_map_types(
-    f: Callable[[pa.DataType], pa.DataType]
+    f: Callable[[pa.DataType], pa.DataType],
 ) -> Callable[[pa.DataType], pa.DataType]:
     @functools.wraps(f)
     def recursive_f(type: pa.DataType) -> pa.DataType:

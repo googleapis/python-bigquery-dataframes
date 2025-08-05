@@ -51,7 +51,9 @@ def remap_variables(
 
     return (
         with_new_vars,
-        node_var_mapping
-        if root.defines_namespace
-        else (ref_mapping | node_var_mapping),
+        (
+            node_var_mapping
+            if root.defines_namespace
+            else (ref_mapping | node_var_mapping)
+        ),
     )

@@ -46,9 +46,9 @@ def test_table_expression(table_id, dataset_id, project_id, expected):
 def test_from_item_w_table_name(table_name, alias, expected):
     expr = sql.FromItem(
         sql.TableExpression(table_id=table_name),
-        as_alias=None
-        if alias is None
-        else sql.AsAlias(sql.AliasExpression(alias=alias)),
+        as_alias=(
+            None if alias is None else sql.AsAlias(sql.AliasExpression(alias=alias))
+        ),
     )
     assert expr.sql() == expected
 

@@ -408,9 +408,11 @@ class Across(Selector):
 @public
 def across(
     selector: Selector | Iterable[str] | str,
-    func: Deferred
-    | Callable[[ir.Value], ir.Value]
-    | Mapping[str | None, Deferred | Callable[[ir.Value], ir.Value]],
+    func: (
+        Deferred
+        | Callable[[ir.Value], ir.Value]
+        | Mapping[str | None, Deferred | Callable[[ir.Value], ir.Value]]
+    ),
     names: str | Callable[[str, str | None], str] | None = None,
 ) -> Across:
     """Apply data transformations across multiple columns.

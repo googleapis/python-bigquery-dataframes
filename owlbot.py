@@ -59,6 +59,7 @@ s.move(
         ".kokoro/presubmit/common.cfg",
         # Temporary workaround to update docs job to use python 3.10
         ".github/workflows/docs.yml",
+        ".flake8",
     ],
 )
 

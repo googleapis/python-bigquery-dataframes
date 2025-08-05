@@ -224,20 +224,28 @@ class SeriesMethods:
     AlignedExprT = Union[ex.ScalarConstantExpression, ex.DerefOp]
 
     @typing.overload
-    def _align(
-        self, other: series.Series, how="outer"
-    ) -> tuple[ex.DerefOp, ex.DerefOp, blocks.Block,]:
-        ...
+    def _align(self, other: series.Series, how="outer") -> tuple[
+        ex.DerefOp,
+        ex.DerefOp,
+        blocks.Block,
+    ]: ...
 
     @typing.overload
     def _align(
         self, other: typing.Union[series.Series, scalars.Scalar], how="outer"
-    ) -> tuple[ex.DerefOp, AlignedExprT, blocks.Block,]:
-        ...
+    ) -> tuple[
+        ex.DerefOp,
+        AlignedExprT,
+        blocks.Block,
+    ]: ...
 
     def _align(
         self, other: typing.Union[series.Series, scalars.Scalar], how="outer"
-    ) -> tuple[ex.DerefOp, AlignedExprT, blocks.Block,]:
+    ) -> tuple[
+        ex.DerefOp,
+        AlignedExprT,
+        blocks.Block,
+    ]:
         """Aligns the series value with another scalar or series object. Returns new left column id, right column id and joined tabled expression."""
         values, block = self._align_n(
             [

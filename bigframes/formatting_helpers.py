@@ -43,7 +43,7 @@ query_job_prop_pairs = {
 def add_feedback_link(
     exception: Union[
         api_core_exceptions.RetryError, api_core_exceptions.GoogleAPICallError
-    ]
+    ],
 ):
     exception.message = exception.message + f" {constants.FEEDBACK_LINK}"
 

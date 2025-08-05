@@ -1672,8 +1672,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ordered: bool = ...,
         dry_run: Literal[False] = ...,
         allow_large_results: Optional[bool] = ...,
-    ) -> pandas.DataFrame:
-        ...
+    ) -> pandas.DataFrame: ...
 
     @overload
     def to_pandas(
@@ -1685,8 +1684,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ordered: bool = ...,
         dry_run: Literal[True] = ...,
         allow_large_results: Optional[bool] = ...,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def to_pandas(
         self,
@@ -2111,20 +2109,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._block.index.resolve_level(level)
 
     @overload
-    def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame:
-        ...
+    def rename(self, *, columns: Mapping[blocks.Label, blocks.Label]) -> DataFrame: ...
 
     @overload
     def rename(
         self, *, columns: Mapping[blocks.Label, blocks.Label], inplace: Literal[False]
-    ) -> DataFrame:
-        ...
+    ) -> DataFrame: ...
 
     @overload
     def rename(
         self, *, columns: Mapping[blocks.Label, blocks.Label], inplace: Literal[True]
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def rename(
         self, *, columns: Mapping[blocks.Label, blocks.Label], inplace: bool = False
@@ -2141,8 +2136,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
-    ) -> DataFrame:
-        ...
+    ) -> DataFrame: ...
 
     @overload
     def rename_axis(
@@ -2151,8 +2145,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         inplace: Literal[False],
         **kwargs,
-    ) -> DataFrame:
-        ...
+    ) -> DataFrame: ...
 
     @overload
     def rename_axis(
@@ -2161,8 +2154,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         inplace: Literal[True],
         **kwargs,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def rename_axis(
         self,
@@ -2341,8 +2333,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ascending: bool = ...,
         inplace: Literal[False] = ...,
         na_position: Literal["first", "last"] = ...,
-    ) -> DataFrame:
-        ...
+    ) -> DataFrame: ...
 
     @overload
     def sort_index(
@@ -2351,8 +2342,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ascending: bool = ...,
         inplace: Literal[True] = ...,
         na_position: Literal["first", "last"] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @validations.requires_index
     def sort_index(
@@ -2367,9 +2357,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         na_last = na_position == "last"
         index_columns = self._block.index_columns
         ordering = [
-            order.ascending_over(column, na_last)
-            if ascending
-            else order.descending_over(column, na_last)
+            (
+                order.ascending_over(column, na_last)
+                if ascending
+                else order.descending_over(column, na_last)
+            )
             for column in index_columns
         ]
         block = self._block.order_by(ordering)
@@ -2388,8 +2380,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ascending: bool | typing.Sequence[bool] = ...,
         kind: str = ...,
         na_position: typing.Literal["first", "last"] = ...,
-    ) -> DataFrame:
-        ...
+    ) -> DataFrame: ...
 
     @overload
     def sort_values(
@@ -2400,8 +2391,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ascending: bool | typing.Sequence[bool] = ...,
         kind: str = ...,
         na_position: typing.Literal["first", "last"] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def sort_values(
         self,
@@ -2684,11 +2674,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ):
         if utils.is_dict_like(value):
             return self.apply(
-                lambda x: x.replace(
-                    to_replace=to_replace, value=value[x.name], regex=regex
+                lambda x: (
+                    x.replace(to_replace=to_replace, value=value[x.name], regex=regex)
+                    if (x.name in value)
+                    else x
                 )
-                if (x.name in value)
-                else x
             )
         return self.apply(
             lambda x: x.replace(to_replace=to_replace, value=value, regex=regex)
@@ -3042,9 +3032,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def agg(
         self,
-        func: str
-        | typing.Sequence[str]
-        | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
+        func: (
+            str
+            | typing.Sequence[str]
+            | typing.Mapping[blocks.Label, typing.Sequence[str] | str]
+        ),
     ) -> DataFrame | bigframes.series.Series:
         if utils.is_dict_like(func):
             # Must check dict-like first because dictionaries are list-like

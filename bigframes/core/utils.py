@@ -112,15 +112,19 @@ def get_standardized_ids(
         Tuple of (standardized_column_ids, standardized_index_ids)
     """
     col_ids = [
-        UNNAMED_COLUMN_ID
-        if col_label is None
-        else label_to_identifier(col_label, strict=strict)
+        (
+            UNNAMED_COLUMN_ID
+            if col_label is None
+            else label_to_identifier(col_label, strict=strict)
+        )
         for col_label in col_labels
     ]
     idx_ids = [
-        UNNAMED_INDEX_ID
-        if idx_label is None
-        else label_to_identifier(idx_label, strict=strict)
+        (
+            UNNAMED_INDEX_ID
+            if idx_label is None
+            else label_to_identifier(idx_label, strict=strict)
+        )
         for idx_label in idx_labels
     ]
 
@@ -234,7 +238,7 @@ def preview(*, name: str):
 
 
 def timedelta_to_micros(
-    timedelta: typing.Union[pd.Timedelta, datetime.timedelta, np.timedelta64]
+    timedelta: typing.Union[pd.Timedelta, datetime.timedelta, np.timedelta64],
 ) -> int:
     if isinstance(timedelta, pd.Timedelta):
         # pd.Timedelta.value returns total nanoseconds.

@@ -188,8 +188,7 @@ def to_datetime(
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-) -> bigframes.series.Series:
-    ...
+) -> bigframes.series.Series: ...
 
 
 @typing.overload
@@ -199,8 +198,7 @@ def to_datetime(
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-) -> Union[pandas.Timestamp, datetime]:
-    ...
+) -> Union[pandas.Timestamp, datetime]: ...
 
 
 def to_datetime(

@@ -113,13 +113,11 @@ class DataType(Concrete, Coercible):
 
     @property
     @abstractmethod
-    def scalar(self):
-        ...
+    def scalar(self): ...
 
     @property
     @abstractmethod
-    def column(self):
-        ...
+    def column(self): ...
 
     # TODO(kszucs): remove it, prefer to use Annotable.__repr__ instead
     @property

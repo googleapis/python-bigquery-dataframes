@@ -95,12 +95,16 @@ def arrow_to_pandas(
             # location since pandas 1.2.0. See:
             # https://pandas.pydata.org/docs/dev/reference/api/pandas.arrays.FloatingArray.html
             pd_array = pandas.arrays.FloatingArray(  # type: ignore
-                nonnull.to_numpy()
-                if isinstance(nonnull, pyarrow.ChunkedArray)
-                else nonnull.to_numpy(zero_copy_only=False),
-                mask.to_numpy()
-                if isinstance(mask, pyarrow.ChunkedArray)
-                else mask.to_numpy(zero_copy_only=False),
+                (
+                    nonnull.to_numpy()
+                    if isinstance(nonnull, pyarrow.ChunkedArray)
+                    else nonnull.to_numpy(zero_copy_only=False)
+                ),
+                (
+                    mask.to_numpy()
+                    if isinstance(mask, pyarrow.ChunkedArray)
+                    else mask.to_numpy(zero_copy_only=False)
+                ),
             )
             series = pandas.Series(pd_array, dtype=dtype)
         elif dtype == pandas.Int64Dtype():
@@ -109,12 +113,16 @@ def arrow_to_pandas(
             mask = pyarrow.compute.is_null(column)
             nonnull = pyarrow.compute.fill_null(column, 0)
             pd_array = pandas.arrays.IntegerArray(
-                nonnull.to_numpy()
-                if isinstance(nonnull, pyarrow.ChunkedArray)
-                else nonnull.to_numpy(zero_copy_only=False),
-                mask.to_numpy()
-                if isinstance(mask, pyarrow.ChunkedArray)
-                else mask.to_numpy(zero_copy_only=False),
+                (
+                    nonnull.to_numpy()
+                    if isinstance(nonnull, pyarrow.ChunkedArray)
+                    else nonnull.to_numpy(zero_copy_only=False)
+                ),
+                (
+                    mask.to_numpy()
+                    if isinstance(mask, pyarrow.ChunkedArray)
+                    else mask.to_numpy(zero_copy_only=False)
+                ),
             )
             series = pandas.Series(pd_array, dtype=dtype)
         elif dtype == bigframes.dtypes.STRING_DTYPE:

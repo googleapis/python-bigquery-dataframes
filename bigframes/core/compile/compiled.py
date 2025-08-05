@@ -57,10 +57,13 @@ class UnorderedIR:
         # TODO(swast): Validate that each column references the same table (or
         # no table for literal values).
         self._columns = tuple(
-            column.resolve(table)  # type:ignore
-            # TODO(https://github.com/ibis-project/ibis/issues/7613): use
-            # public API to refer to Deferred type.
-            if isinstance(column, ibis_deferred.Deferred) else column
+            (
+                column.resolve(table)  # type:ignore
+                # TODO(https://github.com/ibis-project/ibis/issues/7613): use
+                # public API to refer to Deferred type.
+                if isinstance(column, ibis_deferred.Deferred)
+                else column
+            )
             for column in columns
         )
         # To allow for more efficient lookup by column name, create a

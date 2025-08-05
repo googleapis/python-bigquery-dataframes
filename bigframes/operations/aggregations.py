@@ -55,8 +55,9 @@ class WindowOp:
         return False
 
     @abc.abstractmethod
-    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        ...
+    def output_type(
+        self, *input_types: dtypes.ExpressionType
+    ) -> dtypes.ExpressionType: ...
 
 
 @dataclasses.dataclass(frozen=True)
@@ -82,13 +83,11 @@ class AggregateOp(WindowOp):
 
     @property
     @abc.abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
     @abc.abstractmethod
-    def arguments(self) -> int:
-        ...
+    def arguments(self) -> int: ...
 
     @property
     def order_independent(self):

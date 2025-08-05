@@ -186,8 +186,7 @@ def read_gbq(  # type: ignore[overload-overlap]
     use_cache: Optional[bool] = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[False] = ...,
-) -> bigframes.dataframe.DataFrame:
-    ...
+) -> bigframes.dataframe.DataFrame: ...
 
 
 @overload
@@ -202,8 +201,7 @@ def read_gbq(
     use_cache: Optional[bool] = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[True] = ...,
-) -> pandas.Series:
-    ...
+) -> pandas.Series: ...
 
 
 def read_gbq(
@@ -281,8 +279,7 @@ def _read_gbq_colab(  # type: ignore[overload-overlap]
     *,
     pyformat_args: Optional[Dict[str, Any]] = ...,
     dry_run: Literal[False] = ...,
-) -> bigframes.dataframe.DataFrame:
-    ...
+) -> bigframes.dataframe.DataFrame: ...
 
 
 @overload
@@ -291,8 +288,7 @@ def _read_gbq_colab(
     *,
     pyformat_args: Optional[Dict[str, Any]] = ...,
     dry_run: Literal[True] = ...,
-) -> pandas.Series:
-    ...
+) -> pandas.Series: ...
 
 
 def _read_gbq_colab(
@@ -395,8 +391,7 @@ def read_gbq_query(  # type: ignore[overload-overlap]
     col_order: Iterable[str] = ...,
     filters: vendored_pandas_gbq.FiltersType = ...,
     dry_run: Literal[False] = ...,
-) -> bigframes.dataframe.DataFrame:
-    ...
+) -> bigframes.dataframe.DataFrame: ...
 
 
 @overload
@@ -411,8 +406,7 @@ def read_gbq_query(
     col_order: Iterable[str] = ...,
     filters: vendored_pandas_gbq.FiltersType = ...,
     dry_run: Literal[True] = ...,
-) -> pandas.Series:
-    ...
+) -> pandas.Series: ...
 
 
 def read_gbq_query(
@@ -456,8 +450,7 @@ def read_gbq_table(  # type: ignore[overload-overlap]
     use_cache: bool = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[False] = ...,
-) -> bigframes.dataframe.DataFrame:
-    ...
+) -> bigframes.dataframe.DataFrame: ...
 
 
 @overload
@@ -471,8 +464,7 @@ def read_gbq_table(
     use_cache: bool = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[True] = ...,
-) -> pandas.Series:
-    ...
+) -> pandas.Series: ...
 
 
 def read_gbq_table(
@@ -508,8 +500,7 @@ def read_pandas(
     pandas_dataframe: pandas.DataFrame,
     *,
     write_engine: constants.WriteEngineType = "default",
-) -> bigframes.dataframe.DataFrame:
-    ...
+) -> bigframes.dataframe.DataFrame: ...
 
 
 @typing.overload
@@ -517,8 +508,7 @@ def read_pandas(
     pandas_dataframe: pandas.Series,
     *,
     write_engine: constants.WriteEngineType = "default",
-) -> bigframes.series.Series:
-    ...
+) -> bigframes.series.Series: ...
 
 
 @typing.overload
@@ -526,8 +516,7 @@ def read_pandas(
     pandas_dataframe: pandas.Index,
     *,
     write_engine: constants.WriteEngineType = "default",
-) -> bigframes.core.indexes.Index:
-    ...
+) -> bigframes.core.indexes.Index: ...
 
 
 def read_pandas(

@@ -66,17 +66,14 @@ class AdditiveNode:
 
     @property
     @abc.abstractmethod
-    def added_fields(self) -> Tuple[Field, ...]:
-        ...
+    def added_fields(self) -> Tuple[Field, ...]: ...
 
     @property
     @abc.abstractmethod
-    def additive_base(self) -> BigFrameNode:
-        ...
+    def additive_base(self) -> BigFrameNode: ...
 
     @abc.abstractmethod
-    def replace_additive_base(self, BigFrameNode) -> BigFrameNode:
-        ...
+    def replace_additive_base(self, BigFrameNode) -> BigFrameNode: ...
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -591,7 +588,9 @@ class LeafNode(BigFrameNode):
 
 class ScanItem(typing.NamedTuple):
     id: identifiers.ColumnId
-    dtype: bigframes.dtypes.Dtype  # Might be multiple logical types for a given physical source type
+    dtype: (
+        bigframes.dtypes.Dtype
+    )  # Might be multiple logical types for a given physical source type
     source_id: str  # Flexible enough for both local data and bq data
 
     def with_id(self, id: identifiers.ColumnId) -> ScanItem:
@@ -759,9 +758,11 @@ class GbqTable:
             table_id=table.table_id,
             physical_schema=schema,
             is_physically_stored=(table.table_type in ["TABLE", "MATERIALIZED_VIEW"]),
-            cluster_cols=None
-            if table.clustering_fields is None
-            else tuple(table.clustering_fields),
+            cluster_cols=(
+                None
+                if table.clustering_fields is None
+                else tuple(table.clustering_fields)
+            ),
         )
 
     def get_table_ref(self) -> bq.TableReference:
@@ -1602,15 +1603,17 @@ class ExplodeNode(UnaryNode):
     @property
     def fields(self) -> Sequence[Field]:
         fields = (
-            Field(
-                field.id,
-                bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
-                    self.child.get_type(field.id).pyarrow_dtype.value_type  # type: ignore
-                ),
-                nullable=True,
+            (
+                Field(
+                    field.id,
+                    bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
+                        self.child.get_type(field.id).pyarrow_dtype.value_type  # type: ignore
+                    ),
+                    nullable=True,
+                )
+                if field.id in set(map(lambda x: x.id, self.column_ids))
+                else field
             )
-            if field.id in set(map(lambda x: x.id, self.column_ids))
-            else field
             for field in self.child.fields
         )
         if self.offsets_col is not None:

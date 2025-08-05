@@ -407,9 +407,11 @@ class Index(vendored_pandas_index.Index):
         na_last = na_position == "last"
         index_columns = self._block.index_columns
         ordering = [
-            order.ascending_over(column, na_last)
-            if ascending
-            else order.descending_over(column, na_last)
+            (
+                order.ascending_over(column, na_last)
+                if ascending
+                else order.descending_over(column, na_last)
+            )
             for column in index_columns
         ]
         return Index(self._block.order_by(ordering))
@@ -506,8 +508,7 @@ class Index(vendored_pandas_index.Index):
     def rename(
         self,
         name: Union[blocks.Label, Sequence[blocks.Label]],
-    ) -> Index:
-        ...
+    ) -> Index: ...
 
     @overload
     def rename(
@@ -515,8 +516,7 @@ class Index(vendored_pandas_index.Index):
         name: Union[blocks.Label, Sequence[blocks.Label]],
         *,
         inplace: Literal[False],
-    ) -> Index:
-        ...
+    ) -> Index: ...
 
     @overload
     def rename(
@@ -524,8 +524,7 @@ class Index(vendored_pandas_index.Index):
         name: Union[blocks.Label, Sequence[blocks.Label]],
         *,
         inplace: Literal[True],
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def rename(
         self,
@@ -683,14 +682,12 @@ class Index(vendored_pandas_index.Index):
         *,
         allow_large_results: Optional[bool] = ...,
         dry_run: Literal[False] = ...,
-    ) -> pandas.Index:
-        ...
+    ) -> pandas.Index: ...
 
     @overload
     def to_pandas(
         self, *, allow_large_results: Optional[bool] = ..., dry_run: Literal[True] = ...
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def to_pandas(
         self,

@@ -249,7 +249,7 @@ class Sentinel(type):
 
 
 class CoercionError(Exception):
-    ...
+    """Couldn't coerce types."""
 
 
 class Coercible(Abstract):
@@ -262,8 +262,7 @@ class Coercible(Abstract):
 
     @classmethod
     @abstractmethod
-    def __coerce__(cls, value: Any, **kwargs: Any) -> Self:
-        ...
+    def __coerce__(cls, value: Any, **kwargs: Any) -> Self: ...
 
 
 def get_defining_frame(obj):

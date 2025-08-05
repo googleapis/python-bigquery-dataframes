@@ -394,8 +394,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[False] = ...,
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     @overload
     def read_gbq(
@@ -410,8 +409,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[True] = ...,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def read_gbq(
         self,
@@ -424,7 +422,7 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
-        dry_run: bool = False
+        dry_run: bool = False,
         # Add a verify index argument that fails if the index is not unique.
     ) -> dataframe.DataFrame | pandas.Series:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
@@ -479,8 +477,7 @@ class Session(
         *,
         pyformat_args: Optional[Dict[str, Any]] = None,
         dry_run: Literal[False] = ...,
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     @overload
     def _read_gbq_colab(
@@ -489,8 +486,7 @@ class Session(
         *,
         pyformat_args: Optional[Dict[str, Any]] = None,
         dry_run: Literal[True] = ...,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     @log_adapter.log_name_override("read_gbq_colab")
     def _read_gbq_colab(
@@ -551,8 +547,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     @overload
     def read_gbq_query(
@@ -567,8 +562,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def read_gbq_query(
         self,
@@ -671,8 +665,7 @@ class Session(
         use_cache: bool = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[False] = ...,
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     @overload
     def read_gbq_table(
@@ -686,8 +679,7 @@ class Session(
         use_cache: bool = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[True] = ...,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def read_gbq_table(
         self,
@@ -813,8 +805,7 @@ class Session(
         pandas_dataframe: pandas.Index,
         *,
         write_engine: constants.WriteEngineType = "default",
-    ) -> bigframes.core.indexes.Index:
-        ...
+    ) -> bigframes.core.indexes.Index: ...
 
     @typing.overload
     def read_pandas(
@@ -822,8 +813,7 @@ class Session(
         pandas_dataframe: pandas.Series,
         *,
         write_engine: constants.WriteEngineType = "default",
-    ) -> bigframes.series.Series:
-        ...
+    ) -> bigframes.series.Series: ...
 
     @typing.overload
     def read_pandas(
@@ -831,8 +821,7 @@ class Session(
         pandas_dataframe: pandas.DataFrame,
         *,
         write_engine: constants.WriteEngineType = "default",
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     def read_pandas(
         self,
@@ -2135,7 +2124,8 @@ class Session(
         iam_role: Optional[str] = None,
     ) -> str:
         """Create the connection with the session settings and try to attach iam role to the connection SA.
-        If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
+        If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name.
+        """
         connection = self._bq_connection if not connection else connection
         connection = bigframes.clients.get_canonical_bq_connection_id(
             connection_id=connection,

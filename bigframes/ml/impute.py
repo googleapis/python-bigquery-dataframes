@@ -13,7 +13,8 @@
 # limitations under the License.
 
 """Transformers for missing value imputation. This module is styled after
-scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/impute.html."""
+scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/impute.html.
+"""
 
 from __future__ import annotations
 

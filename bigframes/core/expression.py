@@ -53,8 +53,7 @@ class Aggregation(abc.ABC):
     @abc.abstractmethod
     def output_type(
         self, input_fields: Mapping[ids.ColumnId, field.Field]
-    ) -> dtypes.ExpressionType:
-        ...
+    ) -> dtypes.ExpressionType: ...
 
     @property
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
@@ -65,8 +64,7 @@ class Aggregation(abc.ABC):
         self,
         name_mapping: Mapping[ids.ColumnId, ids.ColumnId],
         allow_partial_bindings: bool = False,
-    ) -> Aggregation:
-        ...
+    ) -> Aggregation: ...
 
 
 @dataclasses.dataclass(frozen=True)
@@ -183,8 +181,7 @@ class Expression(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        ...
+    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]: ...
 
     def remap_column_refs(
         self: TExpression,
@@ -198,8 +195,7 @@ class Expression(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def is_const(self) -> bool:
-        ...
+    def is_const(self) -> bool: ...
 
     @property
     @abc.abstractmethod
@@ -211,8 +207,7 @@ class Expression(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def output_type(self) -> dtypes.ExpressionType:
-        ...
+    def output_type(self) -> dtypes.ExpressionType: ...
 
     @abc.abstractmethod
     def bind_refs(
@@ -250,8 +245,9 @@ class Expression(abc.ABC):
         return False
 
     @abc.abstractmethod
-    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
-        ...
+    def transform_children(
+        self, t: Callable[[Expression], Expression]
+    ) -> Expression: ...
 
     def walk(self) -> Generator[Expression, None, None]:
         yield self

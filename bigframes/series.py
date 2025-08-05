@@ -267,8 +267,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rename(
         self,
         index: Union[blocks.Label, Mapping[Any, Any]] = None,
-    ) -> Series:
-        ...
+    ) -> Series: ...
 
     @overload
     def rename(
@@ -277,8 +276,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         inplace: Literal[False],
         **kwargs,
-    ) -> Series:
-        ...
+    ) -> Series: ...
 
     @overload
     def rename(
@@ -287,8 +285,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         inplace: Literal[True],
         **kwargs,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def rename(
         self,
@@ -350,8 +347,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
-    ) -> Series:
-        ...
+    ) -> Series: ...
 
     @overload
     def rename_axis(
@@ -360,8 +356,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         inplace: Literal[False],
         **kwargs,
-    ) -> Series:
-        ...
+    ) -> Series: ...
 
     @overload
     def rename_axis(
@@ -370,8 +365,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         inplace: Literal[True],
         **kwargs,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @validations.requires_index
     def rename_axis(
@@ -1644,8 +1638,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ascending: bool | typing.Sequence[bool] = ...,
         kind: str = ...,
         na_position: typing.Literal["first", "last"] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @typing.overload
     def sort_values(
@@ -1656,8 +1649,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         ascending: bool | typing.Sequence[bool] = ...,
         kind: str = ...,
         na_position: typing.Literal["first", "last"] = ...,
-    ) -> Series:
-        ...
+    ) -> Series: ...
 
     def sort_values(
         self,
@@ -1674,9 +1666,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         block = self._block.order_by(
             [
-                order.ascending_over(self._value_column, (na_position == "last"))
-                if ascending
-                else order.descending_over(self._value_column, (na_position == "last"))
+                (
+                    order.ascending_over(self._value_column, (na_position == "last"))
+                    if ascending
+                    else order.descending_over(
+                        self._value_column, (na_position == "last")
+                    )
+                )
             ],
         )
         if inplace:
@@ -1688,14 +1684,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @typing.overload  # type: ignore[override]
     def sort_index(
         self, *, axis=..., inplace: Literal[False] = ..., ascending=..., na_position=...
-    ) -> Series:
-        ...
+    ) -> Series: ...
 
     @typing.overload
     def sort_index(
         self, *, axis=0, inplace: Literal[True] = ..., ascending=..., na_position=...
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @validations.requires_index
     def sort_index(
@@ -1709,9 +1703,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block = self._block
         na_last = na_position == "last"
         ordering = [
-            order.ascending_over(column, na_last)
-            if ascending
-            else order.descending_over(column, na_last)
+            (
+                order.ascending_over(column, na_last)
+                if ascending
+                else order.descending_over(column, na_last)
+            )
             for column in block.index_columns
         ]
         block = block.order_by(ordering)
