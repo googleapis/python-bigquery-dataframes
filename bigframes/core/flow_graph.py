@@ -785,9 +785,9 @@ class SSATranspiler:
 
             if isinstance(block.then, Return):
                 unresolved = self._operand_to_expr(block.then.target, memo)
-                resolved = py_exprs.resolve_py_exprs(unresolved)
-                print(print_expr_tree(resolved))
-                return resolved
+                # resolved = py_exprs.resolve_py_exprs(unresolved)
+                # print(print_expr_tree(resolved))
+                return unresolved
 
         raise Exception("Could not find RETURN instruction in single exit block.")
 

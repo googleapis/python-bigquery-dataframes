@@ -55,7 +55,7 @@ import tabulate
 import bigframes._config.display_options as display_options
 import bigframes.constants
 import bigframes.core
-from bigframes.core import log_adapter
+from bigframes.core import log_adapter, transpile
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.convert
@@ -4531,6 +4531,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     bigframes.functions.BigqueryCallableRowRoutine,
                 ),
             ):
+                expr = transpile.dis_to_expr(func, unpack_mode=True)
+                if expr is not None:
+                    bound_expr = expr.bind_variables(
+                        {
+                            name: ex.deref(self._block.label_to_col_id[name][-1])
+                            for name in self.columns
+                            if name in self._block.label_to_col_id
+                        }
+                    )
+                    block, result_id = self._block.project_expr(
+                        bound_expr,
+                    )
+                    return bigframes.series.Series(block.select_column(result_id))
                 raise ValueError(
                     "For axis=1 a BigFrames BigQuery function must be used."
                 )

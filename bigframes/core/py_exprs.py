@@ -21,7 +21,12 @@ from typing import Callable, Hashable, Mapping, Tuple
 
 from bigframes import dtypes
 from bigframes.core import identifiers
-from bigframes.core.expression import const, Expression, OpExpression
+from bigframes.core.expression import (
+    const,
+    Expression,
+    OpExpression,
+    UnboundVariableExpression,
+)
 from bigframes.operations import generic_ops, numeric_ops, NUMPY_TO_BINOP, NUMPY_TO_OP
 
 _CALLABLE_TO_OP = {
@@ -296,9 +301,7 @@ class Call(Expression):
 
 
 # TODO: Mode that resolves free variable attrs as columns
-def resolve_py_exprs(
-    expression: Expression,
-) -> Expression:
+def resolve_py_exprs(expression: Expression, unpack_mode: bool = False) -> Expression:
     """Replace all PyObject, attribute, call expressions. Bottom-up."""
 
     def resolve_expr_if_call(expression: Expression) -> Expression:
@@ -313,6 +316,8 @@ def resolve_py_exprs(
             if isinstance(expression.input, Module):
                 # resolves things like Math.pi
                 return PyObject(getattr(expression.input.module, expression.attr))
+            if isinstance(expression.input, UnboundVariableExpression):
+                return UnboundVariableExpression(expression.attr)
         return expression
 
     def resolve_pyobjs(expression: Expression) -> Expression:

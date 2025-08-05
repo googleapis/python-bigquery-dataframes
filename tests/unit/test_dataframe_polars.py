@@ -4495,3 +4495,16 @@ def test_local_series_apply_w_nested_fizzbuzz(session):
     pd_result = pd_series.apply(fizzbuzz).astype(pd.StringDtype(storage="pyarrow"))
 
     pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+def test_local_dataframe_apply_w_ternary_lamdba(
+    scalars_df_index, scalars_pandas_df_index
+):
+    bf_result = scalars_df_index.apply(
+        lambda x: x.int64_col if x.rowindex_2 > 5 else x.float64_col, axis=1
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.apply(
+        lambda x: x.int64_col if x.rowindex_2 > 5 else x.float64_col, axis=1
+    ).astype("Float64")
+
+    pd.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)

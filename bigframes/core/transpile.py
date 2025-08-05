@@ -23,7 +23,7 @@ from typing import Callable, Optional
 import numpy
 
 from bigframes import operations as ops
-from bigframes.core import expression, flow_graph
+from bigframes.core import expression, flow_graph, py_exprs
 import bigframes.operations.imperative_ops as imperative_ops
 import bigframes.operations.numpy_op_maps as numpy_ops
 
@@ -59,12 +59,15 @@ def fn_to_expr(func: Callable) -> Optional[expression.Expression]:
     return None
 
 
-def dis_to_expr(func: Callable) -> Optional[expression.Expression]:
+def dis_to_expr(
+    func: Callable, unpack_mode: bool = False
+) -> Optional[expression.Expression]:
     try:
         transpiler = flow_graph.SSATranspiler(func)
         print("--- SSA CFG ---")
         print(transpiler.cfg.to_dot())
-        return transpiler.to_sql_expr()
+        unresolved = transpiler.to_sql_expr()
+        return py_exprs.resolve_py_exprs(unresolved, unpack_mode=unpack_mode)
     except Exception:
         print(f"Error transpiling bytecode: {traceback.format_exc()}")
         return None
