@@ -105,12 +105,12 @@ class PolarsExecutor(semi_executor.SemiExecutor):
         if not self._can_execute(plan):
             return None
         # Note: Ignoring ordered flag, as just executing totally ordered is fine.
-        # try:
-        lazy_frame: pl.LazyFrame = self._compiler.compile(
-            array_value.ArrayValue(plan).node
-        )
-        # except Exception:
-        #    return None
+        try:
+            lazy_frame: pl.LazyFrame = self._compiler.compile(
+                array_value.ArrayValue(plan).node
+            )
+        except Exception:
+            return None
         if peek is not None:
             lazy_frame = lazy_frame.limit(peek)
         pa_table = lazy_frame.collect().to_arrow()
