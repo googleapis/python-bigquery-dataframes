@@ -284,7 +284,9 @@ def start_query_with_client(
     # google-cloud-bigquery version with
     # https://github.com/googleapis/python-bigquery/pull/2256 merged, likely
     # version 3.36.0 or later.
-    job_retry: Optional[google.api_core.retry.Retry] = third_party_gcb_retry.DEFAULT_JOB_RETRY,
+    job_retry: Optional[
+        google.api_core.retry.Retry
+    ] = third_party_gcb_retry.DEFAULT_JOB_RETRY,
 ) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
