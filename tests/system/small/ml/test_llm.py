@@ -792,6 +792,7 @@ def test_gemini_preview_model_warnings(model_name):
         llm.GeminiTextGenerator(model_name=model_name)
 
 
+# b/436340035 temp disable the test to unblock presumbit
 @pytest.mark.parametrize(
     "model_class",
     [
