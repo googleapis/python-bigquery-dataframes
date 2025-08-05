@@ -1050,7 +1050,7 @@ def geo_st_centroid_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.geo_st_convexhull_op, pass_op=False)
 def geo_st_convexhull_op_impl(x: ibis_types.Value):
-    return typing.cast(ibis_types.GeoSpatialValue, x).convex_hull()
+    return st_convexhull(x)
 
 
 @scalar_op_compiler.register_binary_op(ops.geo_st_difference_op, pass_op=False)
