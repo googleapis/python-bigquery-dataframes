@@ -93,7 +93,9 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
         return series
 
     def buffer(self: GeoSeries, distance: float) -> bigframes.series.Series:  # type: ignore
-        return self._apply_unary_op(ops.GeoStBufferOp(distance=distance))
+        raise NotImplementedError(
+            f"GeoSeries.buffer is not supported. Use bigframes.bigquery.st_buffer(series, distance), instead. {constants.FEEDBACK_LINK}"
+        )
 
     def centroid(self: GeoSeries) -> bigframes.series.Series:  # type: ignore
         return self._apply_unary_op(ops.geo_st_centroid_op)
