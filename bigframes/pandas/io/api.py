@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import os
 import threading
 import typing
 from typing import (
@@ -56,6 +57,7 @@ import bigframes.session
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+import bigframes.session.metrics
 
 # Note: the following methods are duplicated from Session. This duplication
 # enables the following:
@@ -345,6 +347,8 @@ def _read_gbq_colab(
             dry_run=True,
         )
         _set_default_session_location_if_possible_deferred_query(create_query)
+        if not config.options.bigquery._session_started:
+            config.options.bigquery.enable_polars_execution = True
 
     return global_session.with_default_session(
         bigframes.session.Session._read_gbq_colab,
@@ -623,6 +627,11 @@ def _get_bqclient() -> bigquery.Client:
 
 def _dry_run(query, bqclient) -> bigquery.QueryJob:
     job = bqclient.query(query, bigquery.QueryJobConfig(dry_run=True))
+
+    # Fix for b/435183833. Log metrics even if a Session isn't available.
+    if bigframes.session.metrics.LOGGING_NAME_ENV_VAR in os.environ:
+        metrics = bigframes.session.metrics.ExecutionMetrics()
+        metrics.count_job_stats(job)
     return job
 
 

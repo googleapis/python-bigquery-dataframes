@@ -300,9 +300,9 @@ def isalpha_op_impl(x: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.isdigit_op)
 def isdigit_op_impl(x: ibis_types.Value):
-    # Based on docs, should include superscript/subscript-ed numbers
-    # Tests however pass only when set to Nd unicode class
-    return typing.cast(ibis_types.StringValue, x).re_search(r"^(\p{Nd})+$")
+    return typing.cast(ibis_types.StringValue, x).re_search(
+        r"^[\p{Nd}\x{00B9}\x{00B2}\x{00B3}\x{2070}\x{2074}-\x{2079}\x{2080}-\x{2089}]+$"
+    )
 
 
 @scalar_op_compiler.register_unary_op(ops.isdecimal_op)
@@ -1311,7 +1311,7 @@ def eq_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     return x == y
 
 
@@ -1321,7 +1321,7 @@ def eq_nulls_match_op(
     y: ibis_types.Value,
 ):
     """Variant of eq_op where nulls match each other. Only use where dtypes are known to be same."""
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     literal = ibis_types.literal("$NULL_SENTINEL$")
     if hasattr(x, "fill_null"):
         left = x.cast(ibis_dtypes.str).fill_null(literal)
@@ -1338,7 +1338,7 @@ def ne_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     return x != y
 
 
@@ -1350,13 +1350,10 @@ def _null_or_value(value: ibis_types.Value, where_value: ibis_types.BooleanValue
     )
 
 
-def _coerce_comparables(
-    x: ibis_types.Value,
-    y: ibis_types.Value,
-):
-    if x.type().is_boolean() and not y.type().is_boolean():
+def _coerce_bools(x: ibis_types.Value, y: ibis_types.Value, *, always: bool = False):
+    if x.type().is_boolean() and (always or not y.type().is_boolean()):
         x = x.cast(ibis_dtypes.int64)
-    elif y.type().is_boolean() and not x.type().is_boolean():
+    if y.type().is_boolean() and (always or not x.type().is_boolean()):
         y = y.cast(ibis_dtypes.int64)
     return x, y
 
@@ -1417,8 +1414,18 @@ def add_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_bools(x, y)
     if isinstance(x, ibis_types.NullScalar) or isinstance(x, ibis_types.NullScalar):
         return ibis_types.null()
+
+    if x.type().is_boolean() and y.type().is_boolean():
+        x, y = _coerce_bools(x, y, always=True)
+        return (
+            typing.cast(ibis_types.NumericValue, x)
+            + typing.cast(ibis_types.NumericValue, x)
+        ).cast(ibis_dtypes.Boolean)
+
+    x, y = _coerce_bools(x, y)
     return x + y  # type: ignore
 
 
@@ -1428,6 +1435,7 @@ def sub_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_bools(x, y)
     return typing.cast(ibis_types.NumericValue, x) - typing.cast(
         ibis_types.NumericValue, y
     )
@@ -1439,6 +1447,13 @@ def mul_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    if x.type().is_boolean() and y.type().is_boolean():
+        x, y = _coerce_bools(x, y, always=True)
+        return (
+            typing.cast(ibis_types.NumericValue, x)
+            * typing.cast(ibis_types.NumericValue, x)
+        ).cast(ibis_dtypes.Boolean)
+    x, y = _coerce_bools(x, y)
     return typing.cast(ibis_types.NumericValue, x) * typing.cast(
         ibis_types.NumericValue, y
     )
@@ -1450,6 +1465,7 @@ def div_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_bools(x, y)
     return typing.cast(ibis_types.NumericValue, x) / typing.cast(
         ibis_types.NumericValue, y
     )
@@ -1461,6 +1477,7 @@ def pow_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    x, y = _coerce_bools(x, y)
     if x.type().is_integer() and y.type().is_integer():
         return _int_pow_op(x, y)
     else:
@@ -1474,6 +1491,7 @@ def unsafe_pow_op(
     y: ibis_types.Value,
 ):
     """For internal use only - where domain and overflow checks are not needed."""
+    x, y = _coerce_bools(x, y)
     return typing.cast(ibis_types.NumericValue, x) ** typing.cast(
         ibis_types.NumericValue, y
     )
@@ -1562,7 +1580,7 @@ def lt_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     return x < y
 
 
@@ -1572,7 +1590,7 @@ def le_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     return x <= y
 
 
@@ -1582,7 +1600,7 @@ def gt_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     return x > y
 
 
@@ -1592,7 +1610,7 @@ def ge_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
-    x, y = _coerce_comparables(x, y)
+    x, y = _coerce_bools(x, y)
     return x >= y
 
 
@@ -1602,6 +1620,10 @@ def floordiv_op(
     x: ibis_types.Value,
     y: ibis_types.Value,
 ):
+    if x.type().is_boolean():
+        x = x.cast(ibis_dtypes.int64)
+    elif y.type().is_boolean():
+        y = y.cast(ibis_dtypes.int64)
     x_numeric = typing.cast(ibis_types.NumericValue, x)
     y_numeric = typing.cast(ibis_types.NumericValue, y)
     floordiv_expr = x_numeric // y_numeric
@@ -1640,6 +1662,7 @@ def mod_op(
     if isinstance(op, ibis_generic.Literal) and op.value == 0:
         return ibis_types.null().cast(x.type())
 
+    x, y = _coerce_bools(x, y)
     if x.type().is_integer() and y.type().is_integer():
         # both are ints, no casting necessary
         return _int_mod(

@@ -37,6 +37,7 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.series
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
@@ -246,6 +247,91 @@ class Index(vendored_pandas_index.Index):
             _, query_job = self._block._compute_dry_run()
             self._query_job = query_job
         return self._query_job
+
+    def get_loc(self, key) -> typing.Union[int, slice, "bigframes.series.Series"]:
+        """Get integer location, slice or boolean mask for requested label.
+
+        Args:
+            key:
+                The label to search for in the index.
+
+        Returns:
+            An integer, slice, or boolean mask representing the location(s) of the key.
+
+        Raises:
+            NotImplementedError: If the index has more than one level.
+            KeyError: If the key is not found in the index.
+        """
+        if self.nlevels != 1:
+            raise NotImplementedError("get_loc only supports single-level indexes")
+
+        # Get the index column from the block
+        index_column = self._block.index_columns[0]
+
+        # Use promote_offsets to get row numbers (similar to argmax/argmin implementation)
+        block_with_offsets, offsets_id = self._block.promote_offsets(
+            "temp_get_loc_offsets_"
+        )
+
+        # Create expression to find matching positions
+        match_expr = ops.eq_op.as_expr(ex.deref(index_column), ex.const(key))
+        block_with_offsets, match_col_id = block_with_offsets.project_expr(match_expr)
+
+        # Filter to only rows where the key matches
+        filtered_block = block_with_offsets.filter_by_id(match_col_id)
+
+        # Check if key exists at all by counting
+        count_agg = ex.UnaryAggregation(agg_ops.count_op, ex.deref(offsets_id))
+        count_result = filtered_block._expr.aggregate([(count_agg, "count")])
+        count_scalar = self._block.session._executor.execute(
+            count_result
+        ).to_py_scalar()
+
+        if count_scalar == 0:
+            raise KeyError(f"'{key}' is not in index")
+
+        # If only one match, return integer position
+        if count_scalar == 1:
+            min_agg = ex.UnaryAggregation(agg_ops.min_op, ex.deref(offsets_id))
+            position_result = filtered_block._expr.aggregate([(min_agg, "position")])
+            position_scalar = self._block.session._executor.execute(
+                position_result
+            ).to_py_scalar()
+            return int(position_scalar)
+
+        # Handle multiple matches based on index monotonicity
+        is_monotonic = self.is_monotonic_increasing or self.is_monotonic_decreasing
+        if is_monotonic:
+            return self._get_monotonic_slice(filtered_block, offsets_id)
+        else:
+            # Return boolean mask for non-monotonic duplicates
+            mask_block = block_with_offsets.select_columns([match_col_id])
+            mask_block = mask_block.reset_index(drop=True)
+            result_series = bigframes.series.Series(mask_block)
+            return result_series.astype("boolean")
+
+    def _get_monotonic_slice(self, filtered_block, offsets_id: str) -> slice:
+        """Helper method to get a slice for monotonic duplicates with an optimized query."""
+        # Combine min and max aggregations into a single query for efficiency
+        min_max_aggs = [
+            (
+                ex.UnaryAggregation(agg_ops.min_op, ex.deref(offsets_id)),
+                "min_pos",
+            ),
+            (
+                ex.UnaryAggregation(agg_ops.max_op, ex.deref(offsets_id)),
+                "max_pos",
+            ),
+        ]
+        combined_result = filtered_block._expr.aggregate(min_max_aggs)
+
+        # Execute query and extract positions
+        result_df = self._block.session._executor.execute(combined_result).to_pandas()
+        min_pos = int(result_df["min_pos"].iloc[0])
+        max_pos = int(result_df["max_pos"].iloc[0])
+
+        # Create slice (stop is exclusive)
+        return slice(min_pos, max_pos + 1)
 
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
