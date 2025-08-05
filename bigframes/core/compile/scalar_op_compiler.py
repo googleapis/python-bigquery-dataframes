@@ -2132,6 +2132,12 @@ def _ibis_num(number: float):
 
 
 @ibis_udf.scalar.builtin
+def st_convexhull(x: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
+    """ST_CONVEXHULL"""
+    ...
+
+
+@ibis_udf.scalar.builtin
 def st_geogfromtext(a: str) -> ibis_dtypes.geography:  # type: ignore
     """Convert string to geography."""
 
