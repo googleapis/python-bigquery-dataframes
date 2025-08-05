@@ -1043,10 +1043,10 @@ def geo_st_buffer_op_impl(x: ibis_types.Value, op: ops.GeoStBufferOp):
     return st_buffer(
         x,
         op.buffer_radius,
-        num_seg_quarter_circle=op.num_seg_quarter_circle,
-        use_spheroid=op.use_spheroid,
-        endcap=op.endcap,
-        side=op.side,
+        op.num_seg_quarter_circle,
+        op.use_spheroid,
+        op.endcap,
+        op.side,
     )
 
 
@@ -2166,13 +2166,13 @@ def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ign
 
 @ibis_udf.scalar.builtin
 def st_buffer(
-    geography: ibis_types.GeoValue,
+    geography: ibis_dtypes.Geography,
     buffer_radius: ibis_dtypes.Float64,
-    num_seg_quarter_circle: typing.Optional[ibis_dtypes.Float64] = None,
-    use_spheroid: typing.Optional[ibis_types.BooleanValue] = None,
-    endcap: typing.Optional[ibis_types.StringValue] = None,
-    side: typing.Optional[ibis_types.StringValue] = None,
-) -> ibis_types.GeoValue:
+    num_seg_quarter_circle: ibis_dtypes.Float64 = 8.0,
+    use_spheroid: ibis_dtypes.Boolean = False,
+    endcap: ibis_dtypes.String = "ROUND",
+    side: ibis_dtypes.String = "BOTH",
+) -> ibis_dtypes.Geography:
     ...
 
 

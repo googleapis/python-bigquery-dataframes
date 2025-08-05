@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Union
 
 import shapely  # type: ignore
 
@@ -106,10 +106,10 @@ def st_area(
 def st_buffer(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     buffer_radius: float,
-    num_seg_quarter_circle: Optional[float] = None,
-    use_spheroid: Optional[bool] = None,
-    endcap: Optional[str] = None,
-    side: Optional[str] = None,
+    num_seg_quarter_circle: float = 8.0,
+    use_spheroid: bool = False,
+    endcap: str = "ROUND",
+    side: str = "BOTH",
 ) -> bigframes.series.Series:
     """
     Computes a `GEOGRAPHY` that represents all points whose distance from the
