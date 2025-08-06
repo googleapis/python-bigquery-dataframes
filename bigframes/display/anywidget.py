@@ -21,6 +21,7 @@ import typing
 from typing import Any, cast, Dict, Iterator, List, Optional, Type
 import uuid
 
+import google.api_core.exceptions
 import pandas as pd
 
 import bigframes
@@ -166,8 +167,16 @@ class TableWidget(WIDGET_BASE):
             batch = next(iterator)
             self._cached_batches.append(batch)
             return True
-        except StopIteration:
+        except (
+            StopIteration,
+            google.api_core.exceptions.GoogleAPICallError,
+            TypeError,
+            ValueError,
+        ) as e:
             self._all_data_loaded = True
+            if not isinstance(e, StopIteration):
+                # If we fail to get a batch, assume no more data is available.
+                self.row_count = 0
             return False
 
     @property
