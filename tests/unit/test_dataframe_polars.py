@@ -38,7 +38,7 @@ from bigframes.testing.utils import (
     convert_pandas_dtypes,
 )
 
-pytest.importorskip("polars", minversion="1.7.0")
+pytest.importorskip("polars")
 pytest.importorskip("pandas", minversion="2.0.0")
 
 CURRENT_DIR = pathlib.Path(__file__).parent

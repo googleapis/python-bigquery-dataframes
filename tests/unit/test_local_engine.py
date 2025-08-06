@@ -20,7 +20,7 @@ import pytest
 import bigframes
 import bigframes.pandas as bpd
 
-pytest.importorskip("polars", minversion="1.7.0")
+pytest.importorskip("polars")
 pytest.importorskip("pandas", minversion="2.0.0")
 
 
