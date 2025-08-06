@@ -15,13 +15,23 @@
 from pathlib import Path
 import sys
 
-from scripts import run_and_publish_benchmark
-
+# Add the project root to the Python path to allow for application-specific imports.
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from scripts import run_and_publish_benchmark  # noqa: E402
 
-def test_collect_benchmark_result(tmp_path):
-    # Create dummy log files
+
+def test_collect_benchmark_result(tmp_path: Path):
+    """Tests the collect_benchmark_result function.
+
+    This test verifies that the function correctly reads benchmark result
+    files from a specified directory, processes them, and returns a
+    pandas DataFrame with the expected data and types.
+
+    Args:
+        tmp_path (Path): The pytest fixture providing a temporary directory path.
+    """
+    # Arrange: Create dummy log files with benchmark data.
     (tmp_path / "benchmark1.bytesprocessed").write_text("100")
     (tmp_path / "benchmark1.slotmillis").write_text("1000")
     (tmp_path / "benchmark1.bq_exec_time_seconds").write_text("1.0")
@@ -29,14 +39,15 @@ def test_collect_benchmark_result(tmp_path):
     (tmp_path / "benchmark1.query_char_count").write_text("50")
     (tmp_path / "benchmark1.totalrows").write_text("10")
 
-    # Collect the benchmark results
+    # Act: Collect the benchmark results from the temporary directory.
+    # The second argument '1' is a placeholder for the number of runs.
     df, error_message = run_and_publish_benchmark.collect_benchmark_result(
         str(tmp_path), 1
     )
 
-    # Assert that the DataFrame is correct
-    assert error_message is None
-    assert len(df) == 1
+    # Assert: Verify the contents and structure of the resulting DataFrame.
+    assert error_message is None, "Expected no error messages."
+    assert len(df) == 1, "DataFrame should contain exactly one row."
     assert df["Benchmark_Name"][0] == "benchmark1"
     assert df["Bytes_Processed"][0] == 100
     assert df["Slot_Millis"][0] == 1000
