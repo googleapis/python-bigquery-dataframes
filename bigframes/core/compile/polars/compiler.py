@@ -42,7 +42,11 @@ if TYPE_CHECKING:
     import polars as pl
 else:
     try:
-        import polars as pl
+        import bigframes._importing
+
+        # Use import_polars() instead of importing directly so that we check
+        # the version numbers.
+        pl = bigframes._importing.import_polars()
     except Exception:
         polars_installed = False
 

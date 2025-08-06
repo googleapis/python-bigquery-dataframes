@@ -26,13 +26,15 @@ import warnings
 import bigframes.core.compile.polars.operations.generic_ops  # noqa: F401
 
 try:
-    import polars  # noqa
+    import bigframes._importing
+
+    # Use import_polars() instead of importing directly so that we check the
+    # version numbers.
+    bigframes._importing.import_polars()
 
     from bigframes.core.compile.polars.compiler import PolarsCompiler
 
     __all__ = ["PolarsCompiler"]
 except Exception as exc:
-    msg = (
-        f"Polars compiler not available as polars is not installed. Details: {str(exc)}"
-    )
+    msg = f"Polars compiler not available as there was an exception importing polars. Details: {str(exc)}"
     warnings.warn(msg)
