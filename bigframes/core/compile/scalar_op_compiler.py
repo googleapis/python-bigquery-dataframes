@@ -2164,11 +2164,11 @@ def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ign
 
 @ibis_udf.scalar.builtin
 def st_buffer(
-    geography: ibis_dtypes.Geography,
+    geography: ibis_dtypes.geography,  # type: ignore
     buffer_radius: ibis_dtypes.Float64,
     num_seg_quarter_circle: ibis_dtypes.Float64,
     use_spheroid: ibis_dtypes.Boolean,
-) -> ibis_dtypes.Geography:
+) -> ibis_dtypes.geography:  # type: ignore
     ...
 
 
