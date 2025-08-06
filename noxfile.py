@@ -80,7 +80,7 @@ UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.10": ["tests", "polars", "scikit-learn", "anywidget"],
+    "3.10": ["tests", "scikit-learn", "anywidget"],
     "3.11": ["tests", "polars", "scikit-learn", "anywidget"],
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
@@ -114,9 +114,9 @@ SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
-    "3.10": ["scikit-learn", "polars", "anywidget"],
-    "3.11": ["scikit-learn", "polars", "anywidget"],
-    "3.13": ["polars", "anywidget"],
+    "3.10": ["tests", "scikit-learn", "anywidget"],
+    "3.11": ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.13": ["tests", "polars", "anywidget"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
