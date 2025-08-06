@@ -17,5 +17,5 @@
 This directory structure should reflect the same layout as the
 `bigframes/operations` directory where the operations are defined.
 
-Prefer one file per op to keep file sizes manageable for text editors and LLMs.
+Prefer a few ops per file to keep file sizes manageable for text editors and LLMs.
 """
