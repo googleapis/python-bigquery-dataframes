@@ -12,28 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+BigFrames -> Polars compilation for the operations in bigframes.operations.generic_ops.
+
+Please keep implementations in sequential order by op name.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import bigframes.core.compile.polars.compiler as polars_compiler
-from bigframes.operations.generic_ops import isnull_op
+from bigframes.operations import generic_ops
 
 if TYPE_CHECKING:
     import polars as pl
 
 
-def _polars_isnull_op_impl(
+@polars_compiler.register_op(generic_ops.NotNullOp)
+def notnull_op_impl(
     compiler: polars_compiler.PolarsExpressionCompiler,
-    op: isnull_op.IsNullOp,
+    op: generic_ops.NotNullOp,  # type: ignore
+    input: pl.Expr,
+) -> pl.Expr:
+    return input.is_not_null()
+
+
+@polars_compiler.register_op(generic_ops.IsNullOp)
+def isnull_op_impl(
+    compiler: polars_compiler.PolarsExpressionCompiler,
+    op: generic_ops.IsNullOp,  # type: ignore
     input: pl.Expr,
 ) -> pl.Expr:
     return input.is_null()
-
-
-if hasattr(polars_compiler, "PolarsExpressionCompiler"):
-    # TODO(https://github.com/python/mypy/issues/13040): remove `type: ignore`
-    # when mypy can better handle singledispatch.
-    polars_compiler.PolarsExpressionCompiler.compile_op.register(  # type: ignore
-        isnull_op.IsNullOp, _polars_isnull_op_impl
-    )

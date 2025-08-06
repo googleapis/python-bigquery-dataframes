@@ -20,6 +20,5 @@ registered.
 
 from __future__ import annotations
 
-import bigframes.core.compile.ibis_compiler.operations.generic_ops.isnull_op  # noqa: F401
-import bigframes.core.compile.ibis_compiler.operations.generic_ops.notnull_op  # noqa: F401
+import bigframes.core.compile.ibis_compiler.operations.generic_ops  # noqa: F401
 import bigframes.core.compile.ibis_compiler.scalar_op_registry  # noqa: F401

@@ -81,15 +81,15 @@ from bigframes.operations.generic_ops import (
     hash_op,
     invert_op,
     IsInOp,
+    isnull_op,
     MapOp,
     maximum_op,
     minimum_op,
+    notnull_op,
     RowKey,
     SqlScalarOp,
     where_op,
 )
-from bigframes.operations.generic_ops.isnull_op import isnull_op
-from bigframes.operations.generic_ops.notnull_op import notnull_op
 from bigframes.operations.geo_ops import (
     geo_area_op,
     geo_st_astext_op,

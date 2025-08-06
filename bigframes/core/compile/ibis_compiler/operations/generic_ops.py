@@ -12,14 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+BigFrames -> Ibis compilation for the operations in bigframes.operations.generic_ops.
+
+Please keep implementations in sequential order by op name.
+"""
+
 from __future__ import annotations
 
 from bigframes_vendored.ibis.expr import types as ibis_types
 
 from bigframes.core.compile.ibis_compiler import scalar_op_compiler
-from bigframes.operations.generic_ops import isnull_op
+from bigframes.operations import generic_ops
+
+register_unary_op = scalar_op_compiler.scalar_op_compiler.register_unary_op
 
 
-@scalar_op_compiler.scalar_op_compiler.register_unary_op(isnull_op.isnull_op)
-def _ibis_isnull_op_impl(x: ibis_types.Value):
+@register_unary_op(generic_ops.notnull_op)
+def notnull_op_impl(x: ibis_types.Value):
+    return x.notnull()
+
+
+@register_unary_op(generic_ops.isnull_op)
+def isnull_op_impl(x: ibis_types.Value):
     return x.isnull()

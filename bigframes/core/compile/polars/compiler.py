@@ -17,7 +17,7 @@ import dataclasses
 import functools
 import itertools
 import operator
-from typing import cast, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import cast, Literal, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 
 import pandas as pd
 
@@ -45,6 +45,27 @@ else:
         import polars as pl
     except Exception:
         polars_installed = False
+
+
+def register_op(op: Type):
+    """Register a compilation from BigFrames to Ibis.
+
+    This decorator can be used, even if Polars is not installed.
+
+    Args:
+        op: The type of the operator the wrapped function compiles.
+    """
+
+    def decorator(func):
+        if polars_installed:
+            # Ignore the type because compile_op is a generic Callable, so
+            # register isn't available according to mypy.
+            return PolarsExpressionCompiler.compile_op.register(op)(func)  # type: ignore
+        else:
+            return func
+
+    return decorator
+
 
 if polars_installed:
     _DTYPE_MAPPING = {

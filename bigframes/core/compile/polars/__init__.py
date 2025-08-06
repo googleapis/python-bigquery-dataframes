@@ -20,12 +20,15 @@ from __future__ import annotations
 
 import warnings
 
+# The ops imports appear first so that the implementations can be registered.
+# polars shouldn't be needed at import time, as register is a no-op if polars
+# isn't installed.
+import bigframes.core.compile.polars.operations.generic_ops  # noqa: F401
+
 try:
     import polars  # noqa
 
     from bigframes.core.compile.polars.compiler import PolarsCompiler
-    import bigframes.core.compile.polars.operations.generic_ops.isnull_op  # noqa: F401
-    import bigframes.core.compile.polars.operations.generic_ops.notnull_op  # noqa: F401
 
     __all__ = ["PolarsCompiler"]
 except Exception as exc:
