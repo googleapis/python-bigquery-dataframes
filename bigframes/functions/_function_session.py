@@ -565,9 +565,11 @@ class FunctionSession:
                 bq_connection_manager,
                 cloud_function_region,
                 cloud_functions_client,
-                None
-                if cloud_function_service_account == "default"
-                else cloud_function_service_account,
+                (
+                    None
+                    if cloud_function_service_account == "default"
+                    else cloud_function_service_account
+                ),
                 cloud_function_kms_key_name,
                 cloud_function_docker_repository,
                 cloud_build_service_account=cloud_build_service_account,

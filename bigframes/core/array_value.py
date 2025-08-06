@@ -524,9 +524,11 @@ class ArrayValue:
     ) -> Tuple[bigframes.core.nodes.BigFrameNode, dict[str, str]]:
         if set(other.node.ids) & set(self.node.ids):
             r_mapping = {  # Rename conflicting names
-                rcol.name: rcol.name
-                if (rcol.name not in self.column_ids)
-                else bigframes.core.guid.generate_guid()
+                rcol.name: (
+                    rcol.name
+                    if (rcol.name not in self.column_ids)
+                    else bigframes.core.guid.generate_guid()
+                )
                 for rcol in other.node.ids
             }
             return (

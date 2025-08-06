@@ -376,9 +376,11 @@ def value_counts(
             [
                 ordering.OrderingExpression(
                     ex.deref(count_id),
-                    direction=ordering.OrderingDirection.ASC
-                    if ascending
-                    else ordering.OrderingDirection.DESC,
+                    direction=(
+                        ordering.OrderingDirection.ASC
+                        if ascending
+                        else ordering.OrderingDirection.DESC
+                    ),
                 )
             ]
         )
@@ -435,9 +437,11 @@ def rank(
         window_ordering = (
             ordering.OrderingExpression(
                 ex.deref(col),
-                ordering.OrderingDirection.ASC
-                if ascending
-                else ordering.OrderingDirection.DESC,
+                (
+                    ordering.OrderingDirection.ASC
+                    if ascending
+                    else ordering.OrderingDirection.DESC
+                ),
                 na_last=(na_option in ["bottom", "keep"]),
             ),
         )
@@ -445,12 +449,12 @@ def rank(
         block, rownum_id = block.apply_window_op(
             col if na_option == "keep" else nullity_col_id,
             agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
-            window_spec=windows.unbound(
-                grouping_keys=grouping_cols, ordering=window_ordering
-            )
-            if method == "dense"
-            else windows.rows(
-                end=0, ordering=window_ordering, grouping_keys=grouping_cols
+            window_spec=(
+                windows.unbound(grouping_keys=grouping_cols, ordering=window_ordering)
+                if method == "dense"
+                else windows.rows(
+                    end=0, ordering=window_ordering, grouping_keys=grouping_cols
+                )
             ),
             skip_reproject_unsafe=(col != columns[-1]),
         )

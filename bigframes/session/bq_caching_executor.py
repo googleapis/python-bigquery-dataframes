@@ -734,7 +734,7 @@ def _if_schema_match(
 
 
 def _sanitize(
-    schema: Tuple[bigquery.SchemaField, ...]
+    schema: Tuple[bigquery.SchemaField, ...],
 ) -> Tuple[bigquery.SchemaField, ...]:
     # Schema inferred from SQL strings and Ibis expressions contain only names, types and modes,
     # so we disregard other fields (e.g timedelta description for timedelta columns) for validations.

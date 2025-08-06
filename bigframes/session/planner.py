@@ -39,9 +39,9 @@ def session_aware_cache_plan(
     caching_target = cur_node = root
     caching_target_refs = node_counts.get(caching_target, 0)
 
-    filters: list[
-        ex.Expression
-    ] = []  # accumulate filters into this as traverse downwards
+    filters: list[ex.Expression] = (
+        []
+    )  # accumulate filters into this as traverse downwards
     clusterable_cols: set[ids.ColumnId] = set()
     while isinstance(cur_node, de_cachable_types):
         if isinstance(cur_node, nodes.FilterNode):

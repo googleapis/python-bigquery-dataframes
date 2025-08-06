@@ -59,9 +59,11 @@ def explode_unordered(
 
     output_cols = tuple(input.column_ids) + ((offsets_id,) if offsets_id else ())
     unnested_columns = [
-        table_w_offset[column_id][table_w_offset[unnest_offset_id]].name(column_id)
-        if column_id in column_ids
-        else table_w_offset[column_id]
+        (
+            table_w_offset[column_id][table_w_offset[unnest_offset_id]].name(column_id)
+            if column_id in column_ids
+            else table_w_offset[column_id]
+        )
         for column_id in output_cols
     ]
     table_w_unnest = table_w_offset.select(*unnested_columns)

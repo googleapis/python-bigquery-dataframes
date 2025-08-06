@@ -155,8 +155,7 @@ class BigFrameNode:
     # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod
-    def fields(self) -> Sequence[field.Field]:
-        ...
+    def fields(self) -> Sequence[field.Field]: ...
 
     @property
     def ids(self) -> Iterable[identifiers.ColumnId]:
@@ -322,9 +321,9 @@ class BigFrameNode:
             [node for node in self.unique_nodes() if not node.child_nodes]
         )
 
-        child_to_parents: Dict[
-            BigFrameNode, Set[BigFrameNode]
-        ] = collections.defaultdict(set)
+        child_to_parents: Dict[BigFrameNode, Set[BigFrameNode]] = (
+            collections.defaultdict(set)
+        )
         for parent, child in self.edges():
             child_to_parents[child].add(parent)
 

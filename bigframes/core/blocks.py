@@ -630,7 +630,8 @@ class Block:
         """Download results one message at a time.
 
         page_size and max_results determine the size and number of batches,
-        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result"""
+        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
+        """
         execute_result = self.session._executor.execute(
             self.expr,
             ordered=True,
@@ -1058,9 +1059,9 @@ class Block:
         return Block(
             new_array,
             index_columns=self.index_columns,
-            column_labels=labels
-            if drop
-            else self.column_labels.append(pd.Index(labels)),
+            column_labels=(
+                labels if drop else self.column_labels.append(pd.Index(labels))
+            ),
             index_labels=self._index_labels,
         )
 
@@ -1180,9 +1181,11 @@ class Block:
         if axis_n == 0:
             aggregations = [
                 (
-                    ex.UnaryAggregation(operation, ex.deref(col_id))
-                    if isinstance(operation, agg_ops.UnaryAggregateOp)
-                    else ex.NullaryAggregation(operation),
+                    (
+                        ex.UnaryAggregation(operation, ex.deref(col_id))
+                        if isinstance(operation, agg_ops.UnaryAggregateOp)
+                        else ex.NullaryAggregation(operation)
+                    ),
                     col_id,
                 )
                 for col_id in self.value_columns
@@ -1201,7 +1204,11 @@ class Block:
             # using offsets as identity to group on.
             # TODO: Allow to promote identity/total_order columns instead for better perf
             expr_with_offsets, offset_col = self.expr.promote_offsets()
-            stacked_expr, (_, value_col_ids, passthrough_cols,) = unpivot(
+            stacked_expr, (
+                _,
+                value_col_ids,
+                passthrough_cols,
+            ) = unpivot(
                 expr_with_offsets,
                 row_labels=self.column_labels,
                 unpivot_columns=[tuple(self.value_columns)],
@@ -1387,9 +1394,11 @@ class Block:
 
         aggregations = [
             (
-                ex.UnaryAggregation(stat, ex.deref(column_id))
-                if isinstance(stat, agg_ops.UnaryAggregateOp)
-                else ex.NullaryAggregation(stat),
+                (
+                    ex.UnaryAggregation(stat, ex.deref(column_id))
+                    if isinstance(stat, agg_ops.UnaryAggregateOp)
+                    else ex.NullaryAggregation(stat)
+                ),
                 stat.name,
             )
             for stat in stats_to_fetch
@@ -1442,9 +1451,11 @@ class Block:
         labels = pd.Index([stat.name for stat in stats])
         aggregations = [
             (
-                ex.UnaryAggregation(stat, ex.deref(col_id))
-                if isinstance(stat, agg_ops.UnaryAggregateOp)
-                else ex.NullaryAggregation(stat),
+                (
+                    ex.UnaryAggregation(stat, ex.deref(col_id))
+                    if isinstance(stat, agg_ops.UnaryAggregateOp)
+                    else ex.NullaryAggregation(stat)
+                ),
                 f"{col_id}-{stat.name}",
             )
             for stat in stats
@@ -2314,16 +2325,19 @@ class Block:
             rcol_indexer if (rcol_indexer is not None) else range(len(columns))
         )
 
-        left_input_lookup = (
-            lambda index: ex.deref(get_column_left[self.value_columns[index]])
-            if index != -1
-            else ex.const(None)
-        )
-        righ_input_lookup = (
-            lambda index: ex.deref(get_column_right[other.value_columns[index]])
-            if index != -1
-            else ex.const(None)
-        )
+        def left_input_lookup(index):
+            return (
+                ex.deref(get_column_left[self.value_columns[index]])
+                if index != -1
+                else ex.const(None)
+            )
+
+        def righ_input_lookup(index):
+            return (
+                ex.deref(get_column_right[other.value_columns[index]])
+                if index != -1
+                else ex.const(None)
+            )
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
@@ -2373,18 +2387,19 @@ class Block:
             rcol_indexer if (rcol_indexer is not None) else range(len(columns))
         )
 
-        left_input_lookup = (
-            lambda index: ex.deref(get_column_left[self.value_columns[index]])
-            if index != -1
-            else ex.const(None)
-        )
-        righ_input_lookup = (
-            lambda index: ex.deref(
-                get_column_right[other.transpose().value_columns[index]]
+        def left_input_lookup(index):
+            return (
+                ex.deref(get_column_left[self.value_columns[index]])
+                if index != -1
+                else ex.const(None)
             )
-            if index != -1
-            else ex.const(None)
-        )
+
+        def righ_input_lookup(index):
+            return (
+                ex.deref(get_column_right[other.transpose().value_columns[index]])
+                if index != -1
+                else ex.const(None)
+            )
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
@@ -2408,14 +2423,13 @@ class Block:
             rcol_indexer if (rcol_indexer is not None) else range(len(columns))
         )
 
-        left_input_lookup = (
-            lambda index: ex.deref(self.value_columns[index])
-            if index != -1
-            else ex.const(None)
-        )
-        righ_input_lookup = (
-            lambda index: ex.const(other.iloc[index]) if index != -1 else ex.const(None)
-        )
+        def left_input_lookup(index):
+            return (
+                ex.deref(self.value_columns[index]) if index != -1 else ex.const(None)
+            )
+
+        def righ_input_lookup(index):
+            return ex.const(other.iloc[index]) if index != -1 else ex.const(None)
 
         left_inputs = [left_input_lookup(i) for i in lcol_indexer]
         right_inputs = [righ_input_lookup(i) for i in rcol_indexer]
@@ -2447,7 +2461,10 @@ class Block:
         sort: bool = False,
         block_identity_join: bool = False,
         always_order: bool = False,
-    ) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+    ) -> Tuple[
+        Block,
+        Tuple[Mapping[str, str], Mapping[str, str]],
+    ]:
         """
         Join two blocks objects together, and provide mappings between source columns and output columns.
 
@@ -2637,9 +2654,11 @@ class Block:
         self.session._executor.cached(
             self.expr,
             config=executors.CacheConfig(
-                optimize_for="auto"
-                if session_aware
-                else executors.HierarchicalKey(tuple(self.index_columns)),
+                optimize_for=(
+                    "auto"
+                    if session_aware
+                    else executors.HierarchicalKey(tuple(self.index_columns))
+                ),
                 if_cached="replace" if force else "reuse-any",
             ),
         )
@@ -2920,9 +2939,12 @@ class BlockIndexProperties:
         return len(set(self.names)) == len(self.names)
 
 
-def try_new_row_join(
-    left: Block, right: Block
-) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
+def try_new_row_join(left: Block, right: Block) -> Optional[
+    Tuple[
+        Block,
+        Tuple[Mapping[str, str], Mapping[str, str]],
+    ]
+]:
     join_keys = tuple(
         (left_id, right_id)
         for left_id, right_id in zip(left.index_columns, right.index_columns)
@@ -2953,7 +2975,12 @@ def try_legacy_row_join(
     right: Block,
     *,
     how="left",
-) -> Optional[Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]]:
+) -> Optional[
+    Tuple[
+        Block,
+        Tuple[Mapping[str, str], Mapping[str, str]],
+    ]
+]:
     """Joins two blocks that have a common root expression by merging the projections."""
     left_expr = left.expr
     right_expr = right.expr
@@ -3007,7 +3034,10 @@ def try_legacy_row_join(
 def join_with_single_row(
     left: Block,
     single_row_block: Block,
-) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+) -> Tuple[
+    Block,
+    Tuple[Mapping[str, str], Mapping[str, str]],
+]:
     """
     Special join case where other is a single row block.
     This property is not validated, caller responsible for not passing multi-row block.
@@ -3042,7 +3072,10 @@ def join_mono_indexed(
     how="left",
     sort: bool = False,
     propogate_order: bool = False,
-) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+) -> Tuple[
+    Block,
+    Tuple[Mapping[str, str], Mapping[str, str]],
+]:
     left_expr = left.expr
     right_expr = right.expr
 
@@ -3072,9 +3105,9 @@ def join_mono_indexed(
         combined_expr,
         index_columns=coalesced_join_cols,
         column_labels=[*left.column_labels, *right.column_labels],
-        index_labels=[left.index.name]
-        if left.index.name == right.index.name
-        else [None],
+        index_labels=(
+            [left.index.name] if left.index.name == right.index.name else [None]
+        ),
     )
     return (
         block,
@@ -3089,7 +3122,10 @@ def join_multi_indexed(
     how="left",
     sort: bool = False,
     propogate_order: bool = False,
-) -> Tuple[Block, Tuple[Mapping[str, str], Mapping[str, str]],]:
+) -> Tuple[
+    Block,
+    Tuple[Mapping[str, str], Mapping[str, str]],
+]:
     if not (left.index.is_uniquely_named() and right.index.is_uniquely_named()):
         raise ValueError("Joins not supported on indices with non-unique level names")
 
@@ -3373,9 +3409,11 @@ def unpivot(
             *(
                 (
                     ops.eq_op.as_expr(explode_offsets_id, ex.const(i)),
-                    ex.deref(column_mapping[id_or_null])
-                    if (id_or_null is not None)
-                    else ex.const(None),
+                    (
+                        ex.deref(column_mapping[id_or_null])
+                        if (id_or_null is not None)
+                        else ex.const(None)
+                    ),
                 )
                 for i, id_or_null in enumerate(input_ids)
             )

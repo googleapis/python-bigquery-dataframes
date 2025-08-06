@@ -249,8 +249,7 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
-) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
-    ...
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]: ...
 
 
 @overload
@@ -264,8 +263,7 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[False],
-) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
-    ...
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]: ...
 
 
 @overload

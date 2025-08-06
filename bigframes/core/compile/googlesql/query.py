@@ -53,9 +53,9 @@ class QueryExpr(abc.SQLSyntax):
 class Select(abc.SQLSyntax):
     """This class represents GoogleSQL `select` syntax."""
 
-    select_list: typing.Sequence[
-        typing.Union[SelectExpression, SelectAll]
-    ] = dataclasses.field(default_factory=list)
+    select_list: typing.Sequence[typing.Union[SelectExpression, SelectAll]] = (
+        dataclasses.field(default_factory=list)
+    )
     from_clause_list: typing.Sequence[FromClause] = dataclasses.field(
         default_factory=list
     )
@@ -86,9 +86,7 @@ class Select(abc.SQLSyntax):
             alias = (
                 expr.AliasExpression(field[1])
                 if isinstance(field[1], str)
-                else field[1]
-                if (field[0] != field[1])
-                else None
+                else field[1] if (field[0] != field[1]) else None
             )
             return SelectExpression(
                 expression=expr.ColumnExpression(name=field[0]), alias=alias

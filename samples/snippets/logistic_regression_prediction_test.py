@@ -63,7 +63,10 @@ def test_logistic_regression_prediction(random_model_id: str) -> None:
             "functional_weight",
         ),
     )
-    input_data["dataframe"] = bpd.Series("training", index=input_data.index,).case_when(
+    input_data["dataframe"] = bpd.Series(
+        "training",
+        index=input_data.index,
+    ).case_when(
         [
             (((input_data["functional_weight"] % 10) == 8), "evaluation"),
             (((input_data["functional_weight"] % 10) == 9), "prediction"),

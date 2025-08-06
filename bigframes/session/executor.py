@@ -88,9 +88,9 @@ class ExecuteResult:
     ) -> Iterator[pd.DataFrame]:
         assert (page_size is None) or (page_size > 0)
         assert (max_results is None) or (max_results > 0)
-        batch_iter: Iterator[
-            Union[pyarrow.Table, pyarrow.RecordBatch]
-        ] = self.arrow_batches
+        batch_iter: Iterator[Union[pyarrow.Table, pyarrow.RecordBatch]] = (
+            self.arrow_batches
+        )
         if max_results is not None:
             batch_iter = pyarrow_utils.truncate_pyarrow_iterable(
                 batch_iter, max_results

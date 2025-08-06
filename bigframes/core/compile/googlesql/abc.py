@@ -21,5 +21,4 @@ class SQLSyntax(abc.ABC):
     """Abstract base class provides GoogleSQL syntax."""
 
     @abc.abstractmethod
-    def sql(self):
-        ...
+    def sql(self): ...

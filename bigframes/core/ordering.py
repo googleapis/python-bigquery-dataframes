@@ -332,15 +332,13 @@ class TotalOrdering(RowOrdering):
     def join(
         self,
         other: TotalOrdering,
-    ) -> TotalOrdering:
-        ...
+    ) -> TotalOrdering: ...
 
     @typing.overload
     def join(
         self,
         other: RowOrdering,
-    ) -> RowOrdering:
-        ...
+    ) -> RowOrdering: ...
 
     def join(
         self,

@@ -28,7 +28,7 @@ from typing import Dict, List
 import nox
 import nox.sessions
 
-BLACK_VERSION = "black==22.3.0"
+BLACK_VERSION = "black==25.1.0"
 FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
 MYPY_VERSION = "mypy==1.15.0"

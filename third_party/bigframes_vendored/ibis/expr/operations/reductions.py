@@ -167,9 +167,9 @@ class Sum(Filterable, Reduction):
             return dt.float64
         elif dtype.is_decimal():
             return dt.Decimal(
-                precision=max(dtype.precision, 38)
-                if dtype.precision is not None
-                else None,
+                precision=(
+                    max(dtype.precision, 38) if dtype.precision is not None else None
+                ),
                 scale=max(dtype.scale, 2) if dtype.scale is not None else None,
             )
         else:

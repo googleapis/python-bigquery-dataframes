@@ -1471,7 +1471,11 @@ def test_isin_bigframes_index(scalars_dfs, session):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (
         scalars_df["string_col"]
-        .isin(bigframes.pandas.Index(["Hello, World!", "Hi", "こんにちは"], session=session))
+        .isin(
+            bigframes.pandas.Index(
+                ["Hello, World!", "Hi", "こんにちは"], session=session
+            )
+        )
         .to_pandas()
     )
     pd_result = (
@@ -4515,9 +4519,7 @@ def test_series_pipe(
     )
 
     pd_result = (
-        scalars_pandas_df_index[column]
-        .pipe((foo, "df"), x=7, y=9)
-        .pipe(lambda x: x**2)
+        scalars_pandas_df_index[column].pipe((foo, "df"), x=7, y=9).pipe(lambda x: x**2)
     )
 
     assert_series_equal(bf_result, pd_result)

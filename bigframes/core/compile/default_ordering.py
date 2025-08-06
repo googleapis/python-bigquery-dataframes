@@ -48,9 +48,11 @@ def _convert_to_nonnull_string(column: ibis_types.Value) -> ibis_types.StringVal
     # Escape backslashes and use backslash as delineator
     escaped = cast(
         ibis_types.StringColumn,
-        result.fill_null(ibis_types.literal(""))
-        if hasattr(result, "fill_null")
-        else result.fillna(""),
+        (
+            result.fill_null(ibis_types.literal(""))
+            if hasattr(result, "fill_null")
+            else result.fillna("")
+        ),
     ).replace(
         "\\",  # type: ignore
         "\\\\",  # type: ignore

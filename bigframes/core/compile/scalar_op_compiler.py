@@ -1310,8 +1310,7 @@ def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     @ibis_udf.scalar.builtin(
         name=str(op.function_def.routine_ref), signature=ibis_py_sig
     )
-    def udf(input):
-        ...
+    def udf(input): ...
 
     x_transformed = udf(x)
     if not op.apply_on_null:
@@ -1329,8 +1328,7 @@ def binary_remote_function_op_impl(
     @ibis_udf.scalar.builtin(
         name=str(op.function_def.routine_ref), signature=ibis_py_sig
     )
-    def udf(input1, input2):
-        ...
+    def udf(input1, input2): ...
 
     x_transformed = udf(x, y)
     return x_transformed
@@ -1349,8 +1347,7 @@ def nary_remote_function_op_impl(
         signature=ibis_py_sig,
         param_name_overrides=arg_names,
     )
-    def udf(*inputs):
-        ...
+    def udf(*inputs): ...
 
     result = udf(*operands)
     return result

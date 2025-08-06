@@ -306,7 +306,7 @@ def test_isnumeric(weird_strings, weird_strings_pd):
 
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -318,7 +318,7 @@ def test_isalpha(weird_strings, weird_strings_pd):
 
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -332,7 +332,7 @@ def test_isdigit(weird_strings, weird_strings_pd):
 
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -344,7 +344,7 @@ def test_isdecimal(weird_strings, weird_strings_pd):
 
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -356,7 +356,7 @@ def test_isalnum(weird_strings, weird_strings_pd):
 
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -368,7 +368,7 @@ def test_isspace(weird_strings, weird_strings_pd):
 
     pd.testing.assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -380,7 +380,7 @@ def test_islower(weird_strings, weird_strings_pd):
 
     assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )
@@ -392,7 +392,7 @@ def test_isupper(weird_strings, weird_strings_pd):
 
     assert_series_equal(
         bf_result,
-        pd_result.astype(pd.BooleanDtype())
+        pd_result.astype(pd.BooleanDtype()),
         # the dtype here is a case of intentional diversion from pandas
         # see go/bigframes-dtypes
     )

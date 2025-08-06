@@ -237,11 +237,9 @@ def _is_table_clustered_or_partitioned(
 
 def get_index_cols(
     table: bigquery.table.Table,
-    index_col: Iterable[str]
-    | str
-    | Iterable[int]
-    | int
-    | bigframes.enums.DefaultIndexKind,
+    index_col: (
+        Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind
+    ),
     *,
     rename_to_schema: Optional[Dict[str, str]] = None,
 ) -> List[str]:

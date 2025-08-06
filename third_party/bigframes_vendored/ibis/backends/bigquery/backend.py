@@ -844,12 +844,9 @@ class Backend(SQLBackend, CanCreateDatabase, CanCreateSchema):
     def create_table(
         self,
         name: str,
-        obj: ir.Table
-        | pd.DataFrame
-        | pa.Table
-        | pl.DataFrame
-        | pl.LazyFrame
-        | None = None,
+        obj: (
+            ir.Table | pd.DataFrame | pa.Table | pl.DataFrame | pl.LazyFrame | None
+        ) = None,
         *,
         schema: sch.SchemaLike | None = None,
         database: str | None = None,

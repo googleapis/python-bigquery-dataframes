@@ -193,11 +193,9 @@ def _check_columns_param(columns: Iterable[str], table_columns: Iterable[str]):
 
 def _check_names_param(
     names: Iterable[str],
-    index_col: Iterable[str]
-    | str
-    | Iterable[int]
-    | int
-    | bigframes.enums.DefaultIndexKind,
+    index_col: (
+        Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind
+    ),
     columns: Iterable[str],
     table_columns: Iterable[str],
 ):
@@ -483,11 +481,9 @@ class GbqDataLoader:
         self,
         table_id: str,
         *,
-        index_col: Iterable[str]
-        | str
-        | Iterable[int]
-        | int
-        | bigframes.enums.DefaultIndexKind = ...,
+        index_col: (
+            Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind
+        ) = ...,
         columns: Iterable[str] = ...,
         names: Optional[Iterable[str]] = ...,
         max_results: Optional[int] = ...,
@@ -498,19 +494,16 @@ class GbqDataLoader:
         force_total_order: Optional[bool] = ...,
         n_rows: Optional[int] = None,
         index_col_in_columns: bool = False,
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     @overload
     def read_gbq_table(
         self,
         table_id: str,
         *,
-        index_col: Iterable[str]
-        | str
-        | Iterable[int]
-        | int
-        | bigframes.enums.DefaultIndexKind = ...,
+        index_col: (
+            Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind
+        ) = ...,
         columns: Iterable[str] = ...,
         names: Optional[Iterable[str]] = ...,
         max_results: Optional[int] = ...,
@@ -521,18 +514,15 @@ class GbqDataLoader:
         force_total_order: Optional[bool] = ...,
         n_rows: Optional[int] = None,
         index_col_in_columns: bool = False,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def read_gbq_table(
         self,
         table_id: str,
         *,
-        index_col: Iterable[str]
-        | str
-        | Iterable[int]
-        | int
-        | bigframes.enums.DefaultIndexKind = (),
+        index_col: (
+            Iterable[str] | str | Iterable[int] | int | bigframes.enums.DefaultIndexKind
+        ) = (),
         columns: Iterable[str] = (),
         names: Optional[Iterable[str]] = None,
         max_results: Optional[int] = None,
@@ -706,9 +696,9 @@ class GbqDataLoader:
             query = bf_io_bigquery.to_query(
                 table_id,
                 columns=all_columns,
-                sql_predicate=bf_io_bigquery.compile_filters(filters)
-                if filters
-                else None,
+                sql_predicate=(
+                    bf_io_bigquery.compile_filters(filters) if filters else None
+                ),
                 max_results=max_results,
                 # We're executing the query, so we don't need time travel for
                 # determinism.
@@ -899,8 +889,7 @@ class GbqDataLoader:
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
         allow_large_results: bool = ...,
-    ) -> dataframe.DataFrame:
-        ...
+    ) -> dataframe.DataFrame: ...
 
     @overload
     def read_gbq_query(
@@ -916,8 +905,7 @@ class GbqDataLoader:
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
         allow_large_results: bool = ...,
-    ) -> pandas.Series:
-        ...
+    ) -> pandas.Series: ...
 
     def read_gbq_query(
         self,

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 """Transformers that prepare data for other estimators. This module is styled after
-scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html."""
+scikit-learn's preprocessing module: https://scikit-learn.org/stable/modules/preprocessing.html.
+"""
 
 from __future__ import annotations
 

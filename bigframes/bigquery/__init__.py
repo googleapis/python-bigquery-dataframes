@@ -14,7 +14,7 @@
 
 """This module integrates BigQuery built-in functions for use with DataFrame objects,
 such as array functions:
-https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. """
+https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions."""
 
 from bigframes.bigquery._operations.approx_agg import approx_top_count
 from bigframes.bigquery._operations.array import (

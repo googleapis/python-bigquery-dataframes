@@ -79,7 +79,8 @@ class BlobAccessor(base.SeriesMethods):
         """Retrieve the metadata of the Blob.
 
         Returns:
-            bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
+            bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time).
+        """
         details_json = self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field(
             "details"
         )
