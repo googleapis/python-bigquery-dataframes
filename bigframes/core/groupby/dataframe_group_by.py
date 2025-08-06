@@ -264,7 +264,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     kurtosis = kurt
 
     @validations.requires_ordering()
-    def first(self, numeric_only: bool = False, min_count: int = -1) -> series.Series:
+    def first(self, numeric_only: bool = False, min_count: int = -1) -> df.DataFrame:
         window_spec = window_specs.unbound(
             grouping_keys=tuple(self._by_col_ids),
             min_periods=min_count if min_count >= 0 else 0,
@@ -286,7 +286,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return df.DataFrame(block)
 
     @validations.requires_ordering()
-    def last(self, numeric_only: bool = False, min_count: int = -1) -> series.Series:
+    def last(self, numeric_only: bool = False, min_count: int = -1) -> df.DataFrame:
         window_spec = window_specs.unbound(
             grouping_keys=tuple(self._by_col_ids),
             min_periods=min_count if min_count >= 0 else 0,
