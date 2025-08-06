@@ -19,18 +19,15 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import Callable, Generator, Mapping, TYPE_CHECKING, TypeVar, Union
+from typing import Callable, Generator, Mapping, TypeVar, Union
 
 import pandas as pd
 
 from bigframes import dtypes
 from bigframes.core import field
 import bigframes.core.identifiers as ids
-
-if TYPE_CHECKING:
-    # Avoid circular imports.
-    import bigframes.operations
-    import bigframes.operations.aggregations as agg_ops
+import bigframes.operations
+import bigframes.operations.aggregations as agg_ops
 
 
 def const(
