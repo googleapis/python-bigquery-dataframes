@@ -843,7 +843,7 @@ def test_remote_function_with_external_package_dependencies(
 ):
     try:
 
-        # The return type hint in this function's signature is redundant. The
+        # The return type hint in this function's signature has conflict. The
         # `output_type` argument from remote_function decorator takes precedence
         # and will be used instead.
         def pd_np_foo(x) -> None:
@@ -864,9 +864,9 @@ def test_remote_function_with_external_package_dependencies(
                 cloud_function_service_account="default",
             )(pd_np_foo)
 
-        input_type_warning = "Redundant or conflicting input types detected"
+        input_type_warning = "Conflicting input types detected"
         assert not any(input_type_warning in str(warning.message) for warning in record)
-        return_type_warning = "Redundant or conflicting return type detected"
+        return_type_warning = "Conflicting return type detected"
         assert any(return_type_warning in str(warning.message) for warning in record)
 
         # The behavior of the created remote function should be as expected
@@ -2022,10 +2022,11 @@ def test_remote_function_unnamed_removed_w_session_cleanup():
         def foo(x: int) -> int:
             return x + 1
 
-    input_type_warning = "Redundant or conflicting input types detected"
-    assert any(input_type_warning in str(warning.message) for warning in record)
-    return_type_warning = "Redundant or conflicting return type detected"
-    assert any(return_type_warning in str(warning.message) for warning in record)
+    # No following warning with only redundant type hints (no conflict).
+    input_type_warning = "Conflicting input types detected"
+    assert not any(input_type_warning in str(warning.message) for warning in record)
+    return_type_warning = "Conflicting return type detected"
+    assert not any(return_type_warning in str(warning.message) for warning in record)
 
     # ensure that remote function artifacts are created
     assert foo.bigframes_remote_function is not None

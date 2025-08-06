@@ -42,8 +42,9 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id):
             def featurize(x: int) -> list[float]:
                 return [float(i) for i in [x, x + 1, x + 2]]
 
-        input_type_warning = "Redundant or conflicting input types detected."
-        return_type_warning = "Redundant or conflicting return type detected"
+        # No following conflict warning when there is no redundant type hints.
+        input_type_warning = "Conflicting input types detected"
+        return_type_warning = "Conflicting return type detected"
         assert not any(input_type_warning in str(warning.message) for warning in record)
         assert not any(
             return_type_warning in str(warning.message) for warning in record
@@ -233,7 +234,7 @@ def test_managed_function_series_combine(session, dataset_id, scalars_dfs):
 def test_managed_function_series_combine_array_output(session, dataset_id, scalars_dfs):
     try:
 
-        # The type hints in this function's signature are redundant. The
+        # The type hints in this function's signature has conflicts. The
         # `input_types` and `output_type` arguments from udf decorator take
         # precedence and will be used instead.
         def add_list(x, y: bool) -> list[bool]:
@@ -256,9 +257,9 @@ def test_managed_function_series_combine_array_output(session, dataset_id, scala
                 name=prefixer.create_prefix(),
             )(add_list)
 
-        input_type_warning = "Redundant or conflicting input types detected"
+        input_type_warning = "Conflicting input types detected"
         assert any(input_type_warning in str(warning.message) for warning in record)
-        return_type_warning = "Redundant or conflicting return type detected"
+        return_type_warning = "Conflicting return type detected"
         assert any(return_type_warning in str(warning.message) for warning in record)
 
         # After filtering out nulls the managed function application should work

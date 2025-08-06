@@ -41,10 +41,6 @@ class PreviewWarning(Warning):
     """The feature is in preview."""
 
 
-class FunctionRedundantTypeHintWarning(UserWarning):
-    """Redundant or conflicting type hints in a BigFrames function."""
-
-
 class NullIndexPreviewWarning(PreviewWarning):
     """Unused. Kept for backwards compatibility.
 
@@ -105,6 +101,10 @@ class ObsoleteVersionWarning(Warning):
 
 class FunctionAxisOnePreviewWarning(PreviewWarning):
     """Remote Function and Managed UDF with axis=1 preview."""
+
+
+class FunctionConflictTypeHintWarning(UserWarning):
+    """Conflicting type hints in a BigFrames function."""
 
 
 def format_message(message: str, fill: bool = True):

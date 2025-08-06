@@ -534,13 +534,13 @@ class FunctionSession:
                 **signature_kwargs,
             )
             if input_types is not None:
-                if _utils.has_input_type(py_sig):
-                    msg = bfe.format_message(
-                        "Redundant or conflicting input types detected, using the one from the decorator."
-                    )
-                    warnings.warn(msg, category=bfe.FunctionRedundantTypeHintWarning)
                 if not isinstance(input_types, collections.abc.Sequence):
                     input_types = [input_types]
+                if _utils.has_conflict_input_type(py_sig, input_types):
+                    msg = bfe.format_message(
+                        "Conflicting input types detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(
                     parameters=[
                         par.replace(annotation=itype)
@@ -548,11 +548,11 @@ class FunctionSession:
                     ]
                 )
             if output_type:
-                if _utils.has_output_type(py_sig):
+                if _utils.has_conflict_output_type(py_sig, output_type):
                     msg = bfe.format_message(
-                        "Redundant or conflicting return type detected, using the one from the decorator."
+                        "Conflicting return type detected, using the one from the decorator."
                     )
-                    warnings.warn(msg, category=bfe.FunctionRedundantTypeHintWarning)
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(return_annotation=output_type)
 
             # Try to get input types via type annotations.
@@ -846,13 +846,13 @@ class FunctionSession:
                 **signature_kwargs,
             )
             if input_types is not None:
-                if _utils.has_input_type(py_sig):
-                    msg = bfe.format_message(
-                        "Redundant or conflicting input types detected, using the one from the decorator."
-                    )
-                    warnings.warn(msg, category=bfe.FunctionRedundantTypeHintWarning)
                 if not isinstance(input_types, collections.abc.Sequence):
                     input_types = [input_types]
+                if _utils.has_conflict_input_type(py_sig, input_types):
+                    msg = bfe.format_message(
+                        "Conflicting input types detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(
                     parameters=[
                         par.replace(annotation=itype)
@@ -860,11 +860,11 @@ class FunctionSession:
                     ]
                 )
             if output_type:
-                if _utils.has_output_type(py_sig):
+                if _utils.has_conflict_output_type(py_sig, output_type):
                     msg = bfe.format_message(
-                        "Redundant or conflicting return type detected, using the one from the decorator."
+                        "Conflicting return type detected, using the one from the decorator."
                     )
-                    warnings.warn(msg, category=bfe.FunctionRedundantTypeHintWarning)
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(return_annotation=output_type)
 
             udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)

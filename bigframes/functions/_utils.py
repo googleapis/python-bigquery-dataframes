@@ -18,7 +18,7 @@ import inspect
 import json
 import sys
 import typing
-from typing import cast, Optional, Set
+from typing import Any, cast, Optional, Sequence, Set
 
 import cloudpickle
 import google.api_core.exceptions
@@ -272,14 +272,34 @@ def _build_unnest_post_routine(py_list_type: type[list]):
     return post_process
 
 
-def has_input_type(signature: inspect.Signature) -> bool:
-    """Checks if any parameter in the signature has a type annotation."""
-    for param in signature.parameters.values():
+def has_conflict_input_type(
+    signature: inspect.Signature,
+    input_types: Sequence[Any],
+) -> bool:
+    """Checks if the parameters have any conflict with the input_types."""
+    params = list(signature.parameters.values())
+
+    if len(params) != len(input_types):
+        return True
+
+    # Check for conflicts type hints.
+    for i, param in enumerate(params):
         if param.annotation is not inspect.Parameter.empty:
-            return True
+            if param.annotation != input_types[i]:
+                return True
+
+    # No conflicts were found after checking all parameters.
     return False
 
 
-def has_output_type(signature: inspect.Signature) -> bool:
-    """Checks if the signature has a return type annotation."""
-    return signature.return_annotation is not inspect.Parameter.empty
+def has_conflict_output_type(
+    signature: inspect.Signature,
+    output_type: Any,
+) -> bool:
+    """Checks if the return type annotation conflicts with the output_type."""
+    return_annotation = signature.return_annotation
+
+    if return_annotation is inspect.Parameter.empty:
+        return False
+
+    return return_annotation != output_type
