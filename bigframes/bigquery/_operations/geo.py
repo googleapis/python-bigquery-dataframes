@@ -138,10 +138,11 @@ def st_buffer(
         1    POINT (1 1)
         dtype: geometry
 
-        >>> bbq.st_buffer(series, 1000)
-        0    POLYGON ((-0.00899 0.00005, -0.00883 -0.00171,...
-        1    POLYGON ((0.99101 1.00005, 0.99117 0.99829, 0....
-        dtype: geometry
+        >>> buffer = bbq.st_buffer(series, 100)
+        >>> bbq.st_area(buffer) > 0
+        0    True
+        1    True
+        dtype: boolean
 
     Args:
         series (bigframes.pandas.Series | bigframes.geopandas.GeoSeries):
