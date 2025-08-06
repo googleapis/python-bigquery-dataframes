@@ -16,7 +16,7 @@ import pytest
 import bigframes
 from bigframes.testing.utils import assert_pandas_df_equal
 
-polars = pytest.importorskip("polars", reason="polars is required for this test")
+polars = pytest.importorskip("polars", minversion="1.7.0")
 
 
 @pytest.fixture(scope="module")
