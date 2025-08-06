@@ -514,6 +514,53 @@ def test_where_dataframe_cond_dataframe_other(
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_where_callable_cond_constant_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is callable, other is a constant.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond = lambda x: x > 0
+    other = 10
+
+    bf_result = dataframe_bf.where(cond, other).to_pandas()
+    pd_result = dataframe_pd.where(cond, other)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_dataframe_cond_callable_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is a dataframe, other is callable.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond_bf = dataframe_bf > 0
+    cond_pd = dataframe_pd > 0
+
+    def func(x):
+        return x * 2
+
+    bf_result = dataframe_bf.where(cond_bf, func).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, func)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_callable_cond_callable_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is callable, other is callable too.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    def func(x):
+        return x["int64_col"] > 0
+
+    other = lambda x: x * 2
+
+    bf_result = dataframe_bf.where(func, other).to_pandas()
+    pd_result = dataframe_pd.where(func, other)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_drop_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
