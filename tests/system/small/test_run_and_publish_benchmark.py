@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+import sys
+
 from scripts import run_and_publish_benchmark
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 
 def test_collect_benchmark_result(tmp_path):
