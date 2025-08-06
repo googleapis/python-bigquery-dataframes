@@ -825,6 +825,8 @@ def test_series_groupby_last(
 def test_dataframe_groupby_first(
     scalars_df_index, scalars_pandas_df_index, numeric_only, min_count
 ):
+    # min_count seems to not work properly on older pandas
+    pytest.importorskip("pandas", minversion="2.0.0")
     # bytes, dates not handling min_count properly in pandas
     bf_result = (
         scalars_df_index.drop(columns=["bytes_col", "date_col"])
