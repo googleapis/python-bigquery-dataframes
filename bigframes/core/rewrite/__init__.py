@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from bigframes.core.rewrite.exract_ctes import extract_ctes
 from bigframes.core.rewrite.fold_row_count import fold_row_counts
 from bigframes.core.rewrite.identifiers import remap_variables
 from bigframes.core.rewrite.implicit_align import try_row_join
@@ -44,4 +45,5 @@ __all__ = [
     "fold_row_counts",
     "pull_out_window_order",
     "defer_selection",
+    "extract_ctes",
 ]
