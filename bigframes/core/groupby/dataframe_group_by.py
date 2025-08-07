@@ -269,9 +269,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             grouping_keys=tuple(self._by_col_ids),
             min_periods=min_count if min_count >= 0 else 0,
         )
-        to_use, index = self._aggregated_columns(numeric_only)
+        target_cols, index = self._aggregated_columns(numeric_only)
         block, firsts_ids = self._block.multi_apply_window_op(
-            to_use,
+            target_cols,
             agg_ops.FirstNonNullOp(),
             window_spec=window_spec,
         )
@@ -291,9 +291,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             grouping_keys=tuple(self._by_col_ids),
             min_periods=min_count if min_count >= 0 else 0,
         )
-        to_use, index = self._aggregated_columns(numeric_only)
+        target_cols, index = self._aggregated_columns(numeric_only)
         block, lasts_ids = self._block.multi_apply_window_op(
-            to_use,
+            target_cols,
             agg_ops.LastNonNullOp(),
             window_spec=window_spec,
         )
