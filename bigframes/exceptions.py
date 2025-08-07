@@ -79,6 +79,10 @@ class TimeTravelDisabledWarning(Warning):
     """A query was reattempted without time travel."""
 
 
+class TimeTravelCacheWarning(Warning):
+    """Reads from the same table twice in the same session pull time travel from cache."""
+
+
 class AmbiguousWindowWarning(Warning):
     """A query may produce nondeterministic results as the window may be ambiguously ordered."""
 
@@ -101,6 +105,17 @@ class ObsoleteVersionWarning(Warning):
 
 class FunctionAxisOnePreviewWarning(PreviewWarning):
     """Remote Function and Managed UDF with axis=1 preview."""
+
+
+class FunctionConflictTypeHintWarning(UserWarning):
+    """Conflicting type hints in a BigFrames function."""
+
+
+class FunctionPackageVersionWarning(PreviewWarning):
+    """
+    Managed UDF package versions for Numpy, Pandas, and Pyarrow may not
+    precisely match users' local environment or the exact versions specified.
+    """
 
 
 def format_message(message: str, fill: bool = True):
