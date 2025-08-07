@@ -582,6 +582,46 @@ def test_dataframe_groupby_nonnumeric_with_mean():
     )
 
 
+@pytest.mark.parametrize(
+    ("subset", "normalize", "ascending", "dropna", "as_index"),
+    [
+        (None, True, True, True, True),
+        (["int64_too", "int64_col"], False, False, False, False),
+    ],
+)
+def test_dataframe_groupby_value_counts(
+    scalars_df_index,
+    scalars_pandas_df_index,
+    subset,
+    normalize,
+    ascending,
+    dropna,
+    as_index,
+):
+    col_names = ["float64_col", "int64_col", "bool_col", "int64_too"]
+    bf_result = (
+        scalars_df_index[col_names]
+        .groupby("bool_col", as_index=as_index)
+        .value_counts(
+            subset=subset, normalize=normalize, ascending=ascending, dropna=dropna
+        )
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_names]
+        .groupby("bool_col", as_index=as_index)
+        .value_counts(
+            subset=subset, normalize=normalize, ascending=ascending, dropna=dropna
+        )
+    )
+
+    if as_index:
+        pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    else:
+        pd_result.index = pd_result.index.astype("Int64")
+        pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
 # ==============
 # Series.groupby
 # ==============
@@ -768,3 +808,36 @@ def test_series_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q):
     pd.testing.assert_series_equal(
         pd_result, bf_result, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("normalize", "ascending", "dropna"),
+    [
+        (
+            True,
+            True,
+            True,
+        ),
+        (
+            False,
+            False,
+            False,
+        ),
+    ],
+)
+def test_series_groupby_value_counts(
+    scalars_df_index,
+    scalars_pandas_df_index,
+    normalize,
+    ascending,
+    dropna,
+):
+    bf_result = (
+        scalars_df_index.groupby("bool_col")["string_col"]
+        .value_counts(normalize=normalize, ascending=ascending, dropna=dropna)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.groupby("bool_col")["string_col"].value_counts(
+        normalize=normalize, ascending=ascending, dropna=dropna
+    )
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
