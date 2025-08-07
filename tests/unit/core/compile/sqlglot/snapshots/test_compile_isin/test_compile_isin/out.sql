@@ -1,0 +1,10 @@
+WITH `bfcte_0` AS (
+  SELECT
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` FLOAT64, `bfcol_1` INT64>>[STRUCT(314159.0, 0), STRUCT(2.0, 1), STRUCT(3.0, 2), STRUCT(CAST(NULL AS FLOAT64), 3)])
+)
+SELECT
+  `bfcol_0` AS `0`
+FROM `bfcte_0`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST
