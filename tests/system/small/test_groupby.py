@@ -598,6 +598,8 @@ def test_dataframe_groupby_value_counts(
     dropna,
     as_index,
 ):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
     col_names = ["float64_col", "int64_col", "bool_col", "int64_too"]
     bf_result = (
         scalars_df_index[col_names]
@@ -885,6 +887,8 @@ def test_series_groupby_value_counts(
     ascending,
     dropna,
 ):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
     bf_result = (
         scalars_df_index.groupby("bool_col")["string_col"]
         .value_counts(normalize=normalize, ascending=ascending, dropna=dropna)
