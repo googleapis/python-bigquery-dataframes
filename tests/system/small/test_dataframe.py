@@ -520,11 +520,10 @@ def test_where_callable_cond_constant_other(scalars_df_index, scalars_pandas_df_
     dataframe_bf = scalars_df_index[columns]
     dataframe_pd = scalars_pandas_df_index[columns]
 
-    cond = lambda x: x > 0
     other = 10
 
-    bf_result = dataframe_bf.where(cond, other).to_pandas()
-    pd_result = dataframe_pd.where(cond, other)
+    bf_result = dataframe_bf.where(lambda x: x > 0, other).to_pandas()
+    pd_result = dataframe_pd.where(lambda x: x > 0, other)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
@@ -554,10 +553,8 @@ def test_where_callable_cond_callable_other(scalars_df_index, scalars_pandas_df_
     def func(x):
         return x["int64_col"] > 0
 
-    other = lambda x: x * 2
-
-    bf_result = dataframe_bf.where(func, other).to_pandas()
-    pd_result = dataframe_pd.where(func, other)
+    bf_result = dataframe_bf.where(func, lambda x: x * 2).to_pandas()
+    pd_result = dataframe_pd.where(func, lambda x: x * 2)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
