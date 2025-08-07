@@ -27,9 +27,10 @@ import pandas as pd
 
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.default_ordering
+from bigframes.core.compile.ibis_compiler.scalar_op_compiler import (
+    scalar_op_compiler,  # TODO(tswast): avoid import of variables
+)
 import bigframes.core.compile.ibis_types
-import bigframes.core.expression as ex
-import bigframes.dtypes
 import bigframes.operations as ops
 
 _ZERO = typing.cast(ibis_types.NumericValue, ibis_types.literal(0))
@@ -51,195 +52,7 @@ _OBJ_REF_STRUCT_SCHEMA = (
 _OBJ_REF_IBIS_DTYPE = ibis_dtypes.Struct.from_tuples(_OBJ_REF_STRUCT_SCHEMA)  # type: ignore
 
 
-class ScalarOpCompiler:
-    # Mapping of operation name to implemenations
-    _registry: dict[
-        str,
-        typing.Callable[
-            [typing.Sequence[ibis_types.Value], ops.RowOp], ibis_types.Value
-        ],
-    ] = {}
-
-    @functools.singledispatchmethod
-    def compile_expression(
-        self,
-        expression: ex.Expression,
-        bindings: typing.Dict[str, ibis_types.Value],
-    ) -> ibis_types.Value:
-        raise NotImplementedError(f"Unrecognized expression: {expression}")
-
-    @compile_expression.register
-    def _(
-        self,
-        expression: ex.ScalarConstantExpression,
-        bindings: typing.Dict[str, ibis_types.Value],
-    ) -> ibis_types.Value:
-        return bigframes.core.compile.ibis_types.literal_to_ibis_scalar(
-            expression.value, expression.dtype
-        )
-
-    @compile_expression.register
-    def _(
-        self,
-        expression: ex.DerefOp,
-        bindings: typing.Dict[str, ibis_types.Value],
-    ) -> ibis_types.Value:
-        if expression.id.sql not in bindings:
-            raise ValueError(f"Could not resolve unbound variable {expression.id}")
-        else:
-            return bindings[expression.id.sql]
-
-    @compile_expression.register
-    def _(
-        self,
-        expression: ex.OpExpression,
-        bindings: typing.Dict[str, ibis_types.Value],
-    ) -> ibis_types.Value:
-        inputs = [
-            self.compile_expression(sub_expr, bindings)
-            for sub_expr in expression.inputs
-        ]
-        return self.compile_row_op(expression.op, inputs)
-
-    def compile_row_op(
-        self, op: ops.RowOp, inputs: typing.Sequence[ibis_types.Value]
-    ) -> ibis_types.Value:
-        impl = self._registry[op.name]
-        return impl(inputs, op)
-
-    def register_unary_op(
-        self,
-        op_ref: typing.Union[ops.UnaryOp, type[ops.UnaryOp]],
-        pass_op: bool = False,
-    ):
-        """
-        Decorator to register a unary op implementation.
-
-        Args:
-            op_ref (UnaryOp or UnaryOp type):
-                Class or instance of operator that is implemented by the decorated function.
-            pass_op (bool):
-                Set to true if implementation takes the operator object as the last argument.
-                This is needed for parameterized ops where parameters are part of op object.
-        """
-        key = typing.cast(str, op_ref.name)
-
-        def decorator(impl: typing.Callable[..., ibis_types.Value]):
-            def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                if pass_op:
-                    return impl(args[0], op)
-                else:
-                    return impl(args[0])
-
-            self._register(key, normalized_impl)
-            return impl
-
-        return decorator
-
-    def register_binary_op(
-        self,
-        op_ref: typing.Union[ops.BinaryOp, type[ops.BinaryOp]],
-        pass_op: bool = False,
-    ):
-        """
-        Decorator to register a binary op implementation.
-
-        Args:
-            op_ref (BinaryOp or BinaryOp type):
-                Class or instance of operator that is implemented by the decorated function.
-            pass_op (bool):
-                Set to true if implementation takes the operator object as the last argument.
-                This is needed for parameterized ops where parameters are part of op object.
-        """
-        key = typing.cast(str, op_ref.name)
-
-        def decorator(impl: typing.Callable[..., ibis_types.Value]):
-            def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                if pass_op:
-                    return impl(args[0], args[1], op)
-                else:
-                    return impl(args[0], args[1])
-
-            self._register(key, normalized_impl)
-            return impl
-
-        return decorator
-
-    def register_ternary_op(
-        self, op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]]
-    ):
-        """
-        Decorator to register a ternary op implementation.
-
-        Args:
-            op_ref (TernaryOp or TernaryOp type):
-                Class or instance of operator that is implemented by the decorated function.
-        """
-        key = typing.cast(str, op_ref.name)
-
-        def decorator(impl: typing.Callable[..., ibis_types.Value]):
-            def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                return impl(args[0], args[1], args[2])
-
-            self._register(key, normalized_impl)
-            return impl
-
-        return decorator
-
-    def register_nary_op(
-        self, op_ref: typing.Union[ops.NaryOp, type[ops.NaryOp]], pass_op: bool = False
-    ):
-        """
-        Decorator to register a nary op implementation.
-
-        Args:
-            op_ref (NaryOp or NaryOp type):
-                Class or instance of operator that is implemented by the decorated function.
-            pass_op (bool):
-                Set to true if implementation takes the operator object as the last argument.
-                This is needed for parameterized ops where parameters are part of op object.
-        """
-        key = typing.cast(str, op_ref.name)
-
-        def decorator(impl: typing.Callable[..., ibis_types.Value]):
-            def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                if pass_op:
-                    return impl(*args, op=op)
-                else:
-                    return impl(*args)
-
-            self._register(key, normalized_impl)
-            return impl
-
-        return decorator
-
-    def _register(
-        self,
-        op_name: str,
-        impl: typing.Callable[
-            [typing.Sequence[ibis_types.Value], ops.RowOp], ibis_types.Value
-        ],
-    ):
-        if op_name in self._registry:
-            raise ValueError(f"Operation name {op_name} already registered")
-        self._registry[op_name] = impl
-
-
-# Singleton compiler
-scalar_op_compiler = ScalarOpCompiler()
-
-
 ### Unary Ops
-@scalar_op_compiler.register_unary_op(ops.isnull_op)
-def isnull_op_impl(x: ibis_types.Value):
-    return x.isnull()
-
-
-@scalar_op_compiler.register_unary_op(ops.notnull_op)
-def notnull_op_impl(x: ibis_types.Value):
-    return x.notnull()
-
-
 @scalar_op_compiler.register_unary_op(ops.hash_op)
 def hash_op_impl(x: ibis_types.Value):
     return typing.cast(ibis_types.IntegerValue, x).hash()
@@ -1036,6 +849,26 @@ def geo_st_astext_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.geo_st_boundary_op, pass_op=False)
 def geo_st_boundary_op_impl(x: ibis_types.Value):
     return st_boundary(x)
+
+
+@scalar_op_compiler.register_unary_op(ops.GeoStBufferOp, pass_op=True)
+def geo_st_buffer_op_impl(x: ibis_types.Value, op: ops.GeoStBufferOp):
+    return st_buffer(
+        x,
+        op.buffer_radius,
+        op.num_seg_quarter_circle,
+        op.use_spheroid,
+    )
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_centroid_op, pass_op=False)
+def geo_st_centroid_op_impl(x: ibis_types.Value):
+    return typing.cast(ibis_types.GeoSpatialValue, x).centroid()
+
+
+@scalar_op_compiler.register_unary_op(ops.geo_st_convexhull_op, pass_op=False)
+def geo_st_convexhull_op_impl(x: ibis_types.Value):
+    return st_convexhull(x)
 
 
 @scalar_op_compiler.register_binary_op(ops.geo_st_difference_op, pass_op=False)
@@ -2117,6 +1950,12 @@ def _ibis_num(number: float):
 
 
 @ibis_udf.scalar.builtin
+def st_convexhull(x: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
+    """ST_CONVEXHULL"""
+    ...
+
+
+@ibis_udf.scalar.builtin
 def st_geogfromtext(a: str) -> ibis_dtypes.geography:  # type: ignore
     """Convert string to geography."""
 
@@ -2134,6 +1973,16 @@ def unix_millis(a: ibis_dtypes.timestamp) -> int:  # type: ignore
 @ibis_udf.scalar.builtin
 def st_boundary(a: ibis_dtypes.geography) -> ibis_dtypes.geography:  # type: ignore
     """Find the boundary of a geography."""
+
+
+@ibis_udf.scalar.builtin
+def st_buffer(
+    geography: ibis_dtypes.geography,  # type: ignore
+    buffer_radius: ibis_dtypes.Float64,
+    num_seg_quarter_circle: ibis_dtypes.Float64,
+    use_spheroid: ibis_dtypes.Boolean,
+) -> ibis_dtypes.geography:  # type: ignore
+    ...
 
 
 @ibis_udf.scalar.builtin
