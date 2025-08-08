@@ -266,3 +266,102 @@ def test_engines_astype_timedelta(scalars_array_value: array_value.ArrayValue, e
         ops.AsTypeOp(to_type=bigframes.dtypes.TIMEDELTA_DTYPE),
     )
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_where_op(scalars_array_value: array_value.ArrayValue, engine):
+    arr, _ = scalars_array_value.compute_values(
+        [
+            ops.where_op.as_expr(
+                expression.deref("int64_col"),
+                expression.deref("bool_col"),
+                expression.deref("float64_col"),
+            )
+        ]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_coalesce_op(scalars_array_value: array_value.ArrayValue, engine):
+    arr, _ = scalars_array_value.compute_values(
+        [
+            ops.coalesce_op.as_expr(
+                expression.deref("int64_col"),
+                expression.deref("float64_col"),
+            )
+        ]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_fillna_op(scalars_array_value: array_value.ArrayValue, engine):
+    arr, _ = scalars_array_value.compute_values(
+        [
+            ops.fillna_op.as_expr(
+                expression.deref("int64_col"),
+                expression.deref("float64_col"),
+            )
+        ]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_casewhen_op_single_case(
+    scalars_array_value: array_value.ArrayValue, engine
+):
+    arr, _ = scalars_array_value.compute_values(
+        [
+            ops.case_when_op.as_expr(
+                expression.deref("bool_col"),
+                expression.deref("int64_col"),
+            )
+        ]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_casewhen_op_double_case(
+    scalars_array_value: array_value.ArrayValue, engine
+):
+    arr, _ = scalars_array_value.compute_values(
+        [
+            ops.case_when_op.as_expr(
+                ops.gt_op.as_expr(expression.deref("int64_col"), expression.const(3)),
+                expression.deref("int64_col"),
+                ops.lt_op.as_expr(expression.deref("int64_col"), expression.const(-3)),
+                expression.deref("int64_too"),
+            )
+        ]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_isnull_op(scalars_array_value: array_value.ArrayValue, engine):
+    arr, _ = scalars_array_value.compute_values(
+        [ops.isnull_op.as_expr(expression.deref("string_col"))]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_notnull_op(scalars_array_value: array_value.ArrayValue, engine):
+    arr, _ = scalars_array_value.compute_values(
+        [ops.notnull_op.as_expr(expression.deref("string_col"))]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+def test_engines_invert_op(scalars_array_value: array_value.ArrayValue, engine):
+    arr, _ = scalars_array_value.compute_values(
+        [
+            ops.invert_op.as_expr(expression.deref("bytes_col")),
+            ops.invert_op.as_expr(expression.deref("bool_col")),
+        ]
+    )
+    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
