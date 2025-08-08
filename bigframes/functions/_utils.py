@@ -14,10 +14,12 @@
 
 
 import hashlib
+import inspect
 import json
 import sys
 import typing
-from typing import cast, Optional, Set
+from typing import Any, cast, Optional, Sequence, Set
+import warnings
 
 import cloudpickle
 import google.api_core.exceptions
@@ -26,6 +28,7 @@ import numpy
 import pandas
 import pyarrow
 
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as bf_formatting
 from bigframes.functions import function_typing
 
@@ -61,21 +64,40 @@ def get_remote_function_locations(bq_location):
 
 
 def _get_updated_package_requirements(
-    package_requirements=None, is_row_processor=False, capture_references=True
+    package_requirements=None,
+    is_row_processor=False,
+    capture_references=True,
+    ignore_package_version=False,
 ):
     requirements = []
     if capture_references:
         requirements.append(f"cloudpickle=={cloudpickle.__version__}")
 
     if is_row_processor:
-        # bigframes function will send an entire row of data as json, which
-        # would be converted to a pandas series and processed Ensure numpy
-        # versions match to avoid unpickling problems. See internal issue
-        # b/347934471.
-        requirements.append(f"numpy=={numpy.__version__}")
-        requirements.append(f"pandas=={pandas.__version__}")
-        requirements.append(f"pyarrow=={pyarrow.__version__}")
+        if ignore_package_version:
+            # TODO(jialuo): Add back the version after b/410924784 is resolved.
+            # Due to current limitations on the packages version in Python UDFs,
+            # we use `ignore_package_version` to optionally omit the version for
+            # managed functions only.
+            msg = bfe.format_message(
+                "numpy, pandas, and pyarrow versions in the function execution"
+                " environment may not precisely match your local environment."
+            )
+            warnings.warn(msg, category=bfe.FunctionPackageVersionWarning)
+            requirements.append("pandas")
+            requirements.append("pyarrow")
+            requirements.append("numpy")
+        else:
+            # bigframes function will send an entire row of data as json, which
+            # would be converted to a pandas series and processed Ensure numpy
+            # versions match to avoid unpickling problems. See internal issue
+            # b/347934471.
+            requirements.append(f"pandas=={pandas.__version__}")
+            requirements.append(f"pyarrow=={pyarrow.__version__}")
+            requirements.append(f"numpy=={numpy.__version__}")
 
+    # TODO(b/435023957): Fix the issue of potential duplicate package versions
+    # when `package_requirements` also contains `pandas/pyarrow/numpy`.
     if package_requirements:
         requirements.extend(package_requirements)
 
@@ -269,3 +291,36 @@ def _build_unnest_post_routine(py_list_type: type[list]):
         return bbq.json_extract_string_array(input, value_dtype=result_dtype)
 
     return post_process
+
+
+def has_conflict_input_type(
+    signature: inspect.Signature,
+    input_types: Sequence[Any],
+) -> bool:
+    """Checks if the parameters have any conflict with the input_types."""
+    params = list(signature.parameters.values())
+
+    if len(params) != len(input_types):
+        return True
+
+    # Check for conflicts type hints.
+    for i, param in enumerate(params):
+        if param.annotation is not inspect.Parameter.empty:
+            if param.annotation != input_types[i]:
+                return True
+
+    # No conflicts were found after checking all parameters.
+    return False
+
+
+def has_conflict_output_type(
+    signature: inspect.Signature,
+    output_type: Any,
+) -> bool:
+    """Checks if the return type annotation conflicts with the output_type."""
+    return_annotation = signature.return_annotation
+
+    if return_annotation is inspect.Parameter.empty:
+        return False
+
+    return return_annotation != output_type

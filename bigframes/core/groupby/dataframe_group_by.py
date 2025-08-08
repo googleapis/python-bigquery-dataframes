@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime
 import typing
-from typing import Literal, Sequence, Tuple, Union
+from typing import Literal, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -263,6 +263,48 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     kurtosis = kurt
 
+    @validations.requires_ordering()
+    def first(self, numeric_only: bool = False, min_count: int = -1) -> df.DataFrame:
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        target_cols, index = self._aggregated_columns(numeric_only)
+        block, firsts_ids = self._block.multi_apply_window_op(
+            target_cols,
+            agg_ops.FirstNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            tuple(
+                aggs.agg(firsts_id, agg_ops.AnyValueOp()) for firsts_id in firsts_ids
+            ),
+            dropna=self._dropna,
+            column_labels=index,
+        )
+        return df.DataFrame(block)
+
+    @validations.requires_ordering()
+    def last(self, numeric_only: bool = False, min_count: int = -1) -> df.DataFrame:
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        target_cols, index = self._aggregated_columns(numeric_only)
+        block, lasts_ids = self._block.multi_apply_window_op(
+            target_cols,
+            agg_ops.LastNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            tuple(aggs.agg(lasts_id, agg_ops.AnyValueOp()) for lasts_id in lasts_ids),
+            dropna=self._dropna,
+            column_labels=index,
+        )
+        return df.DataFrame(block)
+
     def all(self) -> df.DataFrame:
         return self._aggregate_all(agg_ops.all_op)
 
@@ -329,6 +371,39 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             grouping_keys=tuple(self._by_col_ids),
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
+
+    def value_counts(
+        self,
+        subset: Optional[Sequence[blocks.Label]] = None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ) -> Union[df.DataFrame, series.Series]:
+        if subset is None:
+            columns = self._selected_cols
+        else:
+            columns = [
+                column
+                for column in self._block.value_columns
+                if self._block.col_id_to_label[column] in subset
+            ]
+        block = self._block
+        if self._dropna:  # this drops null grouping columns
+            block = block_ops.dropna(block, self._by_col_ids)
+        block = block_ops.value_counts(
+            block,
+            columns,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            drop_na=dropna,  # this drops null value columns
+            grouping_keys=self._by_col_ids,
+        )
+        if self._as_index:
+            return series.Series(block)
+        else:
+            return series.Series(block).to_frame().reset_index(drop=False)
 
     @validations.requires_ordering()
     def rolling(

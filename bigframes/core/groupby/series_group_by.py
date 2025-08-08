@@ -36,6 +36,7 @@ from bigframes.core.window import rolling
 import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df
+import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
@@ -162,6 +163,54 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     kurtosis = kurt
 
+    @validations.requires_ordering()
+    def first(self, numeric_only: bool = False, min_count: int = -1) -> series.Series:
+        if numeric_only and not bigframes.dtypes.is_numeric(
+            self._block.expr.get_column_type(self._value_column)
+        ):
+            raise TypeError(
+                f"Cannot use 'numeric_only' with non-numeric column {self._value_name}."
+            )
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        block, firsts_id = self._block.apply_window_op(
+            self._value_column,
+            agg_ops.FirstNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            (aggs.agg(firsts_id, agg_ops.AnyValueOp()),),
+            dropna=self._dropna,
+        )
+        return series.Series(block.with_column_labels([self._value_name]))
+
+    @validations.requires_ordering()
+    def last(self, numeric_only: bool = False, min_count: int = -1) -> series.Series:
+        if numeric_only and not bigframes.dtypes.is_numeric(
+            self._block.expr.get_column_type(self._value_column)
+        ):
+            raise TypeError(
+                f"Cannot use 'numeric_only' with non-numeric column {self._value_name}."
+            )
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        block, firsts_id = self._block.apply_window_op(
+            self._value_column,
+            agg_ops.LastNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            (aggs.agg(firsts_id, agg_ops.AnyValueOp()),),
+            dropna=self._dropna,
+        )
+        return series.Series(block.with_column_labels([self._value_name]))
+
     def prod(self, *args) -> series.Series:
         return self._aggregate(agg_ops.product_op)
 
@@ -194,6 +243,30 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return series.Series(agg_block)
 
     aggregate = agg
+
+    def value_counts(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ) -> Union[df.DataFrame, series.Series]:
+        columns = [self._value_column]
+        block = self._block
+        if self._dropna:  # this drops null grouping columns
+            block = block_ops.dropna(block, self._by_col_ids)
+        block = block_ops.value_counts(
+            block,
+            columns,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            drop_na=dropna,  # this drops null value columns
+            grouping_keys=self._by_col_ids,
+        )
+        # TODO: once as_index=Fales supported, return DataFrame instead by resetting index
+        # with .to_frame().reset_index(drop=False)
+        return series.Series(block)
 
     @validations.requires_ordering()
     def cumsum(self, *args, **kwargs) -> series.Series:
@@ -314,7 +387,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         discard_name=False,
         window: typing.Optional[window_specs.WindowSpec] = None,
         never_skip_nulls: bool = False,
-    ):
+    ) -> series.Series:
         """Apply window op to groupby. Defaults to grouped cumulative window."""
         window_spec = window or window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids)

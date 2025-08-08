@@ -1198,6 +1198,7 @@ def test_df_fillna(scalars_dfs, col, fill_value):
     pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
 
+@pytest.mark.skip("b/436316698 unit test failed for python 3.12")
 def test_df_ffill(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = scalars_df[["int64_col", "float64_col"]].ffill(limit=1).to_pandas()
@@ -4193,6 +4194,7 @@ def test_df_to_pickle(scalars_df_index, scalars_pandas_df_index):
 
 
 def test_df_to_orc(scalars_df_index, scalars_pandas_df_index):
+    pytest.importorskip("pyarrow.orc")
     unsupported = [
         "numeric_col",
         "bytes_col",

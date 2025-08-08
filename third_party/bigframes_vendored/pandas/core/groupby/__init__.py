@@ -537,6 +537,80 @@ class GroupBy:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def first(self, numeric_only: bool = False, min_count: int = -1):
+        """
+        Compute the first entry of each column within each group.
+
+        Defaults to skipping NA elements.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[None, 5, 6], C=[1, 2, 3]))
+            >>> df.groupby("A").first()
+                B  C
+            A
+            1  5.0  1
+            3  6.0  3
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.groupby("A").first(min_count=2)
+                B    C
+            A
+            1  <NA>     1
+            3  <NA>  <NA>
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            numeric_only (bool, default False):
+                Include only float, int, boolean columns. If None, will attempt to use
+                everything, then use only numeric data.
+            min_count (int, default -1):
+                The required number of valid values to perform the operation. If fewer
+                than ``min_count`` valid values are present the result will be NA.
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                First of values within each group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def last(self, numeric_only: bool = False, min_count: int = -1):
+        """
+        Compute the last entry of each column within each group.
+
+        Defaults to skipping NA elements.
+
+        **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[5, None, 6], C=[1, 2, 3]))
+            >>> df.groupby("A").last()
+                 B  C
+            A
+            1  5.0  2
+            3  6.0  3
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            numeric_only (bool, default False):
+                Include only float, int, boolean columns. If None, will attempt to use
+                everything, then use only numeric data.
+            min_count (int, default -1):
+                The required number of valid values to perform the operation. If fewer
+                than ``min_count`` valid values are present the result will be NA.
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Last of values within each group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def sum(
         self,
         numeric_only: bool = False,
@@ -1256,6 +1330,32 @@ class SeriesGroupBy(GroupBy):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def value_counts(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ):
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        Args:
+            normalize (bool, default False):
+                Return proportions rather than frequencies.
+            sort (bool, default True):
+                Sort by frequencies.
+            ascending (bool, default False):
+                Sort in ascending order.
+            dropna (bool, default True):
+                Don't include counts of rows that contain NA values.
+
+        Returns:
+            Series or DataFrame:
+                Series if the groupby as_index is True, otherwise DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
 
 class DataFrameGroupBy(GroupBy):
     def agg(self, func, **kwargs):
@@ -1404,5 +1504,104 @@ class DataFrameGroupBy(GroupBy):
         Returns:
             bigframes.pandas.DataFrame:
                 Number of unique values within a BigQuery DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def value_counts(
+        self,
+        subset=None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ):
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({
+            ...     'gender': ['male', 'male', 'female', 'male', 'female', 'male'],
+            ...     'education': ['low', 'medium', 'high', 'low', 'high', 'low'],
+            ...     'country': ['US', 'FR', 'US', 'FR', 'FR', 'FR']
+            ... })
+
+            >>> df
+               gender education country
+            0    male       low      US
+            1    male    medium      FR
+            2  female      high      US
+            3    male       low      FR
+            4  female      high      FR
+            5    male       low      FR
+            <BLANKLINE>
+            [6 rows x 3 columns]
+
+            >>> df.groupby('gender').value_counts()
+                 gender  education  country
+            female  high       FR         1
+                               US         1
+            male    low        FR         2
+                               US         1
+                    medium     FR         1
+            Name: count, dtype: Int64
+
+            >>> df.groupby('gender').value_counts(ascending=True)
+            gender  education  country
+            female  high       FR         1
+                               US         1
+            male    low        US         1
+                    medium     FR         1
+                    low        FR         2
+            Name: count, dtype: Int64
+
+            >>> df.groupby('gender').value_counts(normalize=True)
+            gender  education  country
+            female  high       FR          0.5
+                               US          0.5
+            male    low        FR          0.5
+                               US         0.25
+                    medium     FR         0.25
+            Name: proportion, dtype: Float64
+
+            >>> df.groupby('gender', as_index=False).value_counts()
+               gender education country  count
+            0  female      high      FR      1
+            1  female      high      US      1
+            2    male       low      FR      2
+            3    male       low      US      1
+            4    male    medium      FR      1
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+            >>> df.groupby('gender', as_index=False).value_counts(normalize=True)
+               gender education country  proportion
+            0  female      high      FR         0.5
+            1  female      high      US         0.5
+            2    male       low      FR         0.5
+            3    male       low      US        0.25
+            4    male    medium      FR        0.25
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+        Args:
+            subset (list-like, optional):
+                Columns to use when counting unique combinations.
+            normalize (bool, default False):
+                Return proportions rather than frequencies.
+            sort (bool, default True):
+                Sort by frequencies.
+            ascending (bool, default False):
+                Sort in ascending order.
+            dropna (bool, default True):
+                Don't include counts of rows that contain NA values.
+
+        Returns:
+            Series or DataFrame:
+                Series if the groupby as_index is True, otherwise DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
