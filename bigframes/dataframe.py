@@ -2475,7 +2475,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             normalize=normalize,
             sort=sort,
             ascending=ascending,
-            dropna=dropna,
+            drop_na=dropna,
         )
         return bigframes.series.Series(block)
 
@@ -2762,6 +2762,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             raise NotImplementedError(
                 "The dataframe.where() method does not support multi-column."
             )
+
+        # Execute it with the DataFrame when cond or/and other is callable.
+        if callable(cond):
+            cond = cond(self)
+        if callable(other):
+            other = other(self)
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
         # No left join is needed when 'other' is None or constant.

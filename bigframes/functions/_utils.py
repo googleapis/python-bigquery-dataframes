@@ -14,10 +14,11 @@
 
 
 import hashlib
+import inspect
 import json
 import sys
 import typing
-from typing import cast, Optional, Set
+from typing import Any, cast, Optional, Sequence, Set
 import warnings
 
 import cloudpickle
@@ -62,7 +63,7 @@ def get_remote_function_locations(bq_location):
     return bq_location, cloud_function_region
 
 
-def _get_updated_package_requirements(
+def get_updated_package_requirements(
     package_requirements=None,
     is_row_processor=False,
     capture_references=True,
@@ -104,7 +105,7 @@ def _get_updated_package_requirements(
     return requirements
 
 
-def _clean_up_by_session_id(
+def clean_up_by_session_id(
     bqclient: bigquery.Client,
     gcfclient: functions_v2.FunctionServiceClient,
     dataset: bigquery.DatasetReference,
@@ -168,7 +169,7 @@ def _clean_up_by_session_id(
             pass
 
 
-def _get_hash(def_, package_requirements=None):
+def get_hash(def_, package_requirements=None):
     "Get hash (32 digits alphanumeric) of a function."
     # There is a known cell-id sensitivity of the cloudpickle serialization in
     # notebooks https://github.com/cloudpipe/cloudpickle/issues/538. Because of
@@ -278,7 +279,7 @@ def get_python_version(is_compat: bool = False) -> str:
     return f"python{major}{minor}" if is_compat else f"python-{major}.{minor}"
 
 
-def _build_unnest_post_routine(py_list_type: type[list]):
+def build_unnest_post_routine(py_list_type: type[list]):
     sdk_type = function_typing.sdk_array_output_type_from_python_type(py_list_type)
     assert sdk_type.array_element_type is not None
     inner_sdk_type = sdk_type.array_element_type
@@ -290,3 +291,36 @@ def _build_unnest_post_routine(py_list_type: type[list]):
         return bbq.json_extract_string_array(input, value_dtype=result_dtype)
 
     return post_process
+
+
+def has_conflict_input_type(
+    signature: inspect.Signature,
+    input_types: Sequence[Any],
+) -> bool:
+    """Checks if the parameters have any conflict with the input_types."""
+    params = list(signature.parameters.values())
+
+    if len(params) != len(input_types):
+        return True
+
+    # Check for conflicts type hints.
+    for i, param in enumerate(params):
+        if param.annotation is not inspect.Parameter.empty:
+            if param.annotation != input_types[i]:
+                return True
+
+    # No conflicts were found after checking all parameters.
+    return False
+
+
+def has_conflict_output_type(
+    signature: inspect.Signature,
+    output_type: Any,
+) -> bool:
+    """Checks if the return type annotation conflicts with the output_type."""
+    return_annotation = signature.return_annotation
+
+    if return_annotation is inspect.Parameter.empty:
+        return False
+
+    return return_annotation != output_type
