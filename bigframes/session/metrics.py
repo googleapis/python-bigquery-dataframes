@@ -32,7 +32,6 @@ class ExecutionMetrics:
     bytes_processed: int = 0
     execution_secs: float = 0
     query_char_count: int = 0
-    total_rows: int = 0
 
     def count_job_stats(
         self,
@@ -47,13 +46,11 @@ class ExecutionMetrics:
             query_char_count = len(getattr(row_iterator, "query", ""))
             slot_millis = getattr(row_iterator, "slot_millis", 0)
             exec_seconds = 0.0
-            total_rows = getattr(row_iterator, "total_rows", 0) or 0
 
             self.execution_count += 1
             self.query_char_count += query_char_count
             self.bytes_processed += bytes_processed
             self.slot_millis += slot_millis
-            self.total_rows += total_rows
 
         elif query_job.configuration.dry_run:
             query_char_count = len(query_job.query)
@@ -62,22 +59,20 @@ class ExecutionMetrics:
             bytes_processed = 0
             slot_millis = 0
             exec_seconds = 0.0
-            total_rows = 0
 
         elif (stats := get_performance_stats(query_job)) is not None:
-            (
-                query_char_count,
-                bytes_processed,
-                slot_millis,
-                exec_seconds,
-                total_rows,
-            ) = stats
+            query_char_count, bytes_processed, slot_millis, exec_seconds = stats
             self.execution_count += 1
             self.query_char_count += query_char_count
             self.bytes_processed += bytes_processed
             self.slot_millis += slot_millis
             self.execution_secs += exec_seconds
-            self.total_rows += total_rows
+            write_stats_to_disk(
+                query_char_count=query_char_count,
+                bytes_processed=bytes_processed,
+                slot_millis=slot_millis,
+                exec_seconds=exec_seconds,
+            )
 
         else:
             # TODO(tswast): Pass None after making benchmark publishing robust to missing data.
@@ -85,20 +80,18 @@ class ExecutionMetrics:
             query_char_count = 0
             slot_millis = 0
             exec_seconds = 0
-            total_rows = 0
 
         write_stats_to_disk(
             query_char_count=query_char_count,
             bytes_processed=bytes_processed,
             slot_millis=slot_millis,
             exec_seconds=exec_seconds,
-            total_rows=total_rows,
         )
 
 
 def get_performance_stats(
     query_job: bigquery.QueryJob,
-) -> Optional[Tuple[int, int, int, float, int]]:
+) -> Optional[Tuple[int, int, int, float]]:
     """Parse the query job for performance stats.
 
     Return None if the stats do not reflect real work done in bigquery.
@@ -121,9 +114,6 @@ def get_performance_stats(
     execution_secs = (query_job.ended - query_job.created).total_seconds()
     query_char_count = len(query_job.query)
 
-    # Extract total rows from query job
-    total_rows = getattr(query_job, "total_rows", 0) or 0
-
     return (
         query_char_count,
         # Not every job populates these. For example, slot_millis is missing
@@ -131,7 +121,6 @@ def get_performance_stats(
         bytes_processed if bytes_processed else 0,
         slot_millis if slot_millis else 0,
         execution_secs,
-        total_rows,
     )
 
 
@@ -141,7 +130,6 @@ def write_stats_to_disk(
     bytes_processed: int,
     slot_millis: int,
     exec_seconds: float,
-    total_rows: Optional[int] = None,
 ):
     """For pytest runs only, log information about the query job
     to a file in order to create a performance report.
@@ -176,9 +164,3 @@ def write_stats_to_disk(
     bytes_file = os.path.join(current_directory, test_name + ".bytesprocessed")
     with open(bytes_file, "a") as f:
         f.write(str(bytes_processed) + "\n")
-
-    # store total rows
-    if total_rows is not None:
-        total_rows_file = os.path.join(current_directory, test_name + ".totalrows")
-        with open(total_rows_file, "a") as f:
-            f.write(str(total_rows) + "\n")
