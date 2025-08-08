@@ -99,7 +99,6 @@ def collect_benchmark_result(
             <= len(bytes_files)
             == len(query_char_count_files)
             == len(local_seconds_files)
-            == len(total_rows_files)
         ):
             raise ValueError(
                 "Mismatch in the number of report files for bytes, millis, seconds and query char count: \n"
@@ -108,10 +107,10 @@ def collect_benchmark_result(
                 f"bytes_files: {len(bytes_files)}\n"
                 f"query_char_count_files: {len(query_char_count_files)}\n"
                 f"local_seconds_files: {len(local_seconds_files)}\n"
-                f"total_rows_files: {len(total_rows_files)}\n"
             )
 
         has_full_metrics = len(bq_seconds_files) == len(local_seconds_files)
+        has_total_rows = len(total_rows_files) == len(local_seconds_files)
 
         for idx in range(len(local_seconds_files)):
             query_char_count_file = query_char_count_files[idx]
@@ -141,18 +140,14 @@ def collect_benchmark_result(
             if not has_full_metrics:
                 total_slot_millis = None
                 bq_seconds = None
-                total_rows = None
             else:
                 millis_file = millis_files[idx]
                 bq_seconds_file = bq_seconds_files[idx]
-                total_rows_file = total_rows_files[idx]
-                if (
-                    filename != millis_file.relative_to(path).with_suffix("")
-                    or filename != bq_seconds_file.relative_to(path).with_suffix("")
-                    or filename != total_rows_file.relative_to(path).with_suffix("")
-                ):
+                if filename != millis_file.relative_to(path).with_suffix(
+                    ""
+                ) or filename != bq_seconds_file.relative_to(path).with_suffix(""):
                     raise ValueError(
-                        "File name mismatch among query_char_count, bytes, millis, seconds and total_rows reports."
+                        "File name mismatch among query_char_count, bytes, millis, and seconds reports."
                     )
 
                 with open(millis_file, "r") as file:
@@ -162,6 +157,15 @@ def collect_benchmark_result(
                 with open(bq_seconds_file, "r") as file:
                     lines = file.read().splitlines()
                     bq_seconds = sum(float(line) for line in lines) / iterations
+
+            if not has_total_rows:
+                total_rows = None
+            else:
+                total_rows_file = total_rows_files[idx]
+                if filename != total_rows_file.relative_to(path).with_suffix(""):
+                    raise ValueError(
+                        "File name mismatch among query_char_count, bytes, and total_rows reports."
+                    )
 
                 with open(total_rows_file, "r") as file:
                     lines = file.read().splitlines()
@@ -220,7 +224,11 @@ def collect_benchmark_result(
         print(
             f"{index} - query count: {row['Query_Count']},"
             + f" query char count: {row['Query_Char_Count']},"
-            + f" total rows: {row['Total_Rows']},"
+            + (
+                f" total rows: {row['Total_Rows']},"
+                if not pd.isna(row["Total_Rows"])
+                else ""
+            )
             + f" bytes processed sum: {row['Bytes_Processed']},"
             + (f" slot millis sum: {row['Slot_Millis']}," if has_full_metrics else "")
             + f" local execution time: {formatted_local_exec_time} seconds"
