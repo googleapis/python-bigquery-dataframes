@@ -27,9 +27,9 @@ def last_page(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    execute_result = df._block.session._executor.execute(df._block.expr, ordered=True)
-    execute_result.total_rows or 0
-    for _ in df.to_pandas_batches(page_size=PAGE_SIZE):
+    # Get number of rows (to calculate number of pages) and then all pages.
+    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    for _ in batches:
         pass
 
 

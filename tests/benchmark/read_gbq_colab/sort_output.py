@@ -28,8 +28,8 @@ def sort_output(*, project_id, dataset_id, table_id):
     )
 
     # Simulate getting the first page, since we'll always do that first in the UI.
-    df.shape
-    next(iter(df.to_pandas_batches(page_size=PAGE_SIZE)))
+    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    next(iter(batches))
 
     # Simulate the user sorting by a column and visualizing those results
     sort_column = "col_int64_1"
@@ -37,8 +37,8 @@ def sort_output(*, project_id, dataset_id, table_id):
         sort_column = "col_bool_0"
 
     df_sorted = df.sort_values(sort_column)
-    df_sorted.shape
-    next(iter(df_sorted.to_pandas_batches(page_size=PAGE_SIZE)))
+    batches_sorted = df_sorted.to_pandas_batches(page_size=PAGE_SIZE)
+    next(iter(batches_sorted))
 
 
 if __name__ == "__main__":
