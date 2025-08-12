@@ -474,7 +474,7 @@ def pdf_extract_func(src_obj_ref_rt: str) -> str:
 
 
 pdf_extract_def = FunctionDef(
-    pdf_extract_func, ["pypdf", "requests", "cryptography>=3.4.0"]
+    pdf_extract_func, ["pypdf>=5.3.1", "requests", "cryptography>=3.4.0"]
 )
 
 
@@ -530,5 +530,5 @@ def pdf_chunk_func(src_obj_ref_rt: str, chunk_size: int, overlap_size: int) -> s
 
 
 pdf_chunk_def = FunctionDef(
-    pdf_chunk_func, ["pypdf", "requests", "cryptography>=3.4.0"]
+    pdf_chunk_func, ["pypdf>=5.3.1", "requests", "cryptography>=3.4.0"]
 )
