@@ -72,26 +72,27 @@ class TableWidget(WIDGET_BASE):
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
-        self._batches: Optional[bigframes.core.blocks.PandasBatches] = None
         self._cached_batches: List[pd.DataFrame] = []
 
         # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        # Fetches initial data batches and row count for display.
         batches = dataframe.to_pandas_batches(
             page_size=initial_page_size,
         )
-        self._batches = cast(bigframes.core.blocks.PandasBatches, batches)
+        self._batches: bigframes.core.blocks.PandasBatches = cast(
+            bigframes.core.blocks.PandasBatches, batches
+        )
 
-        # Use total_rwos from batches directly
+        # The query issued by `to_pandas_batches()` already contains metadata
+        # about how many results there were. Use that to avoid doing an extra
+        # COUNT(*) query that `len(...)` would do.
         self.row_count = self._batches.total_rows or 0
 
         # Set page_size after _batches is available since traitlets observers
         # may depend on _batches being initialized when the change trigger happens
         self.page_size = initial_page_size
 
-        # Generates the initial HTML table content
         self._set_table_html()
 
     @functools.cached_property
@@ -182,11 +183,7 @@ class TableWidget(WIDGET_BASE):
     @property
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
-        if self._batch_iter is None:
-            if self._batches is None:
-                self._batch_iter = iter([])
-            else:
-                self._batch_iter = iter(self._batches)
+        self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
