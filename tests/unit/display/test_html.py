@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 import bigframes as bf
@@ -22,7 +25,7 @@ import bigframes.display.html as bf_html
 @pytest.mark.parametrize(
     ("data", "expected_alignments", "expected_strings"),
     [
-        (
+        pytest.param(
             {
                 "string_col": ["a", "b", "c"],
                 "int_col": [1, 2, 3],
@@ -36,6 +39,88 @@ import bigframes.display.html as bf_html
                 "bool_col": "left",
             },
             ["1.100000", "2.200000", "3.300000"],
+            id="scalars",
+        ),
+        pytest.param(
+            {
+                "timestamp_col": pa.array(
+                    [
+                        datetime.datetime.fromisoformat(value)
+                        for value in [
+                            "2024-01-01 00:00:00",
+                            "2024-01-01 00:00:01",
+                            "2024-01-01 00:00:02",
+                        ]
+                    ],
+                    pa.timestamp("us", tz="UTC"),
+                ),
+                "datetime_col": pa.array(
+                    [
+                        datetime.datetime.fromisoformat(value)
+                        for value in [
+                            "2027-06-05 04:03:02.001",
+                            "2027-01-01 00:00:01",
+                            "2027-01-01 00:00:02",
+                        ]
+                    ],
+                    pa.timestamp("us"),
+                ),
+                "date_col": pa.array(
+                    [
+                        datetime.date(1999, 1, 1),
+                        datetime.date(1999, 1, 2),
+                        datetime.date(1999, 1, 3),
+                    ],
+                    pa.date32(),
+                ),
+                "time_col": pa.array(
+                    [
+                        datetime.time(11, 11, 0),
+                        datetime.time(11, 11, 1),
+                        datetime.time(11, 11, 2),
+                    ],
+                    pa.time64("us"),
+                ),
+            },
+            {
+                "timestamp_col": "left",
+                "datetime_col": "left",
+                "date_col": "left",
+                "time_col": "left",
+            },
+            [
+                "2024-01-01 00:00:00",
+                "2027-06-05 04:03:02.001",
+                "1999-01-01",
+                "11:11:01",
+            ],
+            id="datetimes",
+        ),
+        pytest.param(
+            {
+                "array_col": pd.Series(
+                    [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+                    dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+                ),
+            },
+            {
+                "array_col": "left",
+            },
+            ["[1, 2, 3]", "[4, 5, 6]", "[7, 8, 9]"],
+            id="array",
+        ),
+        pytest.param(
+            {
+                "struct_col": pd.Series(
+                    [{"v": 1}, {"v": 2}, {"v": 3}],
+                    dtype=pd.ArrowDtype(pa.struct([("v", pa.int64())])),
+                ),
+            },
+            {
+                "struct_col": "left",
+            },
+            ["{&#x27;v&#x27;: 1}", "{&#x27;v&#x27;: 2}", "{&#x27;v&#x27;: 3}"],
+            id="struct",
         ),
     ],
 )
