@@ -35,7 +35,7 @@ def render_html(
     table_id: str,
 ) -> str:
     """Render a pandas DataFrame to HTML with specific styling."""
-    classes = "table table-striped table-hover"
+    classes = "dataframe table table-striped table-hover"
     table_html = [f'<table border="1" class="{classes}" id="{table_id}">']
     precision = options.display.precision
 
@@ -50,14 +50,16 @@ def render_html(
     table_html.append("  </thead>")
 
     # Render table body
-    table_html.append('  <tbody style="padding: 0.5em;">')
+    table_html.append("  <tbody>")
     for i in range(len(dataframe)):
         table_html.append("    <tr>")
         row = dataframe.iloc[i]
         for col_name, value in row.items():
             dtype = dataframe.dtypes.loc[col_name]  # type: ignore
             align = "right" if _is_dtype_numeric(dtype) else "left"
-            table_html.append('      <td style="text-align: {};">'.format(align))
+            table_html.append(
+                '      <td style="text-align: {}; padding: 0.5em;">'.format(align)
+            )
 
             # TODO(b/438181139): Consider semi-exploding ARRAY/STRUCT columns
             # into multiple rows/columns like the BQ UI does.

@@ -132,7 +132,7 @@ def test_render_html_alignment_and_precision(
 
     for _, align in expected_alignments.items():
         assert 'th style="text-align: left;"' in html
-        assert f'<td style="text-align: {align};">' in html
+        assert f'<td style="text-align: {align};' in html
 
     for expected_string in expected_strings:
         assert expected_string in html
