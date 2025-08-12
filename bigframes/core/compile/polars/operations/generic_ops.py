@@ -48,7 +48,7 @@ def isnull_op_impl(
 
 
 @polars_compiler.register_op(generic_ops.PyUdfOp)
-def pyudf_op_impl(
+def py_udf_op_impl(
     compiler: polars_compiler.PolarsExpressionCompiler,
     op: generic_ops.PyUdfOp,  # type: ignore
     input: pl.Expr,
