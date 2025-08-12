@@ -28,7 +28,7 @@ class DisplayOptions:
 
     # Options borrowed from pandas.
     max_columns: int = 20
-    max_rows: int = 25
+    max_rows: int = 10
     precision: int = 6
 
     # Options unique to BigQuery DataFrames.

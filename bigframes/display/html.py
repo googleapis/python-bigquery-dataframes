@@ -44,13 +44,13 @@ def render_html(
     table_html.append('    <tr style="text-align: left;">')
     for col in dataframe.columns:
         table_html.append(
-            f'      <th style="text-align: left;"><div style="resize: horizontal; overflow: auto; width: 100%; height: 100%;">{html.escape(str(col))}</div></th>'
+            f'      <th style="text-align: left;"><div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">{html.escape(str(col))}</div></th>'
         )
     table_html.append("    </tr>")
     table_html.append("  </thead>")
 
     # Render table body
-    table_html.append("  <tbody>")
+    table_html.append('  <tbody style="padding: 0.5em;">')
     for i in range(len(dataframe)):
         table_html.append("    <tr>")
         row = dataframe.iloc[i]
