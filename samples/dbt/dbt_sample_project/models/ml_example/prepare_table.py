@@ -87,7 +87,7 @@ def model(dbt, session):
     params_dfs.append(wind_speed_df)
 
     # Combine data for all the selected parameters.
-    df = bpd.concat(params_dfs, axis=1, join="inner").cache()
+    df = bpd.concat(params_dfs, axis=1, join="inner")
     df = df.reset_index()
 
     return df
