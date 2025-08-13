@@ -122,3 +122,8 @@ def test_sub_unsupported_raises(scalar_types_df: bpd.DataFrame):
 
     with pytest.raises(TypeError):
         _apply_binary_op(scalar_types_df, ops.sub_op, "int64_col", "string_col")
+
+
+def test_obj_make_ref(scalar_types_df: bpd.DataFrame, snapshot):
+    blob_df = scalar_types_df["string_col"].str.to_blob()
+    snapshot.assert_match(blob_df.to_frame().sql, "out.sql")
