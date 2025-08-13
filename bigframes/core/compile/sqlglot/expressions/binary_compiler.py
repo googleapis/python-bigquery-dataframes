@@ -83,7 +83,7 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
         right_expr = sge.Cast(this=right_expr, to="INT64")
 
     result = sge.func("IEEE_DIVIDE", left_expr, right_expr)
-    if dtypes.is_numeric(right.dtype) and left.dtype == dtypes.TIMEDELTA_DTYPE:
+    if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
         return sge.Cast(this=sge.Floor(this=result), to="INT64")
     else:
         return result
@@ -111,7 +111,7 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     result = sge.Mul(this=left_expr, expression=right_expr)
 
     if (dtypes.is_numeric(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE) or (
-        dtypes.is_numeric(right.dtype) and left.dtype == dtypes.TIMEDELTA_DTYPE
+        left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype)
     ):
         return sge.Cast(this=sge.Floor(this=result), to="INT64")
     else:

@@ -95,10 +95,9 @@ def test_div_numeric(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_div_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["timestamp_col", "date_col"]]
+    bf_df = scalar_types_df[["timestamp_col", "int64_col"]]
     timedelta = pd.Timedelta(1, unit="d")
-
-    bf_df["timedelta_div_numeric"] = timedelta / 2
+    bf_df["timedelta_div_numeric"] = timedelta / bf_df["int64_col"]
 
     snapshot.assert_match(bf_df.sql, "out.sql")
 
@@ -158,10 +157,10 @@ def test_mul_numeric(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_mul_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["timestamp_col", "date_col"]]
+    bf_df = scalar_types_df[["timestamp_col", "int64_col"]]
     timedelta = pd.Timedelta(1, unit="d")
 
-    bf_df["timedelta_mul_numeric"] = timedelta * 2
-    bf_df["numeric_mul_timedelta"] = 2 * timedelta
+    bf_df["timedelta_mul_numeric"] = timedelta * bf_df["int64_col"]
+    bf_df["numeric_mul_timedelta"] = bf_df["int64_col"] * timedelta
 
     snapshot.assert_match(bf_df.sql, "out.sql")
