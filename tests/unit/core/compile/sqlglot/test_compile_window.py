@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import numpy as np
-from packaging import version
 import pandas as pd
 import pytest
-import sqlglot
 
 import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
 
-if version.Version(sqlglot.__version__) < version.Version("25.0.0"):
+if sys.version_info < (3, 12):
     pytest.skip(
-        "Skip tests for sqlglot < 25.0.0 due to SQL formatting issues",
+        "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
         allow_module_level=True,
     )
 
