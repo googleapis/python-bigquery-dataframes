@@ -421,4 +421,5 @@ def test_engines_isin_op(scalars_array_value: array_value.ArrayValue, engine):
     arr = arr.rename_columns(
         {old_name: new_names[i] for i, old_name in enumerate(col_ids)}
     )
+
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
