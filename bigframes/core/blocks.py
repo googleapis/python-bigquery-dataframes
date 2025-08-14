@@ -445,7 +445,7 @@ class Block:
                     if "index" not in self.column_labels and self.index.nlevels <= 1:
                         label = "index"
                     else:
-                        label = f"level_{self.index.names.index(label)}"
+                        label = f"level_{self.index_columns.index(level_id)}"
 
                 if label in self.column_labels:
                     raise ValueError(f"cannot insert {label}, already exists")
