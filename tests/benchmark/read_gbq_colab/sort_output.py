@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 
 import benchmark.utils as utils
 
@@ -29,6 +30,7 @@ def sort_output(*, project_id, dataset_id, table_id):
 
     # Simulate getting the first page, since we'll always do that first in the UI.
     batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    assert typing.cast(typing.Any, batches).total_rows >= 0
     next(iter(batches))
 
     # Simulate the user sorting by a column and visualizing those results
@@ -38,6 +40,7 @@ def sort_output(*, project_id, dataset_id, table_id):
 
     df_sorted = df.sort_values(sort_column)
     batches_sorted = df_sorted.to_pandas_batches(page_size=PAGE_SIZE)
+    assert typing.cast(typing.Any, batches_sorted).total_rows >= 0
     next(iter(batches_sorted))
 
 

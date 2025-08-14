@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 
 import benchmark.utils as utils
 
@@ -27,6 +28,7 @@ def aggregate_output(*, project_id, dataset_id, table_id):
 
     # Simulate getting the first page, since we'll always do that first in the UI.
     batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    assert typing.cast(typing.Any, batches).total_rows >= 0
     next(iter(batches))
 
     # To simulate very small rows that can only fit a boolean,
