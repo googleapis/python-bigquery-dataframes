@@ -30,10 +30,9 @@ def first_page(*, project_id, dataset_id, table_id):
 
     # Get number of rows (to calculate number of pages) and the first page.
     batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    assert typing.cast(typing.Any, batches).total_rows >= 0
     first_page = next(iter(batches))
     assert first_page is not None
-    total_rows = typing.cast(typing.Any, batches).total_rows
-    assert total_rows is not None
 
 
 if __name__ == "__main__":
