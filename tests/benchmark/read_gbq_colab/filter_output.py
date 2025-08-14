@@ -37,6 +37,7 @@ def filter_output(
     # Simulate the user filtering by a column and visualizing those results
     df_filtered = df[df["col_bool_0"]]
     batches_filtered = df_filtered.to_pandas_batches(page_size=PAGE_SIZE)
+    assert batches_filtered.total_rows >= 0
 
     # It's possible we don't have any pages at all, since we filtered out all
     # matching rows.
