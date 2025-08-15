@@ -1,13 +1,9 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    -`bfcol_0` AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `float64_col`
-FROM `bfcte_1`
+  -(
+    `t0`.`float64_col`
+  ) AS `float64_col`
+FROM (
+  SELECT
+    `float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-15T22:12:35.305875')
+) AS `t0`

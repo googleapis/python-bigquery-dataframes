@@ -1,13 +1,7 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    INTERVAL `bfcol_0` SECOND AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `int64_col`
-FROM `bfcte_1`
+  CAST(FLOOR(`t0`.`int64_col` * 1000000) AS INT64) AS `int64_col`
+FROM (
+  SELECT
+    `int64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-15T22:12:35.305875')
+) AS `t0`
