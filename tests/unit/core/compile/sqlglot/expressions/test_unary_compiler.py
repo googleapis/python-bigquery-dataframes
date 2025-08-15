@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import pytest
 
 from bigframes import operations as ops
@@ -21,14 +23,21 @@ import bigframes.pandas as bpd
 pytest.importorskip("pytest_snapshot")
 
 
-def _apply_unary_op(obj: bpd.DataFrame, op: ops.UnaryOp, arg: str) -> str:
+def _apply_unary_op(
+    obj: bpd.DataFrame, ops: ops.UnaryOp | typing.Sequence[ops.UnaryOp], arg: str
+) -> str:
     array_value = obj._block.expr
-    op_expr = op.as_expr(arg)
-    result, col_ids = array_value.compute_values([op_expr])
+    if not isinstance(ops, typing.Sequence):
+        ops = [ops]
+    op_expr = [op.as_expr(arg) for op in ops]
+    result, col_ids = array_value.compute_values(op_expr)
 
     # Rename columns for deterministic golden SQL results.
-    assert len(col_ids) == 1
-    result = result.rename_columns({col_ids[0]: arg}).select_columns([arg])
+    rename_cols = {
+        col_id: arg if index == 0 else f"{arg}_{index}"
+        for index, col_id in enumerate(col_ids)
+    }
+    result = result.rename_columns(rename_cols).select_columns([arg])
 
     sql = result.session._executor.to_sql(result, enable_cache=False)
     return sql
@@ -599,9 +608,11 @@ def test_to_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_to_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col"]]
-    sql = _apply_unary_op(bf_df, ops.ToTimedeltaOp("s"), "int64_col")
+    bf_df["duration_us"] = bpd.to_timedelta(bf_df["int64_col"], "us")
+    bf_df["duration_s"] = bpd.to_timedelta(bf_df["int64_col"], "s")
+    bf_df["duration_w"] = bpd.to_timedelta(bf_df["int64_col"], "W")
 
-    snapshot.assert_match(sql, "out.sql")
+    snapshot.assert_match(bf_df.sql, "out.sql")
 
 
 def test_unix_micros(scalar_types_df: bpd.DataFrame, snapshot):
