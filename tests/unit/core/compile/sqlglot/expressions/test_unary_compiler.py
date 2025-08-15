@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-
 import pytest
 
 from bigframes import operations as ops
@@ -23,21 +21,14 @@ import bigframes.pandas as bpd
 pytest.importorskip("pytest_snapshot")
 
 
-def _apply_unary_op(
-    obj: bpd.DataFrame, ops: ops.UnaryOp | typing.Sequence[ops.UnaryOp], arg: str
-) -> str:
+def _apply_unary_op(obj: bpd.DataFrame, op: ops.UnaryOp, arg: str) -> str:
     array_value = obj._block.expr
-    if not isinstance(ops, typing.Sequence):
-        ops = [ops]
-    op_expr = [op.as_expr(arg) for op in ops]
-    result, col_ids = array_value.compute_values(op_expr)
+    op_expr = op.as_expr(arg)
+    result, col_ids = array_value.compute_values([op_expr])
 
     # Rename columns for deterministic golden SQL results.
-    rename_cols = {
-        col_id: arg if index == 0 else f"{arg}_{index}"
-        for index, col_id in enumerate(col_ids)
-    }
-    result = result.rename_columns(rename_cols).select_columns([arg])
+    assert len(col_ids) == 1
+    result = result.rename_columns({col_ids[0]: arg}).select_columns([arg])
 
     sql = result.session._executor.to_sql(result, enable_cache=False)
     return sql
