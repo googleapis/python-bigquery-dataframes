@@ -16,15 +16,15 @@ import dataclasses
 import typing
 
 import bigframes.core
-import bigframes.core.compile.sqlglot as sqlglot
+from bigframes.core.compile import configs
+from bigframes.core.compile.ibis_compiler import ibis_compiler
+
 import bigframes.session.executor
 
 
 @dataclasses.dataclass
 class SQLCompilerExecutor(bigframes.session.executor.Executor):
     """Executor for SQL compilation using sqlglot."""
-
-    compiler = sqlglot
 
     def to_sql(
         self,
@@ -38,6 +38,6 @@ class SQLCompilerExecutor(bigframes.session.executor.Executor):
 
         # Compared with BigQueryCachingExecutor, SQLCompilerExecutor skips
         # caching the subtree.
-        return self.compiler.SQLGlotCompiler().compile(
-            array_value.node, ordered=ordered
-        )
+        request = configs.CompileRequest(array_value.node, sort_rows=ordered)
+        compiled = ibis_compiler.compile_sql(request)
+        return compiled.sql

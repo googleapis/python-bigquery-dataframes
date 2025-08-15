@@ -1,13 +1,7 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `string_list_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    `bfcol_0`[SAFE_OFFSET(1)] AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `string_list_col`
-FROM `bfcte_1`
+  `t0`.`string_list_col`[safe_offset(1)] AS `string_list_col`
+FROM (
+  SELECT
+    `string_list_col`
+  FROM `bigframes-dev.sqlglot_test.repeated_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-15T22:12:37.046629')
+) AS `t0`
