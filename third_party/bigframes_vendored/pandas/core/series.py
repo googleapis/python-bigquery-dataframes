@@ -1456,8 +1456,7 @@ class Series(NDFrame):  # type: ignore[misc]
         Compute the dot product between the Series and the columns of other.
 
         This method computes the dot product between the Series and another
-        one, or the Series and each columns of a DataFrame, or the Series and
-        each columns of an array.
+        one, or the Series and each columns of a DataFrame.
 
         It can also be called using `self @ other` in Python >= 3.5.
 
@@ -1482,8 +1481,19 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s @ other
             np.int64(8)
 
+        The other operand can be a DataFrame:
+
+            >>> other = bpd.DataFrame({"a" : [-1, 2, -3, 4],
+            ...                        "b" : [-10, 20, -30, 40],
+            ...                        "c" : [-1, 2, -3, bpd.NA]})
+            >>> s @ other
+            a       8
+            b      80
+            c    <NA>
+            dtype: Int64
+
         Args:
-            other (Series):
+            other (Series, or DataFrame):
                 The other object to compute the dot product with its columns.
 
         Returns:
