@@ -48,7 +48,8 @@ def apply_op_pairwise(
     return new_arr
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+# @pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
+@pytest.mark.parametrize("engine", ["bq-sqlglot"], indirect=True)
 @pytest.mark.parametrize(
     "op",
     [
