@@ -171,5 +171,5 @@ def test_has_conflict_output_type_no_annotation():
 
     signature = inspect.signature(_func_without_return_type)
 
-    assert not has_conflict_output_type(signature, int)
-    assert not has_conflict_output_type(signature, float)
+    assert not has_conflict_output_type(signature, output_type=int)
+    assert not has_conflict_output_type(signature, output_type=float)
