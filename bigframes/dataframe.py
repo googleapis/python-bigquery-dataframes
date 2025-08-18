@@ -23,6 +23,7 @@ import json
 import re
 import sys
 import textwrap
+import traceback
 import typing
 from typing import (
     Callable,
@@ -814,7 +815,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             except (AttributeError, ValueError, ImportError):
                 # Fallback if anywidget is not available
                 warnings.warn(
-                    "Anywidget mode is not available. Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. Falling back to deferred mode."
+                    "Anywidget mode is not available. "
+                    "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
+                    f"Falling back to deferred mode. Error: {traceback.format_exc()}"
                 )
                 return formatter.repr_query_job(self._compute_dry_run())
 
@@ -2312,9 +2315,39 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return DataFrame(block.with_index_labels(self._block.index.names))
 
-    def reset_index(self, *, drop: bool = False) -> DataFrame:
-        block = self._block.reset_index(drop)
-        return DataFrame(block)
+    @overload  # type: ignore[override]
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        drop: bool = ...,
+        inplace: Literal[False] = ...,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        drop: bool = ...,
+        inplace: Literal[True] = ...,
+    ) -> None:
+        ...
+
+    @overload
+    def reset_index(
+        self, level: blocks.LevelsType = None, drop: bool = False, inplace: bool = ...
+    ) -> Optional[DataFrame]:
+        ...
+
+    def reset_index(
+        self, level: blocks.LevelsType = None, drop: bool = False, inplace: bool = False
+    ) -> Optional[DataFrame]:
+        block = self._block.reset_index(level, drop)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
 
     def set_index(
         self,
