@@ -108,6 +108,18 @@ def test_eq_null_match(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_gt_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+
+    bf_df["int_gt_int"] = bf_df["int64_col"] > bf_df["int64_col"]
+    bf_df["int_gt_1"] = bf_df["int64_col"] > 1
+
+    bf_df["int_gt_bool"] = bf_df["int64_col"] > bf_df["bool_col"]
+    bf_df["bool_gt_int"] = bf_df["bool_col"] > bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
 def test_json_set(json_types_df: bpd.DataFrame, snapshot):
     bf_df = json_types_df[["json_col"]]
     sql = _apply_binary_op(
