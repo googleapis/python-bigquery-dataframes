@@ -175,3 +175,15 @@ def test_mul_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
 def test_obj_make_ref(scalar_types_df: bpd.DataFrame, snapshot):
     blob_df = scalar_types_df["string_col"].str.to_blob()
     snapshot.assert_match(blob_df.to_frame().sql, "out.sql")
+
+
+def test_ne_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+
+    bf_df["int_ne_int"] = bf_df["int64_col"] != bf_df["int64_col"]
+    bf_df["int_ne_1"] = bf_df["int64_col"] != 1
+
+    bf_df["int_ne_bool"] = bf_df["int64_col"] != bf_df["bool_col"]
+    bf_df["bool_ne_int"] = bf_df["bool_col"] != bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
