@@ -102,6 +102,12 @@ def test_div_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 
+def test_eq_null_match(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+    sql = _apply_binary_op(bf_df, ops.eq_null_match_op, "int64_col", "bool_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_json_set(json_types_df: bpd.DataFrame, snapshot):
     bf_df = json_types_df[["json_col"]]
     sql = _apply_binary_op(
