@@ -89,9 +89,10 @@ class TableWidget(WIDGET_BASE):
         # Create pandas batches from the ExecuteResult
         self._batches = execute_result.to_pandas_batches(page_size=initial_page_size)
 
-        # Set page_size after _batches is available since traitlets observers
-        # may depend on _batches being initialized when the change trigger happens
-        self.page_size = initial_page_size
+        # Set page_size after _batches is available, but avoid triggering observers
+        # by setting the underlying traitlet value directly
+        self._trait_values["page_size"] = initial_page_size
+        self._trait_notifiers["page_size"] = {}  # Initialize notifiers if needed
 
         self._set_table_html()
 
@@ -168,11 +169,8 @@ class TableWidget(WIDGET_BASE):
             batch = next(iterator)
             self._cached_batches.append(batch)
             return True
-        except StopIteration as e:
+        except StopIteration:
             self._all_data_loaded = True
-            if not isinstance(e, StopIteration):
-                # If we fail to get a batch, assume no more data is available.
-                self.row_count = 0
             return False
 
     @property
