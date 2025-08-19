@@ -24,12 +24,14 @@ from bigframes.functions import _utils, function_typing
 def test_get_updated_package_requirements_no_extra_package():
     """Tests with no extra package."""
     result = _utils.get_updated_package_requirements(capture_references=False)
+
     assert result is None
 
     initial_packages = ["xgboost"]
     result = _utils.get_updated_package_requirements(
         initial_packages, capture_references=False
     )
+
     assert result == initial_packages
 
 
@@ -46,6 +48,7 @@ def test_get_updated_package_requirements_is_row_processor_with_versions():
         "pyarrow==14.0.1",
     ]
     result = _utils.get_updated_package_requirements(is_row_processor=True)
+
     assert result == expected
 
 
@@ -60,6 +63,7 @@ def test_get_updated_package_requirements_ignore_version(mock_warn):
     result = _utils.get_updated_package_requirements(
         is_row_processor=True, ignore_package_version=True
     )
+
     assert result == expected
     # Verify that a warning was issued.
     mock_warn.assert_called_once()
@@ -75,6 +79,7 @@ def test_get_updated_package_requirements_capture_references_false():
     """
     # Case 1: Only capture_references=False.
     result_1 = _utils.get_updated_package_requirements(capture_references=False)
+
     assert result_1 is None
 
     # Case 2: capture_references=False but is_row_processor=True.
@@ -82,6 +87,7 @@ def test_get_updated_package_requirements_capture_references_false():
     result_2 = _utils.get_updated_package_requirements(
         is_row_processor=True, capture_references=False
     )
+
     assert result_2 == expected_2
 
 
@@ -103,6 +109,7 @@ def test_get_updated_package_requirements_non_overlapping_packages():
     result = _utils.get_updated_package_requirements(
         package_requirements=initial_packages, is_row_processor=True
     )
+
     assert result == expected
 
 
@@ -123,6 +130,7 @@ def test_get_updated_package_requirements_overlapping_packages():
     result = _utils.get_updated_package_requirements(
         package_requirements=initial_packages, is_row_processor=True
     )
+
     assert result == expected
 
 
@@ -134,12 +142,14 @@ def test_get_updated_package_requirements_with_existing_cloudpickle():
     result = _utils.get_updated_package_requirements(
         package_requirements=initial_packages
     )
+
     assert result == expected
 
 
 def test_package_existed_helper():
     """Tests the _package_existed helper function directly."""
     reqs = ["pandas==1.0", "numpy", "scikit-learn>=1.2.0"]
+
     # Exact match
     assert _utils._package_existed(reqs, "pandas==1.0")
     # Different version
@@ -212,6 +222,7 @@ def test_has_conflict_output_type_no_annotation():
     ),
 )
 def test_get_bigframes_metadata(metadata_options, metadata_string):
+
     assert _utils.get_bigframes_metadata(**metadata_options) == metadata_string
 
 
@@ -230,6 +241,7 @@ def test_get_bigframes_metadata(metadata_options, metadata_string):
 def test_get_bigframes_metadata_array_type_not_serializable(output_type):
     with pytest.raises(ValueError) as context:
         _utils.get_bigframes_metadata(python_output_type=output_type)
+
     assert str(context.value) == (
         f"python_output_type {output_type} is not serializable. {constants.FEEDBACK_LINK}"
     )
@@ -283,6 +295,7 @@ def test_get_bigframes_metadata_array_type_not_serializable(output_type):
 def test_get_python_output_type_from_bigframes_metadata(
     metadata_string, python_output_type
 ):
+
     assert (
         _utils.get_python_output_type_from_bigframes_metadata(metadata_string)
         == python_output_type
@@ -293,4 +306,5 @@ def test_metadata_roundtrip_supported_array_types():
     for array_of in function_typing.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
         ser = _utils.get_bigframes_metadata(python_output_type=list[array_of])  # type: ignore
         deser = _utils.get_python_output_type_from_bigframes_metadata(ser)
+
         assert deser == list[array_of]  # type: ignore
