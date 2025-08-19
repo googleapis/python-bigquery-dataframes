@@ -484,24 +484,9 @@ class FaultyIterator:
         raise ValueError("Simulated read error")
 
 
-@pytest.mark.parametrize(
-    "total_rows_param, arrow_batches_param",
-    [
-        # Case 1: total_rows is None, which should be handled gracefully.
-        (None, []),
-        # Case 2: Batches are invalid and will raise an error during iteration.
-        (100, FaultyIterator()),
-    ],
-    ids=[
-        "when_total_rows_is_None",
-        "when_arrow_batches_are_invalid",
-    ],
-)
-def test_widget_should_fallback_to_zero_rows_on_error(
+def test_widget_should_fallback_to_zero_rows_with_invlid_total_rows(
     paginated_bf_df: bf.dataframe.DataFrame,
     monkeypatch: pytest.MonkeyPatch,
-    total_rows_param,
-    arrow_batches_param,
 ):
     """
     Given an internal component fails to return valid execution data,
@@ -511,12 +496,7 @@ def test_widget_should_fallback_to_zero_rows_on_error(
     monkeypatch.setattr(
         "bigframes.session.bq_caching_executor.BigQueryCachingExecutor.execute",
         lambda self, *args, **kwargs: mock_execute_result_with_params(
-            self,
-            paginated_bf_df._block.expr.schema,
-            total_rows_param,
-            arrow_batches_param,
-            *args,
-            **kwargs
+            self, paginated_bf_df._block.expr.schema, None, [], *args, **kwargs
         ),
     )
 

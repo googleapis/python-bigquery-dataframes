@@ -17,8 +17,7 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-import typing
-from typing import Any, cast, Dict, Iterator, List, Optional, Type
+from typing import Any, Dict, Iterator, List, Optional, Type
 import uuid
 
 import pandas as pd
@@ -76,17 +75,19 @@ class TableWidget(WIDGET_BASE):
         # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        batches = dataframe.to_pandas_batches(
-            page_size=initial_page_size,
-        )
-        self._batches: bigframes.core.blocks.PandasBatches = cast(
-            bigframes.core.blocks.PandasBatches, batches
+        execute_result = dataframe._block.session._executor.execute(
+            dataframe._block.expr,
+            ordered=True,
+            use_explicit_destination=True,
         )
 
         # The query issued by `to_pandas_batches()` already contains metadata
         # about how many results there were. Use that to avoid doing an extra
         # COUNT(*) query that `len(...)` would do.
-        self.row_count = self._batches.total_rows or 0
+        self.row_count = execute_result.total_rows or 0
+
+        # Create pandas batches from the ExecuteResult
+        self._batches = execute_result.to_pandas_batches(page_size=initial_page_size)
 
         # Set page_size after _batches is available since traitlets observers
         # may depend on _batches being initialized when the change trigger happens
@@ -189,8 +190,16 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
-        self._batches = typing.cast(bigframes.core.blocks.PandasBatches, batches)
+        # Execute with explicit destination for consistency with __init__
+        execute_result = self._dataframe._block.session._executor.execute(
+            self._dataframe._block.expr,
+            ordered=True,
+            use_explicit_destination=True,
+        )
+
+        # Create pandas batches from the ExecuteResult
+        self._batches = execute_result.to_pandas_batches(page_size=self.page_size)
+
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False

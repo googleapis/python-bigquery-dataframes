@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 
 import benchmark.utils as utils
 
-import bigframes.core.blocks
 import bigframes.pandas as bpd
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
@@ -33,17 +31,29 @@ def filter_output(
     df = bpd._read_gbq_colab(f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}")
 
     # Simulate getting the first page, since we'll always do that first in the UI.
-    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    # Force BigQuery execution to get total_rows metadata
+    execute_result = df._block.session._executor.execute(
+        df._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
+    )
+    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches))
 
     # Simulate the user filtering by a column and visualizing those results
     df_filtered = df[df["col_bool_0"]]
-    batches_filtered = df_filtered.to_pandas_batches(page_size=PAGE_SIZE)
-    batches_filtered = typing.cast(
-        bigframes.core.blocks.PandasBatches, batches_filtered
+    # Force BigQuery execution for filtered DataFrame to get total_rows metadata
+    execute_result_filtered = df_filtered._block.session._executor.execute(
+        df_filtered._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
     )
-    rows = batches_filtered.total_rows
+
+    rows = execute_result_filtered.total_rows or 0
     assert rows >= 0
+
+    batches_filtered = execute_result_filtered.to_pandas_batches(page_size=PAGE_SIZE)
+
     # It's possible we don't have any pages at all, since we filtered out all
     # matching rows.
     first_page = next(iter(batches_filtered))
