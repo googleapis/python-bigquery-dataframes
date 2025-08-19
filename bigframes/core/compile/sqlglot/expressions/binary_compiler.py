@@ -141,6 +141,17 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.func("JSON_SET", left.expr, sge.convert(op.json_path), right.expr)
 
 
+@BINARY_OP_REGISTRATION.register(ops.lt_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    left_expr = left.expr
+    if left.dtype == dtypes.BOOL_DTYPE:
+        left_expr = sge.Cast(this=left_expr, to="INT64")
+    right_expr = right.expr
+    if right.dtype == dtypes.BOOL_DTYPE:
+        right_expr = sge.Cast(this=right_expr, to="INT64")
+    return sge.LT(this=left_expr, expression=right_expr)
+
+
 @BINARY_OP_REGISTRATION.register(ops.mul_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     left_expr = left.expr
