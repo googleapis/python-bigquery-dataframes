@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 
 import benchmark.utils as utils
 
@@ -29,8 +28,13 @@ def sort_output(*, project_id, dataset_id, table_id):
     )
 
     # Simulate getting the first page, since we'll always do that first in the UI.
-    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
-    assert typing.cast(typing.Any, batches).total_rows >= 0
+    execute_result = df._block.session._executor.execute(
+        df._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
+    )
+    assert execute_result.total_rows is not None and execute_result.total_rows >= 0
+    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches))
 
     # Simulate the user sorting by a column and visualizing those results
@@ -39,8 +43,16 @@ def sort_output(*, project_id, dataset_id, table_id):
         sort_column = "col_bool_0"
 
     df_sorted = df.sort_values(sort_column)
-    batches_sorted = df_sorted.to_pandas_batches(page_size=PAGE_SIZE)
-    assert typing.cast(typing.Any, batches_sorted).total_rows >= 0
+    execute_result_sorted = df_sorted._block.session._executor.execute(
+        df_sorted._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
+    )
+    assert (
+        execute_result_sorted.total_rows is not None
+        and execute_result_sorted.total_rows >= 0
+    )
+    batches_sorted = execute_result_sorted.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches_sorted))
 
 
