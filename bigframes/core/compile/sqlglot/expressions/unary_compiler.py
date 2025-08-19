@@ -22,8 +22,8 @@ import sqlglot
 import sqlglot.expressions as sge
 
 from bigframes import operations as ops
-import bigframes.core.compile.sqlglot.expressions.constants as constants
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
+import bigframes.core.compile.sqlglot.expressions.constants as constants
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
