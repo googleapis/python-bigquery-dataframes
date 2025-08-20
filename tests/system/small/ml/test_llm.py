@@ -217,7 +217,7 @@ def test_gemini_text_generator_predict_output_schema_success(
     llm_text_df: bpd.DataFrame, model_name, session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name="gemini-2.0-flash-001",
+        model_name=model_name,
         connection_name=bq_connection,
         session=session,
     )
@@ -812,12 +812,18 @@ def test_text_embedding_generator_no_default_model_warning(model_class):
         model_class(model_name=None)
 
 
-@pytest.mark.flaky(retries=2)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
+    ),
+)
 def test_gemini_text_generator_predict_struct_schema_succeeds(
-    llm_text_df: bpd.DataFrame, session, bq_connection
+    llm_text_df: bpd.DataFrame, session, bq_connection, model_name
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name="gemini-2.0-flash-001",
+        model_name=model_name,
         connection_name=bq_connection,
         session=session,
     )
@@ -839,12 +845,18 @@ def test_gemini_text_generator_predict_struct_schema_succeeds(
     )
 
 
-@pytest.mark.flaky(retries=2)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
+    ),
+)
 def test_gemini_text_generator_predict_struct_schema_flat_succeeds(
-    llm_text_df: bpd.DataFrame, session, bq_connection
+    llm_text_df: bpd.DataFrame, session, bq_connection, model_name
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name="gemini-2.0-flash-001",
+        model_name=model_name,
         connection_name=bq_connection,
         session=session,
     )
@@ -865,12 +877,18 @@ def test_gemini_text_generator_predict_struct_schema_flat_succeeds(
     )
 
 
-@pytest.mark.flaky(retries=2)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
+    ),
+)
 def test_gemini_text_generator_predict_array_schema_succeeds(
-    llm_text_df: bpd.DataFrame, session, bq_connection
+    llm_text_df: bpd.DataFrame, session, bq_connection, model_name
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name="gemini-2.0-flash-001",
+        model_name=model_name,
         connection_name=bq_connection,
         session=session,
     )
@@ -889,12 +907,18 @@ def test_gemini_text_generator_predict_array_schema_succeeds(
     )
 
 
-@pytest.mark.flaky(retries=2)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
+    ),
+)
 def test_gemini_text_generator_predict_array_struct_schema_succeeds(
-    llm_text_df: bpd.DataFrame, session, bq_connection
+    llm_text_df: bpd.DataFrame, session, bq_connection, model_name
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name="gemini-2.0-flash-001",
+        model_name=model_name,
         connection_name=bq_connection,
         session=session,
     )
@@ -915,12 +939,18 @@ def test_gemini_text_generator_predict_array_struct_schema_succeeds(
     )
 
 
-@pytest.mark.flaky(retries=2)
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "gemini-2.0-flash-001",
+        "gemini-2.0-flash-lite-001",
+    ),
+)
 def test_gemini_text_generator_predict_invalid_schema_fails(
-    llm_text_df: bpd.DataFrame, session, bq_connection
+    llm_text_df: bpd.DataFrame, session, bq_connection, model_name
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name="gemini-2.0-flash-001",
+        model_name=model_name,
         connection_name=bq_connection,
         session=session,
     )
