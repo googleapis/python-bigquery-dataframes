@@ -20,9 +20,8 @@ import unittest.mock as mock
 import pandas as pd
 import pytest
 
-import bigframes.core.global_session
 import bigframes.dataframe
-import bigframes.pandas as bpd
+import bigframes.pandas
 import bigframes.session
 
 leading_whitespace = re.compile(r"^\s+", flags=re.MULTILINE)
@@ -165,9 +164,9 @@ def test_cut_raises_with_invalid_bins(bins: int, error_message: str):
 
 
 def test_pandas_attribute():
-    assert bpd.NA is pd.NA
-    assert bpd.BooleanDtype is pd.BooleanDtype
-    assert bpd.Float64Dtype is pd.Float64Dtype
-    assert bpd.Int64Dtype is pd.Int64Dtype
-    assert bpd.StringDtype is pd.StringDtype
-    assert bpd.ArrowDtype is pd.ArrowDtype
+    assert bigframes.pandas.NA is pd.NA
+    assert bigframes.pandas.BooleanDtype is pd.BooleanDtype
+    assert bigframes.pandas.Float64Dtype is pd.Float64Dtype
+    assert bigframes.pandas.Int64Dtype is pd.Int64Dtype
+    assert bigframes.pandas.StringDtype is pd.StringDtype
+    assert bigframes.pandas.ArrowDtype is pd.ArrowDtype
