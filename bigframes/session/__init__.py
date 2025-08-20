@@ -59,6 +59,7 @@ import pyarrow as pa
 
 from bigframes import exceptions as bfe
 from bigframes import version
+import bigframes._config
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 import bigframes.constants
@@ -554,7 +555,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
-        allow_large_results: bool = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -571,7 +572,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
-        allow_large_results: bool = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> pandas.Series:
         ...
 
@@ -587,7 +588,7 @@ class Session(
         col_order: Iterable[str] = (),
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
-        allow_large_results: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> dataframe.DataFrame | pandas.Series:
         """Turn a SQL query into a DataFrame.
 
@@ -672,7 +673,7 @@ class Session(
             allow_large_results (bool, optional):
                 Whether to allow large query results. If ``True``, the query
                 results can be larger than the maximum response size.
-                Defaults to ``True``.
+                Defaults to ``bpd.options.compute.allow_large_results``.
 
         Returns:
             bigframes.pandas.DataFrame or pandas.Series:
@@ -692,6 +693,9 @@ class Session(
             )
         elif col_order:
             columns = col_order
+
+        if allow_large_results is None:
+            allow_large_results = bigframes._config.options._allow_large_results
 
         return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
             query=query,

@@ -395,7 +395,7 @@ def read_gbq_query(  # type: ignore[overload-overlap]
     col_order: Iterable[str] = ...,
     filters: vendored_pandas_gbq.FiltersType = ...,
     dry_run: Literal[False] = ...,
-    allow_large_results: bool = ...,
+    allow_large_results: Optional[bool] = ...,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
@@ -412,7 +412,7 @@ def read_gbq_query(
     col_order: Iterable[str] = ...,
     filters: vendored_pandas_gbq.FiltersType = ...,
     dry_run: Literal[True] = ...,
-    allow_large_results: bool = ...,
+    allow_large_results: Optional[bool] = ...,
 ) -> pandas.Series:
     ...
 
@@ -428,7 +428,7 @@ def read_gbq_query(
     col_order: Iterable[str] = (),
     filters: vendored_pandas_gbq.FiltersType = (),
     dry_run: bool = False,
-    allow_large_results: bool = True,
+    allow_large_results: Optional[bool] = None,
 ) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query)
     return global_session.with_default_session(
