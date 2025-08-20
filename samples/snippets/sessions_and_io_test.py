@@ -13,9 +13,11 @@
 # limitations under the License.
 
 
-def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
+def test_sessions_and_io(project_id: str, dataset_id: str, gcs_bucket: str) -> None:
     YOUR_PROJECT_ID = project_id
+    YOUR_DATASET_ID = dataset_id
     YOUR_LOCATION = "us"
+    YOUR_BUCKET = gcs_bucket
 
     # [START bigquery_dataframes_create_and_use_session_instance]
     import bigframes
@@ -65,7 +67,7 @@ def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
     # [END bigquery_dataframes_set_options_for_global_session]
 
     # [START bigquery_dataframes_global_session_is_the_default_session]
-    # The following two statements are essentiall the same
+    # The following two statements are essentially the same
     df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
     df = bpd.get_global_session().read_gbq("bigquery-public-data.ml_datasets.penguins")
     # [END bigquery_dataframes_global_session_is_the_default_session]
@@ -138,6 +140,15 @@ def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
     # [END bigquery_dataframes_read_data_from_csv]
     assert df is not None
 
+    # [START bigquery_dataframes_write_data_to_csv]
+    import bigframes.pandas as bpd
+
+    df = bpd.DataFrame({"my_col": [1, 2, 3]})
+    # Write a dataframe to a CSV file in GCS
+    df.to_csv(f"gs://{YOUR_BUCKET}/myfile*.csv")
+    # [END bigquery_dataframes_write_data_to_csv]
+    assert df is not None
+
     # [START bigquery_dataframes_read_data_from_bigquery_table]
     import bigframes.pandas as bpd
 
@@ -158,12 +169,12 @@ def test_sessions_and_io(project_id: str, dataset_id: str) -> None:
     # [END bigquery_dataframes_read_from_sql_query]
     assert df is not None
 
-    table_name = "snippets-session-and-io-test"
+    YOUR_TABLE_NAME = "snippets-session-and-io-test"
 
     # [START bigquery_dataframes_dataframe_to_bigquery_table]
     import bigframes.pandas as bpd
 
     df = bpd.DataFrame({"my_col": [1, 2, 3]})
 
-    df.to_gbq(f"{project_id}.{dataset_id}.{table_name}")
+    df.to_gbq(f"{YOUR_PROJECT_ID}.{YOUR_DATASET_ID}.{YOUR_TABLE_NAME}")
     # [END bigquery_dataframes_dataframe_to_bigquery_table]

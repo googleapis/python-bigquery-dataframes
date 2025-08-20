@@ -406,17 +406,59 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return False
         return block_ops.equals(self._block, other._block)
 
+    @overload  # type: ignore[override]
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        *,
+        name: typing.Optional[str] = ...,
+        drop: Literal[False] = ...,
+        inplace: Literal[False] = ...,
+    ) -> bigframes.dataframe.DataFrame:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        *,
+        name: typing.Optional[str] = ...,
+        drop: Literal[True] = ...,
+        inplace: Literal[False] = ...,
+    ) -> Series:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        *,
+        name: typing.Optional[str] = ...,
+        drop: bool = ...,
+        inplace: Literal[True] = ...,
+    ) -> None:
+        ...
+
     @validations.requires_ordering()
     def reset_index(
         self,
+        level: blocks.LevelsType = None,
         *,
         name: typing.Optional[str] = None,
         drop: bool = False,
-    ) -> bigframes.dataframe.DataFrame | Series:
-        block = self._block.reset_index(drop)
+        inplace: bool = False,
+    ) -> bigframes.dataframe.DataFrame | Series | None:
+        block = self._block.reset_index(level, drop)
         if drop:
+            if inplace:
+                self._set_block(block)
+                return None
             return Series(block)
         else:
+            if inplace:
+                raise ValueError(
+                    "Series.reset_index cannot combine inplace=True and drop=False"
+                )
             if name:
                 block = block.assign_label(self._value_column, name)
             return bigframes.dataframe.DataFrame(block)
@@ -1436,7 +1478,23 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             for item in batch_df.squeeze(axis=1).items():
                 yield item
 
+    def _apply_callable(self, condition):
+        """ "Executes the possible callable condition as needed."""
+        if callable(condition):
+            # When it's a bigframes function.
+            if hasattr(condition, "bigframes_bigquery_function"):
+                return self.apply(condition)
+            # When it's a plain Python function.
+            else:
+                return self.apply(condition, by_row=False)
+
+        # When it's not a callable.
+        return condition
+
     def where(self, cond, other=None):
+        cond = self._apply_callable(cond)
+        other = self._apply_callable(other)
+
         value_id, cond_id, other_id, block = self._align3(cond, other)
         block, result_id = block.project_expr(
             ops.where_op.as_expr(value_id, cond_id, other_id)
@@ -1631,7 +1689,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             [self._value_column],
             normalize=normalize,
             ascending=ascending,
-            dropna=dropna,
+            drop_na=dropna,
         )
         return Series(block)
 

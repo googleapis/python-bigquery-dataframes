@@ -527,8 +527,8 @@ def test_remote_function_restore_with_bigframes_series(
         add_one_uniq, add_one_uniq_dir = make_uniq_udf(add_one)
 
         # Expected cloud function name for the unique udf
-        package_requirements = bff_utils._get_updated_package_requirements()
-        add_one_uniq_hash = bff_utils._get_hash(add_one_uniq, package_requirements)
+        package_requirements = bff_utils.get_updated_package_requirements()
+        add_one_uniq_hash = bff_utils.get_hash(add_one_uniq, package_requirements)
         add_one_uniq_cf_name = bff_utils.get_cloud_function_name(
             add_one_uniq_hash, session.session_id
         )
@@ -843,22 +843,31 @@ def test_remote_function_with_external_package_dependencies(
 ):
     try:
 
-        def pd_np_foo(x):
+        # The return type hint in this function's signature has conflict. The
+        # `output_type` argument from remote_function decorator takes precedence
+        # and will be used instead.
+        def pd_np_foo(x) -> None:
             import numpy as mynp
             import pandas as mypd
 
             return mypd.Series([x, mynp.sqrt(mynp.abs(x))]).sum()
 
-        # Create the remote function with the name provided explicitly
-        pd_np_foo_remote = session.remote_function(
-            input_types=[int],
-            output_type=float,
-            dataset=dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
-            packages=["numpy", "pandas >= 2.0.0"],
-            cloud_function_service_account="default",
-        )(pd_np_foo)
+        with warnings.catch_warnings(record=True) as record:
+            # Create the remote function with the name provided explicitly
+            pd_np_foo_remote = session.remote_function(
+                input_types=[int],
+                output_type=float,
+                dataset=dataset_id,
+                bigquery_connection=bq_cf_connection,
+                reuse=False,
+                packages=["numpy", "pandas >= 2.0.0"],
+                cloud_function_service_account="default",
+            )(pd_np_foo)
+
+        input_type_warning = "Conflicting input types detected"
+        assert not any(input_type_warning in str(warning.message) for warning in record)
+        return_type_warning = "Conflicting return type detected"
+        assert any(return_type_warning in str(warning.message) for warning in record)
 
         # The behavior of the created remote function should be as expected
         scalars_df, scalars_pandas_df = scalars_dfs
@@ -1999,10 +2008,25 @@ def test_remote_function_unnamed_removed_w_session_cleanup():
     # create a clean session
     session = bigframes.connect()
 
-    # create an unnamed remote function in the session
-    @session.remote_function(reuse=False, cloud_function_service_account="default")
-    def foo(x: int) -> int:
-        return x + 1
+    with warnings.catch_warnings(record=True) as record:
+        # create an unnamed remote function in the session.
+        # The type hints in this function's signature are redundant. The
+        # `input_types` and `output_type` arguments from remote_function
+        # decorator take precedence and will be used instead.
+        @session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo(x: int) -> int:
+            return x + 1
+
+    # No following warning with only redundant type hints (no conflict).
+    input_type_warning = "Conflicting input types detected"
+    assert not any(input_type_warning in str(warning.message) for warning in record)
+    return_type_warning = "Conflicting return type detected"
+    assert not any(return_type_warning in str(warning.message) for warning in record)
 
     # ensure that remote function artifacts are created
     assert foo.bigframes_remote_function is not None
@@ -2823,3 +2847,125 @@ def test_remote_function_connection_path_format(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_df_where(session, dataset_id, scalars_dfs):
+    try:
+
+        # The return type has to be bool type for callable where condition.
+        def is_sum_positive(a, b):
+            return a + b > 0
+
+        is_sum_positive_mf = session.remote_function(
+            input_types=[int, int],
+            output_type=bool,
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(is_sum_positive)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+        int64_cols = ["int64_col", "int64_too"]
+
+        bf_int64_df = scalars_df[int64_cols]
+        bf_int64_df_filtered = bf_int64_df.dropna()
+        pd_int64_df = scalars_pandas_df[int64_cols]
+        pd_int64_df_filtered = pd_int64_df.dropna()
+
+        # Use callable condition in dataframe.where method.
+        bf_result = bf_int64_df_filtered.where(is_sum_positive_mf, 0).to_pandas()
+        # Pandas doesn't support such case, use following as workaround.
+        pd_result = pd_int64_df_filtered.where(pd_int64_df_filtered.sum(axis=1) > 0, 0)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(
+            is_sum_positive_mf, session.bqclient, ignore_failures=False
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_df_where_series(session, dataset_id, scalars_dfs):
+    try:
+
+        # The return type has to be bool type for callable where condition.
+        def is_sum_positive_series(s):
+            return s["int64_col"] + s["int64_too"] > 0
+
+        is_sum_positive_series_mf = session.remote_function(
+            input_types=bigframes.series.Series,
+            output_type=bool,
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(is_sum_positive_series)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+        int64_cols = ["int64_col", "int64_too"]
+
+        bf_int64_df = scalars_df[int64_cols]
+        bf_int64_df_filtered = bf_int64_df.dropna()
+        pd_int64_df = scalars_pandas_df[int64_cols]
+        pd_int64_df_filtered = pd_int64_df.dropna()
+
+        # This is for callable `other` arg in dataframe.where method.
+        def func_for_other(x):
+            return -x
+
+        # Use callable condition in dataframe.where method.
+        bf_result = bf_int64_df_filtered.where(
+            is_sum_positive_series, func_for_other
+        ).to_pandas()
+        pd_result = pd_int64_df_filtered.where(is_sum_positive_series, func_for_other)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(
+            is_sum_positive_series_mf, session.bqclient, ignore_failures=False
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_series_where(session, dataset_id, scalars_dfs):
+    try:
+
+        def _ten_times(x):
+            return x * 10
+
+        ten_times_mf = session.remote_function(
+            input_types=float,
+            output_type=float,
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(_ten_times)
+
+        scalars, scalars_pandas = scalars_dfs
+
+        bf_int64 = scalars["float64_col"]
+        bf_int64_filtered = bf_int64.dropna()
+        pd_int64 = scalars_pandas["float64_col"]
+        pd_int64_filtered = pd_int64.dropna()
+
+        # The cond is not a callable and the other is a callable (remote
+        # function) in series.where method.
+        bf_result = bf_int64_filtered.where(
+            cond=bf_int64_filtered < 0, other=ten_times_mf
+        ).to_pandas()
+        pd_result = pd_int64_filtered.where(
+            cond=pd_int64_filtered < 0, other=_ten_times
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(ten_times_mf, session.bqclient, ignore_failures=False)

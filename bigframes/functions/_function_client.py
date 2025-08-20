@@ -19,7 +19,6 @@ import inspect
 import logging
 import os
 import random
-import re
 import shutil
 import string
 import tempfile
@@ -246,8 +245,8 @@ class FunctionClient:
 
         # Augment user package requirements with any internal package
         # requirements.
-        packages = _utils._get_updated_package_requirements(
-            packages, is_row_processor, capture_references
+        packages = _utils.get_updated_package_requirements(
+            packages, is_row_processor, capture_references, ignore_package_version=True
         )
         if packages:
             managed_function_options["packages"] = packages
@@ -259,7 +258,7 @@ class FunctionClient:
         bq_function_name = name
         if not bq_function_name:
             # Compute a unique hash representing the user code.
-            function_hash = _utils._get_hash(func, packages)
+            function_hash = _utils.get_hash(func, packages)
             bq_function_name = _utils.get_bigframes_function_name(
                 function_hash,
                 session_id,
@@ -270,28 +269,6 @@ class FunctionClient:
         )
 
         udf_name = func.__name__
-        if capture_references:
-            # This code path ensures that if the udf body contains any
-            # references to variables and/or imports outside the body, they are
-            # captured as well.
-            import cloudpickle
-
-            pickled = cloudpickle.dumps(func)
-            udf_code = textwrap.dedent(
-                f"""
-                import cloudpickle
-                {udf_name} = cloudpickle.loads({pickled})
-            """
-            )
-        else:
-            # This code path ensures that if the udf body is self contained,
-            # i.e. there are no references to variables or imports outside the
-            # body.
-            udf_code = textwrap.dedent(inspect.getsource(func))
-            match = re.search(r"^def ", udf_code, flags=re.MULTILINE)
-            if match is None:
-                raise ValueError("The UDF is not defined correctly.")
-            udf_code = udf_code[match.start() :]
 
         with_connection_clause = (
             (
@@ -299,6 +276,13 @@ class FunctionClient:
             )
             if bq_connection_id
             else ""
+        )
+
+        # Generate the complete Python code block for the managed Python UDF,
+        # including the user's function, necessary imports, and the BigQuery
+        # handler wrapper.
+        python_code_block = bff_template.generate_managed_function_code(
+            func, udf_name, is_row_processor, capture_references
         )
 
         create_function_ddl = (
@@ -311,13 +295,11 @@ class FunctionClient:
                 OPTIONS ({managed_function_options_str})
                 AS r'''
                 __UDF_PLACE_HOLDER__
-                def bigframes_handler(*args):
-                    return {udf_name}(*args)
                 '''
             """
             )
             .strip()
-            .replace("__UDF_PLACE_HOLDER__", udf_code)
+            .replace("__UDF_PLACE_HOLDER__", python_code_block)
         )
 
         self._ensure_dataset_exists()
@@ -384,8 +366,8 @@ class FunctionClient:
     def create_cloud_function(
         self,
         def_,
-        cf_name,
         *,
+        random_name,
         input_types: Tuple[str],
         output_type: str,
         package_requirements=None,
@@ -446,9 +428,9 @@ class FunctionClient:
             create_function_request.parent = (
                 self.get_cloud_function_fully_qualified_parent()
             )
-            create_function_request.function_id = cf_name
+            create_function_request.function_id = random_name
             function = functions_v2.Function()
-            function.name = self.get_cloud_function_fully_qualified_name(cf_name)
+            function.name = self.get_cloud_function_fully_qualified_name(random_name)
             function.build_config = functions_v2.BuildConfig()
             function.build_config.runtime = python_version
             function.build_config.entry_point = entry_point
@@ -515,24 +497,25 @@ class FunctionClient:
                 # Cleanup
                 os.remove(archive_path)
             except google.api_core.exceptions.AlreadyExists:
-                # If a cloud function with the same name already exists, let's
-                # update it
-                update_function_request = functions_v2.UpdateFunctionRequest()
-                update_function_request.function = function
-                operation = self._cloud_functions_client.update_function(
-                    request=update_function_request
-                )
-                operation.result()
+                # b/437124912: The most likely scenario is that
+                # `create_function` had a retry due to a network issue. The
+                # retried request then fails because the first call actually
+                # succeeded, but we didn't get the successful response back.
+                #
+                # Since the function name was randomly chosen to avoid
+                # conflicts, we know the AlreadyExist can only happen because
+                # we created it. This error is safe to ignore.
+                pass
 
         # Fetch the endpoint of the just created function
-        endpoint = self.get_cloud_function_endpoint(cf_name)
+        endpoint = self.get_cloud_function_endpoint(random_name)
         if not endpoint:
             raise bf_formatting.create_exception_with_feedback_link(
                 ValueError, "Couldn't fetch the http endpoint."
             )
 
         logger.info(
-            f"Successfully created cloud function {cf_name} with uri ({endpoint})"
+            f"Successfully created cloud function {random_name} with uri ({endpoint})"
         )
         return endpoint
 
@@ -556,12 +539,12 @@ class FunctionClient:
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
         # requirements
-        package_requirements = _utils._get_updated_package_requirements(
+        package_requirements = _utils.get_updated_package_requirements(
             package_requirements, is_row_processor
         )
 
         # Compute a unique hash representing the user code
-        function_hash = _utils._get_hash(def_, package_requirements)
+        function_hash = _utils.get_hash(def_, package_requirements)
 
         # If reuse of any existing function with the same name (indicated by the
         # same hash of its source code) is not intended, then attach a unique
@@ -589,7 +572,7 @@ class FunctionClient:
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
                 def_,
-                cloud_function_name,
+                random_name=cloud_function_name,
                 input_types=input_types,
                 output_type=output_type,
                 package_requirements=package_requirements,

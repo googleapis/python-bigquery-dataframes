@@ -30,11 +30,10 @@ from google.cloud import bigquery
 import pyarrow as pa
 
 from bigframes.core import utils
-import bigframes.core.compile.aggregate_compiler as agg_compiler
 import bigframes.core.compile.googlesql
+import bigframes.core.compile.ibis_compiler.aggregate_compiler as agg_compiler
+import bigframes.core.compile.ibis_compiler.scalar_op_compiler as op_compilers
 import bigframes.core.compile.ibis_types
-import bigframes.core.compile.scalar_op_compiler as op_compilers
-import bigframes.core.compile.scalar_op_compiler as scalar_op_compiler
 import bigframes.core.expression as ex
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.sql
@@ -460,7 +459,7 @@ class UnorderedIR:
             for column in inputs:
                 clauses.append((column.isnull(), ibis_types.null()))
         if window_spec.min_periods and len(inputs) > 0:
-            if expression.op.skips_nulls:
+            if not expression.op.nulls_count_for_min_values:
                 # Most operations do not count NULL values towards min_periods
                 per_col_does_count = (column.notnull() for column in inputs)
                 # All inputs must be non-null for observation to count
@@ -679,13 +678,15 @@ def _join_condition(
 
 
 def _as_groupable(value: ibis_types.Value):
+    from bigframes.core.compile.ibis_compiler import scalar_op_registry
+
     # Some types need to be converted to another type to enable groupby
     if value.type().is_float64():
         return value.cast(ibis_dtypes.str)
     elif value.type().is_geospatial():
         return typing.cast(ibis_types.GeoSpatialColumn, value).as_binary()
     elif value.type().is_json():
-        return scalar_op_compiler.to_json_string(value)
+        return scalar_op_registry.to_json_string(value)
     else:
         return value
 

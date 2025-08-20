@@ -44,9 +44,9 @@ dependencies = [
     "google-cloud-bigquery-storage >= 2.30.0, < 3.0.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
-    "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
+    "grpc-google-iam-v1 >= 0.14.2",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
     "pandas-gbq >=0.26.1",
@@ -76,8 +76,8 @@ extras = {
         "google-cloud-bigtable >=2.24.0",
         "google-cloud-pubsub >=2.21.4",
     ],
-    # used for local engine, which is only needed for unit tests at present.
-    "polars": ["polars >= 1.7.0"],
+    # used for local engine
+    "polars": ["polars >= 1.21.0"],
     "scikit-learn": ["scikit-learn>=1.2.2"],
     # Packages required for basic development flow.
     "dev": [
