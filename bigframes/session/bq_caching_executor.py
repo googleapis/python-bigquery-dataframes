@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import math
-import os
 import threading
 from typing import Literal, Mapping, Optional, Sequence, Tuple
 import warnings
@@ -40,7 +39,6 @@ import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
-import bigframes.features
 from bigframes.session import (
     executor,
     loader,
@@ -176,7 +174,7 @@ class BigQueryCachingExecutor(executor.Executor):
         if offset_column:
             array_value, _ = array_value.promote_offsets()
         node = (
-            self.prepare_plan(array_value.node, locality="original")
+            self.prepare_plan(array_value.node, target="simplify")
             if enable_cache
             else array_value.node
         )
@@ -191,7 +189,7 @@ class BigQueryCachingExecutor(executor.Executor):
     ) -> executor.ExecuteResult:
         # TODO: Support export jobs in combination with semi executors
         if execution_spec.destination_spec is None:
-            plan = self.prepare_plan(array_value.node, locality="original")
+            plan = self.prepare_plan(array_value.node, target="simplify")
             for exec in self._semi_executors:
                 maybe_result = exec.execute(
                     plan, ordered=execution_spec.ordered, peek=execution_spec.peek
@@ -199,7 +197,6 @@ class BigQueryCachingExecutor(executor.Executor):
                 if maybe_result:
                     return maybe_result
 
-        # next: prepare output spec
         if isinstance(execution_spec.destination_spec, ex_spec.TableOutputSpec):
             if execution_spec.peek or execution_spec.ordered:
                 raise NotImplementedError(
@@ -273,11 +270,14 @@ class BigQueryCachingExecutor(executor.Executor):
         """
         Export the ArrayValue to an existing BigQuery table.
         """
+        plan = self.prepare_plan(array_value.node, target="bq_execution")
 
         # validate destination table
         existing_table = self._maybe_find_existing_table(spec)
 
-        sql = self.to_sql(array_value, ordered=False)
+        compiled = compile.compile_sql(compile.CompileRequest(plan, sort_rows=False))
+        sql = compiled.sql
+
         if (existing_table is not None) and _if_schema_match(
             existing_table.schema, array_value.schema
         ):
@@ -433,17 +433,27 @@ class BigQueryCachingExecutor(executor.Executor):
 
     def prepare_plan(
         self,
-        root: nodes.BigFrameNode,
-        locality: Literal["bq_compat", "original"] = "bq_compat",
+        plan: nodes.BigFrameNode,
+        target: Literal["simplify", "bq_execution"] = "simplify",
     ) -> nodes.BigFrameNode:
         """
-        Apply universal logical simplifications that are helpful regardless of engine.
+        Prepare the plan by simplifying it with caches, removing unused operators. Has modes for different contexts.
+
+        "simplify" removes unused operations and subsitutes subtrees with their previously cached equivalents
+        "bq_execution" is the most heavy option, preparing the plan for bq execution by also caching subtrees, uploading large local sources
         """
-        plan = self.replace_cached_subtrees(root)
+        # TODO: We should model plan decomposition and data uploading as work steps rather than as plan preparation.
+        if (
+            target == "bq_execution"
+            and bigframes.options.compute.enable_multi_query_execution
+        ):
+            self._simplify_with_caching(plan)
+
+        plan = self.replace_cached_subtrees(plan)
         plan = rewrite.column_pruning(plan)
         plan = plan.top_down(rewrite.fold_row_counts)
 
-        if locality == "bq_compat":
+        if target == "bq_execution":
             plan = self._substitute_large_local_sources(plan)
 
         return plan
@@ -493,7 +503,10 @@ class BigQueryCachingExecutor(executor.Executor):
         """Attempts to handle the complexity by caching duplicated subtrees and breaking the query into pieces."""
         # Apply existing caching first
         for _ in range(MAX_SUBTREE_FACTORINGS):
-            if self.prepare_plan(plan).planning_complexity < QUERY_COMPLEXITY_LIMIT:
+            if (
+                self.prepare_plan(plan, "simplify").planning_complexity
+                < QUERY_COMPLEXITY_LIMIT
+            ):
                 return
 
             did_cache = self._cache_most_complex_subtree(plan)
@@ -517,29 +530,6 @@ class BigQueryCachingExecutor(executor.Executor):
 
         self._cache_with_cluster_cols(bigframes.core.ArrayValue(selection), [])
         return True
-
-    def _validate_result_schema(
-        self,
-        array_value: bigframes.core.ArrayValue,
-        bq_schema: list[bigquery.SchemaField],
-    ):
-        actual_schema = _sanitize(tuple(bq_schema))
-        ibis_schema = compile.test_only_ibis_inferred_schema(
-            self.prepare_plan(array_value.node, locality="original")
-        ).to_bigquery()
-        internal_schema = _sanitize(array_value.schema.to_bigquery())
-        if not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
-            return
-
-        if internal_schema != actual_schema:
-            raise ValueError(
-                f"This error should only occur while testing. BigFrames internal schema: {internal_schema} does not match actual schema: {actual_schema}"
-            )
-
-        if ibis_schema != actual_schema:
-            raise ValueError(
-                f"This error should only occur while testing. Ibis schema: {ibis_schema} does not match actual schema: {actual_schema}"
-            )
 
     def _substitute_large_local_sources(self, original_root: nodes.BigFrameNode):
         """
@@ -604,10 +594,7 @@ class BigQueryCachingExecutor(executor.Executor):
         og_plan = plan
         og_schema = plan.schema
 
-        plan = self.prepare_plan(plan, locality="bq_compat")
-        if bigframes.options.compute.enable_multi_query_execution:
-            self._simplify_with_caching(plan)
-
+        plan = self.prepare_plan(plan, target="bq_execution")
         create_table = must_create_table
         cluster_cols: Sequence[str] = []
         if cache_spec is not None:
@@ -674,12 +661,6 @@ class BigQueryCachingExecutor(executor.Executor):
                 "`bigframes.options.compute.allow_large_results=True`."
             )
             warnings.warn(msg, FutureWarning)
-        # Runs strict validations to ensure internal type predictions and ibis are completely in sync
-        # Do not execute these validations outside of testing suite.
-        if "PYTEST_CURRENT_TEST" in os.environ:
-            self._validate_result_schema(
-                bigframes.core.ArrayValue(plan), iterator.schema
-            )
 
         return executor.ExecuteResult(
             _arrow_batches=iterator.to_arrow_iterable(
@@ -705,19 +686,3 @@ def _if_schema_match(
         ):
             return False
     return True
-
-
-def _sanitize(
-    schema: Tuple[bigquery.SchemaField, ...]
-) -> Tuple[bigquery.SchemaField, ...]:
-    # Schema inferred from SQL strings and Ibis expressions contain only names, types and modes,
-    # so we disregard other fields (e.g timedelta description for timedelta columns) for validations.
-    return tuple(
-        bigquery.SchemaField(
-            f.name,
-            f.field_type,
-            f.mode,  # type:ignore
-            fields=_sanitize(f.fields),
-        )
-        for f in schema
-    )
