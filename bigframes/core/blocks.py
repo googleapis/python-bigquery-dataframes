@@ -545,7 +545,7 @@ class Block:
         under_10gb = (
             (not allow_large_results)
             if (allow_large_results is not None)
-            else bigframes.options._allow_large_results
+            else not bigframes.options._allow_large_results
         )
         execute_result = self.session._executor.execute(
             self.expr,
@@ -645,7 +645,7 @@ class Block:
             under_10gb = (
                 (not allow_large_results)
                 if (allow_large_results is not None)
-                else bigframes.options._allow_large_results
+                else not bigframes.options._allow_large_results
             )
             result = self.session._executor.execute(
                 self.expr,
@@ -670,7 +670,7 @@ class Block:
         under_10gb = (
             (not allow_large_results)
             if (allow_large_results is not None)
-            else bigframes.options._allow_large_results
+            else not bigframes.options._allow_large_results
         )
         execute_result = self.session._executor.execute(
             self.expr,
@@ -726,13 +726,13 @@ class Block:
         under_10gb = (
             (not materialize_options.allow_large_results)
             if (materialize_options.allow_large_results is not None)
-            else bigframes.options._allow_large_results
+            else (not bigframes.options._allow_large_results)
         )
         execute_result = self.session._executor.execute(
             self.expr,
             execution_spec.ExecutionSpec(
                 promise_under_10gb=under_10gb,
-                ordered=True,
+                ordered=materialize_options.ordered,
             ),
         )
         sample_config = materialize_options.downsampling
