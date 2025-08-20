@@ -4,6 +4,80 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.15.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.14.0...v2.15.0) (2025-08-11)
+
+
+### Features
+
+* Add `st_buffer`, `st_centroid`, and `st_convexhull` and their corresponding GeoSeries methods ([#1963](https://github.com/googleapis/python-bigquery-dataframes/issues/1963)) ([c4c7fa5](https://github.com/googleapis/python-bigquery-dataframes/commit/c4c7fa578e135e7f0e31ad3063db379514957acc))
+* Add first, last support to GroupBy ([#1969](https://github.com/googleapis/python-bigquery-dataframes/issues/1969)) ([41dda88](https://github.com/googleapis/python-bigquery-dataframes/commit/41dda889860c0ed8ca2eab81b34a9d71372c69f7))
+* Add value_counts to GroupBy classes ([#1974](https://github.com/googleapis/python-bigquery-dataframes/issues/1974)) ([82175a4](https://github.com/googleapis/python-bigquery-dataframes/commit/82175a4d0fa41d8aee11efdf8778a21bb70b1c0f))
+* Allow callable as a conditional or replacement input in DataFrame.where ([#1971](https://github.com/googleapis/python-bigquery-dataframes/issues/1971)) ([a8d57d2](https://github.com/googleapis/python-bigquery-dataframes/commit/a8d57d2f7075158eff69ec65a14c232756ab72a6))
+* Can cast locally in hybrid engine ([#1944](https://github.com/googleapis/python-bigquery-dataframes/issues/1944)) ([d9bc4a5](https://github.com/googleapis/python-bigquery-dataframes/commit/d9bc4a5940e9930d5e3c3bfffdadd2f91f96b53b))
+* Df.join lsuffix and rsuffix support ([#1857](https://github.com/googleapis/python-bigquery-dataframes/issues/1857)) ([26515c3](https://github.com/googleapis/python-bigquery-dataframes/commit/26515c34c4f0a5e4602d2f59bf229d41e0fc9196))
+
+
+### Bug Fixes
+
+* Add warnings for duplicated or conflicting type hints in bigfram… ([#1956](https://github.com/googleapis/python-bigquery-dataframes/issues/1956)) ([d38e42c](https://github.com/googleapis/python-bigquery-dataframes/commit/d38e42ce689e65f57223e9a8b14c4262cba08966))
+* Make `remote_function` more robust when there are `create_function` retries ([#1973](https://github.com/googleapis/python-bigquery-dataframes/issues/1973)) ([cd954ac](https://github.com/googleapis/python-bigquery-dataframes/commit/cd954ac07ad5e5820a20b941d3c6cab7cfcc1f29))
+* Make ExecutionMetrics stats tracking more robust to missing stats ([#1977](https://github.com/googleapis/python-bigquery-dataframes/issues/1977)) ([feb3ff4](https://github.com/googleapis/python-bigquery-dataframes/commit/feb3ff4b543eb8acbf6adf335b67a266a1cf4297))
+
+
+### Performance Improvements
+
+* Remove an unnecessary extra `dry_run` query from `read_gbq_table` ([#1972](https://github.com/googleapis/python-bigquery-dataframes/issues/1972)) ([d17b711](https://github.com/googleapis/python-bigquery-dataframes/commit/d17b711750d281ef3efd42c160f3784cd60021ae))
+
+
+### Documentation
+
+* Divide BQ DataFrames quickstart code cell ([#1975](https://github.com/googleapis/python-bigquery-dataframes/issues/1975)) ([fedb8f2](https://github.com/googleapis/python-bigquery-dataframes/commit/fedb8f23120aa315c7e9dd6f1bf1255ccf1ebc48))
+
+## [2.14.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.13.0...v2.14.0) (2025-08-05)
+
+
+### Features
+
+* Dynamic table width for better display across devices (https://github.com/googleapis/python-bigquery-dataframes/issues/1948) ([a6d30ae](https://github.com/googleapis/python-bigquery-dataframes/commit/a6d30ae3f4358925c999c53b558c1ecd3ee03e6c)) ([a6d30ae](https://github.com/googleapis/python-bigquery-dataframes/commit/a6d30ae3f4358925c999c53b558c1ecd3ee03e6c))
+* Retry AI/ML jobs that fail more often ([#1965](https://github.com/googleapis/python-bigquery-dataframes/issues/1965)) ([25bde9f](https://github.com/googleapis/python-bigquery-dataframes/commit/25bde9f9b89112db0efcc119bf29b6d1f3896c33))
+* Support series input in managed function ([#1920](https://github.com/googleapis/python-bigquery-dataframes/issues/1920)) ([62a189f](https://github.com/googleapis/python-bigquery-dataframes/commit/62a189f4d69f6c05fe348a1acd1fbac364fa60b9))
+
+
+### Bug Fixes
+
+* Enhance type error messages for bigframes functions ([#1958](https://github.com/googleapis/python-bigquery-dataframes/issues/1958)) ([770918e](https://github.com/googleapis/python-bigquery-dataframes/commit/770918e998bf1fde7a656e8f8a0ff0a8c68509f2))
+
+
+### Performance Improvements
+
+* Use promote_offsets for consistent row number generation for index.get_loc  ([#1957](https://github.com/googleapis/python-bigquery-dataframes/issues/1957)) ([c67a25a](https://github.com/googleapis/python-bigquery-dataframes/commit/c67a25a879ab2a35ca9053a81c9c85b5660206ae))
+
+
+### Documentation
+
+* Add code snippet for storing dataframes to a CSV file ([#1943](https://github.com/googleapis/python-bigquery-dataframes/issues/1943)) ([a511e09](https://github.com/googleapis/python-bigquery-dataframes/commit/a511e09e6924d2e8302af2eb4a602c6b9e5d2d72))
+* Add code snippet for storing dataframes to a CSV file ([#1953](https://github.com/googleapis/python-bigquery-dataframes/issues/1953)) ([a298a02](https://github.com/googleapis/python-bigquery-dataframes/commit/a298a02b451f03ca200fe0756b9a7b57e3d1bf0e))
+
+## [2.13.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.12.0...v2.13.0) (2025-07-25)
+
+
+### Features
+
+* _read_gbq_colab creates hybrid session ([#1901](https://github.com/googleapis/python-bigquery-dataframes/issues/1901)) ([31b17b0](https://github.com/googleapis/python-bigquery-dataframes/commit/31b17b01706ccfcee9a2d838c43a9609ec4dc218))
+* Add CSS styling for TableWidget pagination interface ([#1934](https://github.com/googleapis/python-bigquery-dataframes/issues/1934)) ([5b232d7](https://github.com/googleapis/python-bigquery-dataframes/commit/5b232d7e33563196316f5dbb50b28c6be388d440))
+* Add row numbering local pushdown in hybrid execution ([#1932](https://github.com/googleapis/python-bigquery-dataframes/issues/1932)) ([92a2377](https://github.com/googleapis/python-bigquery-dataframes/commit/92a237712aa4ce516b1a44748127b34d7780fff6))
+* Implement Index.get_loc ([#1921](https://github.com/googleapis/python-bigquery-dataframes/issues/1921)) ([bbbcaf3](https://github.com/googleapis/python-bigquery-dataframes/commit/bbbcaf35df113617fd6bb8ae36468cf3f7ab493b))
+
+
+### Bug Fixes
+
+* Add license header and correct issues in dbt sample ([#1931](https://github.com/googleapis/python-bigquery-dataframes/issues/1931)) ([ab01b0a](https://github.com/googleapis/python-bigquery-dataframes/commit/ab01b0a236ffc7b667f258e0497105ea5c3d3aab))
+
+
+### Dependencies
+
+* Replace `google-cloud-iam` with `grpc-google-iam-v1` ([#1864](https://github.com/googleapis/python-bigquery-dataframes/issues/1864)) ([e5ff8f7](https://github.com/googleapis/python-bigquery-dataframes/commit/e5ff8f7d9fdac3ea47dabcc80a2598d601f39e64))
+
 ## [2.12.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.11.0...v2.12.0) (2025-07-23)
 
 

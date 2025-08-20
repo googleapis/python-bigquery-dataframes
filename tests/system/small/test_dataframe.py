@@ -514,6 +514,50 @@ def test_where_dataframe_cond_dataframe_other(
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_where_callable_cond_constant_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is callable, other is a constant.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    other = 10
+
+    bf_result = dataframe_bf.where(lambda x: x > 0, other).to_pandas()
+    pd_result = dataframe_pd.where(lambda x: x > 0, other)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_dataframe_cond_callable_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is a dataframe, other is callable.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    cond_bf = dataframe_bf > 0
+    cond_pd = dataframe_pd > 0
+
+    def func(x):
+        return x * 2
+
+    bf_result = dataframe_bf.where(cond_bf, func).to_pandas()
+    pd_result = dataframe_pd.where(cond_pd, func)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_callable_cond_callable_other(scalars_df_index, scalars_pandas_df_index):
+    # Condition is callable, other is callable too.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+    dataframe_pd = scalars_pandas_df_index[columns]
+
+    def func(x):
+        return x["int64_col"] > 0
+
+    bf_result = dataframe_bf.where(func, lambda x: x * 2).to_pandas()
+    pd_result = dataframe_pd.where(func, lambda x: x * 2)
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_drop_column(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "int64_col"
@@ -2026,6 +2070,26 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("drop",),
+    ((True,), (False,)),
+)
+def test_reset_index_inplace(scalars_df_index, scalars_pandas_df_index, drop):
+    df = scalars_df_index.copy()
+    df.reset_index(drop=drop, inplace=True)
+    assert df.index.name is None
+
+    bf_result = df.to_pandas()
+    pd_result = scalars_pandas_df_index.copy()
+    pd_result.reset_index(drop=drop, inplace=True)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_reset_index_then_filter(
     scalars_df_index,
     scalars_pandas_df_index,
@@ -2937,12 +3001,102 @@ def test_join_different_table(
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
-def test_join_duplicate_columns_raises_not_implemented(scalars_dfs):
-    scalars_df, _ = scalars_dfs
-    df_a = scalars_df[["string_col", "float64_col"]]
-    df_b = scalars_df[["float64_col"]]
-    with pytest.raises(NotImplementedError):
-        df_a.join(df_b, how="outer").to_pandas()
+@all_joins
+def test_join_different_table_with_duplicate_column_name(
+    scalars_df_index, scalars_pandas_df_index, how
+):
+    bf_df_a = scalars_df_index[["string_col", "int64_col", "int64_too"]].rename(
+        columns={"int64_too": "int64_col"}
+    )
+    bf_df_b = scalars_df_index.dropna()[
+        ["string_col", "int64_col", "int64_too"]
+    ].rename(columns={"int64_too": "int64_col"})
+    bf_result = bf_df_a.join(bf_df_b, how=how, lsuffix="_l", rsuffix="_r").to_pandas()
+    pd_df_a = scalars_pandas_df_index[["string_col", "int64_col", "int64_too"]].rename(
+        columns={"int64_too": "int64_col"}
+    )
+    pd_df_b = scalars_pandas_df_index.dropna()[
+        ["string_col", "int64_col", "int64_too"]
+    ].rename(columns={"int64_too": "int64_col"})
+    pd_result = pd_df_a.join(pd_df_b, how=how, lsuffix="_l", rsuffix="_r")
+
+    # Ensure no inplace changes
+    pd.testing.assert_index_equal(bf_df_a.columns, pd_df_a.columns)
+    pd.testing.assert_index_equal(bf_df_b.index.to_pandas(), pd_df_b.index)
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)
+
+
+@all_joins
+def test_join_param_on_with_duplicate_column_name_not_on_col(
+    scalars_df_index, scalars_pandas_df_index, how
+):
+    # This test is for duplicate column names, but the 'on' column is not duplicated.
+    if how == "cross":
+        return
+    bf_df_a = scalars_df_index[
+        ["string_col", "datetime_col", "timestamp_col", "int64_too"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    bf_df_b = scalars_df_index.dropna()[
+        ["string_col", "datetime_col", "timestamp_col"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    bf_result = bf_df_a.join(
+        bf_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
+    ).to_pandas()
+    pd_df_a = scalars_pandas_df_index[
+        ["string_col", "datetime_col", "timestamp_col", "int64_too"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    pd_df_b = scalars_pandas_df_index.dropna()[
+        ["string_col", "datetime_col", "timestamp_col"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    pd_result = pd_df_a.join(
+        pd_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
+    )
+    pd.testing.assert_frame_equal(
+        bf_result.sort_index(),
+        pd_result.sort_index(),
+        check_like=True,
+        check_index_type=False,
+        check_names=False,
+    )
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
+
+
+@pytest.mark.skipif(
+    pandas.__version__.startswith("1."), reason="bad left join in pandas 1.x"
+)
+@all_joins
+def test_join_param_on_with_duplicate_column_name_on_col(
+    scalars_df_index, scalars_pandas_df_index, how
+):
+    # This test is for duplicate column names, and the 'on' column is duplicated.
+    if how == "cross":
+        return
+    bf_df_a = scalars_df_index[
+        ["string_col", "datetime_col", "timestamp_col", "int64_too"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    bf_df_b = scalars_df_index.dropna()[
+        ["string_col", "datetime_col", "timestamp_col", "int64_too"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    bf_result = bf_df_a.join(
+        bf_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
+    ).to_pandas()
+    pd_df_a = scalars_pandas_df_index[
+        ["string_col", "datetime_col", "timestamp_col", "int64_too"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    pd_df_b = scalars_pandas_df_index.dropna()[
+        ["string_col", "datetime_col", "timestamp_col", "int64_too"]
+    ].rename(columns={"timestamp_col": "datetime_col"})
+    pd_result = pd_df_a.join(
+        pd_df_b, on="int64_too", how=how, lsuffix="_l", rsuffix="_r"
+    )
+    pd.testing.assert_frame_equal(
+        bf_result.sort_index(),
+        pd_result.sort_index(),
+        check_like=True,
+        check_index_type=False,
+        check_names=False,
+    )
+    pd.testing.assert_index_equal(bf_result.columns, pd_result.columns)
 
 
 @all_joins

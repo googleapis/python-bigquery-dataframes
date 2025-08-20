@@ -1339,6 +1339,18 @@ def test_reset_index_drop(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
+def test_series_reset_index_inplace(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.sort_index(ascending=False)["float64_col"]
+    bf_result.reset_index(drop=True, inplace=True)
+    pd_result = scalars_pandas_df_index.sort_index(ascending=False)["float64_col"]
+    pd_result.reset_index(drop=True, inplace=True)
+
+    # BigQuery DataFrames default indices use nullable Int64 always
+    pd_result.index = pd_result.index.astype("Int64")
+
+    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+
+
 @pytest.mark.parametrize(
     ("name",),
     [
@@ -3097,6 +3109,26 @@ def test_where_with_default(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_where_with_callable(scalars_df_index, scalars_pandas_df_index):
+    def _is_positive(x):
+        return x > 0
+
+    # Both cond and other are callable.
+    bf_result = (
+        scalars_df_index["int64_col"]
+        .where(cond=_is_positive, other=lambda x: x * 10)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index["int64_col"].where(
+        cond=_is_positive, other=lambda x: x * 10
+    )
+
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+    )
+
+
 @pytest.mark.parametrize(
     ("ordered"),
     [
@@ -3685,8 +3717,12 @@ def test_astype_numeric_to_int(scalars_df_index, scalars_pandas_df_index):
     column = "numeric_col"
     to_type = "Int64"
     bf_result = scalars_df_index[column].astype(to_type).to_pandas()
-    # Round to the nearest whole number to avoid TypeError
-    pd_result = scalars_pandas_df_index[column].round(0).astype(to_type)
+    # Truncate to int to avoid TypeError
+    pd_result = (
+        scalars_pandas_df_index[column]
+        .apply(lambda x: None if pd.isna(x) else math.trunc(x))
+        .astype(to_type)
+    )
     pd.testing.assert_series_equal(bf_result, pd_result)
 
 

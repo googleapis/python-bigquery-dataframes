@@ -17,7 +17,7 @@ import dataclasses
 import functools
 import itertools
 import operator
-from typing import cast, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import cast, Literal, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 
 import pandas as pd
 
@@ -33,7 +33,9 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.bool_ops as bool_ops
 import bigframes.operations.comparison_ops as comp_ops
+import bigframes.operations.datetime_ops as dt_ops
 import bigframes.operations.generic_ops as gen_ops
+import bigframes.operations.json_ops as json_ops
 import bigframes.operations.numeric_ops as num_ops
 import bigframes.operations.string_ops as string_ops
 
@@ -42,9 +44,34 @@ if TYPE_CHECKING:
     import polars as pl
 else:
     try:
-        import polars as pl
+        import bigframes._importing
+
+        # Use import_polars() instead of importing directly so that we check
+        # the version numbers.
+        pl = bigframes._importing.import_polars()
     except Exception:
         polars_installed = False
+
+
+def register_op(op: Type):
+    """Register a compilation from BigFrames to Ibis.
+
+    This decorator can be used, even if Polars is not installed.
+
+    Args:
+        op: The type of the operator the wrapped function compiles.
+    """
+
+    def decorator(func):
+        if polars_installed:
+            # Ignore the type because compile_op is a generic Callable, so
+            # register isn't available according to mypy.
+            return PolarsExpressionCompiler.compile_op.register(op)(func)  # type: ignore
+        else:
+            return func
+
+    return decorator
+
 
 if polars_installed:
     _DTYPE_MAPPING = {
@@ -141,7 +168,7 @@ if polars_installed:
 
         @compile_op.register(gen_ops.InvertOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return ~input
+            return input.not_()
 
         @compile_op.register(num_ops.AbsOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
@@ -170,6 +197,10 @@ if polars_installed:
         @compile_op.register(bool_ops.OrOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
             return l_input | r_input
+
+        @compile_op.register(bool_ops.XorOp)
+        def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
+            return l_input ^ r_input
 
         @compile_op.register(num_ops.AddOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
@@ -238,14 +269,6 @@ if polars_installed:
             else:
                 return input.is_in(op.values) or input.is_null()
 
-        @compile_op.register(gen_ops.IsNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_null()
-
-        @compile_op.register(gen_ops.NotNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_not_null()
-
         @compile_op.register(gen_ops.FillNaOp)
         @compile_op.register(gen_ops.CoalesceOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
@@ -279,6 +302,30 @@ if polars_installed:
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
             assert isinstance(op, string_ops.StrConcatOp)
             return pl.concat_str(l_input, r_input)
+
+        @compile_op.register(dt_ops.StrftimeOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, dt_ops.StrftimeOp)
+            return input.dt.strftime(op.date_format)
+
+        @compile_op.register(dt_ops.ParseDatetimeOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, dt_ops.ParseDatetimeOp)
+            return input.str.to_datetime(
+                time_unit="us", time_zone=None, ambiguous="earliest"
+            )
+
+        @compile_op.register(dt_ops.ParseTimestampOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, dt_ops.ParseTimestampOp)
+            return input.str.to_datetime(
+                time_unit="us", time_zone="UTC", ambiguous="earliest"
+            )
+
+        @compile_op.register(json_ops.JSONDecode)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, json_ops.JSONDecode)
+            return input.str.json_decode(_DTYPE_MAPPING[op.to_type])
 
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:
@@ -646,7 +693,7 @@ class PolarsCompiler:
     def compile_explode(self, node: nodes.ExplodeNode):
         assert node.offsets_col is None
         df = self.compile_node(node.child)
-        cols = [pl.col(col.id.sql) for col in node.column_ids]
+        cols = [col.id.sql for col in node.column_ids]
         return df.explode(cols)
 
     @compile_node.register

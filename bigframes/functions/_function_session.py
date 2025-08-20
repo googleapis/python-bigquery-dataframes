@@ -536,6 +536,11 @@ class FunctionSession:
             if input_types is not None:
                 if not isinstance(input_types, collections.abc.Sequence):
                     input_types = [input_types]
+                if _utils.has_conflict_input_type(py_sig, input_types):
+                    msg = bfe.format_message(
+                        "Conflicting input types detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(
                     parameters=[
                         par.replace(annotation=itype)
@@ -543,12 +548,13 @@ class FunctionSession:
                     ]
                 )
             if output_type:
+                if _utils.has_conflict_output_type(py_sig, output_type):
+                    msg = bfe.format_message(
+                        "Conflicting return type detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(return_annotation=output_type)
 
-            # Try to get input types via type annotations.
-
-            # The function will actually be receiving a pandas Series, but allow both
-            # BigQuery DataFrames and pandas object types for compatibility.
             # The function will actually be receiving a pandas Series, but allow
             # both BigQuery DataFrames and pandas object types for compatibility.
             is_row_processor = False
@@ -587,7 +593,7 @@ class FunctionSession:
                 bqrf_metadata = _utils.get_bigframes_metadata(
                     python_output_type=py_sig.return_annotation
                 )
-                post_process_routine = _utils._build_unnest_post_routine(
+                post_process_routine = _utils.build_unnest_post_routine(
                     py_sig.return_annotation
                 )
                 py_sig = py_sig.replace(return_annotation=str)
@@ -838,6 +844,11 @@ class FunctionSession:
             if input_types is not None:
                 if not isinstance(input_types, collections.abc.Sequence):
                     input_types = [input_types]
+                if _utils.has_conflict_input_type(py_sig, input_types):
+                    msg = bfe.format_message(
+                        "Conflicting input types detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(
                     parameters=[
                         par.replace(annotation=itype)
@@ -845,9 +856,12 @@ class FunctionSession:
                     ]
                 )
             if output_type:
+                if _utils.has_conflict_output_type(py_sig, output_type):
+                    msg = bfe.format_message(
+                        "Conflicting return type detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(return_annotation=output_type)
-
-            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
 
             # The function will actually be receiving a pandas Series, but allow
             # both BigQuery DataFrames and pandas object types for compatibility.
@@ -855,6 +869,8 @@ class FunctionSession:
             if new_sig := _convert_row_processor_sig(py_sig):
                 py_sig = new_sig
                 is_row_processor = True
+
+            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
 
             managed_function_client = _function_client.FunctionClient(
                 dataset_ref.project,

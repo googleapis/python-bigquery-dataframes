@@ -1601,8 +1601,10 @@ class DataFrame(generic.NDFrame):
 
     def reset_index(
         self,
+        level=None,
         *,
         drop: bool = False,
+        inplace: bool = False,
     ) -> DataFrame | None:
         """Reset the index.
 
@@ -1696,9 +1698,14 @@ class DataFrame(generic.NDFrame):
 
 
         Args:
+            level (int, str, tuple, or list, default None):
+                Only remove the given levels from the index. Removes all levels by
+                default.
             drop (bool, default False):
                 Do not try to insert index into dataframe columns. This resets
                 the index to the default integer index.
+            inplace (bool, default False):
+                Whether to modify the DataFrame rather than creating a new one.
 
         Returns:
             bigframes.pandas.DataFrame: DataFrame with the new index.
@@ -4574,7 +4581,15 @@ class DataFrame(generic.NDFrame):
     # ----------------------------------------------------------------------
     # Merging / joining methods
 
-    def join(self, other, *, on: Optional[str] = None, how: str) -> DataFrame:
+    def join(
+        self,
+        other,
+        *,
+        on: Optional[str] = None,
+        how: str,
+        lsuffix: str = "",
+        rsuffix: str = "",
+    ) -> DataFrame:
         """Join columns of another DataFrame.
 
         Join columns with `other` DataFrame on index
@@ -4647,6 +4662,19 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 4 columns]
 
+        If there are overlapping columns, `lsuffix` and `rsuffix` can be used:
+
+            >>> df1 = bpd.DataFrame({'key': ['K0', 'K1', 'K2'], 'A': ['A0', 'A1', 'A2']})
+            >>> df2 = bpd.DataFrame({'key': ['K0', 'K1', 'K2'], 'A': ['B0', 'B1', 'B2']})
+            >>> df1.set_index('key').join(df2.set_index('key'), lsuffix='_left', rsuffix='_right')
+                 A_left A_right
+            key
+            K0       A0      B0
+            K1       A1      B1
+            K2       A2      B2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Args:
             other:
                 DataFrame or Series with an Index similar to the Index of this one.
@@ -4663,6 +4691,10 @@ class DataFrame(generic.NDFrame):
                 index, preserving the order of the calling's one.
                 ``cross``: creates the cartesian product from both frames, preserves
                 the order of the left keys.
+            lsuffix(str, default ''):
+                Suffix to use from left frame's overlapping columns.
+            rsuffix(str, default ''):
+                Suffix to use from right frame's overlapping columns.
 
         Returns:
             bigframes.pandas.DataFrame:
@@ -4677,6 +4709,10 @@ class DataFrame(generic.NDFrame):
             ValueError:
                 If left index to join on does not have the same number of levels
                 as the right index.
+            ValueError:
+                If columns overlap but no suffix is specified.
+            ValueError:
+                If `on` column is not unique.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5943,22 +5979,18 @@ class DataFrame(generic.NDFrame):
         Using `melt` without optional arguments:
 
             >>> df.melt()
-                variable    value
-            0	       A      1.0
-            1	       A     <NA>
-            2	       A      3.0
-            3	       A      4.0
-            4	       A      5.0
-            5	       B      1.0
-            6	       B      2.0
-            7	       B      3.0
-            8	       B      4.0
-            9	       B      5.0
-            10	       C     <NA>
-            11	       C      3.5
-            12	       C     <NA>
-            13	       C      4.5
-            14	       C      5.0
+              variable  value
+            0        A    1.0
+            1        A   <NA>
+            2        A    3.0
+            3        A    4.0
+            4        A    5.0
+            5        B    1.0
+            6        B    2.0
+            7        B    3.0
+            8        B    4.0
+            9        B    5.0
+            ...
             <BLANKLINE>
             [15 rows x 2 columns]
 
