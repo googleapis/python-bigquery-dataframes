@@ -38,12 +38,7 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
         return sge.Concat(expressions=[left.expr, right.expr])
 
     if dtypes.is_numeric(left.dtype) and dtypes.is_numeric(right.dtype):
-        left_expr = left.expr
-        if left.dtype == dtypes.BOOL_DTYPE:
-            left_expr = sge.Cast(this=left_expr, to="INT64")
-        right_expr = right.expr
-        if right.dtype == dtypes.BOOL_DTYPE:
-            right_expr = sge.Cast(this=right_expr, to="INT64")
+        left_expr, right_expr = _coerce_bools(left, right)
         return sge.Add(this=left_expr, expression=right_expr)
 
     if (
@@ -74,14 +69,35 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     )
 
 
-@BINARY_OP_REGISTRATION.register(ops.div_op)
+@BINARY_OP_REGISTRATION.register(ops.eq_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    left_expr, right_expr = _coerce_bools(left, right)
+    return sge.EQ(this=left_expr, expression=right_expr)
+
+
+@BINARY_OP_REGISTRATION.register(ops.eq_null_match_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     left_expr = left.expr
-    if left.dtype == dtypes.BOOL_DTYPE:
+    if left.dtype == dtypes.BOOL_DTYPE and right.dtype != dtypes.BOOL_DTYPE:
         left_expr = sge.Cast(this=left_expr, to="INT64")
+
     right_expr = right.expr
-    if right.dtype == dtypes.BOOL_DTYPE:
+    if right.dtype == dtypes.BOOL_DTYPE and left.dtype != dtypes.BOOL_DTYPE:
         right_expr = sge.Cast(this=right_expr, to="INT64")
+
+    sentinel = sge.convert("$NULL_SENTINEL$")
+    left_coalesce = sge.Coalesce(
+        this=sge.Cast(this=left_expr, to="STRING"), expressions=[sentinel]
+    )
+    right_coalesce = sge.Coalesce(
+        this=sge.Cast(this=right_expr, to="STRING"), expressions=[sentinel]
+    )
+    return sge.EQ(this=left_coalesce, expression=right_coalesce)
+
+
+@BINARY_OP_REGISTRATION.register(ops.div_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    left_expr, right_expr = _coerce_bools(left, right)
 
     result = sge.func("IEEE_DIVIDE", left_expr, right_expr)
     if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
@@ -139,12 +155,7 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @BINARY_OP_REGISTRATION.register(ops.mul_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    left_expr = left.expr
-    if left.dtype == dtypes.BOOL_DTYPE:
-        left_expr = sge.Cast(this=left_expr, to="INT64")
-    right_expr = right.expr
-    if right.dtype == dtypes.BOOL_DTYPE:
-        right_expr = sge.Cast(this=right_expr, to="INT64")
+    left_expr, right_expr = _coerce_bools(left, right)
 
     result = sge.Mul(this=left_expr, expression=right_expr)
 
@@ -156,15 +167,16 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
         return result
 
 
+@BINARY_OP_REGISTRATION.register(ops.ne_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    left_expr, right_expr = _coerce_bools(left, right)
+    return sge.NEQ(this=left_expr, expression=right_expr)
+
+
 @BINARY_OP_REGISTRATION.register(ops.sub_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     if dtypes.is_numeric(left.dtype) and dtypes.is_numeric(right.dtype):
-        left_expr = left.expr
-        if left.dtype == dtypes.BOOL_DTYPE:
-            left_expr = sge.Cast(this=left_expr, to="INT64")
-        right_expr = right.expr
-        if right.dtype == dtypes.BOOL_DTYPE:
-            right_expr = sge.Cast(this=right_expr, to="INT64")
+        left_expr, right_expr = _coerce_bools(left, right)
         return sge.Sub(this=left_expr, expression=right_expr)
 
     if (
@@ -201,3 +213,16 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
 @BINARY_OP_REGISTRATION.register(ops.obj_make_ref_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.func("OBJ.MAKE_REF", left.expr, right.expr)
+
+
+def _coerce_bools(
+    left: TypedExpr, right: TypedExpr
+) -> tuple[sge.Expression, sge.Expression]:
+    """Coerce boolean expressions to INT64 for binary operations."""
+    left_expr = left.expr
+    if left.dtype == dtypes.BOOL_DTYPE:
+        left_expr = sge.Cast(this=left_expr, to="INT64")
+    right_expr = right.expr
+    if right.dtype == dtypes.BOOL_DTYPE:
+        right_expr = sge.Cast(this=right_expr, to="INT64")
+    return left_expr, right_expr
