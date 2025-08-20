@@ -122,7 +122,13 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @BINARY_OP_REGISTRATION.register(ops.ge_op)
 def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    return sge.GTE(this=left.expr, expression=right.expr)
+    left_expr = left.expr
+    if left.dtype == dtypes.BOOL_DTYPE:
+        left_expr = sge.Cast(this=left_expr, to="INT64")
+    right_expr = right.expr
+    if right.dtype == dtypes.BOOL_DTYPE:
+        right_expr = sge.Cast(this=right_expr, to="INT64")
+    return sge.GTE(this=left_expr, expression=right_expr)
 
 
 @BINARY_OP_REGISTRATION.register(ops.gt_op)
@@ -150,6 +156,17 @@ def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
     if right.dtype == dtypes.BOOL_DTYPE:
         right_expr = sge.Cast(this=right_expr, to="INT64")
     return sge.LT(this=left_expr, expression=right_expr)
+
+
+@BINARY_OP_REGISTRATION.register(ops.le_op)
+def _(op, left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    left_expr = left.expr
+    if left.dtype == dtypes.BOOL_DTYPE:
+        left_expr = sge.Cast(this=left_expr, to="INT64")
+    right_expr = right.expr
+    if right.dtype == dtypes.BOOL_DTYPE:
+        right_expr = sge.Cast(this=right_expr, to="INT64")
+    return sge.LTE(this=left_expr, expression=right_expr)
 
 
 @BINARY_OP_REGISTRATION.register(ops.mul_op)
