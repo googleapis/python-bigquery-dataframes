@@ -191,8 +191,16 @@ def combine_training_and_evaluation_data(
 
 
 def standardize_type(v: str, supported_dtypes: Optional[Iterable[str]] = None):
+    """Standardize type string to BQML supported type string."""
     t = v.lower()
-    t = t.replace("boolean", "bool")
+    if t == "boolean":
+        t = "bool"
+    elif t == "integer":
+        t = "int64"
+    elif t == "str":
+        t = "string"
+    elif t == "float":
+        t = "float64"
 
     if supported_dtypes:
         if t not in supported_dtypes:

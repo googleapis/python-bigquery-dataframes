@@ -734,7 +734,9 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             output_schema = {
                 k: utils.standardize_type(v) for k, v in output_schema.items()
             }
-            options["output_schema"] = output_schema
+            options["output_schema"] = {
+                k: utils.standardize_type(v) for k, v in output_schema.items()
+            }
             return self._predict_and_retry(
                 core.BqmlModel.generate_table_tvf,
                 X,

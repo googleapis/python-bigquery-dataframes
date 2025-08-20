@@ -529,3 +529,20 @@ def test_ml_principal_component_info_correct(
         sql
         == """SELECT * FROM ML.PRINCIPAL_COMPONENT_INFO(MODEL `my_project_id`.`my_dataset_id`.`my_model_id`)"""
     )
+
+
+def test_ai_generate_correct(
+    model_manipulation_sql_generator: ml_sql.ModelManipulationSqlGenerator,
+    mock_df: bpd.DataFrame,
+):
+    sql = model_manipulation_sql_generator.ai_generate(
+        source_sql=mock_df.sql,
+        struct_options={"option_key1": 1, "option_key2": 2.2},
+    )
+    assert (
+        sql
+        == """SELECT * FROM AI.GENERATE(MODEL `my_project_id`.`my_dataset_id`.`my_model_id`,
+  (input_X_y_sql), STRUCT(
+  1 AS `option_key1`,
+  2.2 AS `option_key2`))"""
+    )

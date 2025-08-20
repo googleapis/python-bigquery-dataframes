@@ -15,6 +15,7 @@
 from typing import Callable
 from unittest import mock
 
+from google.api_core import exceptions as api_core_exceptions
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -216,7 +217,9 @@ def test_gemini_text_generator_predict_output_schema_success(
     llm_text_df: bpd.DataFrame, model_name, session, bq_connection
 ):
     gemini_text_generator_model = llm.GeminiTextGenerator(
-        model_name=model_name, connection_name=bq_connection, session=session
+        model_name="gemini-2.0-flash-001",
+        connection_name=bq_connection,
+        session=session,
     )
     output_schema = {
         "bool_output": "bool",
@@ -807,3 +810,122 @@ def test_text_embedding_generator_no_default_model_warning(model_class):
     message = "Since upgrading the default model can cause unintended breakages, the\ndefault model will be removed in BigFrames 3.0. Please supply an\nexplicit model to avoid this message."
     with pytest.warns(FutureWarning, match=message):
         model_class(model_name=None)
+
+
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_predict_struct_schema_succeeds(
+    llm_text_df: bpd.DataFrame, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name="gemini-2.0-flash-001",
+        connection_name=bq_connection,
+        session=session,
+    )
+    output_schema = {
+        "struct_output": "struct<name string, age int64>",
+    }
+    df = gemini_text_generator_model.predict(llm_text_df, output_schema=output_schema)
+    assert set(field.name for field in df["struct_output"].dtype.pyarrow_dtype) == {
+        "name",
+        "age",
+    }
+
+    pd_df = df.to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
+        index=3,
+        col_exact=False,
+    )
+
+
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_predict_struct_schema_flat_succeeds(
+    llm_text_df: bpd.DataFrame, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name="gemini-2.0-flash-001",
+        connection_name=bq_connection,
+        session=session,
+    )
+    output_schema = {
+        "name": "string",
+        "age": "int64",
+    }
+    df = gemini_text_generator_model.predict(llm_text_df, output_schema=output_schema)
+    assert df["name"].dtype == pd.StringDtype(storage="pyarrow")
+    assert df["age"].dtype == pd.Int64Dtype()
+
+    pd_df = df.to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
+        index=3,
+        col_exact=False,
+    )
+
+
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_predict_array_schema_succeeds(
+    llm_text_df: bpd.DataFrame, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name="gemini-2.0-flash-001",
+        connection_name=bq_connection,
+        session=session,
+    )
+    output_schema = {
+        "array_output": "array<string>",
+    }
+    df = gemini_text_generator_model.predict(llm_text_df, output_schema=output_schema)
+    assert df["array_output"].dtype == pd.ArrowDtype(pa.list_(pa.string()))
+
+    pd_df = df.to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
+        index=3,
+        col_exact=False,
+    )
+
+
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_predict_array_struct_schema_succeeds(
+    llm_text_df: bpd.DataFrame, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name="gemini-2.0-flash-001",
+        connection_name=bq_connection,
+        session=session,
+    )
+    output_schema = {
+        "array_output": "array<struct<name string, age int64>>",
+    }
+    df = gemini_text_generator_model.predict(llm_text_df, output_schema=output_schema)
+    assert set(
+        field.name for field in df["array_output"].dtype.pyarrow_dtype.value_type
+    ) == {"name", "age"}
+
+    pd_df = df.to_pandas()
+    utils.check_pandas_df_schema_and_index(
+        pd_df,
+        columns=list(output_schema.keys()) + ["prompt", "full_response", "status"],
+        index=3,
+        col_exact=False,
+    )
+
+
+@pytest.mark.flaky(retries=2)
+def test_gemini_text_generator_predict_invalid_schema_fails(
+    llm_text_df: bpd.DataFrame, session, bq_connection
+):
+    gemini_text_generator_model = llm.GeminiTextGenerator(
+        model_name="gemini-2.0-flash-001",
+        connection_name=bq_connection,
+        session=session,
+    )
+    output_schema = {
+        "invalid_output": "invalid_type",
+    }
+    with pytest.raises(api_core_exceptions.BadRequest):
+        gemini_text_generator_model.predict(llm_text_df, output_schema=output_schema)
