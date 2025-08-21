@@ -721,6 +721,9 @@ class GbqDataLoader:
                 columns=columns,
                 use_cache=use_cache,
                 dry_run=dry_run,
+                # If max_results has been set, we almost certainly have < 10 GB
+                # of results.
+                allow_large_results=False,
             )
             return df
 
@@ -1040,7 +1043,14 @@ class GbqDataLoader:
         # local node. Likely there are a wide range of sizes in which it
         # makes sense to download the results beyond the first page, even if
         # there is a job and destination table available.
-        if rows is not None and destination is None:
+        if (
+            rows is not None
+            and destination is None
+            and (
+                query_job_for_metrics is None
+                or query_job_for_metrics.statement_type == "SELECT"
+            )
+        ):
             return bf_read_gbq_query.create_dataframe_from_row_iterator(
                 rows,
                 session=self._session,
