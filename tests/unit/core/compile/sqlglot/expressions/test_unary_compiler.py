@@ -431,6 +431,18 @@ def test_quarter(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_replace_str(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.ReplaceStrOp("e", "a"), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_regex_replace_str(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.RegexReplaceStrOp(r"e", "a"), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_reverse(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.reverse_op, "string_col")
