@@ -22,16 +22,10 @@ import sqlglot
 import sqlglot.expressions as sge
 
 from bigframes import operations as ops
+from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
+import bigframes.core.compile.sqlglot.expressions.constants as constants
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-
-_NAN = sge.Cast(this=sge.convert("NaN"), to="FLOAT64")
-_INF = sge.Cast(this=sge.convert("Infinity"), to="FLOAT64")
-
-# Approx Highest number you can pass in to EXP function and get a valid FLOAT64 result
-# FLOAT64 has 11 exponent bits, so max values is about 2**(2**10)
-# ln(2**(2**10)) == (2**10)*ln(2) ~= 709.78, so EXP(x) for x>709.78 will overflow.
-_FLOAT64_EXP_BOUND = sge.convert(709.78)
 
 UNARY_OP_REGISTRATION = OpRegistration()
 
@@ -51,7 +45,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=expr.expr < sge.convert(1),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.func("ACOSH", expr.expr),
@@ -64,7 +58,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.func("ACOS", expr.expr),
@@ -77,7 +71,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.func("ASIN", expr.expr),
@@ -100,7 +94,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.func("ATANH", expr.expr),
@@ -176,7 +170,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(709.78),
-                true=_INF,
+                true=constants._INF,
             )
         ],
         default=sge.func("COSH", expr.expr),
@@ -221,8 +215,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr > _FLOAT64_EXP_BOUND,
-                true=_INF,
+                this=expr.expr > constants._FLOAT64_EXP_BOUND,
+                true=constants._INF,
             )
         ],
         default=sge.func("EXP", expr.expr),
@@ -234,8 +228,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr > _FLOAT64_EXP_BOUND,
-                true=_INF,
+                this=expr.expr > constants._FLOAT64_EXP_BOUND,
+                true=constants._INF,
             )
         ],
         default=sge.func("EXP", expr.expr),
@@ -347,6 +341,26 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     )
 
 
+@UNARY_OP_REGISTRATION.register(ops.iso_day_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.iso_week_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="ISOWEEK"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.iso_year_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Extract(this=sge.Identifier(this="ISOYEAR"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.isnull_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Is(this=expr.expr, expression=sge.Null())
+
+
 @UNARY_OP_REGISTRATION.register(ops.isnumeric_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\pN+$"))
@@ -382,7 +396,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=expr.expr < sge.convert(0),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.Ln(this=expr.expr),
@@ -395,7 +409,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=expr.expr < sge.convert(0),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.Log(this=expr.expr, expression=sge.convert(10)),
@@ -408,7 +422,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=expr.expr < sge.convert(-1),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.Ln(this=sge.convert(1) + expr.expr),
@@ -445,6 +459,21 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.TimestampTrunc(this=expr.expr, unit=sge.Identifier(this="DAY"))
 
 
+@UNARY_OP_REGISTRATION.register(ops.notnull_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Not(this=sge.Is(this=expr.expr, expression=sge.Null()))
+
+
+@UNARY_OP_REGISTRATION.register(ops.obj_fetch_metadata_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("OBJ.FETCH_METADATA", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.ObjGetAccessUrl)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("OBJ.GET_ACCESS_URL", expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.pos_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return expr.expr
@@ -476,7 +505,7 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ifs=[
             sge.If(
                 this=expr.expr < sge.convert(0),
-                true=_NAN,
+                true=constants._NAN,
             )
         ],
         default=sge.Sqrt(this=expr.expr),
@@ -486,31 +515,6 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.StrStripOp)
 def _(op: ops.StrStripOp, expr: TypedExpr) -> sge.Expression:
     return sge.Trim(this=sge.convert(op.to_strip), expression=expr.expr)
-
-
-@UNARY_OP_REGISTRATION.register(ops.iso_day_op)
-def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Extract(this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr)
-
-
-@UNARY_OP_REGISTRATION.register(ops.iso_week_op)
-def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Extract(this=sge.Identifier(this="ISOWEEK"), expression=expr.expr)
-
-
-@UNARY_OP_REGISTRATION.register(ops.iso_year_op)
-def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Extract(this=sge.Identifier(this="ISOYEAR"), expression=expr.expr)
-
-
-@UNARY_OP_REGISTRATION.register(ops.isnull_op)
-def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Is(this=expr.expr, expression=sge.Null())
-
-
-@UNARY_OP_REGISTRATION.register(ops.notnull_op)
-def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Not(this=sge.Is(this=expr.expr, expression=sge.Null()))
 
 
 @UNARY_OP_REGISTRATION.register(ops.sin_op)
@@ -523,8 +527,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=sge.func("ABS", expr.expr) > _FLOAT64_EXP_BOUND,
-                true=sge.func("SIGN", expr.expr) * _INF,
+                this=sge.func("ABS", expr.expr) > constants._FLOAT64_EXP_BOUND,
+                true=sge.func("SIGN", expr.expr) * constants._INF,
             )
         ],
         default=sge.func("SINH", expr.expr),
@@ -608,7 +612,11 @@ def _(op: ops.ToTimestampOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.ToTimedeltaOp)
 def _(op: ops.ToTimedeltaOp, expr: TypedExpr) -> sge.Expression:
-    return sge.Interval(this=expr.expr, unit=sge.Identifier(this="SECOND"))
+    value = expr.expr
+    factor = UNIT_TO_US_CONVERSION_FACTORS[op.unit]
+    if factor != 1:
+        value = sge.Mul(this=value, expression=sge.convert(factor))
+    return sge.Interval(this=value, unit=sge.Identifier(this="MICROSECOND"))
 
 
 @UNARY_OP_REGISTRATION.register(ops.UnixMicros)
@@ -626,7 +634,6 @@ def _(op: ops.UnixSeconds, expr: TypedExpr) -> sge.Expression:
     return sge.func("UNIX_SECONDS", expr.expr)
 
 
-# JSON Ops
 @UNARY_OP_REGISTRATION.register(ops.JSONExtract)
 def _(op: ops.JSONExtract, expr: TypedExpr) -> sge.Expression:
     return sge.func("JSON_EXTRACT", expr.expr, sge.convert(op.json_path))

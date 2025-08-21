@@ -405,6 +405,18 @@ def test_normalize(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_obj_fetch_metadata(scalar_types_df: bpd.DataFrame, snapshot):
+    blob_s = scalar_types_df["string_col"].str.to_blob()
+    sql = blob_s.blob.version().to_frame().sql
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_obj_get_access_url(scalar_types_df: bpd.DataFrame, snapshot):
+    blob_s = scalar_types_df["string_col"].str.to_blob()
+    sql = blob_s.blob.read_url().to_frame().sql
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_pos(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.pos_op, "float64_col")
@@ -587,9 +599,11 @@ def test_to_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_to_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col"]]
-    sql = _apply_unary_op(bf_df, ops.ToTimedeltaOp("s"), "int64_col")
+    bf_df["duration_us"] = bpd.to_timedelta(bf_df["int64_col"], "us")
+    bf_df["duration_s"] = bpd.to_timedelta(bf_df["int64_col"], "s")
+    bf_df["duration_w"] = bpd.to_timedelta(bf_df["int64_col"], "W")
 
-    snapshot.assert_match(sql, "out.sql")
+    snapshot.assert_match(bf_df.sql, "out.sql")
 
 
 def test_unix_micros(scalar_types_df: bpd.DataFrame, snapshot):
