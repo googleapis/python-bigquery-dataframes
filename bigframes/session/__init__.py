@@ -398,7 +398,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[False] = ...,
-        allow_large_results: bool = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -415,7 +415,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[True] = ...,
-        allow_large_results: bool = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> pandas.Series:
         ...
 
@@ -431,7 +431,7 @@ class Session(
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
         dry_run: bool = False,
-        allow_large_results: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> dataframe.DataFrame | pandas.Series:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if columns and col_order:
@@ -440,6 +440,9 @@ class Session(
             )
         elif col_order:
             columns = col_order
+
+        if allow_large_results is None:
+            allow_large_results = bigframes._config.options._allow_large_results
 
         if bf_io_bigquery.is_query(query_or_table):
             return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
@@ -527,6 +530,8 @@ class Session(
         if pyformat_args is None:
             pyformat_args = {}
 
+        allow_large_results = bigframes._config.options._allow_large_results
+
         query = bigframes.core.pyformat.pyformat(
             query,
             pyformat_args=pyformat_args,
@@ -539,10 +544,7 @@ class Session(
             index_col=bigframes.enums.DefaultIndexKind.NULL,
             force_total_order=False,
             dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
-            # TODO(tswast): we may need to allow allow_large_results to be overwritten
-            # or possibly a general configuration object for an explicit
-            # destination table and write disposition.
-            allow_large_results=False,
+            allow_large_results=allow_large_results,
         )
 
     @overload

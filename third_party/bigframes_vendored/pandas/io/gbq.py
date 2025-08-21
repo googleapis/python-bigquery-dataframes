@@ -25,7 +25,7 @@ class GBQIOMixin:
         filters: FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
-        allow_large_results: bool = True,
+        allow_large_results: Optional[bool] = None,
     ):
         """Loads a DataFrame from BigQuery.
 
@@ -161,7 +161,7 @@ class GBQIOMixin:
                 Whether to allow large query results. If ``True``, the query
                 results can be larger than the maximum response size. This
                 option is only applicable when ``query_or_table`` is a query.
-                Defaults to ``True``.
+                Defaults to ``bpd.options.compute.allow_large_results``.
 
         Raises:
             bigframes.exceptions.DefaultIndexWarning:

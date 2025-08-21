@@ -895,7 +895,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
-        allow_large_results: bool = ...,
+        allow_large_results: bool,
     ) -> dataframe.DataFrame:
         ...
 
@@ -912,7 +912,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
-        allow_large_results: bool = ...,
+        allow_large_results: bool,
     ) -> pandas.Series:
         ...
 
@@ -928,7 +928,7 @@ class GbqDataLoader:
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
-        allow_large_results: bool = True,
+        allow_large_results: bool,
     ) -> dataframe.DataFrame | pandas.Series:
         configuration = _transform_read_gbq_configuration(configuration)
 

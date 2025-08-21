@@ -187,7 +187,7 @@ def read_gbq(  # type: ignore[overload-overlap]
     use_cache: Optional[bool] = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[False] = ...,
-    allow_large_results: bool = ...,
+    allow_large_results: Optional[bool] = ...,
 ) -> bigframes.dataframe.DataFrame:
     ...
 
@@ -204,7 +204,7 @@ def read_gbq(
     use_cache: Optional[bool] = ...,
     col_order: Iterable[str] = ...,
     dry_run: Literal[True] = ...,
-    allow_large_results: bool = ...,
+    allow_large_results: Optional[bool] = ...,
 ) -> pandas.Series:
     ...
 
@@ -220,7 +220,7 @@ def read_gbq(
     use_cache: Optional[bool] = None,
     col_order: Iterable[str] = (),
     dry_run: bool = False,
-    allow_large_results: bool = True,
+    allow_large_results: Optional[bool] = None,
 ) -> bigframes.dataframe.DataFrame | pandas.Series:
     _set_default_session_location_if_possible(query_or_table)
     return global_session.with_default_session(
