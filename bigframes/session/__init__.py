@@ -133,6 +133,10 @@ class Session(
         context: Optional[bigquery_options.BigQueryOptions] = None,
         clients_provider: Optional[bigframes.session.clients.ClientsProvider] = None,
     ):
+        # Address circular imports in doctest due to bigframes/session/__init__.py
+        # containing a lot of logic and samples.
+        from bigframes.session import anonymous_dataset, clients, loader, metrics
+
         _warn_if_bf_version_is_obsolete()
 
         if context is None:
@@ -168,7 +172,7 @@ class Session(
         if clients_provider:
             self._clients_provider = clients_provider
         else:
-            self._clients_provider = bigframes.session.clients.ClientsProvider(
+            self._clients_provider = clients.ClientsProvider(
                 project=context.project,
                 location=self._location,
                 use_regional_endpoints=context.use_regional_endpoints,
@@ -220,15 +224,13 @@ class Session(
             else bigframes.enums.DefaultIndexKind.NULL
         )
 
-        self._metrics = bigframes.session.metrics.ExecutionMetrics()
+        self._metrics = metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
-        self._anon_dataset_manager = (
-            bigframes.session.anonymous_dataset.AnonymousDatasetManager(
-                self._clients_provider.bqclient,
-                location=self._location,
-                session_id=self._session_id,
-                kms_key=self._bq_kms_key_name,
-            )
+        self._anon_dataset_manager = anonymous_dataset.AnonymousDatasetManager(
+            self._clients_provider.bqclient,
+            location=self._location,
+            session_id=self._session_id,
+            kms_key=self._bq_kms_key_name,
         )
         # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
         self._session_resource_manager = (
@@ -242,7 +244,7 @@ class Session(
         self._temp_storage_manager = (
             self._session_resource_manager or self._anon_dataset_manager
         )
-        self._loader = bigframes.session.loader.GbqDataLoader(
+        self._loader = loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
             storage_manager=self._temp_storage_manager,
