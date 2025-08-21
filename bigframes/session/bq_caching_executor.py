@@ -253,12 +253,14 @@ class BigQueryCachingExecutor(executor.Executor):
             if spec.if_exists == "fail":
                 raise ValueError(f"Table already exists: {spec.table.__str__()}")
 
-            if (len(spec.cluster_cols) != 0) and (
-                table.clustering_fields != spec.cluster_cols
+            if (
+                (len(spec.cluster_cols) != 0)
+                and (table.clustering_fields is not None)
+                and (tuple(table.clustering_fields) != spec.cluster_cols)
             ):
                 raise ValueError(
                     "Table clustering fields cannot be changed after the table has "
-                    f"been created. Existing clustering fields: {table.clustering_fields}"
+                    f"been created. Requested clustering fields: {spec.cluster_cols}, existing clustering fields: {table.clustering_fields}"
                 )
             return table
         except google.api_core.exceptions.NotFound:
