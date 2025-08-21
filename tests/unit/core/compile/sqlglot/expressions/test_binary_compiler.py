@@ -83,10 +83,15 @@ def test_add_unsupported_raises(scalar_types_df: bpd.DataFrame):
 
 
 def test_div_numeric(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+    bf_df = scalar_types_df[["int64_col", "bool_col", "float64_col"]]
 
     bf_df["int_div_int"] = bf_df["int64_col"] / bf_df["int64_col"]
     bf_df["int_div_1"] = bf_df["int64_col"] / 1
+    bf_df["int_div_0"] = bf_df["int64_col"] / 0.0
+
+    bf_df["int_div_float"] = bf_df["int64_col"] / bf_df["float64_col"]
+    bf_df["float_div_int"] = bf_df["float64_col"] / bf_df["int64_col"]
+    bf_df["float_div_0"] = bf_df["float64_col"] / 0.0
 
     bf_df["int_div_bool"] = bf_df["int64_col"] / bf_df["bool_col"]
     bf_df["bool_div_int"] = bf_df["bool_col"] / bf_df["int64_col"]
@@ -98,6 +103,48 @@ def test_div_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["timestamp_col", "int64_col"]]
     timedelta = pd.Timedelta(1, unit="d")
     bf_df["timedelta_div_numeric"] = timedelta / bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_eq_null_match(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+    sql = _apply_binary_op(bf_df, ops.eq_null_match_op, "int64_col", "bool_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_eq_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+
+    bf_df["int_ne_int"] = bf_df["int64_col"] == bf_df["int64_col"]
+    bf_df["int_ne_1"] = bf_df["int64_col"] == 1
+
+    bf_df["int_ne_bool"] = bf_df["int64_col"] == bf_df["bool_col"]
+    bf_df["bool_ne_int"] = bf_df["bool_col"] == bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_floordiv_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col", "float64_col"]]
+
+    bf_df["int_div_int"] = bf_df["int64_col"] // bf_df["int64_col"]
+    bf_df["int_div_1"] = bf_df["int64_col"] // 1
+    bf_df["int_div_0"] = bf_df["int64_col"] // 0.0
+
+    bf_df["int_div_float"] = bf_df["int64_col"] // bf_df["float64_col"]
+    bf_df["float_div_int"] = bf_df["float64_col"] // bf_df["int64_col"]
+    bf_df["float_div_0"] = bf_df["float64_col"] // 0.0
+
+    bf_df["int_div_bool"] = bf_df["int64_col"] // bf_df["bool_col"]
+    bf_df["bool_div_int"] = bf_df["bool_col"] // bf_df["int64_col"]
+
+
+def test_floordiv_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col", "date_col"]]
+    timedelta = pd.Timedelta(1, unit="d")
+
+    bf_df["timedelta_div_numeric"] = timedelta // 2
 
     snapshot.assert_match(bf_df.sql, "out.sql")
 
@@ -169,3 +216,15 @@ def test_mul_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
 def test_obj_make_ref(scalar_types_df: bpd.DataFrame, snapshot):
     blob_df = scalar_types_df["string_col"].str.to_blob()
     snapshot.assert_match(blob_df.to_frame().sql, "out.sql")
+
+
+def test_ne_numeric(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+
+    bf_df["int_ne_int"] = bf_df["int64_col"] != bf_df["int64_col"]
+    bf_df["int_ne_1"] = bf_df["int64_col"] != 1
+
+    bf_df["int_ne_bool"] = bf_df["int64_col"] != bf_df["bool_col"]
+    bf_df["bool_ne_int"] = bf_df["bool_col"] != bf_df["int64_col"]
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
