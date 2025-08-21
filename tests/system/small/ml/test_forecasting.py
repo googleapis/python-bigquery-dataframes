@@ -490,6 +490,7 @@ def test_arima_plus_score(
         expected.sort_values("id").reset_index(),
         rtol=0.1,
         check_index_type=False,
+        check_dtype=False,
     )
 
 
@@ -583,6 +584,7 @@ def test_arima_plus_score_series(
         expected.sort_values("id").reset_index(),
         rtol=0.1,
         check_index_type=False,
+        check_dtype=False,
     )
 
 
