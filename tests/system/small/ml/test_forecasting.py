@@ -432,8 +432,10 @@ def test_arima_plus_detect_anomalies_params(
             },
         )
     pd.testing.assert_frame_equal(
-        anomalies[["is_anomaly", "lower_bound", "upper_bound", "anomaly_probability"]],
-        expected,
+        anomalies[["is_anomaly", "lower_bound", "upper_bound", "anomaly_probability"]]
+        .sort_values("anomaly_probability")
+        .reset_index(),
+        expected.sort_values("anomaly_probability").reset_index(),
         rtol=0.1,
         check_index_type=False,
         check_dtype=False,
@@ -484,8 +486,8 @@ def test_arima_plus_score(
             dtype="Float64",
         )
     pd.testing.assert_frame_equal(
-        result,
-        expected,
+        result.sort_values("id").reset_index(),
+        expected.sort_values("id").reset_index(),
         rtol=0.1,
         check_index_type=False,
     )
@@ -577,8 +579,8 @@ def test_arima_plus_score_series(
             dtype="Float64",
         )
     pd.testing.assert_frame_equal(
-        result,
-        expected,
+        result.sort_values("id").reset_index(),
+        expected.sort_values("id").reset_index(),
         rtol=0.1,
         check_index_type=False,
     )
