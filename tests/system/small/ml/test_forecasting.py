@@ -451,26 +451,35 @@ def test_arima_plus_score(
     id_col_name,
 ):
     if id_col_name:
-        result = time_series_arima_plus_model_w_id.score(
-            new_time_series_df_w_id[["parsed_date"]],
-            new_time_series_df_w_id[["total_visits"]],
-            new_time_series_df_w_id[["id"]],
-        ).to_pandas()
+        result = (
+            time_series_arima_plus_model_w_id.score(
+                new_time_series_df_w_id[["parsed_date"]],
+                new_time_series_df_w_id[["total_visits"]],
+                new_time_series_df_w_id[["id"]],
+            )
+            .to_pandas()
+            .sort_values("id")
+            .reset_index()
+        )
     else:
         result = time_series_arima_plus_model.score(
             new_time_series_df[["parsed_date"]], new_time_series_df[["total_visits"]]
         ).to_pandas()
     if id_col_name:
-        expected = pd.DataFrame(
-            {
-                "id": ["2", "1"],
-                "mean_absolute_error": [120.011007, 120.011007],
-                "mean_squared_error": [14562.562359, 14562.562359],
-                "root_mean_squared_error": [120.675442, 120.675442],
-                "mean_absolute_percentage_error": [4.80044, 4.80044],
-                "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
-            },
-            dtype="Float64",
+        expected = (
+            pd.DataFrame(
+                {
+                    "id": ["2", "1"],
+                    "mean_absolute_error": [120.011007, 120.011007],
+                    "mean_squared_error": [14562.562359, 14562.562359],
+                    "root_mean_squared_error": [120.675442, 120.675442],
+                    "mean_absolute_percentage_error": [4.80044, 4.80044],
+                    "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
+                },
+                dtype="Float64",
+            )
+            .sort_values("id")
+            .reset_index()
         )
         expected["id"] = expected["id"].astype(str).str.replace(r"\.0$", "", regex=True)
         expected["id"] = expected["id"].astype("string[pyarrow]")
@@ -486,8 +495,8 @@ def test_arima_plus_score(
             dtype="Float64",
         )
     pd.testing.assert_frame_equal(
-        result.sort_values("id").reset_index(),
-        expected.sort_values("id").reset_index(),
+        result,
+        expected,
         rtol=0.1,
         check_index_type=False,
         check_dtype=False,
@@ -545,26 +554,35 @@ def test_arima_plus_score_series(
     id_col_name,
 ):
     if id_col_name:
-        result = time_series_arima_plus_model_w_id.score(
-            new_time_series_df_w_id["parsed_date"],
-            new_time_series_df_w_id["total_visits"],
-            new_time_series_df_w_id["id"],
-        ).to_pandas()
+        result = (
+            time_series_arima_plus_model_w_id.score(
+                new_time_series_df_w_id["parsed_date"],
+                new_time_series_df_w_id["total_visits"],
+                new_time_series_df_w_id["id"],
+            )
+            .to_pandas()
+            .sort_values("id")
+            .reset_index()
+        )
     else:
         result = time_series_arima_plus_model.score(
             new_time_series_df["parsed_date"], new_time_series_df["total_visits"]
         ).to_pandas()
     if id_col_name:
-        expected = pd.DataFrame(
-            {
-                "id": ["2", "1"],
-                "mean_absolute_error": [120.011007, 120.011007],
-                "mean_squared_error": [14562.562359, 14562.562359],
-                "root_mean_squared_error": [120.675442, 120.675442],
-                "mean_absolute_percentage_error": [4.80044, 4.80044],
-                "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
-            },
-            dtype="Float64",
+        expected = (
+            pd.DataFrame(
+                {
+                    "id": ["2", "1"],
+                    "mean_absolute_error": [120.011007, 120.011007],
+                    "mean_squared_error": [14562.562359, 14562.562359],
+                    "root_mean_squared_error": [120.675442, 120.675442],
+                    "mean_absolute_percentage_error": [4.80044, 4.80044],
+                    "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
+                },
+                dtype="Float64",
+            )
+            .sort_values("id")
+            .reset_index()
         )
         expected["id"] = expected["id"].astype(str).str.replace(r"\.0$", "", regex=True)
         expected["id"] = expected["id"].astype("string[pyarrow]")
@@ -580,11 +598,10 @@ def test_arima_plus_score_series(
             dtype="Float64",
         )
     pd.testing.assert_frame_equal(
-        result.sort_values("id").reset_index(),
-        expected.sort_values("id").reset_index(),
+        result,
+        expected,
         rtol=0.1,
         check_index_type=False,
-        check_dtype=False,
     )
 
 
