@@ -466,6 +466,24 @@ def test_str_get(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_str_pad(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(
+        bf_df, ops.StrPadOp(length=10, fillchar="-", side="left"), "string_col"
+    )
+    snapshot.assert_match(sql, "left.sql")
+
+    sql = _apply_unary_op(
+        bf_df, ops.StrPadOp(length=10, fillchar="-", side="right"), "string_col"
+    )
+    snapshot.assert_match(sql, "right.sql")
+
+    sql = _apply_unary_op(
+        bf_df, ops.StrPadOp(length=10, fillchar="-", side="both"), "string_col"
+    )
+    snapshot.assert_match(sql, "both.sql")
+
+
 def test_str_slice(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.StrSliceOp(1, 3), "string_col")
@@ -504,6 +522,21 @@ def test_str_contains_regex(scalar_types_df: bpd.DataFrame, snapshot):
     sql = _apply_unary_op(bf_df, ops.StrContainsRegexOp("e"), "string_col")
 
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_str_find(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=None, end=None), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=2, end=None), "string_col")
+    snapshot.assert_match(sql, "out_with_start.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=None, end=5), "string_col")
+    snapshot.assert_match(sql, "out_with_end.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=2, end=5), "string_col")
+    snapshot.assert_match(sql, "out_with_start_and_end.sql")
 
 
 def test_strip(scalar_types_df: bpd.DataFrame, snapshot):
