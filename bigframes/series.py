@@ -1898,9 +1898,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def apply(
-        self, func, by_row: typing.Union[typing.Literal["compat"], bool] = "compat"
+        self,
+        func,
+        by_row: typing.Union[typing.Literal["compat"], bool] = "compat",
+        *,
+        args: typing.Tuple = (),
     ) -> Series:
-        # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
+        # TODO(shobs, b/274645634): Support convert_dtype, **kwargs
         # is actually a ternary op
 
         if by_row not in ["compat", False]:
@@ -1944,10 +1948,16 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 raise
 
         # We are working with bigquery function at this point
-        result_series = self._apply_unary_op(
-            ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
-        )
+        if args:
+            result_series = self._apply_nary_op(
+                ops.NaryRemoteFunctionOp(function_def=func.udf_def), args
+            )
+        else:
+            result_series = self._apply_unary_op(
+                ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
+            )
         result_series = func._post_process_series(result_series)
+
         return result_series
 
     def combine(

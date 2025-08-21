@@ -2969,3 +2969,56 @@ def test_remote_function_series_where(session, dataset_id, scalars_dfs):
     finally:
         # Clean up the gcp assets created for the remote function.
         cleanup_function_assets(ten_times_mf, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_series_apply_args(session, dataset_id, scalars_dfs):
+    try:
+
+        @session.remote_function(
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo(x: int, y: bool, z: float) -> str:
+            if y:
+                return f"{x}: y is True."
+            if z > 0.0:
+                return f"{x}: y is False and z is positive."
+            return f"{x}: y is False and z is non-positive."
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        args1 = (True, 10.0)
+        bf_result_col = scalars_df["int64_too"].apply(foo, args=args1)
+        bf_result = (
+            scalars_df["int64_too"].to_frame().assign(result=bf_result_col).to_pandas()
+        )
+
+        pd_result_col = scalars_pandas_df["int64_too"].apply(foo, args=args1)
+        pd_result = (
+            scalars_pandas_df["int64_too"].to_frame().assign(result=pd_result_col)
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+        args2 = (False, -10.0)
+        foo_ref = session.read_gbq_function(foo.bigframes_bigquery_function)
+
+        bf_result_col = scalars_df["int64_too"].apply(foo_ref, args=args2)
+        bf_result = (
+            scalars_df["int64_too"].to_frame().assign(result=bf_result_col).to_pandas()
+        )
+
+        pd_result_col = scalars_pandas_df["int64_too"].apply(foo, args=args2)
+        pd_result = (
+            scalars_pandas_df["int64_too"].to_frame().assign(result=pd_result_col)
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(foo, session.bqclient, ignore_failures=False)
