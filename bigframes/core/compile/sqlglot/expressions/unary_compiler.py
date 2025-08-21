@@ -182,6 +182,13 @@ def _(op: ops.StrContainsRegexOp, expr: TypedExpr) -> sge.Expression:
     return sge.RegexpLike(this=expr.expr, expression=sge.convert(op.pat))
 
 
+@UNARY_OP_REGISTRATION.register(ops.StrExtractOp)
+def _(op: ops.StrExtractOp, expr: TypedExpr) -> sge.Expression:
+    return sge.RegexpExtract(
+        this=expr.expr, expression=sge.convert(op.pat), group=sge.convert(op.n)
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.StrFindOp)
 def _(op: ops.StrFindOp, expr: TypedExpr) -> sge.Expression:
     # INSTR is 1-based, so we need to adjust the start position.
@@ -210,6 +217,10 @@ def _(op: ops.StrFindOp, expr: TypedExpr) -> sge.Expression:
 def _(op: ops.StrContainsOp, expr: TypedExpr) -> sge.Expression:
     return sge.Like(this=expr.expr, expression=sge.convert(f"%{op.pat}%"))
 
+
+@UNARY_OP_REGISTRATION.register(ops.StrRepeatOp)
+def _(op: ops.StrRepeatOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Repeat(this=expr.expr, times=sge.convert(op.repeats))
 
 @UNARY_OP_REGISTRATION.register(ops.date_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:

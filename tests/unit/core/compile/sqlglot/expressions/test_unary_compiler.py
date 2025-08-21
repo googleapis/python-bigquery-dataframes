@@ -524,6 +524,19 @@ def test_str_contains_regex(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_str_extract(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StrExtractOp(r"([a-z]*)", 1), "string_col")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_str_repeat(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StrRepeatOp(2), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_str_find(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=None, end=None), "string_col")
