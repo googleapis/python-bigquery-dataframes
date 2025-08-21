@@ -1044,6 +1044,8 @@ class GbqDataLoader:
             return bf_read_gbq_query.create_dataframe_from_row_iterator(
                 rows,
                 session=self._session,
+                index_col=index_col,
+                columns=columns,
             )
 
         # If there was no destination table and we've made it this far, that
