@@ -123,12 +123,17 @@ def test_vector_search_basic_params_with_df():
             "embedding": [[1.0, 2.0], [3.0, 5.2]],
         }
     )
-    vector_search_result = bbq.vector_search(
-        base_table="bigframes-dev.bigframes_tests_sys.base_table",
-        column_to_search="my_embedding",
-        query=search_query,
-        top_k=2,
-    ).to_pandas()  # type:ignore
+    vector_search_result = (
+        bbq.vector_search(
+            base_table="bigframes-dev.bigframes_tests_sys.base_table",
+            column_to_search="my_embedding",
+            query=search_query,
+            top_k=2,
+        )
+        .sort_values("distance")
+        .sort_index()
+        .to_pandas()
+    )  # type:ignore
     expected = pd.DataFrame(
         {
             "query_id": ["cat", "dog", "dog", "cat"],
@@ -173,22 +178,39 @@ def test_vector_search_different_params_with_query(session):
     base_table = base_df.to_gbq()
     try:
         search_query = bpd.Series([[0.75, 0.25], [-0.25, -0.75]], session=session)
-        vector_search_result = bbq.vector_search(
-            base_table=base_table,
-            column_to_search="my_embedding",
-            query=search_query,
-            distance_type="cosine",
-            top_k=2,
-        ).to_pandas()  # type:ignore
+        vector_search_result = (
+            bbq.vector_search(
+                base_table=base_table,
+                column_to_search="my_embedding",
+                query=search_query,
+                distance_type="cosine",
+                top_k=2,
+            )
+            .sort_values("distance")
+            .sort_index()
+            .to_pandas()
+        )  # type:ignore
         expected = pd.DataFrame(
             {
-                "0": {np.int64(0): [0.75, 0.25], np.int64(1): [-0.25, -0.75]},
-                "id": {np.int64(0): 1, np.int64(1): 4},
-                "my_embedding": {np.int64(0): [0.0, 1.0], np.int64(1): [-1.0, 0.0]},
-                "distance": {
-                    np.int64(0): 0.683772233983162,
-                    np.int64(1): 0.683772233983162,
-                },
+                "0": [
+                    [0.75, 0.25],
+                    [0.75, 0.25],
+                    [-0.25, -0.75],
+                    [-0.25, -0.75],
+                ],
+                "id": [2, 1, 3, 4],
+                "my_embedding": [
+                    [1.0, 0.0],
+                    [0.0, 1.0],
+                    [0.0, -1.0],
+                    [-1.0, 0.0],
+                ],
+                "distance": [
+                    0.051317,
+                    0.683772,
+                    0.051317,
+                    0.683772,
+                ],
             },
             index=pd.Index([0, 0, 1, 1], dtype="Int64"),
         )
