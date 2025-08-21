@@ -67,8 +67,11 @@ def create_dataframe_from_row_iterator(
     """
     pa_table = rows.to_arrow()
     bq_schema = list(rows.schema)
+    is_default_index = not index_col or isinstance(
+        index_col, bigframes.enums.DefaultIndexKind
+    )
 
-    if not index_col or isinstance(index_col, bigframes.enums.DefaultIndexKind):
+    if is_default_index:
         # We get a sequential index for free, so use that if no index is specified.
         # TODO(tswast): Use array_value.promote_offsets() instead once that node is
         # supported by the local engine.
@@ -81,6 +84,7 @@ def create_dataframe_from_row_iterator(
         index_columns = (index_col,)
         index_labels = (index_col,)
     else:
+        index_col = cast(Iterable[str], index_col)
         index_columns = tuple(index_col)
         index_labels = cast(Tuple[Optional[str], ...], tuple(index_col))
 
@@ -110,5 +114,8 @@ def create_dataframe_from_row_iterator(
 
     if columns:
         df = df[list(columns)]
+
+    if not is_default_index:
+        df = df.sort_index()
 
     return df

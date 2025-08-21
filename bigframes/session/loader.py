@@ -956,6 +956,7 @@ class GbqDataLoader:
                 True if use_cache is None else use_cache
             )
 
+        _check_duplicates("columns", columns)
         index_cols = _to_index_cols(index_col)
         _check_index_col_param(index_cols, columns)
 
