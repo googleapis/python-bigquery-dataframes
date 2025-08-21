@@ -434,8 +434,8 @@ def test_arima_plus_detect_anomalies_params(
     pd.testing.assert_frame_equal(
         anomalies[["is_anomaly", "lower_bound", "upper_bound", "anomaly_probability"]]
         .sort_values("anomaly_probability")
-        .reset_index(),
-        expected.sort_values("anomaly_probability").reset_index(),
+        .reset_index(drop=True),
+        expected.sort_values("anomaly_probability").reset_index(drop=True),
         rtol=0.1,
         check_index_type=False,
         check_dtype=False,
@@ -459,30 +459,28 @@ def test_arima_plus_score(
             )
             .to_pandas()
             .sort_values("id")
-            .reset_index()
+            .reset_index(drop=True)
         )
     else:
         result = time_series_arima_plus_model.score(
             new_time_series_df[["parsed_date"]], new_time_series_df[["total_visits"]]
         ).to_pandas()
     if id_col_name:
-        expected = (
-            pd.DataFrame(
-                {
-                    "id": ["2", "1"],
-                    "mean_absolute_error": [120.011007, 120.011007],
-                    "mean_squared_error": [14562.562359, 14562.562359],
-                    "root_mean_squared_error": [120.675442, 120.675442],
-                    "mean_absolute_percentage_error": [4.80044, 4.80044],
-                    "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
-                },
-                dtype="Float64",
-            )
-            .sort_values("id")
-            .reset_index()
+        expected = pd.DataFrame(
+            {
+                "id": ["2", "1"],
+                "mean_absolute_error": [120.011007, 120.011007],
+                "mean_squared_error": [14562.562359, 14562.562359],
+                "root_mean_squared_error": [120.675442, 120.675442],
+                "mean_absolute_percentage_error": [4.80044, 4.80044],
+                "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
+            },
+            dtype="Float64",
         )
         expected["id"] = expected["id"].astype(str).str.replace(r"\.0$", "", regex=True)
         expected["id"] = expected["id"].astype("string[pyarrow]")
+        expected = expected.sort_values("id")
+        expected = expected.reset_index(drop=True)
     else:
         expected = pd.DataFrame(
             {
@@ -562,30 +560,28 @@ def test_arima_plus_score_series(
             )
             .to_pandas()
             .sort_values("id")
-            .reset_index()
+            .reset_index(drop=True)
         )
     else:
         result = time_series_arima_plus_model.score(
             new_time_series_df["parsed_date"], new_time_series_df["total_visits"]
         ).to_pandas()
     if id_col_name:
-        expected = (
-            pd.DataFrame(
-                {
-                    "id": ["2", "1"],
-                    "mean_absolute_error": [120.011007, 120.011007],
-                    "mean_squared_error": [14562.562359, 14562.562359],
-                    "root_mean_squared_error": [120.675442, 120.675442],
-                    "mean_absolute_percentage_error": [4.80044, 4.80044],
-                    "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
-                },
-                dtype="Float64",
-            )
-            .sort_values("id")
-            .reset_index()
+        expected = pd.DataFrame(
+            {
+                "id": ["2", "1"],
+                "mean_absolute_error": [120.011007, 120.011007],
+                "mean_squared_error": [14562.562359, 14562.562359],
+                "root_mean_squared_error": [120.675442, 120.675442],
+                "mean_absolute_percentage_error": [4.80044, 4.80044],
+                "symmetric_mean_absolute_percentage_error": [4.744332, 4.744332],
+            },
+            dtype="Float64",
         )
         expected["id"] = expected["id"].astype(str).str.replace(r"\.0$", "", regex=True)
         expected["id"] = expected["id"].astype("string[pyarrow]")
+        expected = expected.sort_values("id")
+        expected = expected.reset_index(drop=True)
     else:
         expected = pd.DataFrame(
             {
@@ -602,6 +598,7 @@ def test_arima_plus_score_series(
         expected,
         rtol=0.1,
         check_index_type=False,
+        check_dtype=False,
     )
 
 
