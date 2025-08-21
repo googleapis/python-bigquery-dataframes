@@ -63,8 +63,9 @@ class TableWidget(WIDGET_BASE):
                 "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use TableWidget."
             )
 
-        super().__init__()
         self._dataframe = dataframe
+        self._initializing = True
+        super().__init__()
 
         # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
@@ -89,12 +90,10 @@ class TableWidget(WIDGET_BASE):
         # Create pandas batches from the ExecuteResult
         self._batches = execute_result.to_pandas_batches(page_size=initial_page_size)
 
-        # Set page_size after _batches is available, but avoid triggering observers
-        # by setting the underlying traitlet value directly
-        self._trait_values["page_size"] = initial_page_size
-        self._trait_notifiers["page_size"] = {}  # Initialize notifiers if needed
+        self.page_size = initial_page_size
 
         self._set_table_html()
+        self._initializing = False
 
     @functools.cached_property
     def _esm(self):
@@ -227,11 +226,15 @@ class TableWidget(WIDGET_BASE):
     @traitlets.observe("page")
     def _page_changed(self, _change: Dict[str, Any]):
         """Handler for when the page number is changed from the frontend."""
+        if self._initializing:
+            return
         self._set_table_html()
 
     @traitlets.observe("page_size")
     def _page_size_changed(self, _change: Dict[str, Any]):
         """Handler for when the page size is changed from the frontend."""
+        if self._initializing:
+            return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
 
