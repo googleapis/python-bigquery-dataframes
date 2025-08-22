@@ -51,13 +51,7 @@ def images_output_uris(images_output_folder: str) -> list[str]:
     ]
 
 
-@pytest.mark.parametrize(
-    "verbose",
-    [
-        (True),
-        (False),
-    ],
-)
+@pytest.mark.parametrize("verbose", [True, False])
 def test_blob_exif(
     bq_connection: str,
     session: bigframes.Session,
@@ -489,13 +483,7 @@ def test_blob_image_normalize_to_bq(
         assert actual.dtype == dtypes.BYTES_DTYPE
 
 
-@pytest.mark.parametrize(
-    "verbose",
-    [
-        (True),
-        (False),
-    ],
-)
+@pytest.mark.parametrize("verbose", [True, False])
 def test_blob_pdf_extract(
     pdf_mm_df: bpd.DataFrame,
     verbose: bool,
@@ -538,13 +526,7 @@ def test_blob_pdf_extract(
         ), f"Item (verbose={verbose}): Expected keyword '{keyword}' not found in extracted text. "
 
 
-@pytest.mark.parametrize(
-    "verbose",
-    [
-        (True),
-        (False),
-    ],
-)
+@pytest.mark.parametrize("verbose", [True, False])
 def test_blob_pdf_chunk(pdf_mm_df: bpd.DataFrame, verbose: bool, bq_connection: str):
     actual = (
         pdf_mm_df["pdf"]
