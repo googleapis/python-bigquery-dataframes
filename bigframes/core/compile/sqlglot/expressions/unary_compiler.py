@@ -278,6 +278,11 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("ST_CENTROID", expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.geo_st_convexhull_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("ST_CONVEXHULL", expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.geo_st_geogfromtext_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("SAFE.ST_GEOGFROMTEXT", expr.expr)
