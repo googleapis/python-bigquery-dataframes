@@ -423,11 +423,14 @@ def test_to_csv_index(
     dtype.pop("rowindex")
     # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
+    # `expand=True` is needed to read from wildcard paths. See details:
+    # https://github.com/fsspec/gcsfs/issues/616
     gcs_df = pd.read_csv(
-        utils.get_first_file_from_wildcard(path),
+        path,
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
+        storage_options={"expand": True},
     )
     utils.convert_pandas_dtypes(gcs_df, bytes_col=True)
     gcs_df.index.name = scalars_df.index.name
@@ -462,11 +465,14 @@ def test_to_csv_tabs(
     # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
     gcs_df = pd.read_csv(
-        utils.get_first_file_from_wildcard(path),
+        path,
         sep="\t",
         dtype=dtype,
         date_format={"timestamp_col": "YYYY-MM-DD HH:MM:SS Z"},
         index_col=index_col,
+        # `expand=True` is needed to read from wildcard paths. See details:
+        # https://github.com/fsspec/gcsfs/issues/616,
+        storage_options={"expand": True},
     )
     utils.convert_pandas_dtypes(gcs_df, bytes_col=True)
     gcs_df.index.name = scalars_df.index.name
@@ -959,10 +965,13 @@ def test_to_json_index_records_orient(
 
     scalars_df.to_json(path, index=index, orient="records", lines=True)
 
+    # `expand=True` is needed to read from wildcard paths. See details:
+    # https://github.com/fsspec/gcsfs/issues/616,
     gcs_df = pd.read_json(
-        utils.get_first_file_from_wildcard(path),
+        path,
         lines=True,
         convert_dates=["datetime_col"],
+        storage_options={"expand": True},
     )
     utils.convert_pandas_dtypes(gcs_df, bytes_col=True)
     if index and scalars_df.index.name is not None:
