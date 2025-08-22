@@ -391,6 +391,15 @@ def test_lower(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_map(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(
+        bf_df, ops.MapOp(mappings=(("value1", "mapped1"),)), "string_col"
+    )
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_lstrip(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.StrLstripOp(" "), "string_col")

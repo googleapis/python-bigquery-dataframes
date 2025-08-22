@@ -455,6 +455,17 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Lower(this=expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.MapOp)
+def _(op: ops.MapOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        this=expr.expr,
+        ifs=[
+            sge.If(this=sge.convert(key), true=sge.convert(value))
+            for key, value in op.mappings
+        ],
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.minute_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="MINUTE"), expression=expr.expr)
