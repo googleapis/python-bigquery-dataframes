@@ -273,6 +273,11 @@ def _(op: ops.GeoStBufferOp, expr: TypedExpr) -> sge.Expression:
     )
 
 
+@UNARY_OP_REGISTRATION.register(ops.geo_st_centroid_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("ST_CENTROID", expr.expr)
+
+
 @UNARY_OP_REGISTRATION.register(ops.geo_st_geogfromtext_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("SAFE.ST_GEOGFROMTEXT", expr.expr)
