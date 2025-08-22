@@ -228,7 +228,8 @@ def image_blur_to_bytes_func(
     import base64
     import json
 
-    result_dict = {"status": "", "content": b""}
+    status = ""
+    content = b""
 
     try:
         import cv2 as cv  # type: ignore
@@ -250,19 +251,16 @@ def image_blur_to_bytes_func(
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
         img_blurred = cv.blur(img, ksize=(ksize_x, ksize_y))
-        bts = cv.imencode(ext, img_blurred)[1].tobytes()
-        result_dict["content"] = bts
+        content = cv.imencode(ext, img_blurred)[1].tobytes()
 
     except Exception as e:
-        result_dict["status"] = str(e)
+        status = str(e)
 
     if verbose:
-        result_dict["content"] = base64.b64encode(result_dict["content"]).decode(
-            "utf-8"
-        )
-        return json.dumps(result_dict)
+        encoded_content = base64.b64encode(content).decode("utf-8")
+        return json.dumps({"status": status, "content": encoded_content})
     else:
-        return base64.b64encode(result_dict["content"]).decode("utf-8")
+        return base64.b64encode(content).decode("utf-8")
 
 
 image_blur_to_bytes_def = FunctionDef(
@@ -350,7 +348,8 @@ def image_resize_to_bytes_func(
     import base64
     import json
 
-    result_dict = {"status": "", "content": b""}
+    status = ""
+    content = b""
 
     try:
         import cv2 as cv  # type: ignore
@@ -372,19 +371,16 @@ def image_resize_to_bytes_func(
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
         img_resized = cv.resize(img, dsize=(dsize_x, dsize_y), fx=fx, fy=fy)
-        bts = cv.imencode(".jpeg", img_resized)[1].tobytes()
-        result_dict["content"] = bts
+        content = cv.imencode(".jpeg", img_resized)[1].tobytes()
 
     except Exception as e:
-        result_dict["status"] = str(e)
+        status = str(e)
 
     if verbose:
-        result_dict["content"] = base64.b64encode(result_dict["content"]).decode(
-            "utf-8"
-        )
-        return json.dumps(result_dict)
+        encoded_content = base64.b64encode(content).decode("utf-8")
+        return json.dumps({"status": status, "content": encoded_content})
     else:
-        return base64.b64encode(result_dict["content"]).decode("utf-8")
+        return base64.b64encode(content).decode("utf-8")
 
 
 image_resize_to_bytes_def = FunctionDef(
