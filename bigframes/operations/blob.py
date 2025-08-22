@@ -337,6 +337,7 @@ class BlobAccessor(base.SeriesMethods):
 
         connection = self._resolve_connection(connection)
         df = self.get_runtime_json_str(mode="R").to_frame()
+        df["verbose"] = verbose
 
         exif_udf = blob_func.TransformFunction(
             blob_func.exif_func_def,
