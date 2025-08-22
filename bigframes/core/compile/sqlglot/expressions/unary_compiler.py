@@ -262,6 +262,17 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("ST_BOUNDARY", expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.GeoStBufferOp)
+def _(op: ops.GeoStBufferOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func(
+        "ST_BUFFER",
+        expr.expr,
+        sge.convert(op.buffer_radius),
+        sge.convert(op.num_seg_quarter_circle),
+        sge.convert(op.use_spheroid),
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.geo_st_geogfromtext_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("SAFE.ST_GEOGFROMTEXT", expr.expr)
