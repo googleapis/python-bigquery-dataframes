@@ -1344,12 +1344,13 @@ class Session(
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes
         if filepath.startswith("gs://"):  # GCS file path
+            bucket_name, blob_path = filepath.split("/", 3)[2:]
+
             client = storage.Client()
-            bucket_name, blob_name = filepath.split("/", 3)[2:]
             bucket = client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            blob.reload()
-            file_size = blob.size
+
+            matching_blobs = bucket.list_blobs(match_glob=blob_path)
+            file_size = sum(blob.size for blob in matching_blobs)
         elif os.path.exists(filepath):  # local file path
             file_size = os.path.getsize(filepath)
         else:

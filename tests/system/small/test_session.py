@@ -1041,15 +1041,7 @@ def test_read_pandas_w_nested_json_fails(session, write_engine):
         session.read_pandas(pd_s, write_engine=write_engine)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_inline"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_write"),
-    ],
-)
+@all_write_engines
 def test_read_pandas_w_nested_json(session, write_engine):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
@@ -1074,15 +1066,7 @@ def test_read_pandas_w_nested_json(session, write_engine):
     pd.testing.assert_series_equal(bq_s, pd_s)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_inline"),
-        pytest.param("bigquery_load"),
-        pytest.param("bigquery_streaming"),
-    ],
-)
+@all_write_engines
 def test_read_pandas_w_nested_invalid_json(session, write_engine):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
@@ -1127,15 +1111,7 @@ def test_read_pandas_w_nested_json_index_fails(session, write_engine):
         session.read_pandas(pd_idx, write_engine=write_engine)
 
 
-@pytest.mark.parametrize(
-    ("write_engine"),
-    [
-        pytest.param("default"),
-        pytest.param("bigquery_inline"),
-        pytest.param("bigquery_streaming"),
-        pytest.param("bigquery_write"),
-    ],
-)
+@all_write_engines
 def test_read_pandas_w_nested_json_index(session, write_engine):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
@@ -1285,6 +1261,28 @@ def test_read_csv_raises_error_for_invalid_index_col(
         match=error_msg,
     ):
         session.read_csv(path, engine="bigquery", index_col=index_col)
+
+
+def test_read_csv_for_gcs_wildcard_path(session, df_and_gcs_csv):
+    scalars_pandas_df, path = df_and_gcs_csv
+    path = path.replace(".csv", "*.csv")
+
+    index_col = "rowindex"
+    bf_df = session.read_csv(path, engine="bigquery", index_col=index_col)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    # Also, `expand=True` is needed to read from wildcard paths. See details:
+    # https://github.com/fsspec/gcsfs/issues/616,
+    pd_df = session.read_csv(
+        path,
+        index_col=index_col,
+        dtype=scalars_pandas_df.dtypes.to_dict(),
+        storage_options={"expand": True},
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 def test_read_csv_for_names(session, df_and_gcs_csv_for_two_columns):
@@ -1566,10 +1564,9 @@ def test_read_csv_default_engine_throws_not_implemented_error(
         gcs_folder
         + "test_read_csv_gcs_default_engine_throws_not_implemented_error*.csv"
     )
-    read_path = utils.get_first_file_from_wildcard(path)
     scalars_df_index.to_csv(path)
     with pytest.raises(NotImplementedError, match=match):
-        session.read_csv(read_path, **kwargs)
+        session.read_csv(path, **kwargs)
 
 
 @pytest.mark.parametrize(

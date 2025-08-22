@@ -32,11 +32,7 @@ import bigframes.dtypes as dtypes
 import bigframes.features
 import bigframes.pandas
 import bigframes.series as series
-from bigframes.testing.utils import (
-    assert_pandas_df_equal,
-    assert_series_equal,
-    get_first_file_from_wildcard,
-)
+from bigframes.testing.utils import assert_pandas_df_equal, assert_series_equal
 
 
 def test_series_construct_copy(scalars_dfs):
@@ -3318,7 +3314,9 @@ def test_to_frame_no_name(scalars_dfs):
 def test_to_json(gcs_folder, scalars_df_index, scalars_pandas_df_index):
     path = gcs_folder + "test_series_to_json*.jsonl"
     scalars_df_index["int64_col"].to_json(path, lines=True, orient="records")
-    gcs_df = pd.read_json(get_first_file_from_wildcard(path), lines=True)
+    # `expand=True` is needed to read from wildcard paths. See details:
+    # https://github.com/fsspec/gcsfs/issues/616,
+    gcs_df = pd.read_json(path, lines=True, storage_options={"expand": True})
 
     pd.testing.assert_series_equal(
         gcs_df["int64_col"].astype(pd.Int64Dtype()),
@@ -3331,7 +3329,9 @@ def test_to_json(gcs_folder, scalars_df_index, scalars_pandas_df_index):
 def test_to_csv(gcs_folder, scalars_df_index, scalars_pandas_df_index):
     path = gcs_folder + "test_series_to_csv*.csv"
     scalars_df_index["int64_col"].to_csv(path)
-    gcs_df = pd.read_csv(get_first_file_from_wildcard(path))
+    # `expand=True` is needed to read from wildcard paths. See details:
+    # https://github.com/fsspec/gcsfs/issues/616
+    gcs_df = pd.read_csv(path, storage_options={"expand": True})
 
     pd.testing.assert_series_equal(
         gcs_df["int64_col"].astype(pd.Int64Dtype()),
