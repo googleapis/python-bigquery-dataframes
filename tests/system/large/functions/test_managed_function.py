@@ -1124,22 +1124,17 @@ def test_managed_function_series_apply_args(session, dataset_id, scalars_dfs):
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
-        bf_result_col = scalars_df["int64_too"].apply(
-            foo_list, args=(12.34, b"hello world", False)
-        )
         bf_result = (
-            scalars_df["int64_too"].to_frame().assign(result=bf_result_col).to_pandas()
+            scalars_df["int64_too"]
+            .apply(foo_list, args=(12.34, b"hello world", False))
+            .to_pandas()
         )
-
-        pd_result_col = scalars_pandas_df["int64_too"].apply(
+        pd_result = scalars_pandas_df["int64_too"].apply(
             foo_list, args=(12.34, b"hello world", False)
-        )
-        pd_result = (
-            scalars_pandas_df["int64_too"].to_frame().assign(result=pd_result_col)
         )
 
         # Ignore any dtype difference.
-        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
     finally:
         # Clean up the gcp assets created for the managed function.

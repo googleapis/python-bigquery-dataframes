@@ -2990,34 +2990,20 @@ def test_remote_function_series_apply_args(session, dataset_id, scalars_dfs):
         scalars_df, scalars_pandas_df = scalars_dfs
 
         args1 = (True, 10.0)
-        bf_result_col = scalars_df["int64_too"].apply(foo, args=args1)
-        bf_result = (
-            scalars_df["int64_too"].to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_result_col = scalars_pandas_df["int64_too"].apply(foo, args=args1)
-        pd_result = (
-            scalars_pandas_df["int64_too"].to_frame().assign(result=pd_result_col)
-        )
+        bf_result = scalars_df["int64_too"].apply(foo, args=args1).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(foo, args=args1)
 
         # Ignore any dtype difference.
-        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
         args2 = (False, -10.0)
         foo_ref = session.read_gbq_function(foo.bigframes_bigquery_function)
 
-        bf_result_col = scalars_df["int64_too"].apply(foo_ref, args=args2)
-        bf_result = (
-            scalars_df["int64_too"].to_frame().assign(result=bf_result_col).to_pandas()
-        )
-
-        pd_result_col = scalars_pandas_df["int64_too"].apply(foo, args=args2)
-        pd_result = (
-            scalars_pandas_df["int64_too"].to_frame().assign(result=pd_result_col)
-        )
+        bf_result = scalars_df["int64_too"].apply(foo_ref, args=args2).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(foo, args=args2)
 
         # Ignore any dtype difference.
-        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
     finally:
         # Clean up the gcp assets created for the remote function.

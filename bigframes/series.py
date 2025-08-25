@@ -1904,6 +1904,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         args: typing.Tuple = (),
     ) -> Series:
+        # Note: This signature differs from pandas.Series.apply. Specifically,
+        # `args` is keyword-only and `by_row` is a custom parameter here. Full
+        # alignment would involve breaking changes. However, given that by_row
+        # is not frequently used, we defer any such changes until there is a
+        # clear need based on user feedback.
+        #
+        # See pandas docs for reference:
+        # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.apply.html
+
         # TODO(shobs, b/274645634): Support convert_dtype, **kwargs
         # is actually a ternary op
 
@@ -1952,6 +1961,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             result_series = self._apply_nary_op(
                 ops.NaryRemoteFunctionOp(function_def=func.udf_def), args
             )
+            # TODO(jialuo): Investigate why `_apply_nary_op` drops the series
+            # `name`. Manually reassigning it here as a temporary fix.
+            result_series.name = self.name
         else:
             result_series = self._apply_unary_op(
                 ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
