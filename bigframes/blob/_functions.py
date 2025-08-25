@@ -118,7 +118,7 @@ AS r\"\"\"
         return self._session.read_gbq_function(udf_name)
 
 
-def exif_func(src_obj_ref_rt: str) -> str:
+def exif_func(src_obj_ref_rt: str, verbose: bool) -> str:
     import io
     import json
 
@@ -144,12 +144,18 @@ def exif_func(src_obj_ref_rt: str) -> str:
         if exif_data:
             for tag, value in exif_data.items():
                 tag_name = ExifTags.TAGS.get(tag, tag)
+                # Pillow might return bytes, which are not serializable.
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8", "replace")
                 exif_dict[tag_name] = value
         result_dict["content"] = json.dumps(exif_dict)
     except Exception as e:
         result_dict["status"] = str(e)
 
-    return json.dumps(result_dict)
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 exif_func_def = FunctionDef(exif_func, ["pillow", "requests"])
@@ -162,6 +168,7 @@ def image_blur_func(
     ksize_x: int,
     ksize_y: int,
     ext: str,
+    verbose: bool,
 ) -> str:
     import json
 
@@ -210,14 +217,17 @@ def image_blur_func(
     except Exception as e:
         result_dict["status"] = str(e)
 
-    return json.dumps(result_dict)
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
 
 
 def image_blur_to_bytes_func(
-    src_obj_ref_rt: str, ksize_x: int, ksize_y: int, ext: str
+    src_obj_ref_rt: str, ksize_x: int, ksize_y: int, ext: str, verbose: bool
 ) -> str:
     import base64
     import json
@@ -251,7 +261,11 @@ def image_blur_to_bytes_func(
         status = str(e)
 
     encoded_content = base64.b64encode(content).decode("utf-8")
-    return json.dumps({"status": status, "content": encoded_content})
+    result_dict = {"status": status, "content": encoded_content}
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 image_blur_to_bytes_def = FunctionDef(
@@ -267,6 +281,7 @@ def image_resize_func(
     fx: float,
     fy: float,
     ext: str,
+    verbose: bool,
 ) -> str:
     import json
 
@@ -315,7 +330,10 @@ def image_resize_func(
     except Exception as e:
         result_dict["status"] = str(e)
 
-    return json.dumps(result_dict)
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 image_resize_def = FunctionDef(
@@ -330,6 +348,7 @@ def image_resize_to_bytes_func(
     fx: float,
     fy: float,
     ext: str,
+    verbose: bool,
 ) -> str:
     import base64
     import json
@@ -363,7 +382,11 @@ def image_resize_to_bytes_func(
         status = str(e)
 
     encoded_content = base64.b64encode(content).decode("utf-8")
-    return json.dumps({"status": status, "content": encoded_content})
+    result_dict = {"status": status, "content": encoded_content}
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 image_resize_to_bytes_def = FunctionDef(
@@ -378,6 +401,7 @@ def image_normalize_func(
     beta: float,
     norm_type: str,
     ext: str,
+    verbose: bool,
 ) -> str:
     import json
 
@@ -435,7 +459,10 @@ def image_normalize_func(
     except Exception as e:
         result_dict["status"] = str(e)
 
-    return json.dumps(result_dict)
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 image_normalize_def = FunctionDef(
@@ -449,6 +476,7 @@ def image_normalize_to_bytes_func(
     beta: float,
     norm_type: str,
     ext: str,
+    verbose: bool,
 ) -> str:
     import base64
     import json
@@ -492,7 +520,10 @@ def image_normalize_to_bytes_func(
     except Exception as e:
         result_dict["status"] = str(e)
 
-    return json.dumps(result_dict)
+    if verbose:
+        return json.dumps(result_dict)
+    else:
+        return result_dict["content"]
 
 
 image_normalize_to_bytes_def = FunctionDef(
