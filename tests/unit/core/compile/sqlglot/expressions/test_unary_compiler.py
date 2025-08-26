@@ -674,6 +674,12 @@ def test_sinh(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_string_split(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StringSplitOp(pat=","), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_tan(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.tan_op, "float64_col")

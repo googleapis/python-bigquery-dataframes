@@ -681,6 +681,11 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     )
 
 
+@UNARY_OP_REGISTRATION.register(ops.StringSplitOp)
+def _(op: ops.StringSplitOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Split(this=expr.expr, expression=sge.convert(op.pat))
+
+
 @UNARY_OP_REGISTRATION.register(ops.StrGetOp)
 def _(op: ops.StrGetOp, expr: TypedExpr) -> sge.Expression:
     return sge.Substring(
