@@ -2234,10 +2234,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             copy = self.copy()
             copy[k] = v(copy)
             return copy
-        elif utils.is_list_like(v) or isinstance(v, Sequence):
+        elif utils.is_list_like(v):
             return self._assign_single_item_listlike(k, v)
         else:
-            return self._assign_scalar(k, v)
+            return self._assign_scalar(k, v)  # type: ignore
 
     def _assign_multi_items(
         self,
