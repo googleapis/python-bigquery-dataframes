@@ -293,6 +293,18 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="DAYOFYEAR"), expression=expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.EndsWithOp)
+def _(op: ops.EndsWithOp, expr: TypedExpr) -> sge.Expression:
+    if not op.pat:
+        return sge.false()
+
+    def to_endswith(pat: str) -> sge.Expression:
+        return sge.func("ENDS_WITH", expr.expr, sge.convert(pat))
+
+    conditions = [to_endswith(pat) for pat in op.pat]
+    return functools.reduce(lambda x, y: sge.Or(this=x, expression=y), conditions)
+
+
 @UNARY_OP_REGISTRATION.register(ops.exp_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
