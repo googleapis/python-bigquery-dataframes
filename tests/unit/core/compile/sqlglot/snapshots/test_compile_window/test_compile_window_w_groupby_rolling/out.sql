@@ -1,76 +1,88 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col` AS `bfcol_0`,
-    `int64_col` AS `bfcol_1`,
-    `rowindex` AS `bfcol_2`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    `bfcol_2` AS `bfcol_6`,
-    `bfcol_0` AS `bfcol_7`,
-    `bfcol_1` AS `bfcol_8`,
-    `bfcol_0` AS `bfcol_9`
-  FROM `bfcte_0`
-), `bfcte_2` AS (
-  SELECT
-    *
-  FROM `bfcte_1`
-  WHERE
-    NOT `bfcol_9` IS NULL
-), `bfcte_3` AS (
-  SELECT
-    *,
-    CASE
-      WHEN SUM(CAST(NOT `bfcol_7` IS NULL AS INT64)) OVER (
-        PARTITION BY `bfcol_9`
-        ORDER BY `bfcol_9` IS NULL ASC NULLS LAST, `bfcol_9` ASC NULLS LAST, `bfcol_2` IS NULL ASC NULLS LAST, `bfcol_2` ASC NULLS LAST
-        ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-      ) < 3
-      THEN NULL
-      ELSE COALESCE(
-        SUM(CAST(`bfcol_7` AS INT64)) OVER (
-          PARTITION BY `bfcol_9`
-          ORDER BY `bfcol_9` IS NULL ASC NULLS LAST, `bfcol_9` ASC NULLS LAST, `bfcol_2` IS NULL ASC NULLS LAST, `bfcol_2` ASC NULLS LAST
-          ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-        ),
-        0
-      )
-    END AS `bfcol_15`
-  FROM `bfcte_2`
-), `bfcte_4` AS (
-  SELECT
-    *
-  FROM `bfcte_3`
-  WHERE
-    NOT `bfcol_9` IS NULL
-), `bfcte_5` AS (
-  SELECT
-    *,
-    CASE
-      WHEN SUM(CAST(NOT `bfcol_8` IS NULL AS INT64)) OVER (
-        PARTITION BY `bfcol_9`
-        ORDER BY `bfcol_9` IS NULL ASC NULLS LAST, `bfcol_9` ASC NULLS LAST, `bfcol_2` IS NULL ASC NULLS LAST, `bfcol_2` ASC NULLS LAST
-        ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-      ) < 3
-      THEN NULL
-      ELSE COALESCE(
-        SUM(`bfcol_8`) OVER (
-          PARTITION BY `bfcol_9`
-          ORDER BY `bfcol_9` IS NULL ASC NULLS LAST, `bfcol_9` ASC NULLS LAST, `bfcol_2` IS NULL ASC NULLS LAST, `bfcol_2` ASC NULLS LAST
-          ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-        ),
-        0
-      )
-    END AS `bfcol_21`
-  FROM `bfcte_4`
-)
 SELECT
-  `bfcol_9` AS `bool_col`,
-  `bfcol_6` AS `rowindex`,
-  `bfcol_15` AS `bool_col_1`,
-  `bfcol_21` AS `int64_col`
-FROM `bfcte_5`
-ORDER BY
-  `bfcol_9` ASC NULLS LAST,
-  `bfcol_2` ASC NULLS LAST
+`bool_col` AS `bool_col`,
+`rowindex` AS `rowindex`,
+`bool_col_1` AS `bool_col_1`,
+`int64_col` AS `int64_col`
+FROM
+(SELECT
+  `t3`.`bfuid_col_821` AS `bool_col`,
+  `t3`.`bfuid_col_818` AS `rowindex`,
+  `t3`.`bfuid_col_822` AS `bool_col_1`,
+  CASE
+    WHEN COALESCE(
+      SUM(CAST((
+        `t3`.`bfuid_col_820`
+      ) IS NOT NULL AS INT64)) OVER (
+        PARTITION BY `t3`.`bfuid_col_821`
+        ORDER BY `t3`.`bfuid_col_821` IS NULL ASC, `t3`.`bfuid_col_821` ASC, `t3`.`bfuid_col_827` IS NULL ASC, `t3`.`bfuid_col_827` ASC
+        ROWS BETWEEN 3 preceding AND CURRENT ROW
+      ),
+      0
+    ) < 3
+    THEN NULL
+    ELSE COALESCE(
+      SUM(`t3`.`bfuid_col_820`) OVER (
+        PARTITION BY `t3`.`bfuid_col_821`
+        ORDER BY `t3`.`bfuid_col_821` IS NULL ASC, `t3`.`bfuid_col_821` ASC, `t3`.`bfuid_col_827` IS NULL ASC, `t3`.`bfuid_col_827` ASC
+        ROWS BETWEEN 3 preceding AND CURRENT ROW
+      ),
+      0
+    )
+  END AS `int64_col`,
+  `t3`.`bfuid_col_827` AS `bfuid_col_828`
+FROM (
+  SELECT
+    *
+  FROM (
+    SELECT
+      `t1`.`bfuid_col_818`,
+      `t1`.`bfuid_col_820`,
+      `t1`.`bfuid_col_821`,
+      CASE
+        WHEN COALESCE(
+          SUM(CAST((
+            `t1`.`bfuid_col_819`
+          ) IS NOT NULL AS INT64)) OVER (
+            PARTITION BY `t1`.`bfuid_col_821`
+            ORDER BY `t1`.`bfuid_col_821` IS NULL ASC, `t1`.`bfuid_col_821` ASC, `t1`.`bfuid_col_826` IS NULL ASC, `t1`.`bfuid_col_826` ASC
+            ROWS BETWEEN 3 preceding AND CURRENT ROW
+          ),
+          0
+        ) < 3
+        THEN NULL
+        ELSE COALESCE(
+          SUM(CAST(`t1`.`bfuid_col_819` AS INT64)) OVER (
+            PARTITION BY `t1`.`bfuid_col_821`
+            ORDER BY `t1`.`bfuid_col_821` IS NULL ASC, `t1`.`bfuid_col_821` ASC, `t1`.`bfuid_col_826` IS NULL ASC, `t1`.`bfuid_col_826` ASC
+            ROWS BETWEEN 3 preceding AND CURRENT ROW
+          ),
+          0
+        )
+      END AS `bfuid_col_822`,
+      `t1`.`bfuid_col_826` AS `bfuid_col_827`
+    FROM (
+      SELECT
+        `t0`.`rowindex` AS `bfuid_col_818`,
+        `t0`.`bool_col` AS `bfuid_col_819`,
+        `t0`.`int64_col` AS `bfuid_col_820`,
+        `t0`.`bool_col` AS `bfuid_col_821`,
+        `t0`.`rowindex` AS `bfuid_col_826`
+      FROM (
+        SELECT
+          `bool_col`,
+          `int64_col`,
+          `rowindex`
+        FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-26T20:49:28.159676')
+      ) AS `t0`
+      WHERE
+        (
+          `t0`.`bool_col`
+        ) IS NOT NULL
+    ) AS `t1`
+  ) AS `t2`
+  WHERE
+    (
+      `t2`.`bfuid_col_821`
+    ) IS NOT NULL
+) AS `t3`)
+ORDER BY `bool_col` ASC NULLS LAST ,`bfuid_col_828` ASC NULLS LAST

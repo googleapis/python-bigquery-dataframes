@@ -1,21 +1,19 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `string_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    RPAD(
-      LPAD(
-        `bfcol_0`,
-        CAST(SAFE_DIVIDE(GREATEST(LENGTH(`bfcol_0`), 10) - LENGTH(`bfcol_0`), 2) AS INT64) + LENGTH(`bfcol_0`),
-        '-'
-      ),
-      GREATEST(LENGTH(`bfcol_0`), 10),
-      '-'
-    ) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `string_col`
-FROM `bfcte_1`
+  RPAD(
+    LPAD(
+      `t0`.`string_col`,
+      (
+        CAST(FLOOR(
+          ieee_divide(GREATEST(LENGTH(`t0`.`string_col`), 10) - LENGTH(`t0`.`string_col`), 2)
+        ) AS INT64)
+      ) + LENGTH(`t0`.`string_col`),
+      '-'
+    ),
+    GREATEST(LENGTH(`t0`.`string_col`), 10),
+    '-'
+  ) AS `string_col`
+FROM (
+  SELECT
+    `string_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-26T20:49:28.159676')
+) AS `t0`

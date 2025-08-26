@@ -1,23 +1,22 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex` AS `bfcol_0`,
-    `int_list_col` AS `bfcol_1`,
-    `bool_list_col` AS `bfcol_2`,
-    `float_list_col` AS `bfcol_3`,
-    `date_list_col` AS `bfcol_4`,
-    `date_time_list_col` AS `bfcol_5`,
-    `numeric_list_col` AS `bfcol_6`,
-    `string_list_col` AS `bfcol_7`
-  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
-)
 SELECT
-  `bfcol_0` AS `rowindex`,
-  `bfcol_0` AS `rowindex_1`,
-  `bfcol_1` AS `int_list_col`,
-  `bfcol_2` AS `bool_list_col`,
-  `bfcol_3` AS `float_list_col`,
-  `bfcol_4` AS `date_list_col`,
-  `bfcol_5` AS `date_time_list_col`,
-  `bfcol_6` AS `numeric_list_col`,
-  `bfcol_7` AS `string_list_col`
-FROM `bfcte_0`
+  `t0`.`rowindex`,
+  `t0`.`rowindex` AS `rowindex_1`,
+  `t0`.`int_list_col`,
+  `t0`.`bool_list_col`,
+  `t0`.`float_list_col`,
+  `t0`.`date_list_col`,
+  `t0`.`date_time_list_col`,
+  `t0`.`numeric_list_col`,
+  `t0`.`string_list_col`
+FROM (
+  SELECT
+    `rowindex`,
+    `int_list_col`,
+    `bool_list_col`,
+    `float_list_col`,
+    `date_list_col`,
+    `date_time_list_col`,
+    `numeric_list_col`,
+    `string_list_col`
+  FROM `bigframes-dev.sqlglot_test.repeated_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-26T20:49:30.548576')
+) AS `t0`

@@ -1,11 +1,10 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `id` AS `bfcol_0`,
-    `people` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`nested_structs_types`
-)
 SELECT
-  `bfcol_0` AS `id`,
-  `bfcol_0` AS `id_1`,
-  `bfcol_1` AS `people`
-FROM `bfcte_0`
+  `t0`.`id`,
+  `t0`.`id` AS `id_1`,
+  `t0`.`people`
+FROM (
+  SELECT
+    `id`,
+    `people`
+  FROM `bigframes-dev.sqlglot_test.nested_structs_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-26T20:49:31.556252')
+) AS `t0`
