@@ -28,7 +28,6 @@ import typing
 from typing import (
     Callable,
     Dict,
-    get_args,
     Hashable,
     Iterable,
     List,
