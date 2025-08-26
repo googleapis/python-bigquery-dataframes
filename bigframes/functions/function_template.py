@@ -195,7 +195,9 @@ def udf_http_row_processor(request):
         calls = request_json["calls"]
         replies = []
         for call in calls:
-            reply = convert_to_bq_json(output_type, udf(get_pd_series(call[0])))
+            reply = convert_to_bq_json(
+                output_type, udf(get_pd_series(call[0]), *call[1:])
+            )
             if type(reply) is list:
                 # Since the BQ remote function does not support array yet,
                 # return a json serialized version of the reply.

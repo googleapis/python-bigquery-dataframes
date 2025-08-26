@@ -982,6 +982,23 @@ def test_managed_function_df_apply_axis_1_args(session, dataset_id, scalars_dfs)
         )(the_sum)
 
         args1 = (1,)
+
+        # Fails to apply on dataframe with incompatible number of columns.
+        with pytest.raises(
+            ValueError,
+            match="^Column count mismatch: BigFrames BigQuery function expected 2 columns from DataFrame but received 3\\.$",
+        ):
+            scalars_df[columns + ["float64_col"]].apply(the_sum_mf, axis=1, args=args1)
+
+        # Fails to apply on dataframe with incompatible column datatypes.
+        with pytest.raises(
+            ValueError,
+            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+        ):
+            scalars_df[columns].assign(
+                int64_col=lambda df: df["int64_col"].astype("Float64")
+            ).apply(the_sum_mf, axis=1, args=args1)
+
         bf_result = (
             scalars_df[columns]
             .dropna()

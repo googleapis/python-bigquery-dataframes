@@ -1937,6 +1937,100 @@ SELECT "pandas na" AS text, NULL AS num
         )
 
 
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_args(session, scalars_dfs):
+    columns = ["int64_col", "int64_too"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    try:
+
+        def the_sum(s1, s2, x):
+            return s1 + s2 + x
+
+        the_sum_mf = session.remote_function(
+            input_types=[int, int, int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(the_sum)
+
+        args1 = (1,)
+
+        # Fails to apply on dataframe with incompatible number of columns.
+        with pytest.raises(
+            ValueError,
+            match="^Column count mismatch: BigFrames BigQuery function expected 2 columns from DataFrame but received 3\\.$",
+        ):
+            scalars_df[columns + ["float64_col"]].apply(the_sum_mf, axis=1, args=args1)
+
+        # Fails to apply on dataframe with incompatible column datatypes.
+        with pytest.raises(
+            ValueError,
+            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+        ):
+            scalars_df[columns].assign(
+                int64_col=lambda df: df["int64_col"].astype("Float64")
+            ).apply(the_sum_mf, axis=1, args=args1)
+
+        bf_result = (
+            scalars_df[columns]
+            .dropna()
+            .apply(the_sum_mf, axis=1, args=args1)
+            .to_pandas()
+        )
+        pd_result = scalars_pandas_df[columns].dropna().apply(sum, axis=1, args=args1)
+
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+    finally:
+        # clean up the gcp assets created for the remote function.
+        cleanup_function_assets(the_sum_mf, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_series_args(session, scalars_dfs):
+    columns = ["int64_col", "float64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    try:
+
+        @session.remote_function(
+            input_types=[bigframes.series.Series, float, str, bool],
+            output_type=list[str],
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo_list(x, y0: float, y1, y2) -> list[str]:
+            return (
+                [str(x["int64_col"]), str(y0), str(y1), str(y2)]
+                if y2
+                else [str(x["float64_col"])]
+            )
+
+        args1 = (12.34, "hello world", True)
+        bf_result = scalars_df[columns].apply(foo_list, axis=1, args=args1).to_pandas()
+        pd_result = scalars_pandas_df[columns].apply(foo_list, axis=1, args=args1)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        args2 = (43.21, "xxx3yyy", False)
+        foo_list_ref = session.read_gbq_function(
+            foo_list.bigframes_bigquery_function, is_row_processor=True
+        )
+        bf_result = (
+            scalars_df[columns].apply(foo_list_ref, axis=1, args=args2).to_pandas()
+        )
+        pd_result = scalars_pandas_df[columns].apply(foo_list, axis=1, args=args2)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(foo_list, session.bqclient, ignore_failures=False)
+
+
 @pytest.mark.parametrize(
     ("memory_mib_args", "expected_memory"),
     [
