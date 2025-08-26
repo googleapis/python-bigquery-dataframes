@@ -26,6 +26,7 @@ import textwrap
 import traceback
 import typing
 from typing import (
+    Any,
     Callable,
     Dict,
     Hashable,
@@ -2243,6 +2244,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         k: list[str],
         v: SingleItemValue | MultiItemValue,
     ) -> DataFrame:
+        value_sources: Sequence[Any] = []
         if isinstance(v, DataFrame):
             value_sources = [v[col] for col in v.columns]
         elif isinstance(v, bigframes.series.Series):
