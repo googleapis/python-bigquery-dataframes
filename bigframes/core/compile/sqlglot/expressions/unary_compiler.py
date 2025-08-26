@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import functools
 import typing
 
 import pandas as pd
@@ -631,6 +632,18 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ],
         default=sge.Sqrt(this=expr.expr),
     )
+
+
+@UNARY_OP_REGISTRATION.register(ops.StartsWithOp)
+def _(op: ops.StartsWithOp, expr: TypedExpr) -> sge.Expression:
+    if not op.pat:
+        return sge.false()
+
+    def to_startswith(pat: str) -> sge.Expression:
+        return sge.func("STARTS_WITH", expr.expr, sge.convert(pat))
+
+    conditions = [to_startswith(pat) for pat in op.pat]
+    return functools.reduce(lambda x, y: sge.Or(this=x, expression=y), conditions)
 
 
 @UNARY_OP_REGISTRATION.register(ops.StrStripOp)

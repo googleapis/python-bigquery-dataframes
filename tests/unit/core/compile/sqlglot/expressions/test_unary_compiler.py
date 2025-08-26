@@ -501,6 +501,18 @@ def test_sqrt(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_startswith(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StartsWithOp(pat=("ab",)), "string_col")
+    snapshot.assert_match(sql, "single_pattern.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StartsWithOp(pat=("ab", "cd")), "string_col")
+    snapshot.assert_match(sql, "multiple_patterns.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StartsWithOp(pat=()), "string_col")
+    snapshot.assert_match(sql, "no_pattern.sql")
+
+
 def test_str_get(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.StrGetOp(1), "string_col")
