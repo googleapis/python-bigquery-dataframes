@@ -332,6 +332,28 @@ def generate_managed_function_code(
             f"""def bigframes_handler(str_arg):
                 return {udf_name}({get_pd_series.__name__}(str_arg))"""
         )
+
+        sig = inspect.signature(def_)
+        params = list(sig.parameters.values())
+        additional_params = params[1:]
+
+        # Build the parameter list for the new handler function definition.
+        # e.g., "str_arg, y: bool, z"
+        handler_def_parts = ["str_arg"]
+        handler_def_parts.extend(str(p) for p in additional_params)
+        handler_def_str = ", ".join(handler_def_parts)
+
+        # Build the argument list for the call to the original UDF.
+        # e.g., "get_pd_series(str_arg), y, z"
+        udf_call_parts = [f"{get_pd_series.__name__}(str_arg)"]
+        udf_call_parts.extend(p.name for p in additional_params)
+        udf_call_str = ", ".join(udf_call_parts)
+
+        bigframes_handler_code = textwrap.dedent(
+            f"""def bigframes_handler({handler_def_str}):
+                return {udf_name}({udf_call_str})"""
+        )
+
     else:
         udf_code = ""
         bigframes_handler_code = textwrap.dedent(
