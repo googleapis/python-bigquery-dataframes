@@ -838,3 +838,31 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.year_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="YEAR"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.ZfillOp)
+def _(op: ops.ZfillOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.EQ(
+                    this=sge.Substring(
+                        this=expr.expr, start=sge.convert(1), length=sge.convert(1)
+                    ),
+                    expression=sge.convert("-"),
+                ),
+                true=sge.Concat(
+                    expressions=[
+                        sge.convert("-"),
+                        sge.func(
+                            "LPAD",
+                            sge.Substring(this=expr.expr, start=sge.convert(1)),
+                            sge.convert(op.width - 1),
+                            sge.convert("0"),
+                        ),
+                    ]
+                ),
+            )
+        ],
+        default=sge.func("LPAD", expr.expr, sge.convert(op.width), sge.convert("0")),
+    )

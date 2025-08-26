@@ -820,3 +820,9 @@ def test_year(scalar_types_df: bpd.DataFrame, snapshot):
     sql = _apply_unary_op(bf_df, ops.year_op, "timestamp_col")
 
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_zfill(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.ZfillOp(width=10), "string_col")
+    snapshot.assert_match(sql, "out.sql")
