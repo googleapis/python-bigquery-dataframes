@@ -45,12 +45,15 @@ class ExecutionMetrics:
             bytes_processed = getattr(row_iterator, "total_bytes_processed", 0) or 0
             query_char_count = len(getattr(row_iterator, "query", "") or "")
             slot_millis = getattr(row_iterator, "slot_millis", 0) or 0
-            exec_seconds = 0.0
+            exec_seconds = (getattr(row_iterator, "created", 0) or 0) - (
+                getattr(row_iterator, "ended", 0) or 0
+            )
 
             self.execution_count += 1
             self.query_char_count += query_char_count
             self.bytes_processed += bytes_processed
             self.slot_millis += slot_millis
+            self.execution_secs += exec_seconds
 
         elif query_job.configuration.dry_run:
             query_char_count = len(query_job.query)
