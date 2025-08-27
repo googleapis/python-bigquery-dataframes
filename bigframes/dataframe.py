@@ -2322,6 +2322,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         level: blocks.LevelsType = ...,
         drop: bool = ...,
         inplace: Literal[False] = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
     ) -> DataFrame:
         ...
 
@@ -2331,19 +2335,56 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         level: blocks.LevelsType = ...,
         drop: bool = ...,
         inplace: Literal[True] = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
     ) -> None:
         ...
 
     @overload
     def reset_index(
-        self, level: blocks.LevelsType = None, drop: bool = False, inplace: bool = ...
+        self,
+        level: blocks.LevelsType = None,
+        drop: bool = False,
+        inplace: bool = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
     ) -> Optional[DataFrame]:
         ...
 
     def reset_index(
-        self, level: blocks.LevelsType = None, drop: bool = False, inplace: bool = False
+        self,
+        level: blocks.LevelsType = None,
+        drop: bool = False,
+        inplace: bool = False,
+        col_level: Union[int, str] = 0,
+        col_fill: Hashable = "",
+        allow_duplicates: Optional[bool] = None,
+        names: Union[None, Hashable, Sequence[Hashable]] = None,
     ) -> Optional[DataFrame]:
-        block = self._block.reset_index(level, drop)
+        block = self._block
+        if names:
+            if isinstance(names, blocks.Label) and not isinstance(names, tuple):
+                names = [names]
+            else:
+                names = list(names)
+
+            if len(names) != self.index.nlevels:
+                raise ValueError("'names' must be same length as levels")
+
+            block = block.with_index_labels(names)
+        if allow_duplicates is None:
+            allow_duplicates = False
+        block = block.reset_index(
+            level,
+            drop,
+            col_level=col_level,
+            col_fill=col_fill,
+            allow_duplicates=allow_duplicates,
+        )
         if inplace:
             self._set_block(block)
             return None
@@ -2788,6 +2829,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for item in df.itertuples(index=index, name=name):
                 yield item
 
+    def _apply_callable(self, condition):
+        """Executes the possible callable condition as needed."""
+        if callable(condition):
+            # When it's a bigframes function.
+            if hasattr(condition, "bigframes_bigquery_function"):
+                return self.apply(condition, axis=1)
+
+            # When it's a plain Python function.
+            return condition(self)
+
+        # When it's not a callable.
+        return condition
+
     def where(self, cond, other=None):
         if isinstance(other, bigframes.series.Series):
             raise ValueError("Seires is not a supported replacement type!")
@@ -2799,16 +2853,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # Execute it with the DataFrame when cond or/and other is callable.
         # It can be either a plain python function or remote/managed function.
-        if callable(cond):
-            if hasattr(cond, "bigframes_bigquery_function"):
-                cond = self.apply(cond, axis=1)
-            else:
-                cond = cond(self)
-        if callable(other):
-            if hasattr(other, "bigframes_bigquery_function"):
-                other = self.apply(other, axis=1)
-            else:
-                other = other(self)
+        cond = self._apply_callable(cond)
+        other = self._apply_callable(other)
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
         # No left join is needed when 'other' is None or constant.
@@ -2859,7 +2905,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return result
 
     def mask(self, cond, other=None):
-        return self.where(~cond, other=other)
+        return self.where(~self._apply_callable(cond), other=other)
 
     def dropna(
         self,

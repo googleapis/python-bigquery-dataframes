@@ -2850,7 +2850,7 @@ def test_remote_function_connection_path_format(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_df_where(session, dataset_id, scalars_dfs):
+def test_remote_function_df_where_mask(session, dataset_id, scalars_dfs):
     try:
 
         # The return type has to be bool type for callable where condition.
@@ -2873,10 +2873,18 @@ def test_remote_function_df_where(session, dataset_id, scalars_dfs):
         pd_int64_df = scalars_pandas_df[int64_cols]
         pd_int64_df_filtered = pd_int64_df.dropna()
 
-        # Use callable condition in dataframe.where method.
+        # Test callable condition in dataframe.where method.
         bf_result = bf_int64_df_filtered.where(is_sum_positive_mf, 0).to_pandas()
         # Pandas doesn't support such case, use following as workaround.
         pd_result = pd_int64_df_filtered.where(pd_int64_df_filtered.sum(axis=1) > 0, 0)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+        # Test callable condition in dataframe.mask method.
+        bf_result = bf_int64_df_filtered.mask(is_sum_positive_mf, 0).to_pandas()
+        # Pandas doesn't support such case, use following as workaround.
+        pd_result = pd_int64_df_filtered.mask(pd_int64_df_filtered.sum(axis=1) > 0, 0)
 
         # Ignore any dtype difference.
         pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
@@ -2889,7 +2897,7 @@ def test_remote_function_df_where(session, dataset_id, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_df_where_series(session, dataset_id, scalars_dfs):
+def test_remote_function_df_where_mask_series(session, dataset_id, scalars_dfs):
     try:
 
         # The return type has to be bool type for callable where condition.
@@ -2916,11 +2924,20 @@ def test_remote_function_df_where_series(session, dataset_id, scalars_dfs):
         def func_for_other(x):
             return -x
 
-        # Use callable condition in dataframe.where method.
+        # Test callable condition in dataframe.where method.
         bf_result = bf_int64_df_filtered.where(
             is_sum_positive_series, func_for_other
         ).to_pandas()
         pd_result = pd_int64_df_filtered.where(is_sum_positive_series, func_for_other)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+        # Test callable condition in dataframe.mask method.
+        bf_result = bf_int64_df_filtered.mask(
+            is_sum_positive_series_mf, func_for_other
+        ).to_pandas()
+        pd_result = pd_int64_df_filtered.mask(is_sum_positive_series, func_for_other)
 
         # Ignore any dtype difference.
         pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
@@ -2933,7 +2950,7 @@ def test_remote_function_df_where_series(session, dataset_id, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_series_where(session, dataset_id, scalars_dfs):
+def test_remote_function_series_where_mask(session, dataset_id, scalars_dfs):
     try:
 
         def _ten_times(x):
@@ -2954,8 +2971,8 @@ def test_remote_function_series_where(session, dataset_id, scalars_dfs):
         pd_int64 = scalars_pandas["float64_col"]
         pd_int64_filtered = pd_int64.dropna()
 
-        # The cond is not a callable and the other is a callable (remote
-        # function) in series.where method.
+        # Test series.where method: the cond is not a callable and the other is
+        # a callable (remote function).
         bf_result = bf_int64_filtered.where(
             cond=bf_int64_filtered < 0, other=ten_times_mf
         ).to_pandas()
@@ -2966,6 +2983,55 @@ def test_remote_function_series_where(session, dataset_id, scalars_dfs):
         # Ignore any dtype difference.
         pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
+        # Test series.mask method: the cond is not a callable and the other is
+        # a callable (remote function).
+        bf_result = bf_int64_filtered.mask(
+            cond=bf_int64_filtered < 0, other=ten_times_mf
+        ).to_pandas()
+        pd_result = pd_int64_filtered.mask(cond=pd_int64_filtered < 0, other=_ten_times)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
     finally:
         # Clean up the gcp assets created for the remote function.
         cleanup_function_assets(ten_times_mf, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_series_apply_args(session, dataset_id, scalars_dfs):
+    try:
+
+        @session.remote_function(
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo(x: int, y: bool, z: float) -> str:
+            if y:
+                return f"{x}: y is True."
+            if z > 0.0:
+                return f"{x}: y is False and z is positive."
+            return f"{x}: y is False and z is non-positive."
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        args1 = (True, 10.0)
+        bf_result = scalars_df["int64_too"].apply(foo, args=args1).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(foo, args=args1)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        args2 = (False, -10.0)
+        foo_ref = session.read_gbq_function(foo.bigframes_bigquery_function)
+
+        bf_result = scalars_df["int64_too"].apply(foo_ref, args=args2).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(foo, args=args2)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(foo, session.bqclient, ignore_failures=False)

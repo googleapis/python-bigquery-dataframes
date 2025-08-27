@@ -406,6 +406,18 @@ def test_mask_series_cond(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_mask_callable(scalars_df_index, scalars_pandas_df_index):
+    def is_positive(x):
+        return x > 0
+
+    bf_df = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    pd_df = scalars_pandas_df_index[["int64_too", "int64_col", "float64_col"]]
+    bf_result = bf_df.mask(cond=is_positive, other=lambda x: x + 1).to_pandas()
+    pd_result = pd_df.mask(cond=is_positive, other=lambda x: x + 1)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_where_multi_column(scalars_df_index, scalars_pandas_df_index):
     # Test when a dataframe has multi-columns.
     columns = ["int64_col", "float64_col"]
@@ -2083,6 +2095,32 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
 
     # reset_index should maintain the original ordering.
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_allow_duplicates(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.copy()
+    scalars_df_index.index.name = "int64_col"
+    df = scalars_df_index.reset_index(allow_duplicates=True, drop=False)
+    assert df.index.name is None
+
+    bf_result = df.to_pandas()
+
+    scalars_pandas_df_index = scalars_pandas_df_index.copy()
+    scalars_pandas_df_index.index.name = "int64_col"
+    pd_result = scalars_pandas_df_index.reset_index(allow_duplicates=True, drop=False)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_duplicates_error(scalars_df_index):
+    scalars_df_index = scalars_df_index.copy()
+    scalars_df_index.index.name = "int64_col"
+    with pytest.raises(ValueError):
+        scalars_df_index.reset_index(allow_duplicates=False, drop=False)
 
 
 @pytest.mark.parametrize(
