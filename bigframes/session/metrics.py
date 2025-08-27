@@ -45,8 +45,10 @@ class ExecutionMetrics:
             bytes_processed = getattr(row_iterator, "total_bytes_processed", 0) or 0
             query_char_count = len(getattr(row_iterator, "query", "") or "")
             slot_millis = getattr(row_iterator, "slot_millis", 0) or 0
-            exec_seconds = (getattr(row_iterator, "created", 0) or 0) - (
-                getattr(row_iterator, "ended", 0) or 0
+            created = getattr(row_iterator, "created", None)
+            ended = getattr(row_iterator, "ended", None)
+            exec_seconds = (
+                (ended - created).total_seconds() if created and ended else 0.0
             )
 
             self.execution_count += 1
