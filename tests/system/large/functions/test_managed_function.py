@@ -965,7 +965,7 @@ SELECT "pandas na" AS text, NULL AS num
         )
 
 
-def test_managed_function_df_where(session, dataset_id, scalars_dfs):
+def test_managed_function_df_where_mask(session, dataset_id, scalars_dfs):
     try:
 
         # The return type has to be bool type for callable where condition.
@@ -987,7 +987,7 @@ def test_managed_function_df_where(session, dataset_id, scalars_dfs):
         pd_int64_df = scalars_pandas_df[int64_cols]
         pd_int64_df_filtered = pd_int64_df.dropna()
 
-        # Use callable condition in dataframe.where method.
+        # Test callable condition in dataframe.where method.
         bf_result = bf_int64_df_filtered.where(is_sum_positive_mf).to_pandas()
         # Pandas doesn't support such case, use following as workaround.
         pd_result = pd_int64_df_filtered.where(pd_int64_df_filtered.sum(axis=1) > 0)
@@ -995,7 +995,7 @@ def test_managed_function_df_where(session, dataset_id, scalars_dfs):
         # Ignore any dtype difference.
         pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
-        # Make sure the read_gbq_function path works for this function.
+        # Make sure the read_gbq_function path works for dataframe.where method.
         is_sum_positive_ref = session.read_gbq_function(
             function_name=is_sum_positive_mf.bigframes_bigquery_function
         )
@@ -1012,6 +1012,19 @@ def test_managed_function_df_where(session, dataset_id, scalars_dfs):
             bf_result_gbq, pd_result_gbq, check_dtype=False
         )
 
+        # Test callable condition in dataframe.mask method.
+        bf_result_gbq = bf_int64_df_filtered.mask(
+            is_sum_positive_ref, -bf_int64_df_filtered
+        ).to_pandas()
+        pd_result_gbq = pd_int64_df_filtered.mask(
+            pd_int64_df_filtered.sum(axis=1) > 0, -pd_int64_df_filtered
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(
+            bf_result_gbq, pd_result_gbq, check_dtype=False
+        )
+
     finally:
         # Clean up the gcp assets created for the managed function.
         cleanup_function_assets(
@@ -1019,7 +1032,7 @@ def test_managed_function_df_where(session, dataset_id, scalars_dfs):
         )
 
 
-def test_managed_function_df_where_series(session, dataset_id, scalars_dfs):
+def test_managed_function_df_where_mask_series(session, dataset_id, scalars_dfs):
     try:
 
         # The return type has to be bool type for callable where condition.
@@ -1041,14 +1054,14 @@ def test_managed_function_df_where_series(session, dataset_id, scalars_dfs):
         pd_int64_df = scalars_pandas_df[int64_cols]
         pd_int64_df_filtered = pd_int64_df.dropna()
 
-        # Use callable condition in dataframe.where method.
+        # Test callable condition in dataframe.where method.
         bf_result = bf_int64_df_filtered.where(is_sum_positive_series).to_pandas()
         pd_result = pd_int64_df_filtered.where(is_sum_positive_series)
 
         # Ignore any dtype difference.
         pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
 
-        # Make sure the read_gbq_function path works for this function.
+        # Make sure the read_gbq_function path works for dataframe.where method.
         is_sum_positive_series_ref = session.read_gbq_function(
             function_name=is_sum_positive_series_mf.bigframes_bigquery_function,
             is_row_processor=True,
@@ -1070,6 +1083,19 @@ def test_managed_function_df_where_series(session, dataset_id, scalars_dfs):
             bf_result_gbq, pd_result_gbq, check_dtype=False
         )
 
+        # Test callable condition in dataframe.mask method.
+        bf_result_gbq = bf_int64_df_filtered.mask(
+            is_sum_positive_series_ref, func_for_other
+        ).to_pandas()
+        pd_result_gbq = pd_int64_df_filtered.mask(
+            is_sum_positive_series, func_for_other
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(
+            bf_result_gbq, pd_result_gbq, check_dtype=False
+        )
+
     finally:
         # Clean up the gcp assets created for the managed function.
         cleanup_function_assets(
@@ -1077,7 +1103,7 @@ def test_managed_function_df_where_series(session, dataset_id, scalars_dfs):
         )
 
 
-def test_managed_function_series_where(session, dataset_id, scalars_dfs):
+def test_managed_function_series_where_mask(session, dataset_id, scalars_dfs):
     try:
 
         # The return type has to be bool type for callable where condition.
@@ -1098,8 +1124,8 @@ def test_managed_function_series_where(session, dataset_id, scalars_dfs):
         pd_int64 = scalars_pandas["int64_col"]
         pd_int64_filtered = pd_int64.dropna()
 
-        # The cond is a callable (managed function) and the other is not a
-        # callable in series.where method.
+        # Test series.where method: the cond is a callable (managed function)
+        # and the other is not a callable.
         bf_result = bf_int64_filtered.where(
             cond=is_positive_mf, other=-bf_int64_filtered
         ).to_pandas()
@@ -1108,6 +1134,44 @@ def test_managed_function_series_where(session, dataset_id, scalars_dfs):
         # Ignore any dtype difference.
         pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
 
+        # Test series.mask method: the cond is a callable (managed function)
+        # and the other is not a callable.
+        bf_result = bf_int64_filtered.mask(
+            cond=is_positive_mf, other=-bf_int64_filtered
+        ).to_pandas()
+        pd_result = pd_int64_filtered.mask(cond=_is_positive, other=-pd_int64_filtered)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
     finally:
         # Clean up the gcp assets created for the managed function.
         cleanup_function_assets(is_positive_mf, session.bqclient, ignore_failures=False)
+
+
+def test_managed_function_series_apply_args(session, dataset_id, scalars_dfs):
+    try:
+
+        with pytest.warns(bfe.PreviewWarning, match="udf is in preview."):
+
+            @session.udf(dataset=dataset_id, name=prefixer.create_prefix())
+            def foo_list(x: int, y0: float, y1: bytes, y2: bool) -> list[str]:
+                return [str(x), str(y0), str(y1), str(y2)]
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        bf_result = (
+            scalars_df["int64_too"]
+            .apply(foo_list, args=(12.34, b"hello world", False))
+            .to_pandas()
+        )
+        pd_result = scalars_pandas_df["int64_too"].apply(
+            foo_list, args=(12.34, b"hello world", False)
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the managed function.
+        cleanup_function_assets(foo_list, session.bqclient, ignore_failures=False)
