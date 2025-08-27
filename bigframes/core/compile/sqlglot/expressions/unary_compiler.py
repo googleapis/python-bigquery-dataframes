@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import functools
 import typing
 
 import pandas as pd
@@ -292,6 +293,18 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="DAYOFYEAR"), expression=expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.EndsWithOp)
+def _(op: ops.EndsWithOp, expr: TypedExpr) -> sge.Expression:
+    if not op.pat:
+        return sge.false()
+
+    def to_endswith(pat: str) -> sge.Expression:
+        return sge.func("ENDS_WITH", expr.expr, sge.convert(pat))
+
+    conditions = [to_endswith(pat) for pat in op.pat]
+    return functools.reduce(lambda x, y: sge.Or(this=x, expression=y), conditions)
+
+
 @UNARY_OP_REGISTRATION.register(ops.exp_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Case(
@@ -342,6 +355,27 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.geo_st_boundary_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.func("ST_BOUNDARY", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.GeoStBufferOp)
+def _(op: ops.GeoStBufferOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func(
+        "ST_BUFFER",
+        expr.expr,
+        sge.convert(op.buffer_radius),
+        sge.convert(op.num_seg_quarter_circle),
+        sge.convert(op.use_spheroid),
+    )
+
+
+@UNARY_OP_REGISTRATION.register(ops.geo_st_centroid_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("ST_CENTROID", expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.geo_st_convexhull_op)
+def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
+    return sge.func("ST_CONVEXHULL", expr.expr)
 
 
 @UNARY_OP_REGISTRATION.register(ops.geo_st_geogfromtext_op)
@@ -516,6 +550,17 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Lower(this=expr.expr)
 
 
+@UNARY_OP_REGISTRATION.register(ops.MapOp)
+def _(op: ops.MapOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        this=expr.expr,
+        ifs=[
+            sge.If(this=sge.convert(key), true=sge.convert(value))
+            for key, value in op.mappings
+        ],
+    )
+
+
 @UNARY_OP_REGISTRATION.register(ops.minute_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="MINUTE"), expression=expr.expr)
@@ -601,6 +646,18 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     )
 
 
+@UNARY_OP_REGISTRATION.register(ops.StartsWithOp)
+def _(op: ops.StartsWithOp, expr: TypedExpr) -> sge.Expression:
+    if not op.pat:
+        return sge.false()
+
+    def to_startswith(pat: str) -> sge.Expression:
+        return sge.func("STARTS_WITH", expr.expr, sge.convert(pat))
+
+    conditions = [to_startswith(pat) for pat in op.pat]
+    return functools.reduce(lambda x, y: sge.Or(this=x, expression=y), conditions)
+
+
 @UNARY_OP_REGISTRATION.register(ops.StrStripOp)
 def _(op: ops.StrStripOp, expr: TypedExpr) -> sge.Expression:
     return sge.Trim(this=sge.convert(op.to_strip), expression=expr.expr)
@@ -622,6 +679,11 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
         ],
         default=sge.func("SINH", expr.expr),
     )
+
+
+@UNARY_OP_REGISTRATION.register(ops.StringSplitOp)
+def _(op: ops.StringSplitOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Split(this=expr.expr, expression=sge.convert(op.pat))
 
 
 @UNARY_OP_REGISTRATION.register(ops.StrGetOp)
@@ -776,3 +838,31 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 @UNARY_OP_REGISTRATION.register(ops.year_op)
 def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="YEAR"), expression=expr.expr)
+
+
+@UNARY_OP_REGISTRATION.register(ops.ZfillOp)
+def _(op: ops.ZfillOp, expr: TypedExpr) -> sge.Expression:
+    return sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.EQ(
+                    this=sge.Substring(
+                        this=expr.expr, start=sge.convert(1), length=sge.convert(1)
+                    ),
+                    expression=sge.convert("-"),
+                ),
+                true=sge.Concat(
+                    expressions=[
+                        sge.convert("-"),
+                        sge.func(
+                            "LPAD",
+                            sge.Substring(this=expr.expr, start=sge.convert(1)),
+                            sge.convert(op.width - 1),
+                            sge.convert("0"),
+                        ),
+                    ]
+                ),
+            )
+        ],
+        default=sge.func("LPAD", expr.expr, sge.convert(op.width), sge.convert("0")),
+    )
