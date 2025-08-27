@@ -64,7 +64,7 @@ def train_test_split(
             raise ValueError(
                 "Stratified train/test split is not implemented for shuffle=False"
             )
-        bf_arrays = list(utils.batch_convert_to_bf_array_type(*arrays))
+        bf_arrays = list(utils.batch_convert_to_bf_equivalent(*arrays))
 
         total_rows = len(bf_arrays[0])
         train_rows = int(total_rows * train_size)

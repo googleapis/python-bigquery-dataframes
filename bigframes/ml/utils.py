@@ -79,7 +79,7 @@ def batch_convert_to_series(
     )
 
 
-def batch_convert_to_bf_array_type(
+def batch_convert_to_bf_equivalent(
     *input: ArrayType, session: Optional[Session] = None
 ) -> Generator[Union[bpd.DataFrame, bpd.Series], None, None]:
     """Converts the input to BigFrames DataFrame or Series.
