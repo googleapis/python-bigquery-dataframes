@@ -420,6 +420,8 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.IsInOp)
 def _(op: ops.IsInOp, expr: TypedExpr) -> sge.Expression:
+    if op.values is None or len(op.values) == 0:
+        return sge.convert(False)
     return sge.In(this=expr.expr, expressions=[sge.convert(v) for v in op.values])
 
 
@@ -767,7 +769,7 @@ def _(op: ops.ToTimedeltaOp, expr: TypedExpr) -> sge.Expression:
     factor = UNIT_TO_US_CONVERSION_FACTORS[op.unit]
     if factor != 1:
         value = sge.Mul(this=value, expression=sge.convert(factor))
-    return sge.Interval(this=value, unit=sge.Identifier(this="MICROSECOND"))
+    return value
 
 
 @UNARY_OP_REGISTRATION.register(ops.UnixMicros)

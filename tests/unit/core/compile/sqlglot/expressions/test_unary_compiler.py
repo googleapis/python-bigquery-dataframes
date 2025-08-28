@@ -307,9 +307,12 @@ def test_invert(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_is_in(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col"]]
-    sql = _apply_unary_op(bf_df, ops.IsInOp(values=(1, 2, 3)), "int64_col")
 
+    sql = _apply_unary_op(bf_df, ops.IsInOp(values=(1, 2, 3)), "int64_col")
     snapshot.assert_match(sql, "out.sql")
+
+    sql = _apply_unary_op(bf_df, ops.IsInOp(values=()), "int64_col")
+    snapshot.assert_match(sql, "empty.sql")
 
 
 def test_isalnum(scalar_types_df: bpd.DataFrame, snapshot):
