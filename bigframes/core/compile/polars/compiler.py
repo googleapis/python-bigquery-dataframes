@@ -375,6 +375,10 @@ if polars_installed:
                 return input.list.std()
             if isinstance(op.aggregation, agg_ops.VarOp):
                 return input.list.var()
+            if isinstance(op.aggregation, agg_ops.AnyOp):
+                return input.list.any()
+            if isinstance(op.aggregation, agg_ops.AllOp):
+                return input.list.all()
             else:
                 raise NotImplementedError(
                     f"Haven't implemented array aggregation: {op.aggregation}"
