@@ -301,7 +301,7 @@ class BigFrameNode:
 
     def iter_nodes_topo(
         self: BigFrameNode,
-    ) -> Generator[Tuple[BigFrameNode, Sequence[BigFrameNode]], None, None]:
+    ) -> Generator[BigFrameNode, None, None]:
         """Returns nodes in reverse topological order, using Kahn's algorithm."""
         child_to_parents: Dict[
             BigFrameNode, list[BigFrameNode]
@@ -319,8 +319,8 @@ class BigFrameNode:
 
         while queue:
             item = queue.popleft()
+            yield item
             parents = child_to_parents.get(item, [])
-            yield item, parents
             for parent in parents:
                 out_degree[parent] -= 1
                 if out_degree[parent] == 0:
@@ -364,7 +364,7 @@ class BigFrameNode:
         Returns the transformed root node.
         """
         results: dict[BigFrameNode, BigFrameNode] = {}
-        for node, _ in list(self.iter_nodes_topo()):
+        for node in list(self.iter_nodes_topo()):
             # child nodes have already been transformed
             result = node.transform_children(lambda x: results[x])
             result = transform(result)
@@ -375,7 +375,7 @@ class BigFrameNode:
     def reduce_up(self, reduction: Callable[[BigFrameNode, Tuple[T, ...]], T]) -> T:
         """Apply a bottom-up reduction to the tree."""
         results: dict[BigFrameNode, T] = {}
-        for node, _ in list(self.iter_nodes_topo()):
+        for node in list(self.iter_nodes_topo()):
             # child nodes have already been transformed
             child_results = tuple(results[child] for child in node.child_nodes)
             result = reduction(node, child_results)
