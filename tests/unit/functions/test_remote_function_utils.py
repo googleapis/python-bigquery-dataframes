@@ -243,9 +243,7 @@ _standard_version = f"python-{_major}.{_minor}"
     ],
 )
 def test_get_python_version(is_compat, expected_version):
-    """
-    Tests the python version string formatting for both standard and compat modes.
-    """
+    """Tests the python version for both standard and compat modes."""
     result = _utils.get_python_version(is_compat=is_compat)
     assert result == expected_version
 
