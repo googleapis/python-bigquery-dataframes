@@ -76,6 +76,7 @@ import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.functions
+from bigframes.functions import function_typing
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.ai
@@ -4815,11 +4816,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             else:
                 # This is a special case where we are providing not-pandas-like
                 # extension. If the bigquery function can take one or more
-                # params (exclude the args) then we assume that here the user
+                # params (excluding the args) then we assume that here the user
                 # intention is to use the column values of the dataframe as
                 # arguments to the function. For this to work the following
                 # condition must be true:
-                #   1. The number or input params (exclude the args) in the
+                #   1. The number or input params (excluding the args) in the
                 #      function must be same as the number of columns in the
                 #      dataframe.
                 #   2. The dtypes of the columns in the dataframe must be
@@ -4829,23 +4830,35 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 udf_input_dtypes = func.udf_def.signature.bf_input_types
                 if len(udf_input_dtypes) != len(self.columns) + len(args):
                     raise ValueError(
-                        f"Column count mismatch: BigFrames BigQuery function"
-                        f" expected {len(udf_input_dtypes) - len(args)} columns"
-                        f" from DataFrame but received {len(self.columns)}."
+                        f"Parameter count mismatch: BigFrames BigQuery function"
+                        f" (including the args) expected {len(udf_input_dtypes)}"
+                        f" but received {len(self.columns) + len(args)}."
                     )
                 end_slice = -len(args) if args else None
                 if udf_input_dtypes[:end_slice] != tuple(self.dtypes.to_list()):
                     raise ValueError(
-                        f"Data type mismatch: BigFrames BigQuery function takes"
-                        f" arguments of types {udf_input_dtypes} but DataFrame"
-                        f" dtypes are {tuple(self.dtypes)}."
+                        f"Data type mismatch for DataFrame columns:"
+                        f" Expected {udf_input_dtypes[:end_slice]}"
+                        f" Received {tuple(self.dtypes)}."
                     )
+                if args:
+                    bq_types = (
+                        function_typing.sdk_type_from_python_type(type(arg))
+                        for arg in args
+                    )
+                    args_dtype = tuple(
+                        function_typing.sdk_type_to_bf_type(bq_type)
+                        for bq_type in bq_types
+                    )
+                    if udf_input_dtypes[end_slice:] != args_dtype:
+                        raise ValueError(
+                            f"Data type mismatch for 'args' parameter:"
+                            f" Expected {udf_input_dtypes[end_slice:]}"
+                            f" Received {args_dtype}."
+                        )
 
                 series_list = [self[col] for col in self.columns]
-                if args:
-                    op_list = series_list[1:] + list(args)
-                else:
-                    op_list = series_list[1:]
+                op_list = series_list[1:] + list(args)
                 result_series = series_list[0]._apply_nary_op(
                     ops.NaryRemoteFunctionOp(function_def=func.udf_def), op_list
                 )

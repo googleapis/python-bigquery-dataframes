@@ -1958,19 +1958,32 @@ def test_df_apply_axis_1_args(session, scalars_dfs):
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 2 columns from DataFrame but received 3\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
         ):
-            scalars_df[columns + ["float64_col"]].apply(the_sum_mf, axis=1, args=args1)
+            scalars_df[columns].apply(
+                the_sum_mf,
+                axis=1,
+                args=(
+                    1,
+                    1,
+                ),
+            )
 
         # Fails to apply on dataframe with incompatible column datatypes.
         with pytest.raises(
             ValueError,
-            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             scalars_df[columns].assign(
                 int64_col=lambda df: df["int64_col"].astype("Float64")
             ).apply(the_sum_mf, axis=1, args=args1)
+
+        # Fails to apply on dataframe with incompatible args datatypes.
+        with pytest.raises(
+            ValueError,
+            match="^Data type mismatch for 'args' parameter: Expected .* Received .*",
+        ):
+            scalars_df[columns].apply(the_sum_mf, axis=1, args=("hello world",))
 
         bf_result = (
             scalars_df[columns]
@@ -2293,20 +2306,18 @@ def test_df_apply_axis_1_multiple_params(session):
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 3 columns from DataFrame but received 2\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 2."
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 3 columns from DataFrame but received 4\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes
         with pytest.raises(
             ValueError,
-            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
@@ -2377,20 +2388,18 @@ def test_df_apply_axis_1_multiple_params_array_output(session):
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 3 columns from DataFrame but received 2\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 2."
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 3 columns from DataFrame but received 4\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes
         with pytest.raises(
             ValueError,
-            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
@@ -2451,20 +2460,18 @@ def test_df_apply_axis_1_single_param_non_series(session):
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 1 columns from DataFrame but received 0\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 1 but received 0."
         ):
             bf_df[[]].apply(foo, axis=1)
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 1 columns from DataFrame but received 2\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 1 but received 2."
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes
         with pytest.raises(
             ValueError,
-            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Id=bf_df["Id"].astype("Float64")).apply(foo, axis=1)
 

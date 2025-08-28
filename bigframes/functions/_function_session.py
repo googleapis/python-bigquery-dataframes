@@ -959,15 +959,16 @@ def _convert_row_processor_sig(
 ) -> Optional[inspect.Signature]:
     import bigframes.series as bf_series
 
-    first_param = next(iter(signature.parameters.values()))
-    param_type = first_param.annotation
-    if (param_type == bf_series.Series) or (param_type == pandas.Series):
-        msg = bfe.format_message("input_types=Series is in preview.")
-        warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
-        return signature.replace(
-            parameters=[
-                p.replace(annotation=str) if i == 0 else p
-                for i, p in enumerate(signature.parameters.values())
-            ]
-        )
+    if len(signature.parameters) >= 1:
+        first_param = next(iter(signature.parameters.values()))
+        param_type = first_param.annotation
+        if (param_type == bf_series.Series) or (param_type == pandas.Series):
+            msg = bfe.format_message("input_types=Series is in preview.")
+            warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
+            return signature.replace(
+                parameters=[
+                    p.replace(annotation=str) if i == 0 else p
+                    for i, p in enumerate(signature.parameters.values())
+                ]
+            )
     return None

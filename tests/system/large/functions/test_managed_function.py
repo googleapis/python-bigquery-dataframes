@@ -467,21 +467,19 @@ def test_managed_function_dataframe_apply_axis_1_array_output(session, dataset_i
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 3 columns from DataFrame but received 2\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 2."
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
 
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 3 columns from DataFrame but received 4\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes.
         with pytest.raises(
             ValueError,
-            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
@@ -985,19 +983,25 @@ def test_managed_function_df_apply_axis_1_args(session, dataset_id, scalars_dfs)
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
-            ValueError,
-            match="^Column count mismatch: BigFrames BigQuery function expected 2 columns from DataFrame but received 3\\.$",
+            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
         ):
             scalars_df[columns + ["float64_col"]].apply(the_sum_mf, axis=1, args=args1)
 
         # Fails to apply on dataframe with incompatible column datatypes.
         with pytest.raises(
             ValueError,
-            match="^Data type mismatch: BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             scalars_df[columns].assign(
                 int64_col=lambda df: df["int64_col"].astype("Float64")
             ).apply(the_sum_mf, axis=1, args=args1)
+
+        # Fails to apply on dataframe with incompatible args datatypes.
+        with pytest.raises(
+            ValueError,
+            match="^Data type mismatch for 'args' parameter: Expected .* Received .*",
+        ):
+            scalars_df[columns].apply(the_sum_mf, axis=1, args=(1.3,))
 
         bf_result = (
             scalars_df[columns]
