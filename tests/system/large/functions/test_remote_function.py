@@ -1958,7 +1958,8 @@ def test_df_apply_axis_1_args(session, scalars_dfs):
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 values.*",
         ):
             scalars_df[columns].apply(
                 the_sum_mf,
@@ -2306,11 +2307,13 @@ def test_df_apply_axis_1_multiple_params(session):
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 2."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 2 DataFrame.*",
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 DataFrame.*",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
@@ -2388,11 +2391,13 @@ def test_df_apply_axis_1_multiple_params_array_output(session):
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 2."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 2 DataFrame.*",
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 DataFrame.*",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
@@ -2460,11 +2465,13 @@ def test_df_apply_axis_1_single_param_non_series(session):
 
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 1 but received 0."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 1 parameters but received 0 DataFrame.*",
         ):
             bf_df[[]].apply(foo, axis=1)
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 1 but received 2."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 1 parameters but received 2 DataFrame.*",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 

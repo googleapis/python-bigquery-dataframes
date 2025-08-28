@@ -467,12 +467,14 @@ def test_managed_function_dataframe_apply_axis_1_array_output(session, dataset_i
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 2."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 2 DataFrame.*",
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
 
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 DataFrame.*",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
@@ -983,7 +985,8 @@ def test_managed_function_df_apply_axis_1_args(session, dataset_id, scalars_dfs)
 
         # Fails to apply on dataframe with incompatible number of columns.
         with pytest.raises(
-            ValueError, match="^Parameter count mismatch:.* expected 3 but received 4."
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 values.*",
         ):
             scalars_df[columns + ["float64_col"]].apply(the_sum_mf, axis=1, args=args1)
 

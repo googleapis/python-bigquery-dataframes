@@ -4828,11 +4828,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 #   3. The order of the columns in the dataframe must correspond
                 #      to the order of the input params in the function.
                 udf_input_dtypes = func.udf_def.signature.bf_input_types
-                if len(udf_input_dtypes) != len(self.columns) + len(args):
+                if not args and len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
                         f"Parameter count mismatch: BigFrames BigQuery function"
-                        f" (including the args) expected {len(udf_input_dtypes)}"
-                        f" but received {len(self.columns) + len(args)}."
+                        f" expected {len(udf_input_dtypes)} parameters but"
+                        f" received {len(self.columns)} DataFrame columns."
+                    )
+                if args and len(udf_input_dtypes) != len(self.columns) + len(args):
+                    raise ValueError(
+                        f"Parameter count mismatch: BigFrames BigQuery function"
+                        f" expected {len(udf_input_dtypes)} parameters but"
+                        f" received {len(self.columns) + len(args)} values"
+                        f" ({len(self.columns)} DataFrame coulmns and"
+                        f" {len(args)} args)."
                     )
                 end_slice = -len(args) if args else None
                 if udf_input_dtypes[:end_slice] != tuple(self.dtypes.to_list()):
