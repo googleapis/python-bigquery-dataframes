@@ -341,50 +341,61 @@ class SQLGlotIR:
         right: SQLGlotIR,
         indicator_col: str,
         conditions: tuple[typed_expr.TypedExpr, typed_expr.TypedExpr],
-        *,
         joins_nulls: bool = True,
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
-        # TODO: Optimization similar to Ibis:
-        # if isinstance(values, ArrayValue):
-        #     return ops.ArrayContains(values, self).to_expr()
-        # elif isinstance(values, Column):
-        #     return ops.InSubquery(values.as_table(), needle=self).to_expr()
-        # else:
-        #     return ops.InValues(self, values).to_expr()
-    
-        raise NotImplementedError
-        # left_cte_name = sge.to_identifier(
-        #     next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
-        # )
-        # right_cte_name = sge.to_identifier(
-        #     next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
-        # )
+        left_cte_name = sge.to_identifier(
+            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+        )
+        right_cte_name = sge.to_identifier(
+            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+        )
 
-        # left_select = _select_to_cte(self.expr, left_cte_name)
-        # right_select = _select_to_cte(right.expr, right_cte_name)
+        left_select = _select_to_cte(self.expr, left_cte_name)
+        right_select = _select_to_cte(right.expr, right_cte_name)
 
-        # left_ctes = left_select.args.pop("with", [])
-        # right_ctes = right_select.args.pop("with", [])
-        # merged_ctes = [*left_ctes, *right_ctes]
+        left_ctes = left_select.args.pop("with", [])
+        right_ctes = right_select.args.pop("with", [])
+        merged_ctes = [*left_ctes, *right_ctes]
 
+        left_condition = typed_expr.TypedExpr(
+            sge.Column(this=conditions[0].expr, table=left_cte_name),
+            conditions[0].dtype,
+        )
+        right_condition = typed_expr.TypedExpr(
+            sge.Column(this=conditions[1].expr, table=right_cte_name),
+            conditions[1].dtype,
+        )
 
+        new_column: sge.Expression
+        if joins_nulls:
+            new_column = sge.Exists(
+                this=sge.Select()
+                .select(sge.convert(1))
+                .from_(sge.Table(this=right_cte_name))
+                .where(
+                    _join_condition(left_condition, right_condition, joins_nulls=True)
+                )
+            )
+        else:
+            new_column = sge.In(
+                this=left_condition.expr,
+                expressions=[right_condition.expr],
+            )
 
-        # join_conditions = [
-        #     _join_condition(left, right, joins_nulls) for left, right in conditions
-        # ]
-        # join_on = sge.And(expressions=join_conditions) if join_conditions else None
+        new_column = sge.Alias(
+            this=new_column,
+            alias=sge.to_identifier(indicator_col, quoted=self.quoted),
+        )
 
-        # join_type_str = join_type if join_type != "outer" else "full outer"
-        # new_expr = (
-        #     sge.Select()
-        #     .select(sge.Star())
-        #     .from_(sge.Table(this=left_cte_name))
-        #     .join(sge.Table(this=right_cte_name), on=join_on, join_type=join_type_str)
-        # )
-        # new_expr.set("with", sge.With(expressions=merged_ctes))
+        new_expr = (
+            sge.Select()
+            .select(sge.Column(this=sge.Star(), table=left_cte_name), new_column)
+            .from_(sge.Table(this=left_cte_name))
+        )
+        new_expr.set("with", sge.With(expressions=merged_ctes))
 
-        # return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def explode(
         self,
