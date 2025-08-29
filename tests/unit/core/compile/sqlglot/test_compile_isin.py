@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
 import pytest
 
-import bigframes
 import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
 
-def test_compile_isin(
-    scalar_types_df: bpd.DataFrame, compiler_session: bigframes.Session, snapshot
-):
-    data = [314159, 2.0, 3, pd.NA]
-    s = bpd.Series(data, session=compiler_session)
-    bf_isin = scalar_types_df["int64_col"].isin(s).to_frame()
+def test_compile_isin(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_isin = scalar_types_df["int64_col"].isin(scalar_types_df["int64_too"]).to_frame()
+    snapshot.assert_match(bf_isin.sql, "out.sql")
+
+
+def test_compile_isin_not_nullable(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_isin = (
+        scalar_types_df["rowindex_2"].isin(scalar_types_df["rowindex_2"]).to_frame()
+    )
     snapshot.assert_match(bf_isin.sql, "out.sql")

@@ -248,14 +248,14 @@ class SQLGlotCompiler:
     def compile_isin_join(
         self, node: nodes.InNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
-        conditions = tuple(
+        conditions = (
             typed_expr.TypedExpr(
                 scalar_compiler.compile_scalar_expression(node.left_col),
-                left.output_type,
+                node.left_col.output_type,
             ),
             typed_expr.TypedExpr(
                 scalar_compiler.compile_scalar_expression(node.right_col),
-                right.output_type,
+                node.right_col.output_type,
             ),
         )
 
