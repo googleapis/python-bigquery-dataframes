@@ -5,7 +5,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_0` IN (1, 2, 3) AS `bfcol_1`
+    COALESCE(`bfcol_0` IN (1, 2, 3), FALSE) AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

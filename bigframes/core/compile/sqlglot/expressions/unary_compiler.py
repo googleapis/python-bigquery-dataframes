@@ -27,6 +27,7 @@ from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.sqlglot.expressions.constants as constants
 from bigframes.core.compile.sqlglot.expressions.op_registration import OpRegistration
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
+import bigframes.dtypes as dtypes
 
 UNARY_OP_REGISTRATION = OpRegistration()
 
@@ -420,9 +421,28 @@ def _(op: ops.base_ops.UnaryOp, expr: TypedExpr) -> sge.Expression:
 
 @UNARY_OP_REGISTRATION.register(ops.IsInOp)
 def _(op: ops.IsInOp, expr: TypedExpr) -> sge.Expression:
-    if op.values is None or len(op.values) == 0:
+    values = []
+    is_numeric_expr = dtypes.is_numeric(expr.dtype)
+    for value in op.values:
+        if value is None:
+            continue
+        dtype = dtypes.bigframes_type(type(value))
+        if expr.dtype == dtype or is_numeric_expr and dtypes.is_numeric(dtype):
+            values.append(sge.convert(value))
+
+    if op.match_nulls:
+        contains_nulls = any(_is_null(value) for value in op.values)
+        if contains_nulls:
+            return sge.Is(this=expr.expr, expression=sge.Null()) | sge.In(
+                this=expr.expr, expressions=values
+            )
+
+    if len(values) == 0:
         return sge.convert(False)
-    return sge.In(this=expr.expr, expressions=[sge.convert(v) for v in op.values])
+
+    return sge.func(
+        "COALESCE", sge.In(this=expr.expr, expressions=values), sge.convert(False)
+    )
 
 
 @UNARY_OP_REGISTRATION.register(ops.isalnum_op)
@@ -868,3 +888,9 @@ def _(op: ops.ZfillOp, expr: TypedExpr) -> sge.Expression:
         ],
         default=sge.func("LPAD", expr.expr, sge.convert(op.width), sge.convert("0")),
     )
+
+
+# Helpers
+def _is_null(value) -> bool:
+    # float NaN/inf should be treated as distinct from 'true' null values
+    return typing.cast(bool, pd.isna(value)) and not isinstance(value, float)

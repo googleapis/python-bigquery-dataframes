@@ -15,6 +15,7 @@
 import pytest
 
 from bigframes import operations as ops
+from bigframes.core import expression
 from bigframes.operations._op_converters import convert_index, convert_slice
 import bigframes.pandas as bpd
 
@@ -307,14 +308,43 @@ def test_invert(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_is_in(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col"]]
-
     sql = _apply_unary_op(bf_df, ops.IsInOp(values=(1, 2, 3)), "int64_col")
 
     snapshot.assert_match(sql, "out.sql")
 
-    sql = _apply_unary_op(bf_df, ops.IsInOp(values=()), "int64_col")
 
-    snapshot.assert_match(sql, "empty.sql")
+def test_is_in_for_all_cases(scalar_types_df: bpd.DataFrame, snapshot):
+    scalars_array_value = scalar_types_df._block.expr
+    arr, col_ids = scalars_array_value.compute_values(
+        [
+            ops.IsInOp((1, 2, 3)).as_expr(expression.deref("int64_col")),
+            ops.IsInOp((None, 123456)).as_expr(expression.deref("int64_col")),
+            ops.IsInOp((None, 123456), match_nulls=False).as_expr(
+                expression.deref("int64_col")
+            ),
+            ops.IsInOp((1.0, 2.0, 3.0)).as_expr(expression.deref("int64_col")),
+            ops.IsInOp(("1.0", "2.0")).as_expr(expression.deref("int64_col")),
+            ops.IsInOp(("1.0", 2.5, 3)).as_expr(expression.deref("int64_col")),
+            ops.IsInOp(()).as_expr(expression.deref("int64_col")),
+            ops.IsInOp((1, 2, 3, None)).as_expr(expression.deref("float64_col")),
+        ]
+    )
+    new_names = (
+        "int in ints",
+        "int in ints w null",
+        "int in ints w null wo match nulls",
+        "int in floats",
+        "int in strings",
+        "int in mixed",
+        "int in empty",
+        "float in ints",
+    )
+    arr = arr.rename_columns(
+        {old_name: new_names[i] for i, old_name in enumerate(col_ids)}
+    )
+    sql = arr.session._executor.to_sql(arr, enable_cache=False)
+
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_isalnum(scalar_types_df: bpd.DataFrame, snapshot):
