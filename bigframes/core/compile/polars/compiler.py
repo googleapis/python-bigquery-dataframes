@@ -31,9 +31,12 @@ import bigframes.core.rewrite.schema_binding
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.array_ops as arr_ops
 import bigframes.operations.bool_ops as bool_ops
 import bigframes.operations.comparison_ops as comp_ops
+import bigframes.operations.date_ops as date_ops
 import bigframes.operations.datetime_ops as dt_ops
+import bigframes.operations.frequency_ops as freq_ops
 import bigframes.operations.generic_ops as gen_ops
 import bigframes.operations.json_ops as json_ops
 import bigframes.operations.numeric_ops as num_ops
@@ -74,6 +77,20 @@ def register_op(op: Type):
 
 
 if polars_installed:
+    _FREQ_MAPPING = {
+        "Y": "1y",
+        "Q": "1q",
+        "M": "1mo",
+        "W": "1w",
+        "D": "1d",
+        "h": "1h",
+        "min": "1m",
+        "s": "1s",
+        "ms": "1ms",
+        "us": "1us",
+        "ns": "1ns",
+    }
+
     _DTYPE_MAPPING = {
         # Direct mappings
         bigframes.dtypes.INT_DTYPE: pl.Int64(),
@@ -301,10 +318,75 @@ if polars_installed:
             assert isinstance(op, string_ops.StrConcatOp)
             return pl.concat_str(l_input, r_input)
 
+        @compile_op.register(string_ops.StrContainsOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StrContainsOp)
+            return input.str.contains(pattern=op.pat, literal=True)
+
+        @compile_op.register(string_ops.StrContainsRegexOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StrContainsRegexOp)
+            return input.str.contains(pattern=op.pat, literal=False)
+
+        @compile_op.register(string_ops.StartsWithOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StartsWithOp)
+            if len(op.pat) == 1:
+                return input.str.starts_with(op.pat[0])
+            else:
+                return pl.any_horizontal(
+                    *(input.str.starts_with(pat) for pat in op.pat)
+                )
+
+        @compile_op.register(string_ops.EndsWithOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.EndsWithOp)
+            if len(op.pat) == 1:
+                return input.str.ends_with(op.pat[0])
+            else:
+                return pl.any_horizontal(*(input.str.ends_with(pat) for pat in op.pat))
+
+        @compile_op.register(freq_ops.FloorDtOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, freq_ops.FloorDtOp)
+            return input.dt.truncate(every=_FREQ_MAPPING[op.freq])
+
         @compile_op.register(dt_ops.StrftimeOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             assert isinstance(op, dt_ops.StrftimeOp)
             return input.dt.strftime(op.date_format)
+
+        @compile_op.register(date_ops.YearOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.year()
+
+        @compile_op.register(date_ops.QuarterOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.quarter()
+
+        @compile_op.register(date_ops.MonthOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.month()
+
+        @compile_op.register(date_ops.DayOfWeekOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.weekday() - 1
+
+        @compile_op.register(date_ops.DayOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.day()
+
+        @compile_op.register(date_ops.IsoYearOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.iso_year()
+
+        @compile_op.register(date_ops.IsoWeekOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.week()
+
+        @compile_op.register(date_ops.IsoDayOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.weekday()
 
         @compile_op.register(dt_ops.ParseDatetimeOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
@@ -324,6 +406,36 @@ if polars_installed:
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             assert isinstance(op, json_ops.JSONDecode)
             return input.str.json_decode(_DTYPE_MAPPING[op.to_type])
+
+        @compile_op.register(arr_ops.ToArrayOp)
+        def _(self, op: ops.ToArrayOp, *inputs: pl.Expr) -> pl.Expr:
+            return pl.concat_list(*inputs)
+
+        @compile_op.register(arr_ops.ArrayReduceOp)
+        def _(self, op: ops.ArrayReduceOp, input: pl.Expr) -> pl.Expr:
+            # TODO: Unify this with general aggregation compilation?
+            if isinstance(op.aggregation, agg_ops.MinOp):
+                return input.list.min()
+            if isinstance(op.aggregation, agg_ops.MaxOp):
+                return input.list.max()
+            if isinstance(op.aggregation, agg_ops.SumOp):
+                return input.list.sum()
+            if isinstance(op.aggregation, agg_ops.MeanOp):
+                return input.list.mean()
+            if isinstance(op.aggregation, agg_ops.CountOp):
+                return input.list.len()
+            if isinstance(op.aggregation, agg_ops.StdOp):
+                return input.list.std()
+            if isinstance(op.aggregation, agg_ops.VarOp):
+                return input.list.var()
+            if isinstance(op.aggregation, agg_ops.AnyOp):
+                return input.list.any()
+            if isinstance(op.aggregation, agg_ops.AllOp):
+                return input.list.all()
+            else:
+                raise NotImplementedError(
+                    f"Haven't implemented array aggregation: {op.aggregation}"
+                )
 
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:

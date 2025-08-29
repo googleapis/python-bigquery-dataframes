@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import sys
 from unittest.mock import patch
 
 import bigframes_vendored.constants as constants
@@ -72,6 +73,32 @@ def test_get_remote_function_locations(
 def test_get_cloud_function_name(func_hash, session_id, uniq_suffix, expected_name):
     """Tests the construction of the cloud function name from its parts."""
     result = _utils.get_cloud_function_name(func_hash, session_id, uniq_suffix)
+
+    assert result == expected_name
+
+
+@pytest.mark.parametrize(
+    "function_hash, session_id, uniq_suffix, expected_name",
+    [
+        (
+            "hash123",
+            "session456",
+            None,
+            "bigframes_session456_hash123",
+        ),
+        (
+            "hash789",
+            "sessionABC",
+            "suffixDEF",
+            "bigframes_sessionABC_hash789_suffixDEF",
+        ),
+    ],
+)
+def test_get_bigframes_function_name(
+    function_hash, session_id, uniq_suffix, expected_name
+):
+    """Tests the construction of the BigQuery function name from its parts."""
+    result = _utils.get_bigframes_function_name(function_hash, session_id, uniq_suffix)
 
     assert result == expected_name
 
@@ -201,6 +228,26 @@ def test_get_updated_package_requirements_with_existing_cloudpickle():
     assert result == expected
 
 
+# Dynamically generate expected python versions for the test
+_major = sys.version_info.major
+_minor = sys.version_info.minor
+_compat_version = f"python{_major}{_minor}"
+_standard_version = f"python-{_major}.{_minor}"
+
+
+@pytest.mark.parametrize(
+    "is_compat, expected_version",
+    [
+        (True, _compat_version),
+        (False, _standard_version),
+    ],
+)
+def test_get_python_version(is_compat, expected_version):
+    """Tests the python version for both standard and compat modes."""
+    result = _utils.get_python_version(is_compat=is_compat)
+    assert result == expected_version
+
+
 def test_package_existed_helper():
     """Tests the _package_existed helper function directly."""
     reqs = ["pandas==1.0", "numpy", "scikit-learn>=1.2.0"]
@@ -215,6 +262,78 @@ def test_package_existed_helper():
     assert not _utils._package_existed(reqs, "xgboost")
     # Empty list
     assert not _utils._package_existed([], "pandas")
+
+
+def _function_add_one(x):
+    return x + 1
+
+
+def _function_add_two(x):
+    return x + 2
+
+
+@pytest.mark.parametrize(
+    "func1, func2, should_be_equal, description",
+    [
+        (
+            _function_add_one,
+            _function_add_one,
+            True,
+            "Identical functions should have the same hash.",
+        ),
+        (
+            _function_add_one,
+            _function_add_two,
+            False,
+            "Different functions should have different hashes.",
+        ),
+    ],
+)
+def test_get_hash_without_package_requirements(
+    func1, func2, should_be_equal, description
+):
+    """Tests function hashes without any requirements."""
+    hash1 = _utils.get_hash(func1)
+    hash2 = _utils.get_hash(func2)
+
+    if should_be_equal:
+        assert hash1 == hash2, f"FAILED: {description}"
+    else:
+        assert hash1 != hash2, f"FAILED: {description}"
+
+
+@pytest.mark.parametrize(
+    "reqs1, reqs2, should_be_equal, description",
+    [
+        (
+            None,
+            ["pandas>=1.0"],
+            False,
+            "Hash with or without requirements should differ from hash.",
+        ),
+        (
+            ["pandas", "numpy", "scikit-learn"],
+            ["numpy", "scikit-learn", "pandas"],
+            True,
+            "Same requirements should produce the same hash.",
+        ),
+        (
+            ["pandas==1.0"],
+            ["pandas==2.0"],
+            False,
+            "Different requirement versions should produce different hashes.",
+        ),
+    ],
+)
+def test_get_hash_with_package_requirements(reqs1, reqs2, should_be_equal, description):
+    """Tests how package requirements affect the final hash."""
+    hash1 = _utils.get_hash(_function_add_one, package_requirements=reqs1)
+    hash2 = _utils.get_hash(_function_add_one, package_requirements=reqs2)
+
+    if should_be_equal:
+        assert hash1 == hash2, f"FAILED: {description}"
+    else:
+        assert hash1 != hash2, f"FAILED: {description}"
 
 
 # Helper functions for signature inspection tests
