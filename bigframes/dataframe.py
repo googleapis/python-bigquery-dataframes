@@ -4839,7 +4839,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         f"Parameter count mismatch: BigFrames BigQuery function"
                         f" expected {len(udf_input_dtypes)} parameters but"
                         f" received {len(self.columns) + len(args)} values"
-                        f" ({len(self.columns)} DataFrame coulmns and"
+                        f" ({len(self.columns)} DataFrame columns and"
                         f" {len(args)} args)."
                     )
                 end_slice = -len(args) if args else None
