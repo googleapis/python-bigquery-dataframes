@@ -217,6 +217,21 @@ class BqmlModel(BaseBqml):
 
     generate_table_tvf = TvfDef(generate_table, "status")
 
+    def ai_generate(
+        self,
+        input_data: bpd.DataFrame,
+        options: dict[str, Union[int, float, bool, Mapping]],
+    ) -> bpd.DataFrame:
+        return self._apply_ml_tvf(
+            input_data,
+            lambda source_sql: self._sql_generator.ai_generate(
+                source_sql=source_sql,
+                struct_options=options,
+            ),
+        )
+
+    ai_generate_tvf = TvfDef(ai_generate, "status")
+
     def detect_anomalies(
         self, input_data: bpd.DataFrame, options: Mapping[str, int | float]
     ) -> bpd.DataFrame:
