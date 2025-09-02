@@ -164,12 +164,12 @@ def vector_search(
         ...             query=search_query,
         ...             distance_type="cosine",
         ...             query_column_to_search="another_embedding",
-        ...             top_k=2)
+        ...             top_k=2).sort_values("id")
           query_id  embedding another_embedding  id my_embedding  distance
-        1      cat  [3.  5.2]         [3.3 5.2]   2      [2. 4.]  0.005181
-        0      dog    [1. 2.]         [0.7 2.2]   4    [1.  3.2]  0.000013
         1      cat  [3.  5.2]         [3.3 5.2]   1      [1. 2.]  0.005181
+        1      cat  [3.  5.2]         [3.3 5.2]   2      [2. 4.]  0.005181
         0      dog    [1. 2.]         [0.7 2.2]   3    [1.5 7. ]  0.004697
+        0      dog    [1. 2.]         [0.7 2.2]   4    [1.  3.2]  0.000013
         <BLANKLINE>
         [4 rows x 6 columns]
 
