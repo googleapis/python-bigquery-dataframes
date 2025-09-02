@@ -1,13 +1,13 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    CASE WHEN `bfcol_0` < 0 THEN CAST('NaN' AS FLOAT64) ELSE LOG(10, `bfcol_0`) END AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `float64_col`
-FROM `bfcte_1`
+  IF(
+    NOT (
+      `t0`.`float64_col` > 0
+    ),
+    IF(`t0`.`float64_col` = 0, CAST('-Infinity' AS FLOAT64), CAST('NaN' AS FLOAT64)),
+    LOG(`t0`.`float64_col`, 10)
+  ) AS `float64_col`
+FROM (
+  SELECT
+    `float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-08-26T20:49:28.159676')
+) AS `t0`
