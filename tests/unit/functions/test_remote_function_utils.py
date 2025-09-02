@@ -13,12 +13,94 @@
 # limitations under the License.
 
 import inspect
+import sys
 from unittest.mock import patch
 
 import bigframes_vendored.constants as constants
 import pytest
 
 from bigframes.functions import _utils, function_typing
+
+
+@pytest.mark.parametrize(
+    ("input_location", "expected_bq_location", "expected_cf_region"),
+    [
+        (None, "us", "us-central1"),
+        ("us", "us", "us-central1"),
+        ("eu", "eu", "europe-west1"),
+        ("US-east4", "us-east4", "us-east4"),
+    ],
+)
+def test_get_remote_function_locations(
+    input_location, expected_bq_location, expected_cf_region
+):
+    """Tests getting remote function locations for various locations."""
+    bq_location, cf_region = _utils.get_remote_function_locations(input_location)
+
+    assert bq_location == expected_bq_location
+    assert cf_region == expected_cf_region
+
+
+@pytest.mark.parametrize(
+    "func_hash, session_id, uniq_suffix, expected_name",
+    [
+        (
+            "hash123",
+            None,
+            None,
+            "bigframes-hash123",
+        ),
+        (
+            "hash456",
+            "session789",
+            None,
+            "bigframes-session789-hash456",
+        ),
+        (
+            "hash123",
+            None,
+            "suffixABC",
+            "bigframes-hash123-suffixABC",
+        ),
+        (
+            "hash456",
+            "session789",
+            "suffixDEF",
+            "bigframes-session789-hash456-suffixDEF",
+        ),
+    ],
+)
+def test_get_cloud_function_name(func_hash, session_id, uniq_suffix, expected_name):
+    """Tests the construction of the cloud function name from its parts."""
+    result = _utils.get_cloud_function_name(func_hash, session_id, uniq_suffix)
+
+    assert result == expected_name
+
+
+@pytest.mark.parametrize(
+    "function_hash, session_id, uniq_suffix, expected_name",
+    [
+        (
+            "hash123",
+            "session456",
+            None,
+            "bigframes_session456_hash123",
+        ),
+        (
+            "hash789",
+            "sessionABC",
+            "suffixDEF",
+            "bigframes_sessionABC_hash789_suffixDEF",
+        ),
+    ],
+)
+def test_get_bigframes_function_name(
+    function_hash, session_id, uniq_suffix, expected_name
+):
+    """Tests the construction of the BigQuery function name from its parts."""
+    result = _utils.get_bigframes_function_name(function_hash, session_id, uniq_suffix)
+
+    assert result == expected_name
 
 
 def test_get_updated_package_requirements_no_extra_package():
@@ -146,6 +228,26 @@ def test_get_updated_package_requirements_with_existing_cloudpickle():
     assert result == expected
 
 
+# Dynamically generate expected python versions for the test
+_major = sys.version_info.major
+_minor = sys.version_info.minor
+_compat_version = f"python{_major}{_minor}"
+_standard_version = f"python-{_major}.{_minor}"
+
+
+@pytest.mark.parametrize(
+    "is_compat, expected_version",
+    [
+        (True, _compat_version),
+        (False, _standard_version),
+    ],
+)
+def test_get_python_version(is_compat, expected_version):
+    """Tests the python version for both standard and compat modes."""
+    result = _utils.get_python_version(is_compat=is_compat)
+    assert result == expected_version
+
+
 def test_package_existed_helper():
     """Tests the _package_existed helper function directly."""
     reqs = ["pandas==1.0", "numpy", "scikit-learn>=1.2.0"]
@@ -162,13 +264,134 @@ def test_package_existed_helper():
     assert not _utils._package_existed([], "pandas")
 
 
+def _function_add_one(x):
+    return x + 1
+
+
+def _function_add_two(x):
+    return x + 2
+
+
+@pytest.mark.parametrize(
+    "func1, func2, should_be_equal, description",
+    [
+        (
+            _function_add_one,
+            _function_add_one,
+            True,
+            "Identical functions should have the same hash.",
+        ),
+        (
+            _function_add_one,
+            _function_add_two,
+            False,
+            "Different functions should have different hashes.",
+        ),
+    ],
+)
+def test_get_hash_without_package_requirements(
+    func1, func2, should_be_equal, description
+):
+    """Tests function hashes without any requirements."""
+    hash1 = _utils.get_hash(func1)
+    hash2 = _utils.get_hash(func2)
+
+    if should_be_equal:
+        assert hash1 == hash2, f"FAILED: {description}"
+    else:
+        assert hash1 != hash2, f"FAILED: {description}"
+
+
+@pytest.mark.parametrize(
+    "reqs1, reqs2, should_be_equal, description",
+    [
+        (
+            None,
+            ["pandas>=1.0"],
+            False,
+            "Hash with or without requirements should differ from hash.",
+        ),
+        (
+            ["pandas", "numpy", "scikit-learn"],
+            ["numpy", "scikit-learn", "pandas"],
+            True,
+            "Same requirements should produce the same hash.",
+        ),
+        (
+            ["pandas==1.0"],
+            ["pandas==2.0"],
+            False,
+            "Different requirement versions should produce different hashes.",
+        ),
+    ],
+)
+def test_get_hash_with_package_requirements(reqs1, reqs2, should_be_equal, description):
+    """Tests how package requirements affect the final hash."""
+    hash1 = _utils.get_hash(_function_add_one, package_requirements=reqs1)
+    hash2 = _utils.get_hash(_function_add_one, package_requirements=reqs2)
+
+    if should_be_equal:
+        assert hash1 == hash2, f"FAILED: {description}"
+    else:
+        assert hash1 != hash2, f"FAILED: {description}"
+
+
+# Helper functions for signature inspection tests
+def _func_one_arg_annotated(x: int) -> int:
+    """A function with one annotated arg and an annotated return type."""
+    return x
+
+
+def _func_one_arg_unannotated(x):
+    """A function with one unannotated arg and no return type annotation."""
+    return x
+
+
+def _func_two_args_annotated(x: int, y: str):
+    """A function with two annotated args and no return type annotation."""
+    return f"{x}{y}"
+
+
+def _func_two_args_unannotated(x, y):
+    """A function with two unannotated args and no return type annotation."""
+    return f"{x}{y}"
+
+
+def test_has_conflict_input_type_too_few_inputs():
+    """Tests conflict when there are fewer input types than parameters."""
+    signature = inspect.signature(_func_one_arg_annotated)
+    assert _utils.has_conflict_input_type(signature, input_types=[])
+
+
+def test_has_conflict_input_type_too_many_inputs():
+    """Tests conflict when there are more input types than parameters."""
+    signature = inspect.signature(_func_one_arg_annotated)
+    assert _utils.has_conflict_input_type(signature, input_types=[int, str])
+
+
+def test_has_conflict_input_type_type_mismatch():
+    """Tests has_conflict_input_type with a conflicting type annotation."""
+    signature = inspect.signature(_func_two_args_annotated)
+
+    # The second type (bool) conflicts with the annotation (str).
+    assert _utils.has_conflict_input_type(signature, input_types=[int, bool])
+
+
+def test_has_conflict_input_type_no_conflict_annotated():
+    """Tests that a matching, annotated signature is compatible."""
+    signature = inspect.signature(_func_two_args_annotated)
+    assert not _utils.has_conflict_input_type(signature, input_types=[int, str])
+
+
+def test_has_conflict_input_type_no_conflict_unannotated():
+    """Tests that a signature with no annotations is always compatible."""
+    signature = inspect.signature(_func_two_args_unannotated)
+    assert not _utils.has_conflict_input_type(signature, input_types=[int, float])
+
+
 def test_has_conflict_output_type_no_conflict():
     """Tests has_conflict_output_type with type annotation."""
-    # Helper functions with type annotation for has_conflict_output_type.
-    def _func_with_return_type(x: int) -> int:
-        return x
-
-    signature = inspect.signature(_func_with_return_type)
+    signature = inspect.signature(_func_one_arg_annotated)
 
     assert _utils.has_conflict_output_type(signature, output_type=float)
     assert not _utils.has_conflict_output_type(signature, output_type=int)
@@ -176,11 +399,7 @@ def test_has_conflict_output_type_no_conflict():
 
 def test_has_conflict_output_type_no_annotation():
     """Tests has_conflict_output_type without type annotation."""
-    # Helper functions without type annotation for has_conflict_output_type.
-    def _func_without_return_type(x):
-        return x
-
-    signature = inspect.signature(_func_without_return_type)
+    signature = inspect.signature(_func_one_arg_unannotated)
 
     assert not _utils.has_conflict_output_type(signature, output_type=int)
     assert not _utils.has_conflict_output_type(signature, output_type=float)

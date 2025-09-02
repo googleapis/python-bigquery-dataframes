@@ -125,6 +125,18 @@ def test_dayofyear(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_endswith(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.EndsWithOp(pat=("ab",)), "string_col")
+    snapshot.assert_match(sql, "single_pattern.sql")
+
+    sql = _apply_unary_op(bf_df, ops.EndsWithOp(pat=("ab", "cd")), "string_col")
+    snapshot.assert_match(sql, "multiple_patterns.sql")
+
+    sql = _apply_unary_op(bf_df, ops.EndsWithOp(pat=()), "string_col")
+    snapshot.assert_match(sql, "no_pattern.sql")
+
+
 def test_exp(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.exp_op, "float64_col")
@@ -141,7 +153,7 @@ def test_expm1(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_floor_dt(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["timestamp_col"]]
-    sql = _apply_unary_op(bf_df, ops.FloorDtOp("DAY"), "timestamp_col")
+    sql = _apply_unary_op(bf_df, ops.FloorDtOp("D"), "timestamp_col")
 
     snapshot.assert_match(sql, "out.sql")
 
@@ -170,6 +182,27 @@ def test_geo_st_astext(scalar_types_df: bpd.DataFrame, snapshot):
 def test_geo_st_boundary(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["geography_col"]]
     sql = _apply_unary_op(bf_df, ops.geo_st_boundary_op, "geography_col")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_geo_st_buffer(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["geography_col"]]
+    sql = _apply_unary_op(bf_df, ops.GeoStBufferOp(1.0, 8.0, False), "geography_col")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_geo_st_centroid(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["geography_col"]]
+    sql = _apply_unary_op(bf_df, ops.geo_st_centroid_op, "geography_col")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_geo_st_convexhull(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["geography_col"]]
+    sql = _apply_unary_op(bf_df, ops.geo_st_convexhull_op, "geography_col")
 
     snapshot.assert_match(sql, "out.sql")
 
@@ -370,6 +403,15 @@ def test_lower(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_map(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(
+        bf_df, ops.MapOp(mappings=(("value1", "mapped1"),)), "string_col"
+    )
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_lstrip(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.StrLstripOp(" "), "string_col")
@@ -431,6 +473,18 @@ def test_quarter(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_replace_str(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.ReplaceStrOp("e", "a"), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_regex_replace_str(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.RegexReplaceStrOp(r"e", "a"), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_reverse(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.reverse_op, "string_col")
@@ -459,11 +513,41 @@ def test_sqrt(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_startswith(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StartsWithOp(pat=("ab",)), "string_col")
+    snapshot.assert_match(sql, "single_pattern.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StartsWithOp(pat=("ab", "cd")), "string_col")
+    snapshot.assert_match(sql, "multiple_patterns.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StartsWithOp(pat=()), "string_col")
+    snapshot.assert_match(sql, "no_pattern.sql")
+
+
 def test_str_get(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
     sql = _apply_unary_op(bf_df, ops.StrGetOp(1), "string_col")
 
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_str_pad(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(
+        bf_df, ops.StrPadOp(length=10, fillchar="-", side="left"), "string_col"
+    )
+    snapshot.assert_match(sql, "left.sql")
+
+    sql = _apply_unary_op(
+        bf_df, ops.StrPadOp(length=10, fillchar="-", side="right"), "string_col"
+    )
+    snapshot.assert_match(sql, "right.sql")
+
+    sql = _apply_unary_op(
+        bf_df, ops.StrPadOp(length=10, fillchar="-", side="both"), "string_col"
+    )
+    snapshot.assert_match(sql, "both.sql")
 
 
 def test_str_slice(scalar_types_df: bpd.DataFrame, snapshot):
@@ -504,6 +588,34 @@ def test_str_contains_regex(scalar_types_df: bpd.DataFrame, snapshot):
     sql = _apply_unary_op(bf_df, ops.StrContainsRegexOp("e"), "string_col")
 
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_str_extract(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StrExtractOp(r"([a-z]*)", 1), "string_col")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_str_repeat(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StrRepeatOp(2), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_str_find(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=None, end=None), "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=2, end=None), "string_col")
+    snapshot.assert_match(sql, "out_with_start.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=None, end=5), "string_col")
+    snapshot.assert_match(sql, "out_with_end.sql")
+
+    sql = _apply_unary_op(bf_df, ops.StrFindOp("e", start=2, end=5), "string_col")
+    snapshot.assert_match(sql, "out_with_start_and_end.sql")
 
 
 def test_strip(scalar_types_df: bpd.DataFrame, snapshot):
@@ -559,6 +671,12 @@ def test_sinh(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["float64_col"]]
     sql = _apply_unary_op(bf_df, ops.sinh_op, "float64_col")
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_string_split(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.StringSplitOp(pat=","), "string_col")
     snapshot.assert_match(sql, "out.sql")
 
 
@@ -701,4 +819,10 @@ def test_year(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["timestamp_col"]]
     sql = _apply_unary_op(bf_df, ops.year_op, "timestamp_col")
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_zfill(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["string_col"]]
+    sql = _apply_unary_op(bf_df, ops.ZfillOp(width=10), "string_col")
     snapshot.assert_match(sql, "out.sql")

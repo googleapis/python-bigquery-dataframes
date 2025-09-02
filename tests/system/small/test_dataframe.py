@@ -406,6 +406,18 @@ def test_mask_series_cond(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+def test_mask_callable(scalars_df_index, scalars_pandas_df_index):
+    def is_positive(x):
+        return x > 0
+
+    bf_df = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
+    pd_df = scalars_pandas_df_index[["int64_too", "int64_col", "float64_col"]]
+    bf_result = bf_df.mask(cond=is_positive, other=lambda x: x + 1).to_pandas()
+    pd_result = pd_df.mask(cond=is_positive, other=lambda x: x + 1)
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
 def test_where_multi_column(scalars_df_index, scalars_pandas_df_index):
     # Test when a dataframe has multi-columns.
     columns = ["int64_col", "float64_col"]
@@ -556,6 +568,18 @@ def test_where_callable_cond_callable_other(scalars_df_index, scalars_pandas_df_
     bf_result = dataframe_bf.where(func, lambda x: x * 2).to_pandas()
     pd_result = dataframe_pd.where(func, lambda x: x * 2)
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_where_series_other(scalars_df_index):
+    # When other is a series, throw an error.
+    columns = ["int64_col", "float64_col"]
+    dataframe_bf = scalars_df_index[columns]
+
+    with pytest.raises(
+        ValueError,
+        match="Seires is not a supported replacement type!",
+    ):
+        dataframe_bf.where(dataframe_bf > 0, dataframe_bf["int64_col"])
 
 
 def test_drop_column(scalars_dfs):
@@ -1124,6 +1148,67 @@ def test_assign_new_column_w_setitem_list_error(scalars_dfs):
         pd_df["new_col"] = [1, 2, 3]  # should be len 9, is 3
     with pytest.raises(ValueError):
         bf_df["new_col"] = [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        pytest.param(["int64_col", "int64_too"], 1, id="scalar_to_existing_column"),
+        pytest.param(
+            ["int64_col", "int64_too"], [1, 2], id="sequence_to_existing_column"
+        ),
+        pytest.param(
+            ["int64_col", "new_col"], [1, 2], id="sequence_to_partial_new_column"
+        ),
+        pytest.param(
+            ["new_col", "new_col_too"], [1, 2], id="sequence_to_full_new_column"
+        ),
+    ],
+)
+def test_setitem_multicolumn_with_literals(scalars_dfs, key, value):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.copy()
+    pd_result = scalars_pandas_df.copy()
+
+    bf_result[key] = value
+    pd_result[key] = value
+
+    pd.testing.assert_frame_equal(pd_result, bf_result.to_pandas(), check_dtype=False)
+
+
+def test_setitem_multicolumn_with_literals_different_lengths_raise_error(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    bf_result = scalars_df.copy()
+
+    with pytest.raises(ValueError):
+        bf_result[["int64_col", "int64_too"]] = [1]
+
+
+def test_setitem_multicolumn_with_dataframes(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = scalars_df.copy()
+    pd_result = scalars_pandas_df.copy()
+
+    bf_result[["int64_col", "int64_too"]] = bf_result[["int64_too", "int64_col"]] / 2
+    pd_result[["int64_col", "int64_too"]] = pd_result[["int64_too", "int64_col"]] / 2
+
+    pd.testing.assert_frame_equal(pd_result, bf_result.to_pandas(), check_dtype=False)
+
+
+def test_setitem_multicolumn_with_dataframes_series_on_rhs_raise_error(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    bf_result = scalars_df.copy()
+
+    with pytest.raises(ValueError):
+        bf_result[["int64_col", "int64_too"]] = bf_result["int64_col"] / 2
+
+
+def test_setitem_multicolumn_with_dataframes_different_lengths_raise_error(scalars_dfs):
+    scalars_df, _ = scalars_dfs
+    bf_result = scalars_df.copy()
+
+    with pytest.raises(ValueError):
+        bf_result[["int64_col"]] = bf_result[["int64_col", "int64_too"]] / 2
 
 
 def test_assign_existing_column(scalars_dfs):
@@ -2083,6 +2168,32 @@ def test_reset_index(scalars_df_index, scalars_pandas_df_index, drop):
 
     # reset_index should maintain the original ordering.
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_allow_duplicates(scalars_df_index, scalars_pandas_df_index):
+    scalars_df_index = scalars_df_index.copy()
+    scalars_df_index.index.name = "int64_col"
+    df = scalars_df_index.reset_index(allow_duplicates=True, drop=False)
+    assert df.index.name is None
+
+    bf_result = df.to_pandas()
+
+    scalars_pandas_df_index = scalars_pandas_df_index.copy()
+    scalars_pandas_df_index.index.name = "int64_col"
+    pd_result = scalars_pandas_df_index.reset_index(allow_duplicates=True, drop=False)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    pd_result.index = pd_result.index.astype(pd.Int64Dtype())
+
+    # reset_index should maintain the original ordering.
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+def test_reset_index_duplicates_error(scalars_df_index):
+    scalars_df_index = scalars_df_index.copy()
+    scalars_df_index.index.name = "int64_col"
+    with pytest.raises(ValueError):
+        scalars_df_index.reset_index(allow_duplicates=False, drop=False)
 
 
 @pytest.mark.parametrize(

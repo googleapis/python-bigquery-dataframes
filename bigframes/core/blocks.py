@@ -387,12 +387,21 @@ class Block:
             index_labels=self.index.names,
         )
 
-    def reset_index(self, level: LevelsType = None, drop: bool = True) -> Block:
+    def reset_index(
+        self,
+        level: LevelsType = None,
+        drop: bool = True,
+        *,
+        col_level: Union[str, int] = 0,
+        col_fill: typing.Hashable = "",
+        allow_duplicates: bool = False,
+    ) -> Block:
         """Reset the index of the block, promoting the old index to a value column.
 
         Arguments:
             level: the label or index level of the index levels to remove.
             name: this is the column id for the new value id derived from the old index
+            allow_duplicates:
 
         Returns:
             A new Block because dropping index columns can break references
@@ -438,6 +447,11 @@ class Block:
             )
         else:
             # Add index names to column index
+            col_level_n = (
+                col_level
+                if isinstance(col_level, int)
+                else self.column_labels.names.index(col_level)
+            )
             column_labels_modified = self.column_labels
             for position, level_id in enumerate(level_ids):
                 label = self.col_id_to_index_name[level_id]
@@ -447,11 +461,15 @@ class Block:
                     else:
                         label = f"level_{self.index_columns.index(level_id)}"
 
-                if label in self.column_labels:
+                if (not allow_duplicates) and (label in self.column_labels):
                     raise ValueError(f"cannot insert {label}, already exists")
+
                 if isinstance(self.column_labels, pd.MultiIndex):
                     nlevels = self.column_labels.nlevels
-                    label = tuple(label if i == 0 else "" for i in range(nlevels))
+                    label = tuple(
+                        label if i == col_level_n else col_fill for i in range(nlevels)
+                    )
+
                 # Create index copy with label inserted
                 # See: https://pandas.pydata.org/docs/reference/api/pandas.Index.insert.html
                 column_labels_modified = column_labels_modified.insert(position, label)
@@ -1214,46 +1232,10 @@ class Block:
                 index_labels=[None],
             ).transpose(original_row_index=pd.Index([None]), single_row_mode=True)
         else:  # axis_n == 1
-            # using offsets as identity to group on.
-            # TODO: Allow to promote identity/total_order columns instead for better perf
-            expr_with_offsets, offset_col = self.expr.promote_offsets()
-            stacked_expr, (_, value_col_ids, passthrough_cols,) = unpivot(
-                expr_with_offsets,
-                row_labels=self.column_labels,
-                unpivot_columns=[tuple(self.value_columns)],
-                passthrough_columns=[*self.index_columns, offset_col],
-            )
-            # these corresponed to passthrough_columns provided to unpivot
-            index_cols = passthrough_cols[:-1]
-            og_offset_col = passthrough_cols[-1]
-            index_aggregations = [
-                (
-                    ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col_id)),
-                    col_id,
-                )
-                for col_id in index_cols
-            ]
-            # TODO: may need add NullaryAggregation in main_aggregation
-            # when agg add support for axis=1, needed for agg("size", axis=1)
-            assert isinstance(
-                operation, agg_ops.UnaryAggregateOp
-            ), f"Expected a unary operation, but got {operation}. Please report this error and how you got here to the BigQuery DataFrames team (bit.ly/bigframes-feedback)."
-            main_aggregation = (
-                ex.UnaryAggregation(operation, ex.deref(value_col_ids[0])),
-                value_col_ids[0],
-            )
-            # Drop row identity after aggregating over it
-            result_expr = stacked_expr.aggregate(
-                [*index_aggregations, main_aggregation],
-                by_column_ids=[og_offset_col],
-                dropna=dropna,
-            ).drop_columns([og_offset_col])
-            return Block(
-                result_expr,
-                index_columns=index_cols,
-                column_labels=[None],
-                index_labels=self.index.names,
-            )
+            as_array = ops.ToArrayOp().as_expr(*(col for col in self.value_columns))
+            reduced = ops.ArrayReduceOp(operation).as_expr(as_array)
+            block, id = self.project_expr(reduced, None)
+            return block.select_column(id)
 
     def aggregate_size(
         self,
@@ -2147,9 +2129,17 @@ class Block:
         import bigframes.core.block_transforms as block_tf
         import bigframes.dataframe as df
 
-        unique_value_block = block_tf.drop_duplicates(
-            self.select_columns(columns), columns
-        )
+        if self.explicitly_ordered:
+            unique_value_block = block_tf.drop_duplicates(
+                self.select_columns(columns), columns
+            )
+        else:
+            unique_value_block, _ = self.aggregate(by_column_ids=columns, dropna=False)
+            col_labels = self._get_labels_for_columns(columns)
+            unique_value_block = unique_value_block.reset_index(
+                drop=False
+            ).with_column_labels(col_labels)
+
         pd_values = (
             df.DataFrame(unique_value_block).head(max_unique_values + 1).to_pandas()
         )

@@ -26,6 +26,7 @@ import textwrap
 import traceback
 import typing
 from typing import (
+    Any,
     Callable,
     Dict,
     Hashable,
@@ -76,6 +77,7 @@ import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.functions
+from bigframes.functions import function_typing
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.ai
@@ -91,6 +93,7 @@ if typing.TYPE_CHECKING:
     import bigframes.session
 
     SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
+    MultiItemValue = Union["DataFrame", Sequence[int | float | str | Callable]]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -580,6 +583,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             # Index of column labels can be treated the same as a sequence of column labels.
             pandas.Index,
             bigframes.series.Series,
+            slice,
         ],
     ):  # No return type annotations (like pandas) as type cannot always be determined statically
         # NOTE: This implements the operations described in
@@ -884,8 +888,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self.drop(columns=[key])
         self._set_block(df._get_block())
 
-    def __setitem__(self, key: str, value: SingleItemValue):
-        df = self._assign_single_item(key, value)
+    def __setitem__(
+        self, key: str | list[str], value: SingleItemValue | MultiItemValue
+    ):
+        if isinstance(key, list):
+            df = self._assign_multi_items(key, value)
+        else:
+            df = self._assign_single_item(key, value)
         self._set_block(df._get_block())
 
     __setitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__setitem__)
@@ -2212,7 +2221,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _assign_single_item(
         self,
         k: str,
-        v: SingleItemValue,
+        v: SingleItemValue | MultiItemValue,
     ) -> DataFrame:
         if isinstance(v, bigframes.series.Series):
             return self._assign_series_join_on_index(k, v)
@@ -2230,7 +2239,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif utils.is_list_like(v):
             return self._assign_single_item_listlike(k, v)
         else:
-            return self._assign_scalar(k, v)
+            return self._assign_scalar(k, v)  # type: ignore
+
+    def _assign_multi_items(
+        self,
+        k: list[str],
+        v: SingleItemValue | MultiItemValue,
+    ) -> DataFrame:
+        value_sources: Sequence[Any] = []
+        if isinstance(v, DataFrame):
+            value_sources = [v[col] for col in v.columns]
+        elif isinstance(v, bigframes.series.Series):
+            # For behavior consistency with Pandas.
+            raise ValueError("Columns must be same length as key")
+        elif isinstance(v, Sequence):
+            value_sources = v
+        else:
+            # We assign the same scalar value to all target columns.
+            value_sources = [v] * len(k)
+
+        if len(value_sources) != len(k):
+            raise ValueError("Columns must be same length as key")
+
+        # Repeatedly assign columns in order.
+        result = self._assign_single_item(k[0], value_sources[0])
+        for target, source in zip(k[1:], value_sources[1:]):
+            result = result._assign_single_item(target, source)
+        return result
 
     def _assign_single_item_listlike(self, k: str, v: Sequence) -> DataFrame:
         given_rows = len(v)
@@ -2321,6 +2356,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         level: blocks.LevelsType = ...,
         drop: bool = ...,
         inplace: Literal[False] = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
     ) -> DataFrame:
         ...
 
@@ -2330,19 +2369,56 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         level: blocks.LevelsType = ...,
         drop: bool = ...,
         inplace: Literal[True] = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
     ) -> None:
         ...
 
     @overload
     def reset_index(
-        self, level: blocks.LevelsType = None, drop: bool = False, inplace: bool = ...
+        self,
+        level: blocks.LevelsType = None,
+        drop: bool = False,
+        inplace: bool = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
     ) -> Optional[DataFrame]:
         ...
 
     def reset_index(
-        self, level: blocks.LevelsType = None, drop: bool = False, inplace: bool = False
+        self,
+        level: blocks.LevelsType = None,
+        drop: bool = False,
+        inplace: bool = False,
+        col_level: Union[int, str] = 0,
+        col_fill: Hashable = "",
+        allow_duplicates: Optional[bool] = None,
+        names: Union[None, Hashable, Sequence[Hashable]] = None,
     ) -> Optional[DataFrame]:
-        block = self._block.reset_index(level, drop)
+        block = self._block
+        if names:
+            if isinstance(names, blocks.Label) and not isinstance(names, tuple):
+                names = [names]
+            else:
+                names = list(names)
+
+            if len(names) != self.index.nlevels:
+                raise ValueError("'names' must be same length as levels")
+
+            block = block.with_index_labels(names)
+        if allow_duplicates is None:
+            allow_duplicates = False
+        block = block.reset_index(
+            level,
+            drop,
+            col_level=col_level,
+            col_fill=col_fill,
+            allow_duplicates=allow_duplicates,
+        )
         if inplace:
             self._set_block(block)
             return None
@@ -2787,10 +2863,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for item in df.itertuples(index=index, name=name):
                 yield item
 
-    def where(self, cond, other=None):
-        if isinstance(other, bigframes.series.Series):
-            raise ValueError("Seires is not a supported replacement type!")
+    def _apply_callable(self, condition):
+        """Executes the possible callable condition as needed."""
+        if callable(condition):
+            # When it's a bigframes function.
+            if hasattr(condition, "bigframes_bigquery_function"):
+                return self.apply(condition, axis=1)
 
+            # When it's a plain Python function.
+            return condition(self)
+
+        # When it's not a callable.
+        return condition
+
+    def where(self, cond, other=None):
         if self.columns.nlevels > 1:
             raise NotImplementedError(
                 "The dataframe.where() method does not support multi-column."
@@ -2798,16 +2884,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # Execute it with the DataFrame when cond or/and other is callable.
         # It can be either a plain python function or remote/managed function.
-        if callable(cond):
-            if hasattr(cond, "bigframes_bigquery_function"):
-                cond = self.apply(cond, axis=1)
-            else:
-                cond = cond(self)
-        if callable(other):
-            if hasattr(other, "bigframes_bigquery_function"):
-                other = self.apply(other, axis=1)
-            else:
-                other = other(self)
+        cond = self._apply_callable(cond)
+        other = self._apply_callable(other)
+
+        if isinstance(other, bigframes.series.Series):
+            raise ValueError("Seires is not a supported replacement type!")
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
         # No left join is needed when 'other' is None or constant.
@@ -2858,7 +2939,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return result
 
     def mask(self, cond, other=None):
-        return self.where(~cond, other=other)
+        return self.where(~self._apply_callable(cond), other=other)
 
     def dropna(
         self,
@@ -3266,8 +3347,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    @validations.requires_index
-    @validations.requires_ordering()
     def pivot(
         self,
         *,
@@ -3281,8 +3360,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._pivot(columns=columns, index=index, values=values)
 
-    @validations.requires_index
-    @validations.requires_ordering()
     def pivot_table(
         self,
         values: typing.Optional[
@@ -4755,37 +4832,73 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
 
                 # Apply the function
-                result_series = rows_as_json_series._apply_unary_op(
-                    ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
-                )
+                if args:
+                    result_series = rows_as_json_series._apply_nary_op(
+                        ops.NaryRemoteFunctionOp(function_def=func.udf_def),
+                        list(args),
+                    )
+                else:
+                    result_series = rows_as_json_series._apply_unary_op(
+                        ops.RemoteFunctionOp(
+                            function_def=func.udf_def, apply_on_null=True
+                        )
+                    )
             else:
                 # This is a special case where we are providing not-pandas-like
                 # extension. If the bigquery function can take one or more
-                # params then we assume that here the user intention is to use
-                # the column values of the dataframe as arguments to the
-                # function. For this to work the following condition must be
-                # true:
-                #   1. The number or input params in the function must be same
-                #      as the number of columns in the dataframe
+                # params (excluding the args) then we assume that here the user
+                # intention is to use the column values of the dataframe as
+                # arguments to the function. For this to work the following
+                # condition must be true:
+                #   1. The number or input params (excluding the args) in the
+                #      function must be same as the number of columns in the
+                #      dataframe.
                 #   2. The dtypes of the columns in the dataframe must be
-                #      compatible with the data types of the input params
+                #      compatible with the data types of the input params.
                 #   3. The order of the columns in the dataframe must correspond
-                #      to the order of the input params in the function
+                #      to the order of the input params in the function.
                 udf_input_dtypes = func.udf_def.signature.bf_input_types
-                if len(udf_input_dtypes) != len(self.columns):
+                if not args and len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
-                        f"BigFrames BigQuery function takes {len(udf_input_dtypes)}"
-                        f" arguments but DataFrame has {len(self.columns)} columns."
+                        f"Parameter count mismatch: BigFrames BigQuery function"
+                        f" expected {len(udf_input_dtypes)} parameters but"
+                        f" received {len(self.columns)} DataFrame columns."
                     )
-                if udf_input_dtypes != tuple(self.dtypes.to_list()):
+                if args and len(udf_input_dtypes) != len(self.columns) + len(args):
                     raise ValueError(
-                        f"BigFrames BigQuery function takes arguments of types "
-                        f"{udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                        f"Parameter count mismatch: BigFrames BigQuery function"
+                        f" expected {len(udf_input_dtypes)} parameters but"
+                        f" received {len(self.columns) + len(args)} values"
+                        f" ({len(self.columns)} DataFrame columns and"
+                        f" {len(args)} args)."
                     )
+                end_slice = -len(args) if args else None
+                if udf_input_dtypes[:end_slice] != tuple(self.dtypes.to_list()):
+                    raise ValueError(
+                        f"Data type mismatch for DataFrame columns:"
+                        f" Expected {udf_input_dtypes[:end_slice]}"
+                        f" Received {tuple(self.dtypes)}."
+                    )
+                if args:
+                    bq_types = (
+                        function_typing.sdk_type_from_python_type(type(arg))
+                        for arg in args
+                    )
+                    args_dtype = tuple(
+                        function_typing.sdk_type_to_bf_type(bq_type)
+                        for bq_type in bq_types
+                    )
+                    if udf_input_dtypes[end_slice:] != args_dtype:
+                        raise ValueError(
+                            f"Data type mismatch for 'args' parameter:"
+                            f" Expected {udf_input_dtypes[end_slice:]}"
+                            f" Received {args_dtype}."
+                        )
 
                 series_list = [self[col] for col in self.columns]
+                op_list = series_list[1:] + list(args)
                 result_series = series_list[0]._apply_nary_op(
-                    ops.NaryRemoteFunctionOp(function_def=func.udf_def), series_list[1:]
+                    ops.NaryRemoteFunctionOp(function_def=func.udf_def), op_list
                 )
             result_series.name = None
 
