@@ -99,6 +99,7 @@ def vector_search(
     distance_type: Optional[Literal["euclidean", "cosine", "dot_product"]] = None,
     fraction_lists_to_search: Optional[float] = None,
     use_brute_force: Optional[bool] = None,
+    allow_large_results: Optional[bool] = None,
 ) -> dataframe.DataFrame:
     """
     Conduct vector search which searches embeddings to find semantically similar entities.
@@ -199,6 +200,10 @@ def vector_search(
         use_brute_force (bool):
             Determines whether to use brute force search by skipping the vector index if one is available.
             Default to False.
+        allow_large_results (bool, optional):
+            Whether to allow large query results. If ``True``, the query
+            results can be larger than the maximum response size.
+            Defaults to ``bpd.options.compute.allow_large_results``.
 
     Returns:
         bigframes.dataframe.DataFrame: A DataFrame containing vector search result.
@@ -236,9 +241,11 @@ def vector_search(
         options=options,
     )
     if index_col_ids is not None:
-        df = query._session.read_gbq(sql, index_col=index_col_ids)
+        df = query._session.read_gbq_query(
+            sql, index_col=index_col_ids, allow_large_results=allow_large_results
+        )
         df.index.names = index_labels
     else:
-        df = query._session.read_gbq(sql)
+        df = query._session.read_gbq_query(sql, allow_large_results=allow_large_results)
 
     return df
