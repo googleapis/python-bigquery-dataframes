@@ -95,7 +95,17 @@ class BqmlModel(BaseBqml):
         )
 
         result_sql = apply_sql_tvf(input_sql)
-        df = self._session.read_gbq(result_sql, index_col=index_col_ids)
+        df = self._session.read_gbq_query(
+            result_sql,
+            index_col=index_col_ids,
+            # Many ML methods use nested JSON, which isn't yet compatible with
+            # joining local results. Also, there is a chance that the results
+            # are greater than 10 GB.
+            # TODO(b/395912450): Once the limitations with local data are
+            # resolved, consider setting allow_large_results only when expected
+            # data size is large.
+            allow_large_results=True,
+        )
         if df._has_index:
             df.index.names = index_labels
         # Restore column labels
