@@ -20,14 +20,14 @@ from typing import Sequence
 
 import google.cloud.bigquery
 
+from bigframes.core import log_adapter
 import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
-import bigframes.core.sql
-import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.operations
 import bigframes.series
 
 
+@log_adapter.method_logger
 def sql_scalar(
     sql_template: str,
     columns: Sequence[bigframes.series.Series],

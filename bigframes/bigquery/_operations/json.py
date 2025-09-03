@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Any, cast, Optional, Sequence, Tuple, Union
 import warnings
 
+from bigframes.core import log_adapter
 import bigframes.core.utils as utils
 import bigframes.dtypes
 import bigframes.exceptions as bfe
@@ -33,6 +34,7 @@ import bigframes.series as series
 from . import array
 
 
+@log_adapter.method_logger
 @utils.preview(name="The JSON-related API `json_set`")
 def json_set(
     input: series.Series,
@@ -85,6 +87,7 @@ def json_set(
     return result
 
 
+@log_adapter.method_logger
 def json_extract(
     input: series.Series,
     json_path: str,
@@ -125,6 +128,7 @@ def json_extract(
     return input._apply_unary_op(ops.JSONExtract(json_path=json_path))
 
 
+@log_adapter.method_logger
 def json_extract_array(
     input: series.Series,
     json_path: str = "$",
@@ -184,6 +188,7 @@ def json_extract_array(
     return input._apply_unary_op(ops.JSONExtractArray(json_path=json_path))
 
 
+@log_adapter.method_logger
 def json_extract_string_array(
     input: series.Series,
     json_path: str = "$",
@@ -260,6 +265,7 @@ def json_extract_string_array(
     return array_series
 
 
+@log_adapter.method_logger
 def json_query(
     input: series.Series,
     json_path: str,
@@ -291,6 +297,7 @@ def json_query(
     return input._apply_unary_op(ops.JSONQuery(json_path=json_path))
 
 
+@log_adapter.method_logger
 def json_query_array(
     input: series.Series,
     json_path: str = "$",
@@ -341,6 +348,7 @@ def json_query_array(
     return input._apply_unary_op(ops.JSONQueryArray(json_path=json_path))
 
 
+@log_adapter.method_logger
 def json_value(
     input: series.Series,
     json_path: str = "$",
@@ -375,6 +383,7 @@ def json_value(
     return input._apply_unary_op(ops.JSONValue(json_path=json_path))
 
 
+@log_adapter.method_logger
 def json_value_array(
     input: series.Series,
     json_path: str = "$",
@@ -430,6 +439,7 @@ def json_value_array(
     return input._apply_unary_op(ops.JSONValueArray(json_path=json_path))
 
 
+@log_adapter.method_logger
 @utils.preview(name="The JSON-related API `parse_json`")
 def parse_json(
     input: series.Series,

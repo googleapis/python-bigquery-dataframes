@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from bigframes.core import log_adapter
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
@@ -23,6 +24,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/approximate_aggreg
 """
 
 
+@log_adapter.method_logger
 def approx_top_count(
     series: series.Series,
     number: int,

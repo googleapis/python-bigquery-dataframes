@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import typing
 
+from bigframes.core import log_adapter
 import bigframes.operations as ops
 import bigframes.series as series
 
@@ -29,6 +30,7 @@ if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
 
 
+@log_adapter.method_logger
 def struct(value: dataframe.DataFrame) -> series.Series:
     """Takes a DataFrame and converts it into a Series of structs with each
     struct entry corresponding to a DataFrame row and each struct field

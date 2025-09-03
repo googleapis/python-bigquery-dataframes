@@ -19,6 +19,7 @@ from typing import Union
 import shapely  # type: ignore
 
 from bigframes import operations as ops
+from bigframes.core import log_adapter
 import bigframes.geopandas
 import bigframes.series
 
@@ -28,6 +29,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/geography_function
 """
 
 
+@log_adapter.method_logger
 def st_area(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
 ) -> bigframes.series.Series:
@@ -103,6 +105,7 @@ def st_area(
     return series
 
 
+@log_adapter.method_logger
 def st_buffer(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     buffer_radius: float,
@@ -172,6 +175,7 @@ def st_buffer(
     return series
 
 
+@log_adapter.method_logger
 def st_centroid(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
 ) -> bigframes.series.Series:
@@ -229,6 +233,7 @@ def st_centroid(
     return series
 
 
+@log_adapter.method_logger
 def st_convexhull(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
 ) -> bigframes.series.Series:
@@ -284,6 +289,7 @@ def st_convexhull(
     return series
 
 
+@log_adapter.method_logger
 def st_difference(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     other: Union[
@@ -387,6 +393,7 @@ def st_difference(
     return series._apply_binary_op(other, ops.geo_st_difference_op)
 
 
+@log_adapter.method_logger
 def st_distance(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     other: Union[
@@ -464,6 +471,7 @@ def st_distance(
     )
 
 
+@log_adapter.method_logger
 def st_intersection(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     other: Union[
@@ -563,6 +571,7 @@ def st_intersection(
     return series._apply_binary_op(other, ops.geo_st_intersection_op)
 
 
+@log_adapter.method_logger
 def st_isclosed(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
 ) -> bigframes.series.Series:
@@ -623,6 +632,7 @@ def st_isclosed(
     return series
 
 
+@log_adapter.method_logger
 def st_length(
     series: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     *,

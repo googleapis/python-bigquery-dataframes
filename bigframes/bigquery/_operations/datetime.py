@@ -14,8 +14,10 @@
 
 from bigframes import operations as ops
 from bigframes import series
+from bigframes.core import log_adapter
 
 
+@log_adapter.method_logger
 def unix_seconds(input: series.Series) -> series.Series:
     """Converts a timestmap series to unix epoch seconds
 
@@ -43,6 +45,7 @@ def unix_seconds(input: series.Series) -> series.Series:
     return input._apply_unary_op(ops.UnixSeconds())
 
 
+@log_adapter.method_logger
 def unix_millis(input: series.Series) -> series.Series:
     """Converts a timestmap series to unix epoch milliseconds
 
@@ -70,6 +73,7 @@ def unix_millis(input: series.Series) -> series.Series:
     return input._apply_unary_op(ops.UnixMillis())
 
 
+@log_adapter.method_logger
 def unix_micros(input: series.Series) -> series.Series:
     """Converts a timestmap series to unix epoch microseconds
 
