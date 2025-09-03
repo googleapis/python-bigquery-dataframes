@@ -24,7 +24,6 @@ import typing
 
 import bigframes_vendored.constants as constants
 
-from bigframes.core import log_adapter
 import bigframes.core.groupby as groupby
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
@@ -34,7 +33,6 @@ if typing.TYPE_CHECKING:
     import bigframes.dataframe as dataframe
 
 
-@log_adapter.method_logger
 def array_length(series: series.Series) -> series.Series:
     """Compute the length of each array element in the Series.
 
@@ -70,7 +68,6 @@ def array_length(series: series.Series) -> series.Series:
     return series._apply_unary_op(ops.len_op)
 
 
-@log_adapter.method_logger
 def array_agg(
     obj: groupby.SeriesGroupBy | groupby.DataFrameGroupBy,
 ) -> series.Series | dataframe.DataFrame:
@@ -124,7 +121,6 @@ def array_agg(
         )
 
 
-@log_adapter.method_logger
 def array_to_string(series: series.Series, delimiter: str) -> series.Series:
     """Converts array elements within a Series into delimited strings.
 

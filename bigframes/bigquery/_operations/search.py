@@ -20,7 +20,6 @@ from typing import Collection, Literal, Mapping, Optional, Union
 
 import google.cloud.bigquery as bigquery
 
-from bigframes.core import log_adapter
 import bigframes.ml.utils as utils
 
 if typing.TYPE_CHECKING:
@@ -34,7 +33,6 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/search_functions
 """
 
 
-@log_adapter.method_logger
 def create_vector_index(
     table_id: str,
     column_name: str,
@@ -90,7 +88,6 @@ def create_vector_index(
     read_gbq_query(sql)
 
 
-@log_adapter.method_logger
 def vector_search(
     base_table: str,
     column_to_search: str,
