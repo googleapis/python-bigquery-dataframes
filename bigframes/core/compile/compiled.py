@@ -35,6 +35,7 @@ import bigframes.core.compile.ibis_compiler.aggregate_compiler as agg_compiler
 import bigframes.core.compile.ibis_compiler.scalar_op_compiler as op_compilers
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
+import bigframes.core.expression_types as ex_types
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.sql
 from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec
@@ -215,7 +216,7 @@ class UnorderedIR:
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[tuple[ex.Aggregation, str]],
+        aggregations: typing.Sequence[tuple[ex_types.Aggregation, str]],
         by_column_ids: typing.Sequence[ex.DerefOp] = (),
         order_by: typing.Sequence[OrderingExpression] = (),
     ) -> UnorderedIR:
@@ -401,7 +402,7 @@ class UnorderedIR:
 
     def project_window_op(
         self,
-        expression: ex.Aggregation,
+        expression: ex_types.Aggregation,
         window_spec: WindowSpec,
         output_name: str,
         *,
@@ -467,7 +468,9 @@ class UnorderedIR:
                     lambda x, y: x & y, per_col_does_count
                 ).cast(int)
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(agg_ops.sum_op, ex.deref("_observation_count")),
+                    ex_types.UnaryAggregation(
+                        agg_ops.sum_op, ex.deref("_observation_count")
+                    ),
                     window,
                     bindings={"_observation_count": is_observation},
                 )
@@ -476,7 +479,7 @@ class UnorderedIR:
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
                 is_observation = inputs[0].notnull()
                 observation_count = agg_compiler.compile_analytic(
-                    ex.UnaryAggregation(
+                    ex_types.UnaryAggregation(
                         agg_ops.count_op, ex.deref("_observation_count")
                     ),
                     window,

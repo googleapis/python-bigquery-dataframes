@@ -17,13 +17,16 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
-from typing import ClassVar, Iterable, Optional
+from typing import ClassVar, Iterable, Optional, TYPE_CHECKING
 
 import pandas as pd
 import pyarrow as pa
 
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as signatures
+
+if TYPE_CHECKING:
+    from bigframes.core import expression, expression_types
 
 
 @dataclasses.dataclass(frozen=True)
@@ -110,6 +113,14 @@ class NullaryAggregateOp(AggregateOp, NullaryWindowOp):
     def arguments(self) -> int:
         return 0
 
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> expression_types.NullaryAggregation:
+        from bigframes.core import expression_types
+
+        return expression_types.NullaryAggregation(self)
+
 
 @dataclasses.dataclass(frozen=True)
 class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
@@ -117,12 +128,44 @@ class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
     def arguments(self) -> int:
         return 1
 
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> expression_types.UnaryAggregation:
+        from bigframes.core import expression_types
+        from bigframes.operations.base_ops import _convert_expr_input
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+        return expression_types.UnaryAggregation(
+            self,
+            inputs[0],
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class BinaryAggregateOp(AggregateOp):
     @property
     def arguments(self) -> int:
         return 2
+
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> expression_types.BinaryAggregation:
+        from bigframes.core import expression_types
+        from bigframes.operations.base_ops import _convert_expr_input
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+
+        return expression_types.BinaryAggregation(self, inputs[0], inputs[1])
 
 
 @dataclasses.dataclass(frozen=True)

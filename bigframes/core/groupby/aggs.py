@@ -14,13 +14,13 @@
 
 from __future__ import annotations
 
-from bigframes.core import expression
+from bigframes.core import expression, expression_types
 from bigframes.operations import aggregations as agg_ops
 
 
-def agg(input: str, op: agg_ops.AggregateOp) -> expression.Aggregation:
+def agg(input: str, op: agg_ops.AggregateOp) -> expression_types.Aggregation:
     if isinstance(op, agg_ops.UnaryAggregateOp):
-        return expression.UnaryAggregation(op, expression.deref(input))
+        return expression_types.UnaryAggregation(op, expression.deref(input))
     else:
         assert isinstance(op, agg_ops.NullaryAggregateOp)
-        return expression.NullaryAggregation(op)
+        return expression_types.NullaryAggregation(op)
