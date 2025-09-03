@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import threading
-from typing import Literal, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Literal, Mapping, Optional, Sequence, Tuple
 import warnings
 import weakref
 
@@ -186,13 +186,18 @@ class BigQueryCachingExecutor(executor.Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         execution_spec: ex_spec.ExecutionSpec,
+        *,
+        callback: Callable = lambda _: None,
     ) -> executor.ExecuteResult:
         # TODO: Support export jobs in combination with semi executors
         if execution_spec.destination_spec is None:
             plan = self.prepare_plan(array_value.node, target="simplify")
             for exec in self._semi_executors:
                 maybe_result = exec.execute(
-                    plan, ordered=execution_spec.ordered, peek=execution_spec.peek
+                    plan,
+                    ordered=execution_spec.ordered,
+                    peek=execution_spec.peek,
+                    callback=callback,
                 )
                 if maybe_result:
                     return maybe_result
@@ -203,7 +208,9 @@ class BigQueryCachingExecutor(executor.Executor):
                     "Ordering and peeking not supported for gbq export"
                 )
             # separate path for export_gbq, as it has all sorts of annoying logic, such as possibly running as dml
-            return self._export_gbq(array_value, execution_spec.destination_spec)
+            return self._export_gbq(
+                array_value, execution_spec.destination_spec, callback=callback
+            )
 
         result = self._execute_plan_gbq(
             array_value.node,
@@ -213,6 +220,7 @@ class BigQueryCachingExecutor(executor.Executor):
             if isinstance(execution_spec.destination_spec, ex_spec.CacheSpec)
             else None,
             must_create_table=not execution_spec.promise_under_10gb,
+            callback=callback,
         )
         # post steps: export
         if isinstance(execution_spec.destination_spec, ex_spec.GcsOutputSpec):
@@ -221,7 +229,10 @@ class BigQueryCachingExecutor(executor.Executor):
         return result
 
     def _export_result_gcs(
-        self, result: executor.ExecuteResult, gcs_export_spec: ex_spec.GcsOutputSpec
+        self,
+        result: executor.ExecuteResult,
+        gcs_export_spec: ex_spec.GcsOutputSpec,
+        callback: Callable = lambda _: None,
     ):
         query_job = result.query_job
         assert query_job is not None
@@ -242,6 +253,7 @@ class BigQueryCachingExecutor(executor.Executor):
             location=None,
             timeout=None,
             query_with_job=True,
+            callback=callback,
         )
 
     def _maybe_find_existing_table(
@@ -266,7 +278,10 @@ class BigQueryCachingExecutor(executor.Executor):
             return None
 
     def _export_gbq(
-        self, array_value: bigframes.core.ArrayValue, spec: ex_spec.TableOutputSpec
+        self,
+        array_value: bigframes.core.ArrayValue,
+        spec: ex_spec.TableOutputSpec,
+        callback: Callable = lambda _: None,
     ) -> executor.ExecuteResult:
         """
         Export the ArrayValue to an existing BigQuery table.
@@ -306,9 +321,11 @@ class BigQueryCachingExecutor(executor.Executor):
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
+        breakpoint()
         row_iter, query_job = self._run_execute_query(
             sql=sql,
             job_config=job_config,
+            callback=callback,
         )
 
         has_timedelta_col = any(
@@ -372,6 +389,7 @@ class BigQueryCachingExecutor(executor.Executor):
         sql: str,
         job_config: Optional[bq_job.QueryJobConfig] = None,
         query_with_job: bool = True,
+        callback: Callable = lambda _: None,
     ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
@@ -397,6 +415,7 @@ class BigQueryCachingExecutor(executor.Executor):
                     location=None,
                     timeout=None,
                     query_with_job=True,
+                    callback=callback,
                 )
             else:
                 return bq_io.start_query_with_client(
@@ -408,6 +427,7 @@ class BigQueryCachingExecutor(executor.Executor):
                     location=None,
                     timeout=None,
                     query_with_job=False,
+                    callback=callback,
                 )
 
         except google.api_core.exceptions.BadRequest as e:
@@ -587,6 +607,7 @@ class BigQueryCachingExecutor(executor.Executor):
         peek: Optional[int] = None,
         cache_spec: Optional[ex_spec.CacheSpec] = None,
         must_create_table: bool = True,
+        callback: Callable = lambda _: None,
     ) -> executor.ExecuteResult:
         """Just execute whatever plan as is, without further caching or decomposition."""
         # TODO(swast): plumb through the api_name of the user-facing api that
@@ -637,6 +658,7 @@ class BigQueryCachingExecutor(executor.Executor):
             sql=compiled.sql,
             job_config=job_config,
             query_with_job=(destination_table is not None),
+            callback=callback,
         )
 
         table_info: Optional[bigquery.Table] = None

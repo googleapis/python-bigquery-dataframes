@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Optional, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
 import pyarrow as pa
 
@@ -133,6 +133,8 @@ class PolarsExecutor(semi_executor.SemiExecutor):
         plan: bigframe_node.BigFrameNode,
         ordered: bool,
         peek: Optional[int] = None,
+        *,
+        callback: Callable = lambda _: None,
     ) -> Optional[executor.ExecuteResult]:
         if not self._can_execute(plan):
             return None

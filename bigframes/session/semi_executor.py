@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Optional
+from typing import Callable, Optional
 
 from bigframes.core import bigframe_node
 from bigframes.session import executor
@@ -29,5 +29,7 @@ class SemiExecutor(abc.ABC):
         plan: bigframe_node.BigFrameNode,
         ordered: bool,
         peek: Optional[int] = None,
+        *,
+        callback: Callable = lambda _: None,
     ) -> Optional[executor.ExecuteResult]:
         raise NotImplementedError("execute not implemented for this executor")

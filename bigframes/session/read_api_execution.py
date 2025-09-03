@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional
 
 from google.cloud import bigquery_storage_v1
 import pyarrow as pa
@@ -38,6 +38,8 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
         plan: bigframe_node.BigFrameNode,
         ordered: bool,
         peek: Optional[int] = None,
+        *,
+        callback: Callable = lambda _: None,
     ) -> Optional[executor.ExecuteResult]:
         adapt_result = self._try_adapt_plan(plan, ordered)
         if not adapt_result:

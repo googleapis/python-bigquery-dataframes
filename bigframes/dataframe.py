@@ -1885,6 +1885,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             allow_large_results=allow_large_results,
         )
 
+    def _to_pandas_batches_colab(
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        *,
+        allow_large_results: Optional[bool] = None,
+        callback: Callable = lambda _: None,
+    ) -> Iterable[pandas.DataFrame]:
+        return self._block.to_pandas_batches(
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
+            callback=callback,
+        )
+
     def _compute_dry_run(self) -> bigquery.QueryJob:
         _, query_job = self._block._compute_dry_run()
         return query_job

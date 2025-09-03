@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses
-from typing import Union
+from typing import Callable, Union
 import weakref
 
 import pandas
@@ -37,6 +37,8 @@ class TestExecutor(bigframes.session.executor.Executor):
         self,
         array_value: bigframes.core.ArrayValue,
         execution_spec: bigframes.session.execution_spec.ExecutionSpec,
+        *,
+        callback: Callable = lambda _: None,
     ):
         """
         Execute the ArrayValue, storing the result to a temporary session-owned table.

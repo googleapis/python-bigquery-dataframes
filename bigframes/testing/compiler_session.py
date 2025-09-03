@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses
-import typing
+from typing import Callable, Optional
 
 import bigframes.core
 import bigframes.core.compile.sqlglot as sqlglot
@@ -29,7 +29,7 @@ class SQLCompilerExecutor(bigframes.session.executor.Executor):
     def to_sql(
         self,
         array_value: bigframes.core.ArrayValue,
-        offset_column: typing.Optional[str] = None,
+        offset_column: Optional[str] = None,
         ordered: bool = True,
         enable_cache: bool = False,
     ) -> str:
@@ -46,5 +46,7 @@ class SQLCompilerExecutor(bigframes.session.executor.Executor):
         self,
         array_value,
         execution_spec,
+        *,
+        callback: Callable = lambda _: None,
     ):
         raise NotImplementedError("SQLCompilerExecutor.execute not implemented")

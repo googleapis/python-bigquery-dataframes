@@ -512,6 +512,7 @@ class Session(
         *,
         pyformat_args: Optional[Dict[str, Any]] = None,
         dry_run: bool = False,
+        callback: Callable = lambda _: None,
     ) -> Union[dataframe.DataFrame, pandas.Series]:
         """A version of read_gbq that has the necessary default values for use in colab integrations.
 
@@ -528,6 +529,11 @@ class Session(
                 instead. Note: unlike read_gbq / read_gbq_query, even if set to
                 None, this function always assumes {var} refers to a variable
                 that is supposed to be supplied in this dictionary.
+            dry_run (bool):
+                If True, estimates the query results size without returning data.
+                The return will be a pandas Series with query metadata.
+            callback (Callable):
+                A callback function used by bigframes to report query progress.
         """
         if pyformat_args is None:
             pyformat_args = {}
@@ -547,6 +553,7 @@ class Session(
             force_total_order=False,
             dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
             allow_large_results=allow_large_results,
+            callback=callback,
         )
 
     @overload

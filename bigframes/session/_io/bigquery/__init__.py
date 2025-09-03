@@ -22,7 +22,17 @@ import re
 import textwrap
 import types
 import typing
-from typing import Dict, Iterable, Literal, Mapping, Optional, overload, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    Literal,
+    Mapping,
+    Optional,
+    overload,
+    Tuple,
+    Union,
+)
 
 import bigframes_vendored.google_cloud_bigquery.retry as third_party_gcb_retry
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -278,6 +288,38 @@ def start_query_with_client(
     project: Optional[str],
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[False],
+    callback: Callable = ...,
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[True],
+    callback: Callable = ...,
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
     job_retry: google.api_core.retry.Retry,
 ) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
@@ -315,6 +357,7 @@ def start_query_with_client(
     # https://github.com/googleapis/python-bigquery/pull/2256 merged, likely
     # version 3.36.0 or later.
     job_retry: google.api_core.retry.Retry = third_party_gcb_retry.DEFAULT_JOB_RETRY,
+    callback: Callable = lambda _: None,
 ) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
@@ -325,13 +368,15 @@ def start_query_with_client(
         # exceed MAX_LABELS_COUNT.
         add_and_trim_labels(job_config)
         if not query_with_job:
-            results_iterator = bq_client.query_and_wait(
+            # DONOTSUBMIT: we should create our own events for callback.
+            results_iterator = bq_client._query_and_wait_bigframes(
                 sql,
                 job_config=job_config,
                 location=location,
                 project=project,
                 api_timeout=timeout,
                 job_retry=job_retry,
+                callback=callback,
             )
             if metrics is not None:
                 metrics.count_job_stats(row_iterator=results_iterator)
@@ -355,6 +400,7 @@ def start_query_with_client(
         results_iterator = formatting_helpers.wait_for_query_job(
             query_job,
             progress_bar=opts.progress_bar,
+            callback=callback,
         )
     else:
         results_iterator = query_job.result()

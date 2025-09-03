@@ -30,6 +30,7 @@ import random
 import textwrap
 import typing
 from typing import (
+    Callable,
     Iterable,
     Iterator,
     List,
@@ -679,6 +680,7 @@ class Block:
         page_size: Optional[int] = None,
         max_results: Optional[int] = None,
         allow_large_results: Optional[bool] = None,
+        callback: Callable = lambda _: None,
     ) -> Iterator[pd.DataFrame]:
         """Download results one message at a time.
 
@@ -696,6 +698,7 @@ class Block:
                 promise_under_10gb=under_10gb,
                 ordered=True,
             ),
+            callback=callback,
         )
 
         # To reduce the number of edge cases to consider when working with the

@@ -23,6 +23,7 @@ import uuid
 import pandas as pd
 
 import bigframes
+import bigframes.dataframe
 import bigframes.display.html
 
 # anywidget and traitlets are optional dependencies. We don't want the import of this
@@ -73,7 +74,7 @@ class TableWidget(WIDGET_BASE):
         initial_page_size = bigframes.options.display.max_rows
 
         # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
+        # self._batches = dataframe._to_pandas_batches_colab(page_size=initial_page_size, callback=self._update_progress)
 
         # set traitlets properties that trigger observers
         self.page_size = initial_page_size
@@ -100,6 +101,7 @@ class TableWidget(WIDGET_BASE):
     page = traitlets.Int(0).tag(sync=True)
     page_size = traitlets.Int(25).tag(sync=True)
     row_count = traitlets.Int(0).tag(sync=True)
+    progress_html = traitlets.Unicode().tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
 
     @traitlets.validate("page")
@@ -145,6 +147,10 @@ class TableWidget(WIDGET_BASE):
         max_page_size = 1000
         return min(value, max_page_size)
 
+    def _update_progress(self, event):
+        # TODO: use formatting helpers here.
+        self.progress_html = f"<code>{repr(event)}"
+
     def _get_next_batch(self) -> bool:
         """
         Gets the next batch of data from the generator and appends to cache.
@@ -180,7 +186,9 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        self._batches = self._dataframe._to_pandas_batches_colab(
+            page_size=self.page_size, callback=self._update_progress
+        )
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False

@@ -19,11 +19,13 @@ const ModelProperty = {
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
 	TABLE_HTML: "table_html",
+	PROGRESS_HTML: "progress_html",
 };
 
 const Event = {
 	CHANGE: "change",
 	CHANGE_TABLE_HTML: `change:${ModelProperty.TABLE_HTML}`,
+	CHANGE_PROGRESS_HTML: `change:${ModelProperty.PROGRESS_HTML}`,
 	CLICK: "click",
 };
 
@@ -39,6 +41,7 @@ function render({ model, el }) {
 	el.classList.add("bigframes-widget");
 
 	// Structure
+	const progressContainer = document.createElement("div");
 	const tableContainer = document.createElement("div");
 	const footer = document.createElement("div");
 
@@ -117,6 +120,13 @@ function render({ model, el }) {
 			model.set(ModelProperty.PAGE_SIZE, size);
 			model.save_changes();
 		}
+	}
+
+	/** Updates the HTML in the progress container. */
+	function handleTableHTMLChange() {
+		// Note: Using innerHTML is safe here because the content is generated
+		// by a trusted backend (formatting_helpers).
+		progressContainer.innerHTML = model.get(ModelProperty.PROGRESS_HTML);
 	}
 
 	/** Updates the HTML in the table container and refreshes button states. */

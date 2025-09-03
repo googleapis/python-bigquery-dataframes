@@ -273,7 +273,8 @@ def _try_read_gbq_colab_sessionless_dry_run(
     with _default_location_lock:
         if not config.options.bigquery._session_started:
             return _run_read_gbq_colab_sessionless_dry_run(
-                query, pyformat_args=pyformat_args
+                query,
+                pyformat_args=pyformat_args,
             )
 
     # Explicitly return None to indicate that we didn't run the dry run query.
@@ -305,6 +306,7 @@ def _read_gbq_colab(
     *,
     pyformat_args: Optional[Dict[str, Any]] = None,
     dry_run: bool = False,
+    callback: Callable = lambda _: None,
 ) -> bigframes.dataframe.DataFrame | pandas.Series:
     """A Colab-specific version of read_gbq.
 
@@ -319,6 +321,8 @@ def _read_gbq_colab(
         dry_run (bool):
             If True, estimates the query results size without returning data.
             The return will be a pandas Series with query metadata.
+        callback (Callable):
+            A callback function used by bigframes to report query progress.
 
     Returns:
         Union[bigframes.dataframe.DataFrame, pandas.Series]:
@@ -364,6 +368,7 @@ def _read_gbq_colab(
         query_or_table,
         pyformat_args=pyformat_args,
         dry_run=dry_run,
+        callback=callback,
     )
 
 

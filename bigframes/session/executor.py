@@ -18,7 +18,7 @@ import abc
 import dataclasses
 import functools
 import itertools
-from typing import Iterator, Literal, Optional, Union
+from typing import Callable, Iterator, Literal, Optional, Union
 
 from google.cloud import bigquery
 import pandas as pd
@@ -153,6 +153,8 @@ class Executor(abc.ABC):
         self,
         array_value: bigframes.core.ArrayValue,
         execution_spec: ex_spec.ExecutionSpec,
+        *,
+        callback: Callable = lambda _: None,
     ) -> ExecuteResult:
         """
         Execute the ArrayValue.

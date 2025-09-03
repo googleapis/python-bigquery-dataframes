@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Literal, Optional, Tuple
+from typing import Callable, Literal, Optional, Tuple
 
 from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
@@ -45,6 +45,8 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
         plan: nodes.BigFrameNode,
         ordered: bool,
         peek: Optional[int] = None,
+        *,
+        callback: Callable = lambda _: None,
     ) -> executor.ExecuteResult:
         """Just execute whatever plan as is, without further caching or decomposition."""
         # TODO(swast): plumb through the api_name of the user-facing api that
@@ -69,6 +71,7 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
         self,
         sql: str,
         job_config: Optional[bq_job.QueryJobConfig] = None,
+        callback: Callable = lambda _: None,
     ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
@@ -82,4 +85,5 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
             timeout=None,
             metrics=None,
             query_with_job=False,
+            callback=callback,
         )
