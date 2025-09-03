@@ -160,6 +160,7 @@ function render({ model, el }) {
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
 
+	el.appendChild(progressContainer);
 	el.appendChild(tableContainer);
 	el.appendChild(footer);
 
