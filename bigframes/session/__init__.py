@@ -68,10 +68,8 @@ import bigframes.clients
 import bigframes.constants
 import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
+import bigframes.core.indexes.datetimes
 import bigframes.core.pyformat
-
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session, bq_caching_executor, executor
@@ -386,6 +384,8 @@ class Session(
             self._function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
+
+    date_range = bigframes.core.indexes.datetimes.date_range
 
     @overload
     def read_gbq(  # type: ignore[overload-overlap]

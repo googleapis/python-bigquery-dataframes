@@ -19,6 +19,7 @@ from __future__ import annotations
 from bigframes_vendored.pandas.core.indexes import (
     datetimes as vendored_pandas_datetime_index,
 )
+import pandas
 
 from bigframes.core import expression as ex
 from bigframes.core.indexes.base import Index
@@ -54,3 +55,38 @@ class DatetimeIndex(Index, vendored_pandas_datetime_index.DatetimeIndex):
     @property
     def weekday(self) -> Index:
         return self.dayofweek
+
+
+def date_range(
+    session,
+    start=None,
+    end=None,
+    periods=None,
+    freq=None,
+    tz=None,
+    normalize: bool = False,
+    name=None,
+    inclusive="both",
+    *,
+    unit: str | None = None,
+) -> DatetimeIndex:
+    kwargs = {}
+    if unit is not None:
+        kwargs["unit"] = unit
+
+    pd_index = pandas.date_range(
+        start=start,
+        end=end,
+        periods=periods,
+        freq=freq,
+        tz=tz,
+        normalize=normalize,
+        name=name,
+        inclusive=inclusive,
+        **kwargs,  # type: ignore
+    )
+
+    return session.read_pandas(pd_index)
+
+
+date_range.__doc__ = vendored_pandas_datetime_index.date_range.__doc__
