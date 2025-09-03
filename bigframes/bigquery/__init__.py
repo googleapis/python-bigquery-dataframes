@@ -57,13 +57,17 @@ from bigframes.bigquery._operations.struct import struct
 from bigframes.core import log_adapter
 
 _functions = [
+    # approximate aggregate ops
     approx_top_count,
+    # array ops
     array_agg,
     array_length,
     array_to_string,
+    # datetime ops
     unix_micros,
     unix_millis,
     unix_seconds,
+    # geo ops
     st_area,
     st_buffer,
     st_centroid,
@@ -73,6 +77,7 @@ _functions = [
     st_intersection,
     st_isclosed,
     st_length,
+    # json ops
     json_extract,
     json_extract_array,
     json_extract_string_array,
@@ -82,9 +87,12 @@ _functions = [
     json_value,
     json_value_array,
     parse_json,
+    # search ops
     create_vector_index,
     vector_search,
+    # sql ops
     sql_scalar,
+    # struct ops
     struct,
 ]
 
