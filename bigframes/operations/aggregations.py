@@ -22,11 +22,12 @@ from typing import ClassVar, Iterable, Optional, TYPE_CHECKING
 import pandas as pd
 import pyarrow as pa
 
+from bigframes.core import agg_expressions
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as signatures
 
 if TYPE_CHECKING:
-    from bigframes.core import expression, expression_types
+    from bigframes.core import expression
 
 
 @dataclasses.dataclass(frozen=True)
@@ -116,10 +117,10 @@ class NullaryAggregateOp(AggregateOp, NullaryWindowOp):
     def as_expr(
         self,
         *exprs: typing.Union[str, expression.Expression],
-    ) -> expression_types.NullaryAggregation:
-        from bigframes.core import expression_types
+    ) -> agg_expressions.NullaryAggregation:
+        from bigframes.core import agg_expressions
 
-        return expression_types.NullaryAggregation(self)
+        return agg_expressions.NullaryAggregation(self)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -131,8 +132,8 @@ class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
     def as_expr(
         self,
         *exprs: typing.Union[str, expression.Expression],
-    ) -> expression_types.UnaryAggregation:
-        from bigframes.core import expression_types
+    ) -> agg_expressions.UnaryAggregation:
+        from bigframes.core import agg_expressions
         from bigframes.operations.base_ops import _convert_expr_input
 
         # Keep this in sync with output_type and compilers
@@ -140,7 +141,7 @@ class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
 
         for expr in exprs:
             inputs.append(_convert_expr_input(expr))
-        return expression_types.UnaryAggregation(
+        return agg_expressions.UnaryAggregation(
             self,
             inputs[0],
         )
@@ -155,8 +156,8 @@ class BinaryAggregateOp(AggregateOp):
     def as_expr(
         self,
         *exprs: typing.Union[str, expression.Expression],
-    ) -> expression_types.BinaryAggregation:
-        from bigframes.core import expression_types
+    ) -> agg_expressions.BinaryAggregation:
+        from bigframes.core import agg_expressions
         from bigframes.operations.base_ops import _convert_expr_input
 
         # Keep this in sync with output_type and compilers
@@ -165,7 +166,7 @@ class BinaryAggregateOp(AggregateOp):
         for expr in exprs:
             inputs.append(_convert_expr_input(expr))
 
-        return expression_types.BinaryAggregation(self, inputs[0], inputs[1])
+        return agg_expressions.BinaryAggregation(self, inputs[0], inputs[1])
 
 
 @dataclasses.dataclass(frozen=True)

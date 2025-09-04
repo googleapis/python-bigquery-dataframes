@@ -20,8 +20,8 @@ import typing
 
 from bigframes import dtypes
 from bigframes import operations as ops
+from bigframes.core import agg_expressions as ex_types
 from bigframes.core import expression as ex
-from bigframes.core import expression_types as ex_types
 from bigframes.core import nodes, schema, utils
 from bigframes.operations import aggregations as aggs
 

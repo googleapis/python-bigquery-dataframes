@@ -30,12 +30,12 @@ from google.cloud import bigquery
 import pyarrow as pa
 
 from bigframes.core import utils
+import bigframes.core.agg_expressions as ex_types
 import bigframes.core.compile.googlesql
 import bigframes.core.compile.ibis_compiler.aggregate_compiler as agg_compiler
 import bigframes.core.compile.ibis_compiler.scalar_op_compiler as op_compilers
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
-import bigframes.core.expression_types as ex_types
 from bigframes.core.ordering import OrderingExpression
 import bigframes.core.sql
 from bigframes.core.window_spec import RangeWindowBounds, RowsWindowBounds, WindowSpec

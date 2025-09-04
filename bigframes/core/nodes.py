@@ -33,7 +33,7 @@ from typing import (
 
 import google.cloud.bigquery as bq
 
-from bigframes.core import expression_types, identifiers, local_data, sequences
+from bigframes.core import agg_expressions, identifiers, local_data, sequences
 from bigframes.core.bigframe_node import BigFrameNode, COLUMN_SET
 import bigframes.core.expression as ex
 from bigframes.core.field import Field
@@ -1338,7 +1338,7 @@ class ProjectionNode(UnaryNode, AdditiveNode):
 @dataclasses.dataclass(frozen=True, eq=False)
 class AggregateNode(UnaryNode):
     aggregations: typing.Tuple[
-        typing.Tuple[expression_types.Aggregation, identifiers.ColumnId], ...
+        typing.Tuple[agg_expressions.Aggregation, identifiers.ColumnId], ...
     ]
     by_column_ids: typing.Tuple[ex.DerefOp, ...] = tuple([])
     order_by: Tuple[OrderingExpression, ...] = ()
@@ -1437,7 +1437,7 @@ class AggregateNode(UnaryNode):
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class WindowOpNode(UnaryNode, AdditiveNode):
-    expression: expression_types.Aggregation
+    expression: agg_expressions.Aggregation
     window_spec: window.WindowSpec
     output_name: identifiers.ColumnId
     never_skip_nulls: bool = False

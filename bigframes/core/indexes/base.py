@@ -27,10 +27,10 @@ import numpy as np
 import pandas
 
 from bigframes import dtypes
+import bigframes.core.agg_expressions as ex_types
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
-import bigframes.core.expression_types as ex_types
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations

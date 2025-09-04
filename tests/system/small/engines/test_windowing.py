@@ -16,9 +16,9 @@ from google.cloud import bigquery
 import pytest
 
 from bigframes.core import (
+    agg_expressions,
     array_value,
     expression,
-    expression_types,
     identifiers,
     nodes,
     window_spec,
@@ -55,7 +55,7 @@ def test_engines_with_rows_window(
     )
     window_node = nodes.WindowOpNode(
         child=scalars_array_value.node,
-        expression=expression_types.UnaryAggregation(
+        expression=agg_expressions.UnaryAggregation(
             agg_op, expression.deref("int64_too")
         ),
         window_spec=window,

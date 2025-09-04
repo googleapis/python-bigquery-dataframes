@@ -26,7 +26,7 @@ import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
 import pandas as pd
 
-from bigframes.core import expression_types
+from bigframes.core import agg_expressions
 from bigframes.core.compile import constants as compiler_constants
 import bigframes.core.compile.ibis_compiler.scalar_op_compiler as scalar_compilers
 import bigframes.core.compile.ibis_types as compile_ibis_types
@@ -48,19 +48,19 @@ def approx_quantiles(expression: float, number) -> List[float]:
 
 
 def compile_aggregate(
-    aggregate: expression_types.Aggregation,
+    aggregate: agg_expressions.Aggregation,
     bindings: typing.Dict[str, ibis_types.Value],
     order_by: typing.Sequence[ibis_types.Value] = [],
 ) -> ibis_types.Value:
-    if isinstance(aggregate, expression_types.NullaryAggregation):
+    if isinstance(aggregate, agg_expressions.NullaryAggregation):
         return compile_nullary_agg(aggregate.op)
-    if isinstance(aggregate, expression_types.UnaryAggregation):
+    if isinstance(aggregate, agg_expressions.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         if not aggregate.op.order_independent:
             return compile_ordered_unary_agg(aggregate.op, input, order_by=order_by)  # type: ignore
         else:
             return compile_unary_agg(aggregate.op, input)  # type: ignore
-    elif isinstance(aggregate, expression_types.BinaryAggregation):
+    elif isinstance(aggregate, agg_expressions.BinaryAggregation):
         left = scalar_compiler.compile_expression(aggregate.left, bindings=bindings)
         right = scalar_compiler.compile_expression(aggregate.right, bindings=bindings)
         return compile_binary_agg(aggregate.op, left, right)  # type: ignore
@@ -69,16 +69,16 @@ def compile_aggregate(
 
 
 def compile_analytic(
-    aggregate: expression_types.Aggregation,
+    aggregate: agg_expressions.Aggregation,
     window: window_spec.WindowSpec,
     bindings: typing.Dict[str, ibis_types.Value],
 ) -> ibis_types.Value:
-    if isinstance(aggregate, expression_types.NullaryAggregation):
+    if isinstance(aggregate, agg_expressions.NullaryAggregation):
         return compile_nullary_agg(aggregate.op, window)
-    elif isinstance(aggregate, expression_types.UnaryAggregation):
+    elif isinstance(aggregate, agg_expressions.UnaryAggregation):
         input = scalar_compiler.compile_expression(aggregate.arg, bindings=bindings)
         return compile_unary_agg(aggregate.op, input, window)  # type: ignore
-    elif isinstance(aggregate, expression_types.BinaryAggregation):
+    elif isinstance(aggregate, agg_expressions.BinaryAggregation):
         raise NotImplementedError("binary analytic operations not yet supported")
     else:
         raise ValueError(f"Unexpected analytic operation: {aggregate}")
