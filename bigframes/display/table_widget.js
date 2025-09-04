@@ -60,6 +60,7 @@ function render({ model, el }) {
 	const pageSizeSelect = document.createElement("select");
 
 	// Add CSS classes
+	progressContainer.classList.add("progress-container");
 	tableContainer.classList.add("table-container");
 	footer.classList.add("footer");
 	paginationContainer.classList.add("pagination");
@@ -123,7 +124,7 @@ function render({ model, el }) {
 	}
 
 	/** Updates the HTML in the progress container. */
-	function handleTableHTMLChange() {
+	function handleProgressHTMLChange() {
 		// Note: Using innerHTML is safe here because the content is generated
 		// by a trusted backend (formatting_helpers).
 		progressContainer.innerHTML = model.get(ModelProperty.PROGRESS_HTML);
@@ -147,6 +148,7 @@ function render({ model, el }) {
 		}
 	});
 	model.on(Event.CHANGE_TABLE_HTML, handleTableHTMLChange);
+	model.on(Event.CHANGE_PROGRESS_HTML, handleProgressHTMLChange);
 
 	// Assemble the DOM
 	paginationContainer.appendChild(prevPage);

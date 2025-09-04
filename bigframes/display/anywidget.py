@@ -149,7 +149,7 @@ class TableWidget(WIDGET_BASE):
 
     def _update_progress(self, event):
         # TODO: use formatting helpers here.
-        self.progress_html = f"<code>{repr(event)}"
+        self.progress_html = f"<code>{repr(event)}</code>"
 
     def _get_next_batch(self) -> bool:
         """

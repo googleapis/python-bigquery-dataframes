@@ -42,6 +42,45 @@ query_job_prop_pairs = {
 }
 
 
+def create_progress_bar_callback(
+    *,
+    progress_bar: Optional[str] = None,
+    callback: Callable = lambda _: None,
+) -> Callable:
+    if progress_bar == "auto":
+        progress_bar = "notebook" if in_ipython() else "terminal"
+
+    if progress_bar == "notebook":
+        loading_bar = display.HTML("")
+        display_id = str(random.random())
+        display.display(loading_bar, display_id=display_id)
+
+        def outer_callback(event):
+            callback(event)
+            display.update_display(
+                display.HTML(get_query_job_loading_html(event)),
+                display_id=display_id,
+            )
+
+    elif progress_bar == "terminal":
+        previous_bar_text = ""
+
+        def outer_callback(event):
+            nonlocal previous_bar_text
+
+            callback(event)
+
+            bar_text = get_query_job_loading_string(event)
+            if bar_text != previous_bar_text:
+                print(bar_text)
+                previous_bar_text = bar_text
+
+    else:
+        outer_callback = callback
+
+    return outer_callback
+
+
 def add_feedback_link(
     exception: Union[
         api_core_exceptions.RetryError, api_core_exceptions.GoogleAPICallError
@@ -125,7 +164,6 @@ def wait_for_query_job(
     query_job: bigquery.QueryJob,
     max_results: Optional[int] = None,
     page_size: Optional[int] = None,
-    progress_bar: Optional[str] = None,
     callback: Callable = lambda _: None,
 ) -> bigquery.table.RowIterator:
     """Return query results. Displays a progress bar while the query is running
@@ -141,36 +179,8 @@ def wait_for_query_job(
     Returns:
         A row iterator over the query results.
     """
-    if progress_bar == "auto":
-        progress_bar = "notebook" if in_ipython() else "terminal"
-
-    if progress_bar == "notebook":
-        loading_bar = display.HTML(get_query_job_loading_html(query_job))
-        display_id = str(random.random())
-        display.display(loading_bar, display_id=display_id)
-
-        def extended_callback(event):
-            callback(event)
-            display.update_display(
-                display.HTML(get_query_job_loading_html(query_job)),
-                display_id=display_id,
-            )
-
-    elif progress_bar == "terminal":
-        initial_loading_bar = get_query_job_loading_string(query_job)
-        print(initial_loading_bar)
-
-        def extended_callback(event):
-            callback(event)
-
-            if initial_loading_bar != get_query_job_loading_string(query_job):
-                print(get_query_job_loading_string(query_job))
-
-    else:
-        extended_callback = callback
-
     try:
-        extended_callback(
+        callback(
             # DONOTSUBMIT: we should create our own events.
             google.cloud.bigquery._job_helpers.QueryReceivedEvent(
                 billing_project=query_job.project,
@@ -184,11 +194,15 @@ def wait_for_query_job(
                 ended=query_job.ended,
             )
         )
+        # TODO(tswast): Add a timeout so that progress bars can make updates as
+        # the query stats come int.
+        # TODO(tswast): Listen for cancellation on the callback (or maybe
+        # callbacks should just raise KeyboardInterrupt like IPython does?).
         query_results = query_job.result(
             page_size=page_size,
             max_results=max_results,
         )
-        extended_callback(
+        callback(
             # DONOTSUBMIT: we should create our own events.
             google.cloud.bigquery._job_helpers.QueryFinishedEvent(
                 billing_project=query_job.project,
@@ -206,13 +220,16 @@ def wait_for_query_job(
         )
         return query_results
     except api_core_exceptions.RetryError as exc:
+        # TODO: turn this into a callback event, too.
         add_feedback_link(exc)
         raise
     except api_core_exceptions.GoogleAPICallError as exc:
+        # TODO: turn this into a callback event, too.
         add_feedback_link(exc)
         raise
     except KeyboardInterrupt:
         query_job.cancel()
+        # TODO: turn this into a callback event, too.
         print(
             f"Requested cancellation for {query_job.job_type.capitalize()}"
             f" job {query_job.job_id} in location {query_job.location}..."

@@ -362,6 +362,12 @@ def start_query_with_client(
     """
     Starts query job and waits for results.
     """
+    opts = bigframes.options.display
+    progress_callback = formatting_helpers.create_progress_bar_callback(
+        progress_bar=opts.progress_bar,
+        callback=callback,
+    )
+
     try:
         # Note: Ensure no additional labels are added to job_config after this
         # point, as `add_and_trim_labels` ensures the label count does not
@@ -376,7 +382,7 @@ def start_query_with_client(
                 project=project,
                 api_timeout=timeout,
                 job_retry=job_retry,
-                callback=callback,
+                callback=progress_callback,
             )
             if metrics is not None:
                 metrics.count_job_stats(row_iterator=results_iterator)
@@ -395,7 +401,6 @@ def start_query_with_client(
             ex.message += CHECK_DRIVE_PERMISSIONS
         raise
 
-    opts = bigframes.options.display
     if opts.progress_bar is not None and not query_job.configuration.dry_run:
         results_iterator = formatting_helpers.wait_for_query_job(
             query_job,

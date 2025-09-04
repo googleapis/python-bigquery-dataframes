@@ -321,7 +321,6 @@ class BigQueryCachingExecutor(executor.Executor):
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        breakpoint()
         row_iter, query_job = self._run_execute_query(
             sql=sql,
             job_config=job_config,
