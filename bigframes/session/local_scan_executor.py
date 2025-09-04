@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from bigframes.core import bigframe_node, rewrite
 from bigframes.session import executor, semi_executor
@@ -29,6 +29,8 @@ class LocalScanExecutor(semi_executor.SemiExecutor):
         plan: bigframe_node.BigFrameNode,
         ordered: bool,
         peek: Optional[int] = None,
+        *,
+        callback: Callable = lambda _: None,
     ) -> Optional[executor.ExecuteResult]:
         reduced_result = rewrite.try_reduce_to_local_scan(plan)
         if not reduced_result:
