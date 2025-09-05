@@ -37,6 +37,7 @@ import bigframes.dataframe
 import bigframes.enums
 import bigframes.functions._utils as bff_utils
 from bigframes.pandas.core.api import to_timedelta
+from bigframes.pandas.core.indexes.datetimes import date_range
 from bigframes.pandas.io.api import (
     _read_gbq_colab,
     from_glob_path,
@@ -367,6 +368,7 @@ _functions = [
     clean_up_by_session_id,
     concat,
     cut,
+    date_range,
     deploy_remote_function,
     deploy_udf,
     get_default_session_id,
