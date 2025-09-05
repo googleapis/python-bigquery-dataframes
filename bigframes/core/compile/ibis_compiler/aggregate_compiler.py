@@ -691,7 +691,7 @@ def _(
     return (
         ibis_ops.StringAgg(
             column,  # type: ignore
-            sep=op.sep,
+            sep=op.sep,  # type: ignore
             order_by=order_by,  # type: ignore
         )
         .to_expr()
