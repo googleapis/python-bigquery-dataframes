@@ -49,6 +49,11 @@ ML_GENERATE_TEXT_OUTPUT = [
     "ml_generate_text_status",
     "prompt",
 ]
+AI_GENERATE_OUTPUT = [
+    "result",
+    "full_response",
+    "status",
+]
 ML_GENERATE_EMBEDDING_OUTPUT = [
     "ml_generate_embedding_result",
     "ml_generate_embedding_statistics",

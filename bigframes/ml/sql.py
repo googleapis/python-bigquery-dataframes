@@ -435,3 +435,13 @@ class ModelManipulationSqlGenerator(BaseSqlGenerator):
         struct_options_sql = self.struct_options(**struct_options)
         return f"""SELECT * FROM AI.GENERATE_TABLE(MODEL {self._model_ref_sql()},
   ({source_sql}), {struct_options_sql})"""
+
+    def ai_generate(
+        self,
+        source_sql: str,
+        struct_options: Mapping[str, Union[int, float, bool, Mapping]],
+    ) -> str:
+        """Encode AI.GENERATE for BQML"""
+        struct_options_sql = self.struct_options(**struct_options)
+        return f"""SELECT * FROM AI.GENERATE(MODEL {self._model_ref_sql()},
+  ({source_sql}), {struct_options_sql})"""
