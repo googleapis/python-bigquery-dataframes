@@ -1220,6 +1220,10 @@ def array_reduce_op_impl(x: ibis_types.Value, op: ops.ArrayReduceOp):
         lambda arr_vals: agg_compilers.compile_unary_agg(
             op.aggregation, typing.cast(ibis_types.Column, arr_vals)
         )
+        if op.aggregation.order_independent
+        else agg_compilers.compile_ordered_unary_agg(
+            op.aggregation, typing.cast(ibis_types.Column, arr_vals)
+        )
     )
 
 
