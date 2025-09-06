@@ -23,6 +23,7 @@ import uuid
 import pandas as pd
 
 import bigframes
+import bigframes.core.blocks
 import bigframes.display.html
 
 # anywidget and traitlets are optional dependencies. We don't want the import of this
@@ -45,8 +46,10 @@ else:
 
 
 class TableWidget(WIDGET_BASE):
-    """
-    An interactive, paginated table widget for BigFrames DataFrames.
+    """An interactive, paginated table widget for BigFrames DataFrames.
+
+    This widget provides a user-friendly way to display and navigate through
+    large BigQuery DataFrames within a Jupyter environment.
     """
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
@@ -60,32 +63,37 @@ class TableWidget(WIDGET_BASE):
                 "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use TableWidget."
             )
 
-        super().__init__()
         self._dataframe = dataframe
+        self._initializing = True
+        super().__init__()
 
-        # Initialize attributes that might be needed by observers FIRST
+        # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: List[pd.DataFrame] = []
 
-        # respect display options for initial page size
+        # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
+        execute_result = dataframe._block.session._executor.execute(
+            dataframe._block.expr,
+            ordered=True,
+            use_explicit_destination=True,
+        )
 
-        # set traitlets properties that trigger observers
+        # The query issued by `to_pandas_batches()` already contains metadata
+        # about how many results there were. Use that to avoid doing an extra
+        # COUNT(*) query that `len(...)` would do.
+        self.row_count = execute_result.total_rows or 0
+
+        # Create pandas batches from the ExecuteResult
+        self._batches = execute_result.to_pandas_batches(page_size=initial_page_size)
+
         self.page_size = initial_page_size
 
-        # len(dataframe) is expensive, since it will trigger a
-        # SELECT COUNT(*) query. It is a must have however.
-        # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
-        # before we get here so that the count might already be cached.
-        self.row_count = len(dataframe)
-
-        # get the initial page
         self._set_table_html()
+        self._initializing = False
 
     @functools.cached_property
     def _esm(self):
@@ -167,8 +175,7 @@ class TableWidget(WIDGET_BASE):
     @property
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
-        if self._batch_iter is None:
-            self._batch_iter = iter(self._batches)
+        self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
@@ -180,7 +187,16 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        # Execute with explicit destination for consistency with __init__
+        execute_result = self._dataframe._block.session._executor.execute(
+            self._dataframe._block.expr,
+            ordered=True,
+            use_explicit_destination=True,
+        )
+
+        # Create pandas batches from the ExecuteResult
+        self._batches = execute_result.to_pandas_batches(page_size=self.page_size)
+
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False
@@ -210,11 +226,15 @@ class TableWidget(WIDGET_BASE):
     @traitlets.observe("page")
     def _page_changed(self, _change: Dict[str, Any]):
         """Handler for when the page number is changed from the frontend."""
+        if self._initializing:
+            return
         self._set_table_html()
 
     @traitlets.observe("page_size")
     def _page_size_changed(self, _change: Dict[str, Any]):
         """Handler for when the page size is changed from the frontend."""
+        if self._initializing:
+            return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
 
