@@ -138,6 +138,16 @@ def test_df_construct_structs(session):
     )
 
 
+def test_df_construct_local_concat_pd(scalars_pandas_df_index, session):
+    pd_df = pd.concat([scalars_pandas_df_index, scalars_pandas_df_index])
+
+    bf_df = session.read_pandas(pd_df)
+
+    pd.testing.assert_frame_equal(
+        bf_df.to_pandas(), pd_df, check_index_type=False, check_dtype=False
+    )
+
+
 def test_df_construct_pandas_set_dtype(scalars_dfs):
     columns = [
         "int64_too",
@@ -876,6 +886,30 @@ def test_join_repr(scalars_dfs_maybe_ordered):
         expected = repr(scalars_pandas_df)
 
     assert actual == expected
+
+
+def test_repr_w_display_options(scalars_dfs, session):
+    metrics = session._metrics
+    scalars_df, _ = scalars_dfs
+    # get a pandas df of the expected format
+    df, _ = scalars_df._block.to_pandas()
+    pandas_df = df.set_axis(scalars_df._block.column_labels, axis=1)
+    pandas_df.index.name = scalars_df.index.name
+
+    executions_pre = metrics.execution_count
+    with bigframes.option_context(
+        "display.max_rows", 10, "display.max_columns", 5, "display.max_colwidth", 10
+    ):
+
+        # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
+        actual = scalars_df.head(10).__repr__()
+        executions_post = metrics.execution_count
+
+        with display_options.pandas_repr(bigframes.options.display):
+            pandas_repr = pandas_df.head(10).__repr__()
+
+    assert actual == pandas_repr
+    assert (executions_post - executions_pre) <= 3
 
 
 def test_repr_html_w_all_rows(scalars_dfs, session):
