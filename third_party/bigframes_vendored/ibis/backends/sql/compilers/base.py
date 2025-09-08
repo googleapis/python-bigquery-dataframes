@@ -801,13 +801,25 @@ class SQLGlotCompiler(abc.ABC):
 
             return self.f.map(keys, values)
         elif dtype.is_struct():
-            items = [
-                self.visit_Literal(
-                    ops.Literal(v, field_dtype), value=v, dtype=field_dtype
-                ).as_(k, quoted=self.quoted)
-                for field_dtype, (k, v) in zip(dtype.types, value.items())
-            ]
-            return sge.Struct.from_arg_list(items)
+            special_flag = all(k.startswith("_bq_ai_key_") for k in value.keys())
+            if special_flag:
+                # struct created by ibis internally, e.g. from a join
+                # preserve field names as-is
+                items = [
+                    self.visit_Literal(
+                        ops.Literal(v, field_dtype), value=v, dtype=field_dtype
+                    )
+                    for field_dtype, (k, v) in zip(dtype.types, value.items())
+                ]
+                return sge.Tuple(expressions=items)
+            else:
+                items = [
+                    self.visit_Literal(
+                        ops.Literal(v, field_dtype), value=v, dtype=field_dtype
+                    ).as_(k, quoted=self.quoted)
+                    for field_dtype, (k, v) in zip(dtype.types, value.items())
+                ]
+                return sge.Struct.from_arg_list(items)
         elif dtype.is_uuid():
             return self.cast(str(value), dtype)
         elif dtype.is_json():
