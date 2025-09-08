@@ -50,6 +50,8 @@ _BIGQUERY_REGIONAL_ENDPOINT = "https://bigquery.{location}.rep.googleapis.com"
 _BIGQUERYSTORAGE_REGIONAL_ENDPOINT = "bigquerystorage.{location}.rep.googleapis.com"
 
 
+import bigframes.perf_inspect as perf_inspect
+@perf_inspect.runtime_logger
 def _get_default_credentials_with_project():
     return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
 
@@ -72,6 +74,8 @@ def _get_application_names():
 class ClientsProvider:
     """Provides client instances necessary to perform cloud operations."""
 
+    import bigframes.perf_inspect as perf_inspect
+    @perf_inspect.runtime_logger
     def __init__(
         self,
         project: Optional[str] = None,

@@ -130,6 +130,8 @@ class Session(
             An object providing client library objects.
     """
 
+    import bigframes.perf_inspect as perf_inspect
+    @perf_inspect.runtime_logger
     def __init__(
         self,
         context: Optional[bigquery_options.BigQueryOptions] = None,
@@ -143,7 +145,6 @@ class Session(
 
         if context is None:
             context = bigquery_options.BigQueryOptions()
-
         if context.location is None:
             self._location = "US"
             msg = bfe.format_message(
@@ -184,7 +185,6 @@ class Session(
                 client_endpoints_override=context.client_endpoints_override,
                 requests_transport_adapters=context.requests_transport_adapters,
             )
-
         # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
         # has been fixed. The ibis client changes the default query job config
         # so we are going to remember the current config and restore it after

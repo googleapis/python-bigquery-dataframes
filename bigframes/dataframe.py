@@ -54,6 +54,8 @@ import pandas.io.formats.format
 import pyarrow
 import tabulate
 
+import bigframes.perf_inspect as perf_inspect
+
 import bigframes._config.display_options as display_options
 import bigframes.constants
 import bigframes.core
@@ -116,6 +118,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     # Must be above 5000 for pandas to delegate to bigframes for binops
     __pandas_priority__ = 15000
 
+    import bigframes.perf_inspect as perf_inspect
+    @perf_inspect.runtime_logger
     def __init__(
         self,
         data=None,
@@ -725,6 +729,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             object.__setattr__(self, key, value)
 
+    @perf_inspect.runtime_logger
     def __repr__(self) -> str:
         """Converts a DataFrame to a string. Calls to_pandas.
 
@@ -777,6 +782,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
 
+    @perf_inspect.runtime_logger
     def _repr_html_(self) -> str:
         """
         Returns an html string primarily for use by notebooks for displaying
@@ -1703,6 +1709,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> pandas.Series:
         ...
 
+
+    import bigframes.perf_inspect as perf_inspect
+    @perf_inspect.runtime_logger
     def to_pandas(
         self,
         max_download_size: Optional[int] = None,
@@ -1887,6 +1896,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             allow_large_results=allow_large_results,
         )
 
+    @perf_inspect.runtime_logger
     def _compute_dry_run(self) -> bigquery.QueryJob:
         _, query_job = self._block._compute_dry_run()
         return query_job

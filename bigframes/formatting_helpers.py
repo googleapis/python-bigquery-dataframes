@@ -90,7 +90,6 @@ def repr_query_job_html(query_job: Optional[bigquery.QueryJob]):
     table_html += "</table>"
     return widgets.HTML(table_html)
 
-
 def repr_query_job(query_job: Optional[bigquery.QueryJob]):
     """Return query job as a formatted string.
     Args:
@@ -117,7 +116,6 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
             else:
                 res += f"""{key}: {job_val}"""
     return res
-
 
 def wait_for_query_job(
     query_job: bigquery.QueryJob,

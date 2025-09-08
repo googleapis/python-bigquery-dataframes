@@ -51,6 +51,7 @@ import bigframes.session.execution_spec as ex_spec
 import bigframes.session.metrics
 import bigframes.session.planner
 import bigframes.session.temporary_storage
+import bigframes.perf_inspect as perf_inspect
 
 # Max complexity that should be executed as a single query
 QUERY_COMPLEXITY_LIMIT = 1e7
@@ -182,6 +183,8 @@ class BigQueryCachingExecutor(executor.Executor):
         compiled = compile.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
         return compiled.sql
 
+
+    @perf_inspect.runtime_logger
     def execute(
         self,
         array_value: bigframes.core.ArrayValue,

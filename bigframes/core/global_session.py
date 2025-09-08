@@ -83,6 +83,8 @@ def close_session() -> None:
         bigframes._config.options.bigquery._session_started = False
 
 
+import bigframes.perf_inspect as perf_inspect
+@perf_inspect.runtime_logger
 def get_global_session():
     """Gets the global session.
 

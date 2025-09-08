@@ -87,7 +87,8 @@ def create_vector_index(
 
     read_gbq_query(sql)
 
-
+import bigframes.perf_inspect as perf_inspect
+@perf_inspect.runtime_logger
 def vector_search(
     base_table: str,
     column_to_search: str,
@@ -246,5 +247,4 @@ def vector_search(
         df.index.names = index_labels
     else:
         df = query._session.read_gbq_query(sql, allow_large_results=allow_large_results)
-
     return df

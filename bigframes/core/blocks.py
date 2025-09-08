@@ -41,6 +41,7 @@ from typing import (
     Union,
 )
 import warnings
+import bigframes.perf_inspect as perf_inspect
 
 import bigframes_vendored.constants as constants
 import google.cloud.bigquery as bigquery
@@ -940,6 +941,8 @@ class Block:
         ]
         return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
 
+    
+    @perf_inspect.runtime_logger
     def _compute_dry_run(
         self,
         value_keys: Optional[Iterable[str]] = None,
@@ -1629,6 +1632,7 @@ class Block:
     # Using cache to optimize for Jupyter Notebook's behavior where both '__repr__'
     # and '__repr_html__' are called in a single display action, reducing redundant
     # queries.
+    @perf_inspect.runtime_logger
     @functools.cache
     def retrieve_repr_request_results(
         self, max_results: int
@@ -1646,6 +1650,8 @@ class Block:
             array_value=self.expr,
             config=executors.CacheConfig(optimize_for="head", if_cached="reuse-strict"),
         )
+        import time
+        start_time = time.monotonic()
         head_result = self.session._executor.execute(
             self.expr.slice(start=None, stop=max_results, step=None),
             execution_spec.ExecutionSpec(
@@ -1653,6 +1659,8 @@ class Block:
                 ordered=True,
             ),
         )
+        print("Time taken to execute head: {:.2f} seconds".format(time.monotonic() - start_time))
+        start_time = time.monotonic()
         row_count = self.session._executor.execute(
             self.expr.row_count(),
             execution_spec.ExecutionSpec(
@@ -1660,8 +1668,11 @@ class Block:
                 ordered=False,
             ),
         ).to_py_scalar()
+        print("Time taken to execute row_count: {:.2f} seconds".format(time.monotonic() - start_time))
 
+        start_time = time.monotonic()
         head_df = head_result.to_pandas()
+        print("Time taken to execute to_pandas: {:.2f} seconds".format(time.monotonic() - start_time))
         return self._copy_index_to_pandas(head_df), row_count, head_result.query_job
 
     def promote_offsets(self, label: Label = None) -> typing.Tuple[Block, str]:

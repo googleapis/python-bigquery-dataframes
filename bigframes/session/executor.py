@@ -30,6 +30,7 @@ from bigframes.core import pyarrow_utils
 import bigframes.core.schema
 import bigframes.session._io.pandas as io_pandas
 import bigframes.session.execution_spec as ex_spec
+import bigframes.perf_inspect as perf_inspect
 
 _ROW_LIMIT_EXCEEDED_TEMPLATE = (
     "Execution has downloaded {result_rows} rows so far, which exceeds the "
@@ -150,6 +151,7 @@ class Executor(abc.ABC):
         raise NotImplementedError("to_sql not implemented for this executor")
 
     @abc.abstractmethod
+    @perf_inspect.runtime_logger
     def execute(
         self,
         array_value: bigframes.core.ArrayValue,
