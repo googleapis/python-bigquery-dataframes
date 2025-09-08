@@ -169,7 +169,7 @@ class BigQueryOptions:
             if self._project is None:
                 self._project = credentials_project
 
-        return credentials, credentials_project
+        return credentials, self._project
 
     @property
     def credentials(self) -> google.auth.credentials.Credentials:
