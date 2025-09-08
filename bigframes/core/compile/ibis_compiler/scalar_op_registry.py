@@ -1228,6 +1228,11 @@ def array_reduce_op_impl(x: ibis_types.Value, op: ops.ArrayReduceOp):
                 op.aggregation, typing.cast(ibis_types.Column, arr_vals)
             )
         )
+    
+# AI Ops
+@scalar_op_compiler.register_nary_op(ops.AIGenerateBool, pass_op=True)
+def ai_generate_bool(*values: ibis_types.Value, op: ops.AIGenerateBool):
+
 
 
 # JSON Ops
@@ -2172,3 +2177,14 @@ def str_strip_op(  # type: ignore[empty-body]
     x: ibis_dtypes.String, to_strip: ibis_dtypes.String
 ) -> ibis_dtypes.String:
     """Remove leading and trailing characters."""
+
+
+@ibis_udf.scalar.builtin(name="AI.GENERATE_BOOL", named_args=True, ignore_none_values=True)
+def ai_generate_bool( # type: ignore[empty-body]
+    prompt: ibis_types.Value,
+    connection_id: str,
+    endpoint = None,
+    request_type = None,
+    model_params = None,
+) -> ibis_dtypes.Value:
+    """Call AI.GENERATE_BOOL with the prompt."""

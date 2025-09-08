@@ -1233,7 +1233,15 @@ class SQLGlotCompiler(abc.ABC):
         )
 
     def visit_ScalarUDF(self, op, **kw):
-        return self.f[self.__sql_name__(op)](*kw.values())
+        if op.__config__.get("named_args"):
+            args = []
+            for name, value in kw.items():
+                if op.__config__.get("ignore_none_values") and isinstance(value, sge.Null):
+                    continue
+                args.append(sge.Kwarg(this=sg.to_identifier(name), expression=value))
+        else:
+            args = list(kw.values())
+        return self.f[self.__sql_name__(op)](*args)
 
     def visit_AggUDF(self, op, *, where, **kw):
         return self.agg[self.__sql_name__(op)](*kw.values(), where=where)

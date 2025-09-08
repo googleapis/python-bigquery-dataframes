@@ -198,6 +198,8 @@ class scalar(_UDF):
         database: str | None = None,
         catalog: str | None = None,
         signature: tuple[tuple[Any, ...], Any] | None = None,
+        named_args: bool = False,
+        ignore_none_values = False,
         **kwargs: Any,
     ) -> Callable[[Callable], Callable[..., ir.Value]]:
         ...
@@ -212,6 +214,8 @@ class scalar(_UDF):
         database=None,
         catalog=None,
         signature=None,
+        named_args=False,
+        ignore_none_values=False,
         **kwargs,
     ):
         """Construct a scalar user-defined function that is built-in to the backend.
@@ -235,6 +239,10 @@ class scalar(_UDF):
             For **builtin** UDFs, only the **return type** annotation is required.
             See [the user guide](/how-to/extending/builtin.qmd#input-types) for
             more information.
+        named_args
+            Whether to compile the function with named arguments.
+        ignore_none_values
+            If true, named arguments whose value is None do no appear in the compiled SQL.
         kwargs
             Additional backend-specific configuration arguments for the UDF.
 
@@ -258,6 +266,8 @@ class scalar(_UDF):
             database=database,
             catalog=catalog,
             signature=signature,
+            named_args=named_args,
+            ignore_none_values=ignore_none_values,
             **kwargs,
         )
 
