@@ -14,15 +14,44 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Optional
 
 import google.auth.credentials
+import google.auth.transport.requests
 import pydata_google_auth
 
 _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+
+# Put the lock here rather than in BigQueryOptions so that BigQueryOptions
+# remains deepcopy-able.
+_AUTH_LOCK = threading.Lock()
+_cached_credentials: Optional[google.auth.credentials.Credentials] = None
+_cached_project_default: Optional[str] = None
 
 
 def get_default_credentials_with_project() -> tuple[
     google.auth.credentials.Credentials, Optional[str]
 ]:
-    return pydata_google_auth.default(scopes=_SCOPES, use_local_webserver=False)
+    global _AUTH_LOCK, _cached_credentials, _cached_project_default
+
+    with _AUTH_LOCK:
+        if _cached_credentials is not None:
+            return _cached_credentials, _cached_project_default
+
+        _cached_credentials, _cached_project_default = pydata_google_auth.default(
+            scopes=_SCOPES, use_local_webserver=False
+        )
+
+        # Ensure an access token is available.
+        _cached_credentials.refresh(google.auth.transport.requests.Request())
+
+    return _cached_credentials, _cached_project_default
+
+
+def reset_default_credentials_and_project():
+    global _AUTH_LOCK, _cached_credentials, _cached_project_default
+
+    with _AUTH_LOCK:
+        _cached_credentials = None
+        _cached_project_default = None

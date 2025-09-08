@@ -16,12 +16,10 @@
 
 from __future__ import annotations
 
-import threading
 from typing import Literal, Optional, Sequence, Tuple
 import warnings
 
 import google.auth.credentials
-import google.auth.transport.requests
 import requests.adapters
 
 import bigframes._config.auth
@@ -101,7 +99,6 @@ class BigQueryOptions:
         ] = (),
         enable_polars_execution: bool = False,
     ):
-        self._credentials_and_project_lock = threading.Lock()
         self._credentials = credentials
         self._project = project
         self._location = _get_validated_location(location)
@@ -149,27 +146,23 @@ class BigQueryOptions:
     def _try_set_default_credentials_and_project(
         self,
     ) -> tuple[google.auth.credentials.Credentials, Optional[str]]:
-        with self._credentials_and_project_lock:
-            # Don't fetch credentials or project if credentials is already set.
-            # If it's set, we've already authenticated, so if the user wants to
-            # re-auth, they should explicitly reset the credentials.
-            if self._credentials is not None:
-                return self._credentials, self._project
+        # Don't fetch credentials or project if credentials is already set.
+        # If it's set, we've already authenticated, so if the user wants to
+        # re-auth, they should explicitly reset the credentials.
+        if self._credentials is not None:
+            return self._credentials, self._project
 
-            (
-                credentials,
-                credentials_project,
-            ) = bigframes._config.auth.get_default_credentials_with_project()
+        (
+            credentials,
+            credentials_project,
+        ) = bigframes._config.auth.get_default_credentials_with_project()
+        self._credentials = credentials
 
-            # Ensure an access token is available.
-            credentials.refresh(google.auth.transport.requests.Request())
-            self._credentials = credentials
+        # Avoid overriding an explicitly set project with a default value.
+        if self._project is None:
+            self._project = credentials_project
 
-            # Avoid overriding an explicitly set project with a default value.
-            if self._project is None:
-                self._project = credentials_project
-
-        return credentials, credentials_project
+        return credentials, self._project
 
     @property
     def credentials(self) -> google.auth.credentials.Credentials:
@@ -191,6 +184,11 @@ class BigQueryOptions:
     def credentials(self, value: Optional[google.auth.credentials.Credentials]):
         if self._session_started and self._credentials is not value:
             raise ValueError(SESSION_STARTED_MESSAGE.format(attribute="credentials"))
+
+        if value is None:
+            # The user has _explicitly_ asked that we re-authenticate.
+            bigframes._config.auth.reset_default_credentials_and_project()
+
         self._credentials = value
 
     @property
