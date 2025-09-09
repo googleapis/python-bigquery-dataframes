@@ -891,7 +891,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __setitem__(
         self,
-        key: str | list[str] |  pandas.Index,
+        key: str | list[str] | pandas.Index,
         value: SingleItemValue | MultiItemValue,
     ):
         if isinstance(key, (list, pandas.Index)):
