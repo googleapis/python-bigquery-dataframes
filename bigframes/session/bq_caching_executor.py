@@ -25,6 +25,7 @@ from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
+import bigframes.perf_inspect as perf_inspect
 
 import bigframes
 from bigframes import exceptions as bfe
@@ -80,6 +81,7 @@ class ExecutionCache:
     def mapping(self) -> Mapping[nodes.BigFrameNode, nodes.BigFrameNode]:
         return self._cached_executions
 
+    @perf_inspect.runtime_logger
     def cache_results_table(
         self,
         original_root: nodes.BigFrameNode,
@@ -340,6 +342,7 @@ class BigQueryCachingExecutor(executor.Executor):
         query_job = self.bqclient.query(sql, job_config=job_config)
         return query_job
 
+    @perf_inspect.runtime_logger
     def cached(
         self, array_value: bigframes.core.ArrayValue, *, config: executor.CacheConfig
     ) -> None:
@@ -373,6 +376,7 @@ class BigQueryCachingExecutor(executor.Executor):
             )
 
     # Helpers
+    @perf_inspect.runtime_logger
     def _run_execute_query(
         self,
         sql: str,
@@ -392,6 +396,7 @@ class BigQueryCachingExecutor(executor.Executor):
             job_config.labels["bigframes-mode"] = "unordered"
 
         try:
+            print(sql)
             # Trick the type checker into thinking we got a literal.
             if query_with_job:
                 return bq_io.start_query_with_client(
@@ -477,6 +482,7 @@ class BigQueryCachingExecutor(executor.Executor):
             execution_spec=execution_spec,
         )
 
+    @perf_inspect.runtime_logger
     def _cache_with_offsets(self, array_value: bigframes.core.ArrayValue):
         """Executes the query and uses the resulting table to rewrite future executions."""
         execution_spec = ex_spec.ExecutionSpec(
@@ -586,6 +592,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 )
                 self.cache.cache_remote_replacement(local_table, uploaded)
 
+    @perf_inspect.runtime_logger
     def _execute_plan_gbq(
         self,
         plan: nodes.BigFrameNode,
@@ -619,6 +626,9 @@ class BigQueryCachingExecutor(executor.Executor):
             else:
                 cluster_cols = cache_spec.cluster_cols
 
+
+        import time
+        start_time = time.monotonic()
         compiled = compile.compile_sql(
             compile.CompileRequest(
                 plan,
@@ -627,38 +637,49 @@ class BigQueryCachingExecutor(executor.Executor):
                 materialize_all_order_keys=(cache_spec is not None),
             )
         )
+        print("Runtime to compile SQL: {:.2f} seconds".format(time.monotonic() - start_time))
+
         # might have more columns than og schema, for hidden ordering columns
         compiled_schema = compiled.sql_schema
 
         destination_table: Optional[bigquery.TableReference] = None
 
+        start_time = time.monotonic()
         job_config = bigquery.QueryJobConfig()
         if create_table:
             destination_table = self.storage_manager.create_temp_table(
                 compiled_schema, cluster_cols
             )
             job_config.destination = destination_table
+            # print("Runtime to create temp table: {:.2f} seconds".format(time.monotonic() - start_time))
+        
 
+        start_time = time.monotonic()
         iterator, query_job = self._run_execute_query(
             sql=compiled.sql,
             job_config=job_config,
             query_with_job=(destination_table is not None),
         )
+        # print("Runtime to run execute query: {:.2f} seconds".format(time.monotonic() - start_time))
 
+        start_time = time.monotonic()
         table_info: Optional[bigquery.Table] = None
         if query_job and query_job.destination:
             table_info = self.bqclient.get_table(query_job.destination)
             size_bytes = table_info.num_bytes
         else:
             size_bytes = None
+        print("Runtime to get table size: {:.2f} seconds".format(time.monotonic() - start_time))
 
         # we could actually cache even when caching is not explicitly requested, but being conservative for now
         if cache_spec is not None:
             assert table_info is not None
             assert compiled.row_order is not None
+            start_time = time.monotonic()
             self.cache.cache_results_table(
                 og_plan, table_info, compiled.row_order, num_rows=table_info.num_rows
             )
+            # print("Runtime to cache results table: {:.2f} seconds".format(time.monotonic() - start_time))
 
         if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
             msg = bfe.format_message(

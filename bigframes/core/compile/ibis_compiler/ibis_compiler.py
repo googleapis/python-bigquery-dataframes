@@ -32,11 +32,13 @@ import bigframes.core.compile.explode
 import bigframes.core.nodes as nodes
 import bigframes.core.ordering as bf_ordering
 import bigframes.core.rewrite as rewrites
+import bigframes.perf_inspect as perf_inspect
 
 if typing.TYPE_CHECKING:
     import bigframes.core
 
 
+@perf_inspect.runtime_logger
 def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     output_names = tuple((expression.DerefOp(id), id.sql) for id in request.node.ids)
     result_node = nodes.ResultNode(

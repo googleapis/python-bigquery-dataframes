@@ -41,6 +41,7 @@ from typing import (
     Union,
 )
 import warnings
+import time
 import bigframes.perf_inspect as perf_inspect
 
 import bigframes_vendored.constants as constants
@@ -1646,11 +1647,12 @@ class Block:
 
         # head caches full underlying expression, so row_count will be free after
         executor = self.session._executor
+        start_time = time.monotonic()
         executor.cached(
             array_value=self.expr,
             config=executors.CacheConfig(optimize_for="head", if_cached="reuse-strict"),
         )
-        import time
+        print("Time taken to cache table: {:.2f} seconds".format(time.monotonic() - start_time))
         start_time = time.monotonic()
         head_result = self.session._executor.execute(
             self.expr.slice(start=None, stop=max_results, step=None),
@@ -2707,6 +2709,7 @@ class Block:
         self._view_ref = self.session._create_temp_view(sql)
         return self._view_ref
 
+    @perf_inspect.runtime_logger
     def cached(self, *, force: bool = False, session_aware: bool = False) -> None:
         """Write the block to a session table."""
         # use a heuristic for whether something needs to be cached

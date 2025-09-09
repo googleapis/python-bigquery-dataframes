@@ -35,6 +35,7 @@ import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
 import bigframes.formatting_helpers as formatting_helpers
 import bigframes.session.metrics
+import bigframes.perf_inspect as perf_inspect
 
 CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
 
@@ -116,6 +117,7 @@ def table_ref_to_sql(table: bigquery.TableReference) -> str:
     return f"`{table.project}`.`{table.dataset_id}`.`{table.table_id}`"
 
 
+@perf_inspect.runtime_logger
 def create_temp_table(
     bqclient: bigquery.Client,
     table_ref: bigquery.TableReference,

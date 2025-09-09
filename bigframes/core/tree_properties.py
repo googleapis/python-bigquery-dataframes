@@ -16,6 +16,7 @@ from __future__ import annotations
 import functools
 import itertools
 from typing import Callable, Dict, Optional, Sequence
+import bigframes.perf_inspect as perf_inspect
 
 import bigframes.core.nodes as nodes
 

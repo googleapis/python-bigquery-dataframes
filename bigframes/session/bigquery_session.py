@@ -24,6 +24,7 @@ import google.cloud.bigquery as bigquery
 
 from bigframes.core.compile import googlesql
 from bigframes.session import temporary_storage
+import bigframes.perf_inspect as perf_inspect
 
 KEEPALIVE_QUERY_TIMEOUT_SECONDS = 5.0
 
@@ -49,6 +50,7 @@ class SessionResourceManager(temporary_storage.TemporaryStorageManager):
     def location(self):
         return self._location
 
+    @perf_inspect.runtime_logger
     def create_temp_table(
         self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str] = []
     ) -> bigquery.TableReference:

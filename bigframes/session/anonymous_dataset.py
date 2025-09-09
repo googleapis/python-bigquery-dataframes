@@ -84,7 +84,7 @@ class AnonymousDatasetManager(temporary_storage.TemporaryStorageManager):
             self.allocate_temp_table(),
             expiration,
             schema=schema,
-            cluster_columns=list(cluster_cols),
+            # cluster_columns=list(cluster_cols),
             kms_key=self._kms_key,
         )
         return bigquery.TableReference.from_string(table)
