@@ -1981,11 +1981,11 @@ def ai_generate_bool(
             prompt[f"_field_{idx + 1}"] = elem
 
     return ai_ops.AIGenerateBool(
-        ibis.struct(prompt),  # type: ignore  
-        op.connection_id,# type: ignore
-        op.endpoint,# type: ignore
-        op.request_type.upper(),# type: ignore
-        op.model_params,# type: ignore
+        ibis.struct(prompt),  # type: ignore
+        op.connection_id,  # type: ignore
+        op.endpoint,  # type: ignore
+        op.request_type.upper(),  # type: ignore
+        op.model_params,  # type: ignore
     ).to_expr()
 
 

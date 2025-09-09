@@ -30,7 +30,8 @@ def ai_generate_bool(
     request_type: Literal["dedicated", "shared", "unspecified"] = "unspecified",
     model_params: Mapping[Any, Any] | None = None,
 ) -> series.Series:
-    """Returns the AI analysis based on the prompt, which can be any combination of text and unstructured data.
+    """
+    Returns the AI analysis based on the prompt, which can be any combination of text and unstructured data.
 
     **Examples:**
 
@@ -77,14 +78,14 @@ def ai_generate_bool(
             Specifies the connection to use to communicate with the model. For example, `myproject.us.myconnection`.
             If not provided, the connection from the current session will be used.
         endpoint (str, optional):
-            Specifies the Vertex AI endpoint to use for the model. You can specify any generally available
-            or preview Gemini model. If you specify the model name, BigQuery ML automatically identifies and
-            uses the full endpoint of the model. If you don't specify an ENDPOINT value, BigQuery ML selects
-            a recent stable version of Gemini to use.
+            Specifies the Vertex AI endpoint to use for the model. For example `"gemini-2.5-flash"`. You can specify any
+            generally available or preview Gemini model. If you specify the model name, BigQuery ML automatically identifies and
+            uses the full endpoint of the model. If you don't specify an ENDPOINT value, BigQuery ML selects a recent stable
+            version of Gemini to use.
         request_type (Literal["dedicated", "shared", "unspecified"]):
             Specifies the type of inference request to send to the Gemini model. The request type determines what
             quota the request uses.
-            * "dedicated": function only uses Provisioned Throughput quota. The AI.GENERATE function returns the error Provisioned throughput is not purchased or is not active if Provisioned Throughput quota isn't available.
+            * "dedicated": function only uses Provisioned Throughput quota. The function returns the error Provisioned throughput is not purchased or is not active if Provisioned Throughput quota isn't available.
             * "shared": the function only uses dynamic shared quota (DSQ), even if you have purchased Provisioned Throughput quota.
             * "unspecified":
                 If you haven't purchased Provisioned Throughput quota, the function uses DSQ quota.
