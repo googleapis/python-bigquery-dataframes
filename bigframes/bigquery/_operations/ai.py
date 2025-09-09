@@ -14,9 +14,8 @@
 
 from __future__ import annotations
 
-import functools
 import json
-from typing import Any, List, Literal, Mapping, Sequence, Tuple
+from typing import Any, List, Literal, Mapping, Tuple
 
 from bigframes import clients, dtypes, series
 from bigframes.operations import ai_ops
@@ -101,13 +100,8 @@ def ai_generate_bool(
         * "status": a STRING value that contains the API response status for the corresponding row. This value is empty if the operation was successful.
     """
 
-    if request_type not in ("dedicated", "shared", "unspecified"):
-        raise ValueError(f"Unsupported request type: {request_type}")
-
     prompt_context, series_list = _separate_context_and_series(prompt)
-
-    if not series_list:
-        raise ValueError("Please provide at least one Series in the prompt")
+    assert len(series_list) > 0
 
     operator = ai_ops.AIGenerateBool(
         prompt_context=tuple(prompt_context),
@@ -120,9 +114,8 @@ def ai_generate_bool(
     return series_list[0]._apply_nary_op(operator, series_list[1:])
 
 
-@functools.singledispatch
 def _separate_context_and_series(
-    prompt: Any,
+    prompt: series.Series | List[str | series.Series] | Tuple[str | series.Series, ...],
 ) -> Tuple[List[str | None], List[series.Series]]:
     """
     Returns the two values. The first value is the prompt with all series replaced by None. The second value is all the series
@@ -131,24 +124,14 @@ def _separate_context_and_series(
     Input: ("str1", series1, "str2", "str3", series2)
     Output: ["str1", None, "str2", "str3", None], [series1, series2]
     """
-    raise ValueError(f"Unsupported prompt type: {type(prompt)}")
+    if not isinstance(prompt, (list, tuple, series.Series)):
+        raise ValueError(f"Unsupported prompt type: {type(prompt)}")
 
-
-@_separate_context_and_series.register
-def _(
-    prompt: series.Series,
-) -> Tuple[List[str | None], List[series.Series]]:
-    if prompt.dtype == dtypes.OBJ_REF_DTYPE:
-        # Multi-model support
-        return [None], [prompt.blob.read_url()]
-    return [None], [prompt]
-
-
-@_separate_context_and_series.register(list)
-@_separate_context_and_series.register(tuple)
-def _(
-    prompt: Sequence[str | series.Series],
-) -> Tuple[List[str | None], List[series.Series]]:
+    if isinstance(prompt, series.Series):
+        if prompt.dtype == dtypes.OBJ_REF_DTYPE:
+            # Multi-model support
+            return [None], [prompt.blob.read_url()]
+        return [None], [prompt]
 
     prompt_context: List[str | None] = []
     series_list: List[series.Series] = []
@@ -166,7 +149,10 @@ def _(
             series_list.append(item)
 
         else:
-            raise ValueError(f"Unsupported type in prompt: {type(item)}")
+            raise TypeError(f"Unsupported type in prompt: {type(item)}")
+
+    if not series_list:
+        raise ValueError("Please provide at least one Series in the prompt")
 
     return prompt_context, series_list
 
