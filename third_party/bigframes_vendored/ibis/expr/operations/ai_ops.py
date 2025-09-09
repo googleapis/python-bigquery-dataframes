@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from bigframes_vendored.ibis.common.annotations import attribute
 import bigframes_vendored.ibis.expr.datatypes as dt
 from bigframes_vendored.ibis.expr.operations.core import Value
@@ -17,9 +19,9 @@ class AIGenerateBool(Value):
 
     prompt: Value
     connection_id: Value[dt.String]
-    endpoint: Value[dt.String] | None
+    endpoint: Optional[Value[dt.String]]
     request_type: Value[dt.String]
-    model_params: Value[dt.String] | None
+    model_params: Optional[Value[dt.String]]
 
     shape = rlz.shape_like("prompt")
 

@@ -23,7 +23,7 @@ from bigframes.operations import ai_ops
 
 
 def ai_generate_bool(
-    prompt: series.Series | List[str | series.Series] | Tuple[str | series.Series],
+    prompt: series.Series | List[str | series.Series] | Tuple[str | series.Series, ...],
     *,
     connection_id: str | None = None,
     endpoint: str | None = None,
@@ -71,7 +71,7 @@ def ai_generate_bool(
         Name: result, dtype: boolean
 
     Args:
-        prompt (series.Series | List[str|series.Series] | Tuple[str|series.Series]):
+        prompt (series.Series | List[str|series.Series] | Tuple[str|series.Series, ...]):
             A mixture of Series and string literals that specifies the prompt to send to the model.
         connection_id (str, optional):
             Specifies the connection to use to communicate with the model. For example, `myproject.us.myconnection`.
@@ -87,15 +87,15 @@ def ai_generate_bool(
             * "dedicated": function only uses Provisioned Throughput quota. The AI.GENERATE function returns the error Provisioned throughput is not purchased or is not active if Provisioned Throughput quota isn't available.
             * "shared": the function only uses dynamic shared quota (DSQ), even if you have purchased Provisioned Throughput quota.
             * "unspecified":
-                * If you haven't purchased Provisioned Throughput quota, the function uses DSQ quota.
-                * If you have purchased Provisioned Throughput quota, the function uses the Provisioned Throughput quota first. If requests exceed the Provisioned Throughput quota, the overflow traffic uses DSQ quota.
+                If you haven't purchased Provisioned Throughput quota, the function uses DSQ quota.
+                If you have purchased Provisioned Throughput quota, the function uses the Provisioned Throughput quota first. If requests exceed the Provisioned Throughput quota, the overflow traffic uses DSQ quota.
         model_params (Mapping[Any, Any]):
             Provides additional parameters to the model. The MODEL_PARAMS value must conform to the generateContent request body format.
 
     Returns:
         bigframes.series.Series: A new struct Series with the result data. The struct contains these fields:
         * "result": a BOOL value containing the model's response to the prompt. The result is None if the request fails or is filtered by responsible AI.
-        * "full_resposne": a STRING value containing the JSON response from the projects.locations.endpoints.generateContent call to the model. The generated text is in the text element.
+        * "full_response": a STRING value containing the JSON response from the projects.locations.endpoints.generateContent call to the model. The generated text is in the text element.
         * "status": a STRING value that contains the API response status for the corresponding row. This value is empty if the operation was successful.
     """
 

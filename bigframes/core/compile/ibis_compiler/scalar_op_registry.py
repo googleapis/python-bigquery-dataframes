@@ -1968,26 +1968,24 @@ def struct_op_impl(
 @scalar_op_compiler.register_nary_op(ops.AIGenerateBool, pass_op=True)
 def ai_generate_bool(
     *values: ibis_types.Value, op: ops.AIGenerateBool
-) -> ibis_dtypes.StructValue:
+) -> ibis_types.StructValue:
 
-    prompt = {}
+    prompt: dict[str, ibis_types.Value | str] = {}
     column_ref_idx = 0
 
     for idx, elem in enumerate(op.prompt_context):
         if elem is None:
-            value = values[column_ref_idx]
+            prompt[f"_field_{idx + 1}"] = values[column_ref_idx]
             column_ref_idx += 1
         else:
-            value = elem
-
-        prompt[f"_field_{idx + 1}"] = value
+            prompt[f"_field_{idx + 1}"] = elem
 
     return ai_ops.AIGenerateBool(
-        ibis.struct(prompt),
-        op.connection_id,
-        op.endpoint,
-        op.request_type.upper(),
-        op.model_params,
+        ibis.struct(prompt),  # type: ignore  
+        op.connection_id,# type: ignore
+        op.endpoint,# type: ignore
+        op.request_type.upper(),# type: ignore
+        op.model_params,# type: ignore
     ).to_expr()
 
 
