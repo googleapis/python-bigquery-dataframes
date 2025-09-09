@@ -49,7 +49,6 @@ import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
-import google.cloud.storage as storage  # type: ignore
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -1424,7 +1423,7 @@ class Session(
         if filepath.startswith("gs://"):  # GCS file path
             bucket_name, blob_path = filepath.split("/", 3)[2:]
 
-            client = storage.Client()
+            client = self._clients_provider.storageclient
             bucket = client.bucket(bucket_name)
 
             list_blobs_params = inspect.signature(bucket.list_blobs).parameters
@@ -1510,6 +1509,9 @@ class Session(
         cloud_function_timeout: Optional[int] = 600,
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_vpc_connector_egress_settings: Literal[
+            "all", "private-ranges-only", "unspecified"
+        ] = "private-ranges-only",
         cloud_function_memory_mib: Optional[int] = 1024,
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
@@ -1675,6 +1677,13 @@ class Session(
                 function. This is useful if your code needs access to data or
                 service(s) that are on a VPC network. See for more details
                 https://cloud.google.com/functions/docs/networking/connecting-vpc.
+            cloud_function_vpc_connector_egress_settings (str, Optional):
+                Egress settings for the VPC connector, controlling what outbound
+                traffic is routed through the VPC connector.
+                Options are: `all`, `private-ranges-only`, or `unspecified`.
+                If not specified, `private-ranges-only` is used by default.
+                See for more details
+                https://cloud.google.com/run/docs/configuring/vpc-connectors#egress-job.
             cloud_function_memory_mib (int, Optional):
                 The amounts of memory (in mebibytes) to allocate for the cloud
                 function (2nd gen) created. This also dictates a corresponding
@@ -1732,6 +1741,7 @@ class Session(
             cloud_function_timeout=cloud_function_timeout,
             cloud_function_max_instances=cloud_function_max_instances,
             cloud_function_vpc_connector=cloud_function_vpc_connector,
+            cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
             cloud_build_service_account=cloud_build_service_account,
