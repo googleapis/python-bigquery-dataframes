@@ -126,8 +126,7 @@ class StreamingBase:
                 job_id_prefix parameter of
                 https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
             start_timestamp (int, float, str, datetime, date, default None):
-                The start timestamp of the query. Possible values should be within the recent 7 days. If None, will start from the max value, 7 days ago. If pass in time zone naive values, use UTC time zone.
-
+                The starting timestamp for the query. Possible values are to 7 days in the past. If don't specify a timestamp (None), the query will default to the earliest possible time, 7 days ago. If provide a time-zone-naive timestamp, it will be treated as UTC.
         Returns:
             google.cloud.bigquery.QueryJob:
                 See https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob
@@ -193,7 +192,7 @@ class StreamingBase:
                 job_id_prefix parameter of
                 https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
             start_timestamp (int, float, str, datetime, date, default None):
-                The start timestamp of the query. Possible values should be within the recent 7 days. If None, will start from the max value, 7 days ago. If pass in time zone naive values, use UTC time zone.
+                The starting timestamp for the query. Possible values are to 7 days in the past. If don't specify a timestamp (None), the query will default to the earliest possible time, 7 days ago. If provide a time-zone-naive timestamp, it will be treated as UTC.
 
         Returns:
             google.cloud.bigquery.QueryJob:
@@ -318,7 +317,7 @@ class StreamingDataFrame(StreamingBase):
 
         # TODO(b/405691193): set start time back to NULL. Now set it slightly after 7 days max interval to avoid the bug.
         start_ts_str = (
-            str(pd.to_datetime(start_timestamp))
+            str(f"TIMESTAMP('{pd.to_datetime(start_timestamp)}')")
             if start_timestamp
             else "CURRENT_TIMESTAMP() - (INTERVAL 7 DAY - INTERVAL 5 MINUTE)"
         )

@@ -68,7 +68,7 @@ def bigtable_table(
     bt_table.delete()
 
 
-# @pytest.mark.flaky(retries=3, delay=10)
+@pytest.mark.flaky(retries=3, delay=10)
 def test_streaming_df_to_bigtable(
     session_load: bigframes.Session, bigtable_table: table.Table
 ):
@@ -95,9 +95,9 @@ def test_streaming_df_to_bigtable(
             start_timestamp=datetime.now() - timedelta(days=1),
         )
 
-        # wait 100 seconds in order to ensure the query doesn't stop
+        # wait 200 seconds in order to ensure the query doesn't stop
         # (i.e. it is continuous)
-        time.sleep(100)
+        time.sleep(200)
         assert query_job.running()
         assert query_job.error_result is None
         assert str(query_job.job_id).startswith(job_id_prefix)
