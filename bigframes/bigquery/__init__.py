@@ -18,7 +18,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. "
 
 import sys
 
-from bigframes.bigquery._operations.ai import ai_generate_bool
+from bigframes.bigquery._operations import ai
 from bigframes.bigquery._operations.approx_agg import approx_top_count
 from bigframes.bigquery._operations.array import (
     array_agg,
@@ -58,8 +58,6 @@ from bigframes.bigquery._operations.struct import struct
 from bigframes.core import log_adapter
 
 _functions = [
-    # ai ops
-    ai_generate_bool,
     # approximate aggregate ops
     approx_top_count,
     # array ops
@@ -99,7 +97,7 @@ _functions = [
     struct,
 ]
 
-__all__ = [f.__name__ for f in _functions]
+__all__ = [f.__name__ for f in _functions] + ["ai"]
 
 _module = sys.modules[__name__]
 for f in _functions:

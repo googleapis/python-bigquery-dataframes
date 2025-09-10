@@ -25,7 +25,7 @@ def test_ai_generate_bool(session):
     prompt = (s1, " is a ", s2)
     model_params = {"generation_config": {"thinking_config": {"thinking_budget": 0}}}
 
-    result = bbq.ai_generate_bool(
+    result = bbq.ai.generate_bool(
         prompt, endpoint="gemini-2.5-flash", model_params=model_params
     ).struct.field("result")
 

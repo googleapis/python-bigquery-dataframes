@@ -18,10 +18,12 @@ import json
 from typing import Any, List, Literal, Mapping, Tuple
 
 from bigframes import clients, dtypes, series
+from bigframes.core import log_adapter
 from bigframes.operations import ai_ops
 
 
-def ai_generate_bool(
+@log_adapter.method_logger(custom_base_name="bigquery_ai")
+def generate_bool(
     prompt: series.Series | List[str | series.Series] | Tuple[str | series.Series, ...],
     *,
     connection_id: str | None = None,

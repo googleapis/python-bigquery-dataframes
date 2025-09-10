@@ -23,7 +23,7 @@ def test_ai_generate_bool_multi_model(session):
         "gs://bigframes-dev-testing/a_multimodel/images/*", name="image"
     )
 
-    result = bbq.ai_generate_bool((df["image"], " contains an animal")).struct.field(
+    result = bbq.ai.generate_bool((df["image"], " contains an animal")).struct.field(
         "result"
     )
 
