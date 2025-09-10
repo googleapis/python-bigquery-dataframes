@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""This module integrates BigQuery built-in AI functions for use with Series/DataFrame objects,
+such as AI.GENERTAL_BOOL:
+https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-generate-bool"""
+
 from __future__ import annotations
 
 import json
