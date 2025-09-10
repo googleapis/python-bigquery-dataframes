@@ -74,6 +74,13 @@ def scalars_array_value(
 
 
 @pytest.fixture(scope="module")
+def nested_array_value(
+    nested_data_source: local_data.ManagedArrowTable, fake_session: bigframes.Session
+):
+    return ArrayValue.from_managed(nested_data_source, fake_session)
+
+
+@pytest.fixture(scope="module")
 def zero_row_source() -> local_data.ManagedArrowTable:
     return local_data.ManagedArrowTable.from_pandas(pd.DataFrame({"a": [], "b": []}))
 
