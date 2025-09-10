@@ -15,13 +15,16 @@
 """Module for bigquery continuous queries"""
 from __future__ import annotations
 
+from abc import abstractmethod
+from datetime import date, datetime
 import functools
 import inspect
 import json
-from typing import Optional
+from typing import Optional, Union
 import warnings
 
 from google.cloud import bigquery
+import pandas as pd
 
 from bigframes import dataframe
 from bigframes.core import log_adapter, nodes
@@ -54,8 +57,13 @@ def _curate_df_doc(doc: Optional[str]):
 
 
 class StreamingBase:
-    _appends_sql: str
     _session: bigframes.session.Session
+
+    @abstractmethod
+    def _appends_sql(
+        self, start_timestamp: Optional[Union[int, float, str, datetime, date]]
+    ) -> str:
+        pass
 
     def to_bigtable(
         self,
@@ -70,6 +78,8 @@ class StreamingBase:
         bigtable_options: Optional[dict] = None,
         job_id: Optional[str] = None,
         job_id_prefix: Optional[str] = None,
+        start_timestamp: Optional[Union[int, float, str, datetime, date]] = None,
+        end_timestamp: Optional[Union[int, float, str, datetime, date]] = None,
     ) -> bigquery.QueryJob:
         """
         Export the StreamingDataFrame as a continue job and returns a
@@ -115,6 +125,8 @@ class StreamingBase:
                 If specified, a job id prefix for the query, see
                 job_id_prefix parameter of
                 https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+            start_timestamp (int, float, str, datetime, date, default None):
+                The start timestamp of the query. Possible values should be within the recent 7 days. If None, will start from the max value, 7 days ago. If pass in time zone naive values, use UTC time zone.
 
         Returns:
             google.cloud.bigquery.QueryJob:
@@ -123,8 +135,15 @@ class StreamingBase:
                 For example, the job can be cancelled or its error status
                 can be examined.
         """
+        if not isinstance(
+            start_timestamp, (int, float, str, datetime, date, type(None))
+        ):
+            raise ValueError(
+                f"Unsupported start_timestamp type {type(start_timestamp)}"
+            )
+
         return _to_bigtable(
-            self._appends_sql,
+            self._appends_sql(start_timestamp),
             instance=instance,
             table=table,
             service_account_email=service_account_email,
@@ -145,6 +164,7 @@ class StreamingBase:
         service_account_email: str,
         job_id: Optional[str] = None,
         job_id_prefix: Optional[str] = None,
+        start_timestamp: Optional[Union[int, float, str, datetime, date]] = None,
     ) -> bigquery.QueryJob:
         """
         Export the StreamingDataFrame as a continue job and returns a
@@ -172,6 +192,8 @@ class StreamingBase:
                 If specified, a job id prefix for the query, see
                 job_id_prefix parameter of
                 https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.client.Client#google_cloud_bigquery_client_Client_query
+            start_timestamp (int, float, str, datetime, date, default None):
+                The start timestamp of the query. Possible values should be within the recent 7 days. If None, will start from the max value, 7 days ago. If pass in time zone naive values, use UTC time zone.
 
         Returns:
             google.cloud.bigquery.QueryJob:
@@ -180,8 +202,15 @@ class StreamingBase:
                 For example, the job can be cancelled or its error status
                 can be examined.
         """
+        if not isinstance(
+            start_timestamp, (int, float, str, datetime, date, type(None))
+        ):
+            raise ValueError(
+                f"Unsupported start_timestamp type {type(start_timestamp)}"
+            )
+
         return _to_pubsub(
-            self._appends_sql,
+            self._appends_sql(start_timestamp),
             topic=topic,
             service_account_email=service_account_email,
             session=self._session,
@@ -280,14 +309,21 @@ class StreamingDataFrame(StreamingBase):
     sql.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.sql))
 
     # Patch for the required APPENDS clause
-    @property
-    def _appends_sql(self):
+    def _appends_sql(
+        self, start_timestamp: Optional[Union[int, float, str, datetime, date]]
+    ) -> str:
         sql_str = self.sql
         original_table = self._original_table
         assert original_table is not None
 
         # TODO(b/405691193): set start time back to NULL. Now set it slightly after 7 days max interval to avoid the bug.
-        appends_clause = f"APPENDS(TABLE `{original_table}`, CURRENT_TIMESTAMP() - (INTERVAL 7 DAY - INTERVAL 5 MINUTE))"
+        start_ts_str = (
+            str(pd.to_datetime(start_timestamp))
+            if start_timestamp
+            else "CURRENT_TIMESTAMP() - (INTERVAL 7 DAY - INTERVAL 5 MINUTE)"
+        )
+
+        appends_clause = f"APPENDS(TABLE `{original_table}`, {start_ts_str})"
         sql_str = sql_str.replace(f"`{original_table}`", appends_clause)
         return sql_str
 

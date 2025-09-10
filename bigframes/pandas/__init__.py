@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
-from datetime import datetime
+from datetime import date, datetime
 import inspect
 import sys
 import typing
@@ -194,7 +194,7 @@ def to_datetime(
 
 @typing.overload
 def to_datetime(
-    arg: Union[int, float, str, datetime],
+    arg: Union[int, float, str, datetime, date],
     *,
     utc: bool = False,
     format: Optional[str] = None,
@@ -205,7 +205,7 @@ def to_datetime(
 
 def to_datetime(
     arg: Union[
-        Union[int, float, str, datetime],
+        Union[int, float, str, datetime, date],
         vendored_pandas_datetimes.local_iterables,
         bigframes.series.Series,
         bigframes.dataframe.DataFrame,
