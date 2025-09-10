@@ -149,19 +149,22 @@ def class_logger(decorated_cls=None):
     return wrap(decorated_cls)
 
 
-def method_logger(method = None, /, *, custom_base_name: Optional[str] = None):
+def method_logger(method=None, /, *, custom_base_name: Optional[str] = None):
     """Decorator that adds logging functionality to a method."""
 
     def outer_wrapper(method):
-
         @functools.wraps(method)
         def wrapper(*args, **kwargs):
             api_method_name = getattr(method, LOG_OVERRIDE_NAME, method.__name__)
             if custom_base_name is None:
-                qualname_parts = getattr(method, "__qualname__", method.__name__).split(".")
+                qualname_parts = getattr(method, "__qualname__", method.__name__).split(
+                    "."
+                )
                 class_name = qualname_parts[-2] if len(qualname_parts) > 1 else ""
                 base_name = (
-                    class_name if class_name else "_".join(method.__module__.split(".")[1:])
+                    class_name
+                    if class_name
+                    else "_".join(method.__module__.split(".")[1:])
                 )
             else:
                 base_name = custom_base_name
@@ -194,13 +197,13 @@ def method_logger(method = None, /, *, custom_base_name: Optional[str] = None):
                 _call_stack.pop()
 
         return wrapper
-    
+
     if method is None:
         # Called with parentheses
         return outer_wrapper
 
     # Called without parentheses
-    return outer_wrapper(method) 
+    return outer_wrapper(method)
 
 
 def property_logger(prop):

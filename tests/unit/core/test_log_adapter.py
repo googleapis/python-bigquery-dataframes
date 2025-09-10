@@ -102,7 +102,6 @@ def test_method_logging_with_custom_base_name(test_method_w_custom_base):
 
 
 def test_method_logging_with_custom_base__logger_as_decorator():
-    
     @log_adapter.method_logger(custom_base_name="pandas")
     def my_method():
         pass
