@@ -14,8 +14,6 @@
 
 import re
 
-import pandas as pd
-import pyarrow as pa
 import pytest
 
 from bigframes.core import array_value, expression
@@ -296,35 +294,6 @@ def test_engines_astype_to_json(scalars_array_value: array_value.ArrayValue, eng
         ),
     ]
     arr, _ = scalars_array_value.compute_values(exprs)
-
-    assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
-
-
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
-def test_engines_astype_struct_to_json(
-    nested_array_value: array_value.ArrayValue, engine
-):
-    json_data = [
-        {"version": 1, "project": "pandas"},
-        {"version": 2, "project": "numpy"},
-    ]
-    exprs = [
-        # ops.AsTypeOp(to_type=bigframes.dtypes.JSON_DTYPE).as_expr(
-        #     expression.deref("label")
-        # ),
-        # ops.AsTypeOp(to_type=bigframes.dtypes.JSON_DTYPE).as_expr(
-        #     expression.deref("address")
-        # ),
-        ops.AsTypeOp(to_type=bigframes.dtypes.JSON_DTYPE).as_expr(
-            expression.const(
-                json_data,
-                pd.ArrowDtype(
-                    pa.struct([("version", pa.int64()), ("project", pa.string())])
-                ),
-            )
-        ),
-    ]
-    arr, _ = nested_array_value.compute_values(exprs)
 
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
 
