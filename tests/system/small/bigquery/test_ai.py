@@ -26,11 +26,10 @@ def test_ai_generate_bool(session):
     s1 = bpd.Series(["apple", "bear"], session=session)
     s2 = bpd.Series(["fruit", "tree"], session=session)
     prompt = (s1, " is a ", s2)
-    model_params = {"generation_config": {"thinking_config": {"thinking_budget": 0}}}
 
-    result = bbq.ai.generate_bool(
-        prompt, endpoint="gemini-2.5-flash", model_params=model_params
-    ).struct.field("result")
+    result = bbq.ai.generate_bool(prompt, endpoint="gemini-2.5-flash").struct.field(
+        "result"
+    )
 
     pandas.testing.assert_series_equal(
         result.to_pandas(),
