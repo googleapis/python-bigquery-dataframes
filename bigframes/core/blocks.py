@@ -2797,7 +2797,9 @@ class Block:
             elif type_ == bigframes.dtypes.BOOL_DTYPE:
                 # cast operator produces True/False, but function template expects lower case
                 column_references.append(
-                    ops.where_op.as_expr(ex.const("true"), col, ex.const("false"))
+                    ops.lower_op.as_expr(
+                        ops.AsTypeOp(bigframes.dtypes.STRING_DTYPE).as_expr(col)
+                    )
                 )
             else:
                 column_references.append(
