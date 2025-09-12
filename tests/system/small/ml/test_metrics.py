@@ -766,6 +766,20 @@ def test_precision_score_binary(session, pos_label, expected_score):
     assert precision_score == pytest.approx(expected_score)
 
 
+def test_precision_score_binary_default_arguments(session):
+    pd_df = pd.DataFrame(
+        {
+            "y_true": [1, 1, 1, 0, 0],
+            "y_pred": [0, 0, 1, 1, 1],
+        }
+    )
+    df = session.read_pandas(pd_df)
+
+    precision_score = metrics.precision_score(df["y_true"], df["y_pred"])
+
+    assert precision_score == pytest.approx(1 / 3)
+
+
 @pytest.mark.parametrize(
     ("y_true", "y_pred", "pos_label"),
     [
