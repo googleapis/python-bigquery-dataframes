@@ -1197,6 +1197,11 @@ def test_assign_new_column_w_setitem_list_error(scalars_dfs):
         pytest.param(
             ["new_col", "new_col_too"], [1, 2], id="sequence_to_full_new_column"
         ),
+        pytest.param(
+            pd.Index(("new_col", "new_col_too")),
+            [1, 2],
+            id="sequence_to_full_new_column_as_index",
+        ),
     ],
 )
 def test_setitem_multicolumn_with_literals(scalars_dfs, key, value):
@@ -6011,11 +6016,26 @@ def test_astype_invalid_type_fail(scalars_dfs):
         bf_df.astype(123)
 
 
-def test_agg_with_dict_lists(scalars_dfs):
+def test_agg_with_dict_lists_strings(scalars_dfs):
     bf_df, pd_df = scalars_dfs
     agg_funcs = {
         "int64_too": ["min", "max"],
         "int64_col": ["min", "count"],
+    }
+
+    bf_result = bf_df.agg(agg_funcs).to_pandas()
+    pd_result = pd_df.agg(agg_funcs)
+
+    pd.testing.assert_frame_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_agg_with_dict_lists_callables(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+    agg_funcs = {
+        "int64_too": [np.min, np.max],
+        "int64_col": [np.min, np.var],
     }
 
     bf_result = bf_df.agg(agg_funcs).to_pandas()
