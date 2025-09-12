@@ -2792,10 +2792,13 @@ class Block:
         column_types = list(self.index.dtypes) + list(self.dtypes)
         column_references = []
         for type_, col in zip(column_types, self.expr.column_ids):
-            if isinstance(type_, pd.ArrowDtype) and pa.types.is_binary(
-                type_.pyarrow_dtype
-            ):
+            if type_ == bigframes.dtypes.BYTES_DTYPE:
                 column_references.append(ops.ToJSONString().as_expr(col))
+            elif type_ == bigframes.dtypes.BOOL_DTYPE:
+                # cast operator produces True/False, but function template expects lower case
+                column_references.append(
+                    ops.where_op.as_expr(ex.const("true"), col, ex.const("false"))
+                )
             else:
                 column_references.append(
                     ops.AsTypeOp(bigframes.dtypes.STRING_DTYPE).as_expr(col)
