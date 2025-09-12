@@ -219,7 +219,7 @@ def test_dataframe_groupby_agg_size_string(scalars_df_index, scalars_pandas_df_i
 def test_dataframe_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
     bf_result = (
-        scalars_df_index[col_names].groupby("string_col").agg(["count", "min", "size"])
+        scalars_df_index[col_names].groupby("string_col").agg(["count", np.min, "size"])
     )
     pd_result = (
         scalars_pandas_df_index[col_names]
@@ -228,7 +228,11 @@ def test_dataframe_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
     )
     bf_result_computed = bf_result.to_pandas()
 
-    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+    # some inconsistency between versions, so normalize to bigframes behavior
+    pd_result = pd_result.rename({"amin": "min"}, axis="columns")
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result_computed, check_dtype=False, check_index_type=False
+    )
 
 
 def test_dataframe_groupby_agg_list_w_column_multi_index(
@@ -275,6 +279,8 @@ def test_dataframe_groupby_agg_dict_with_list(
     )
     bf_result_computed = bf_result.to_pandas()
 
+    # some inconsistency between versions, so normalize to bigframes behavior
+    pd_result = pd_result.rename({"amax": "max"}, axis="columns")
     pd.testing.assert_frame_equal(
         pd_result, bf_result_computed, check_dtype=False, check_index_type=False
     )
