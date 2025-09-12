@@ -347,12 +347,10 @@ class SQLGlotIR:
         left_cte_name = sge.to_identifier(
             next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
-        right_cte_name = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
-        )
 
         left_select = _select_to_cte(self.expr, left_cte_name)
-        right_select = _select_to_cte(right.expr, right_cte_name)
+        # Prefer subquery over CTE for the IN clause's right side to improve SQL readability.
+        right_select = right.expr
 
         left_ctes = left_select.args.pop("with", [])
         right_ctes = right_select.args.pop("with", [])
@@ -362,17 +360,20 @@ class SQLGlotIR:
             sge.Column(this=conditions[0].expr, table=left_cte_name),
             conditions[0].dtype,
         )
-        right_condition = typed_expr.TypedExpr(
-            sge.Column(this=conditions[1].expr, table=right_cte_name),
-            conditions[1].dtype,
-        )
 
         new_column: sge.Expression
         if joins_nulls:
+            right_table_name = sge.to_identifier(
+                next(self.uid_gen.get_uid_stream("bft_")), quoted=self.quoted
+            )
+            right_condition = typed_expr.TypedExpr(
+                sge.Column(this=conditions[1].expr, table=right_table_name),
+                conditions[1].dtype,
+            )
             new_column = sge.Exists(
                 this=sge.Select()
                 .select(sge.convert(1))
-                .from_(sge.Table(this=right_cte_name))
+                .from_(sge.Alias(this=right_select.subquery(), alias=right_table_name))
                 .where(
                     _join_condition(left_condition, right_condition, joins_nulls=True)
                 )
@@ -380,7 +381,7 @@ class SQLGlotIR:
         else:
             new_column = sge.In(
                 this=left_condition.expr,
-                expressions=[right_condition.expr],
+                expressions=[right_select.subquery()],
             )
 
         new_column = sge.Alias(
