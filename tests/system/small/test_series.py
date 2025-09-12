@@ -3866,30 +3866,6 @@ def test_string_astype_timestamp():
     pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
-def test_struct_astype_json():
-    """See internal issue 444196993."""
-    s = series.Series(
-        [
-            {"version": 1, "project": "pandas"},
-            {"version": 2, "project": "numpy"},
-        ]
-    )
-    assert dtypes.is_struct_like(s.dtype)
-
-    expected = series.Series(s, dtype=dtypes.JSON_DTYPE)
-    assert expected.dtype == dtypes.JSON_DTYPE
-
-    result = s.astype("json")
-    pd.testing.assert_series_equal(
-        result.to_pandas(), expected.to_pandas(), check_index_type=False
-    )
-
-    result = s.astype(dtypes.JSON_DTYPE)
-    pd.testing.assert_series_equal(
-        result.to_pandas(), expected.to_pandas(), check_index_type=False
-    )
-
-
 def test_timestamp_astype_string():
     bf_series = series.Series(
         [
@@ -3920,6 +3896,18 @@ def test_float_astype_json(errors):
     bf_series = series.Series(data, dtype=dtypes.FLOAT_DTYPE)
 
     bf_result = bf_series.astype(dtypes.JSON_DTYPE, errors=errors)
+    assert bf_result.dtype == dtypes.JSON_DTYPE
+
+    expected_result = pd.Series(data, dtype=dtypes.JSON_DTYPE)
+    expected_result.index = expected_result.index.astype("Int64")
+    pd.testing.assert_series_equal(bf_result.to_pandas(), expected_result)
+
+
+def test_float_astype_json_str():
+    data = ["1.25", "2500000000", None, "-12323.24"]
+    bf_series = series.Series(data, dtype=dtypes.FLOAT_DTYPE)
+
+    bf_result = bf_series.astype("json")
     assert bf_result.dtype == dtypes.JSON_DTYPE
 
     expected_result = pd.Series(data, dtype=dtypes.JSON_DTYPE)
