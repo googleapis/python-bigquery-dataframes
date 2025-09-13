@@ -773,7 +773,9 @@ class Value(Expr):
 
         @deferrable
         def bind(table):
-            winfunc = rewrite_window_input(node, window.bind(table))
+            winfunc = rewrite_window_input(
+                node, window.bind(table) if table else window
+            )
             if winfunc == node:
                 raise com.IbisTypeError(
                     "No reduction or analytic function found to construct a window expression"
@@ -782,7 +784,7 @@ class Value(Expr):
 
         try:
             return bind(table)
-        except com.IbisInputError:
+        except com.IbisInputError as e:
             return bind(_)
 
     def isnull(self) -> ir.BooleanValue:
