@@ -474,8 +474,9 @@ class UnorderedIR:
             else:
                 # Operations like count treat even NULLs as valid observations for the sake of min_periods
                 # notnull is just used to convert null values to non-null (FALSE) values to be counted
+                is_observation = ops.notnull_op.as_expr(expression.inputs[0])
                 observation_count_expr = agg_expressions.WindowExpression(
-                    agg_ops.size_op.as_expr(),
+                    agg_ops.count_op.as_expr(is_observation),
                     window_spec,
                 )
             clauses.append(
