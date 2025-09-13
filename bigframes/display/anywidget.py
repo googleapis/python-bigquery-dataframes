@@ -17,7 +17,7 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-from typing import Any, Dict, Iterator, List, Optional, Type
+from typing import Any, cast, Dict, Iterator, List, Optional, Type
 import uuid
 
 import pandas as pd
@@ -52,6 +52,17 @@ class TableWidget(WIDGET_BASE):
     large BigQuery DataFrames within a Jupyter environment.
     """
 
+    page_size = traitlets.Int(0).tag(sync=True)
+    # Use dynamic default
+    page_size = traitlets.Int().tag(sync=True)
+    row_count = traitlets.Int(0).tag(sync=True)
+    table_html = traitlets.Unicode().tag(sync=True)
+
+    @traitlets.default("page_size")
+    def _page_size_default(self):
+        """Set the default page size from display options."""
+        return bigframes.options.display.max_rows
+
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """Initialize the TableWidget.
 
@@ -76,21 +87,15 @@ class TableWidget(WIDGET_BASE):
         # Respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
-        execute_result = dataframe._block.session._executor.execute(
-            dataframe._block.expr,
-            ordered=True,
-            use_explicit_destination=True,
+        self._batches: bigframes.core.blocks.PandasBatches = cast(
+            bigframes.core.blocks.PandasBatches,
+            dataframe.to_pandas_batches(page_size=initial_page_size),
         )
 
         # The query issued by `to_pandas_batches()` already contains metadata
         # about how many results there were. Use that to avoid doing an extra
         # COUNT(*) query that `len(...)` would do.
-        self.row_count = execute_result.total_rows or 0
-
-        # Create pandas batches from the ExecuteResult
-        self._batches = execute_result.to_pandas_batches(page_size=initial_page_size)
-
-        self.page_size = initial_page_size
+        self.row_count = self._batches.total_rows or 0
 
         self._set_table_html()
         self._initializing = False
@@ -106,7 +111,7 @@ class TableWidget(WIDGET_BASE):
         return resources.read_text(bigframes.display, "table_widget.css")
 
     page = traitlets.Int(0).tag(sync=True)
-    page_size = traitlets.Int(25).tag(sync=True)
+    page_size = traitlets.Int().tag(sync=True)
     row_count = traitlets.Int(0).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
 
@@ -187,16 +192,10 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        # Execute with explicit destination for consistency with __init__
-        execute_result = self._dataframe._block.session._executor.execute(
-            self._dataframe._block.expr,
-            ordered=True,
-            use_explicit_destination=True,
+        self._batches = cast(
+            bigframes.core.blocks.PandasBatches,
+            self._dataframe.to_pandas_batches(page_size=self.page_size),
         )
-
-        # Create pandas batches from the ExecuteResult
-        self._batches = execute_result.to_pandas_batches(page_size=self.page_size)
-
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False
