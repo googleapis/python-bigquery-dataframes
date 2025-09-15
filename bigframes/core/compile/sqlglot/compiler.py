@@ -254,11 +254,11 @@ class SQLGlotCompiler:
     ) -> ir.SQLGlotIR:
         conditions = (
             typed_expr.TypedExpr(
-                scalar_compiler.compile_scalar_expression(node.left_col),
+                scalar_compiler.scalar_op_compiler.compile_expression(node.left_col),
                 node.left_col.output_type,
             ),
             typed_expr.TypedExpr(
-                scalar_compiler.compile_scalar_expression(node.right_col),
+                scalar_compiler.scalar_op_compiler.compile_expression(node.right_col),
                 node.right_col.output_type,
             ),
         )
