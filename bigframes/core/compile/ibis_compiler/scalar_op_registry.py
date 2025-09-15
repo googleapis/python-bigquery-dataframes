@@ -1303,8 +1303,8 @@ def parse_json_op_impl(x: ibis_types.Value, op: ops.ParseJSON):
 
 
 @scalar_op_compiler.register_unary_op(ops.ToJSONString)
-def to_json_string_op_impl(json_obj: ibis_types.Value):
-    return to_json_string(json_obj=json_obj)
+def to_json_string_op_impl(x: ibis_types.Value):
+    return to_json_string(value=x)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONValue, pass_op=True)
@@ -2094,10 +2094,8 @@ def json_extract_string_array(  # type: ignore[empty-body]
 
 
 @ibis_udf.scalar.builtin(name="to_json_string")
-def to_json_string(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON,
-) -> ibis_dtypes.String:
-    """Convert JSON to STRING."""
+def to_json_string(value) -> ibis_dtypes.String:  # type: ignore[empty-body]
+    """Convert value to JSON-formatted string."""
 
 
 @ibis_udf.scalar.builtin(name="json_value")
