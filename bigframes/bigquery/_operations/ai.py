@@ -19,7 +19,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-
 from __future__ import annotations
 
 import json
-from typing import Any, List, Literal, Mapping, Tuple
+from typing import Any, List, Literal, Mapping, Tuple, Union
 
 import pandas as pd
 
@@ -27,12 +27,12 @@ from bigframes import clients, dtypes, series, session
 from bigframes.core import convert, log_adapter
 from bigframes.operations import ai_ops
 
-PROMPT_TYPE = (
-    series.Series
-    | pd.Series
-    | List[str | series.Series | pd.Series]
-    | Tuple[str | series.Series | pd.Series, ...]
-)
+PROMPT_TYPE = Union[
+    series.Series,
+    pd.Series,
+    List[Union[str, series.Series, pd.Series]],
+    Tuple[Union[str, series.Series, pd.Series], ...],
+]
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ai")
