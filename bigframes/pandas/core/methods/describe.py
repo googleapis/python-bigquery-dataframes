@@ -16,8 +16,16 @@ from __future__ import annotations
 
 import typing
 
+import pandas as pd
+
 from bigframes import dataframe, dtypes, series
+from bigframes.core import agg_expressions, blocks
 from bigframes.core.reshape import api as rs
+from bigframes.operations import aggregations
+
+_DEFAULT_DTYPES = (
+    dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE + dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES
+)
 
 
 def describe(
@@ -33,8 +41,7 @@ def describe(
     if include is None:
         numeric_df = _select_dtypes(
             input,
-            dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-            + dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES,
+            _DEFAULT_DTYPES,
         )
         if len(numeric_df.columns) == 0:
             # Describe eligible non-numeric columns
@@ -59,6 +66,62 @@ def describe(
 
     else:
         raise ValueError(f"Unsupported include type: {include}")
+
+
+def _describe(
+    block: blocks.Block,
+    columns: typing.Sequence[str],
+    include: None | typing.Literal["all"] = None,
+    *,
+    as_index: bool = True,
+    by_col_ids: typing.Sequence[str] = [],
+    dropna: bool = False,
+) -> blocks.Block:
+    stats: list[agg_expressions.Aggregation] = []
+    column_labels: list[typing.Hashable] = []
+
+    for col_id in columns:
+        label = block.col_id_to_label[col_id]
+        dtype = block.expr.get_column_type(col_id)
+        if include != "all" and dtype not in _DEFAULT_DTYPES:
+            continue
+        agg_ops = _get_aggs_for_dtype(dtype)
+        stats.extend(op.as_expr(col_id) for op in agg_ops)
+        label_tuple = (label,) if block.column_labels.nlevels == 1 else label
+        column_labels.extend((*label_tuple, op.name) for op in agg_ops)  # type: ignore
+
+    agg_block, _ = block.aggregate(
+        by_column_ids=by_col_ids,
+        aggregations=stats,
+        dropna=dropna,
+        column_labels=pd.Index(column_labels, name=(*block.index.names, None)),
+    )
+    return agg_block if as_index else agg_block.reset_index(drop=False)
+
+
+def _get_aggs_for_dtype(dtype) -> list[aggregations.UnaryAggregateOp]:
+    if dtype in dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE:
+        return [
+            aggregations.count_op,
+            aggregations.mean_op,
+            aggregations.std_op,
+            aggregations.min_op,
+            aggregations.ApproxQuartilesOp(1),
+            aggregations.ApproxQuartilesOp(2),
+            aggregations.ApproxQuartilesOp(3),
+            aggregations.max_op,
+        ]
+    elif dtype in dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES:
+        return [aggregations.count_op]
+    elif dtype in [
+        dtypes.STRING_DTYPE,
+        dtypes.BOOL_DTYPE,
+        dtypes.BYTES_DTYPE,
+        dtypes.TIME_DTYPE,
+    ]:
+        return [aggregations.count_op, aggregations.nunique_op]
+    else:
+        return []
 
 
 def _describe_numeric(df: dataframe.DataFrame) -> dataframe.DataFrame:
@@ -91,8 +154,7 @@ def _describe_numeric(df: dataframe.DataFrame) -> dataframe.DataFrame:
 
         original_columns = _select_dtypes(
             df,
-            dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE
-            + dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES,
+            _DEFAULT_DTYPES,
         ).columns
 
         # Use reindex after join to preserve the original column order.
