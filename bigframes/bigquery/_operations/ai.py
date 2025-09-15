@@ -27,13 +27,17 @@ from bigframes import clients, dtypes, series, session
 from bigframes.core import convert, log_adapter
 from bigframes.operations import ai_ops
 
+PROMPT_TYPE = (
+    series.Series
+    | pd.Series
+    | List[str | series.Series | pd.Series]
+    | Tuple[str | series.Series | pd.Series, ...]
+)
+
 
 @log_adapter.method_logger(custom_base_name="bigquery_ai")
 def generate_bool(
-    prompt: series.Series
-    | pd.Series
-    | List[str | series.Series | pd.Series]
-    | Tuple[str | series.Series | pd.Series, ...],
+    prompt: PROMPT_TYPE,
     *,
     connection_id: str | None = None,
     endpoint: str | None = None,
@@ -127,7 +131,7 @@ def generate_bool(
 
 
 def _separate_context_and_series(
-    prompt: series.Series | List[str | series.Series] | Tuple[str | series.Series, ...],
+    prompt: PROMPT_TYPE,
 ) -> Tuple[List[str | None], List[series.Series]]:
     """
     Returns the two values. The first value is the prompt with all series replaced by None. The second value is all the series
