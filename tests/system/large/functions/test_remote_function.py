@@ -1478,14 +1478,20 @@ def test_remote_function_via_session_vpc(scalars_dfs):
             reuse=False,
             cloud_function_service_account="default",
             cloud_function_vpc_connector=gcf_vpc_connector,
+            cloud_function_vpc_connector_egress_settings="all",
             cloud_function_ingress_settings="all",
         )(square_num)
 
-        # assert that the GCF is created with the intended vpc connector
         gcf = rf_session.cloudfunctionsclient.get_function(
             name=square_num_remote.bigframes_cloud_function
         )
+
+        # assert that the GCF is created with the intended vpc connector and
+        # egress settings.
         assert gcf.service_config.vpc_connector == gcf_vpc_connector
+        # The value is <VpcConnectorEgressSettings.ALL_TRAFFIC: 2> since we set
+        # cloud_function_vpc_connector_egress_settings="all" earlier.
+        assert gcf.service_config.vpc_connector_egress_settings == 2
 
         # assert that the function works as expected on data
         scalars_df, scalars_pandas_df = scalars_dfs
@@ -1504,6 +1510,46 @@ def test_remote_function_via_session_vpc(scalars_dfs):
         cleanup_function_assets(
             square_num_remote, rf_session.bqclient, rf_session.cloudfunctionsclient
         )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_no_vpc_connector(session):
+    def foo(x):
+        return x
+
+    with pytest.raises(
+        ValueError,
+        match="^cloud_function_vpc_connector must be specified before cloud_function_vpc_connector_egress_settings",
+    ):
+        session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+            cloud_function_vpc_connector=None,
+            cloud_function_vpc_connector_egress_settings="all",
+            cloud_function_ingress_settings="all",
+        )(foo)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_wrong_vpc_egress_value(session):
+    def foo(x):
+        return x
+
+    with pytest.raises(
+        ValueError,
+        match="^'wrong-egress-value' is not one of the supported vpc egress settings values:",
+    ):
+        session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+            cloud_function_vpc_connector="dummy-value",
+            cloud_function_vpc_connector_egress_settings="wrong-egress-value",
+            cloud_function_ingress_settings="all",
+        )(foo)
 
 
 @pytest.mark.parametrize(
@@ -3066,7 +3112,7 @@ def test_remote_function_df_where_mask_series(session, dataset_id, scalars_dfs):
 
         # Test callable condition in dataframe.where method.
         bf_result = bf_int64_df_filtered.where(
-            is_sum_positive_series, func_for_other
+            is_sum_positive_series_mf, func_for_other
         ).to_pandas()
         pd_result = pd_int64_df_filtered.where(is_sum_positive_series, func_for_other)
 
