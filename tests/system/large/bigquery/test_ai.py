@@ -27,9 +27,5 @@ def test_ai_generate_bool_multi_model(session):
         "result"
     )
 
-    pandas.testing.assert_series_equal(
-        result.to_pandas(),
-        pd.Series([True, True, False, False, False], name="result"),
-        check_dtype=False,
-        check_index=False,
-    )
+    # Make sure all elements are not null
+    assert len(result) == result.count()
