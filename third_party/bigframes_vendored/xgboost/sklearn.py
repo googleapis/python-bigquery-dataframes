@@ -98,9 +98,18 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
         tol (Optional[float]):
             Minimum relative loss improvement necessary to continue training. Default to 0.01.
         enable_global_explain (Optional[bool]):
-            Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
+            Whether to compute global explanations using explainable AI to
+            evaluate global feature importance to the model. Default to False.
         xgboost_version (Optional[str]):
             Specifies the Xgboost version for model training. Default to "0.9". Possible values: "0.9", "1.1".
+        kwargs (dict):
+            Keyword arguments for the ``model_option_list`` of the boosted tree
+            BQML model. See
+            https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-boosted-tree
+
+            For example, to set ``CATEGORY_ENCODING_METHOD`` to
+            ``LABEL_ENCODING``, pass in the keyword argument
+            `category_encoding_method='LABEL_ENCODING'`.
     """
 
 
@@ -148,4 +157,12 @@ class XGBClassifier(XGBModel, XGBClassifierMixIn, XGBClassifierBase):
             Whether to compute global explanations using explainable AI to evaluate global feature importance to the model. Default to False.
         xgboost_version (Optional[str]):
             Specifies the Xgboost version for model training. Default to "0.9". Possible values: "0.9", "1.1".
+        kwargs (dict):
+            Keyword arguments for the ``model_option_list`` of the boosted tree
+            BQML model. See
+            https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-boosted-tree
+
+            For example, to set ``CATEGORY_ENCODING_METHOD`` to
+            ``LABEL_ENCODING``, pass in the keyword argument
+            `category_encoding_method='LABEL_ENCODING'`.
     """

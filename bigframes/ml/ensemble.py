@@ -17,7 +17,7 @@ https://scikit-learn.org/stable/modules/ensemble.html"""
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Union
 
 import bigframes_vendored.sklearn.ensemble._forest
 import bigframes_vendored.xgboost.sklearn
@@ -78,6 +78,7 @@ class XGBRegressor(
         tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
+        **kwargs: Union[str, str | int | bool | float | List[str]],
     ):
         self.n_estimators = n_estimators
         self.booster = booster
@@ -99,6 +100,7 @@ class XGBRegressor(
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
+        self._extra_bqml_options = kwargs
 
     @classmethod
     def _from_bq(
@@ -117,7 +119,7 @@ class XGBRegressor(
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "BOOSTED_TREE_REGRESSOR",
             "data_split_method": "NO_SPLIT",
             "early_stop": True,
@@ -139,6 +141,8 @@ class XGBRegressor(
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
+        options.update(self._extra_bqml_options)
+        return options  # type: ignore
 
     def _fit(
         self,
@@ -237,6 +241,7 @@ class XGBClassifier(
         tol: float = 0.01,
         enable_global_explain: bool = False,
         xgboost_version: Literal["0.9", "1.1"] = "0.9",
+        **kwargs: Union[str, str | int | bool | float | List[str]],
     ):
         self.n_estimators = n_estimators
         self.booster = booster
@@ -258,6 +263,7 @@ class XGBClassifier(
         self.xgboost_version = xgboost_version
         self._bqml_model: Optional[core.BqmlModel] = None
         self._bqml_model_factory = globals.bqml_model_factory()
+        self._extra_bqml_options = kwargs
 
     @classmethod
     def _from_bq(
@@ -276,7 +282,7 @@ class XGBClassifier(
     @property
     def _bqml_options(self) -> Dict[str, str | int | bool | float | List[str]]:
         """The model options as they will be set for BQML"""
-        return {
+        options = {
             "model_type": "BOOSTED_TREE_CLASSIFIER",
             "data_split_method": "NO_SPLIT",
             "early_stop": True,
@@ -298,6 +304,8 @@ class XGBClassifier(
             "enable_global_explain": self.enable_global_explain,
             "xgboost_version": self.xgboost_version,
         }
+        options.update(self._extra_bqml_options)
+        return options  # type: ignore
 
     def _fit(
         self,

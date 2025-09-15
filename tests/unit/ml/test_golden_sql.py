@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import textwrap
 from unittest import mock
 
 from google.cloud import bigquery
@@ -19,7 +20,7 @@ import pandas as pd
 import pytest
 
 import bigframes
-from bigframes.ml import core, decomposition, linear_model
+from bigframes.ml import core, decomposition, ensemble, linear_model
 import bigframes.ml.core
 import bigframes.pandas as bpd
 
@@ -285,4 +286,84 @@ def test_decomposition_mf_score_with_x(mock_session, bqml_model, mock_X):
     mock_session.read_gbq_query.assert_called_once_with(
         "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql_property))",
         allow_large_results=True,
+    )
+
+
+def test_xgb_classifier_kwargs_params_fit(
+    bqml_model_factory, mock_session, mock_X, mock_y
+):
+    model = ensemble.XGBClassifier(category_encoding_method="LABEL_ENCODING")
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        textwrap.dedent(
+            """
+            CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`
+            OPTIONS(
+              model_type='BOOSTED_TREE_CLASSIFIER',
+              data_split_method='NO_SPLIT',
+              early_stop=True,
+              num_parallel_tree=1,
+              booster_type='gbtree',
+              tree_method='auto',
+              min_tree_child_weight=1,
+              colsample_bytree=1.0,
+              colsample_bylevel=1.0,
+              colsample_bynode=1.0,
+              min_split_loss=0.0,
+              max_tree_depth=6,
+              subsample=1.0,
+              l1_reg=0.0,
+              l2_reg=1.0,
+              learn_rate=0.3,
+              max_iterations=20,
+              min_rel_progress=0.01,
+              enable_global_explain=False,
+              xgboost_version='0.9',
+              category_encoding_method='LABEL_ENCODING',
+              INPUT_LABEL_COLS=['input_column_label'])
+            AS input_X_y_no_index_sql
+            """
+        ).strip()
+    )
+
+
+def test_xgb_regressor_kwargs_params_fit(
+    bqml_model_factory, mock_session, mock_X, mock_y
+):
+    model = ensemble.XGBRegressor(category_encoding_method="LABEL_ENCODING")
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X, mock_y)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        textwrap.dedent(
+            """
+            CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`
+            OPTIONS(
+              model_type='BOOSTED_TREE_REGRESSOR',
+              data_split_method='NO_SPLIT',
+              early_stop=True,
+              num_parallel_tree=1,
+              booster_type='gbtree',
+              tree_method='auto',
+              min_tree_child_weight=1,
+              colsample_bytree=1.0,
+              colsample_bylevel=1.0,
+              colsample_bynode=1.0,
+              min_split_loss=0.0,
+              max_tree_depth=6,
+              subsample=1.0,
+              l1_reg=0.0,
+              l2_reg=1.0,
+              learn_rate=0.3,
+              max_iterations=20,
+              min_rel_progress=0.01,
+              enable_global_explain=False,
+              xgboost_version='0.9',
+              category_encoding_method='LABEL_ENCODING',
+              INPUT_LABEL_COLS=['input_column_label'])
+            AS input_X_y_no_index_sql
+            """
+        ).strip()
     )
