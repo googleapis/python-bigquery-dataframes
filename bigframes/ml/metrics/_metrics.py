@@ -331,13 +331,17 @@ def _precision_score_per_class(y_true: bpd.Series, y_pred: bpd.Series) -> pd.Ser
 def _precision_score_binary_pos_only(
     y_true: bpd.Series, y_pred: bpd.Series, pos_label: int | float | bool | str
 ) -> float:
-    if y_true.drop_duplicates().count() != 2 or y_pred.drop_duplicates().count() != 2:
+    if (
+        y_true.unique(keep_order=False).count() != 2
+        or y_pred.unique(keep_order=False).count() != 2
+    ):
         raise ValueError(
             "Target is multiclass but average='binary'. Please choose another average setting."
         )
 
     total_labels = set(
-        y_true.drop_duplicates().to_list() + y_pred.drop_duplicates().to_list()
+        y_true.unique(keep_order=False).to_list()
+        + y_pred.unique(keep_order=False).to_list()
     )
 
     if len(total_labels) != 2:
