@@ -19,11 +19,13 @@ const ModelProperty = {
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
 	TABLE_HTML: "table_html",
+	PROGRESS_HTML: "progress_html",
 };
 
 const Event = {
 	CHANGE: "change",
 	CHANGE_TABLE_HTML: `change:${ModelProperty.TABLE_HTML}`,
+	CHANGE_PROGRESS_HTML: `change:${ModelProperty.PROGRESS_HTML}`,
 	CLICK: "click",
 };
 
@@ -39,6 +41,7 @@ function render({ model, el }) {
 	el.classList.add("bigframes-widget");
 
 	// Structure
+	const progressContainer = document.createElement("div");
 	const tableContainer = document.createElement("div");
 	const footer = document.createElement("div");
 
@@ -57,6 +60,7 @@ function render({ model, el }) {
 	const pageSizeSelect = document.createElement("select");
 
 	// Add CSS classes
+	progressContainer.classList.add("progress-container");
 	tableContainer.classList.add("table-container");
 	footer.classList.add("footer");
 	paginationContainer.classList.add("pagination");
@@ -119,6 +123,13 @@ function render({ model, el }) {
 		}
 	}
 
+	/** Updates the HTML in the progress container. */
+	function handleProgressHTMLChange() {
+		// Note: Using innerHTML is safe here because the content is generated
+		// by a trusted backend (formatting_helpers).
+		progressContainer.innerHTML = model.get(ModelProperty.PROGRESS_HTML);
+	}
+
 	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
 		// Note: Using innerHTML is safe here because the content is generated
@@ -137,6 +148,7 @@ function render({ model, el }) {
 		}
 	});
 	model.on(Event.CHANGE_TABLE_HTML, handleTableHTMLChange);
+	model.on(Event.CHANGE_PROGRESS_HTML, handleProgressHTMLChange);
 
 	// Assemble the DOM
 	paginationContainer.appendChild(prevPage);
@@ -150,6 +162,7 @@ function render({ model, el }) {
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
 
+	el.appendChild(progressContainer);
 	el.appendChild(tableContainer);
 	el.appendChild(footer);
 

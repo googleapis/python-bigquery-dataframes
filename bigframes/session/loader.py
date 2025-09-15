@@ -22,6 +22,7 @@ import itertools
 import os
 import typing
 from typing import (
+    Callable,
     cast,
     Dict,
     Generator,
@@ -899,6 +900,7 @@ class GbqDataLoader:
         dry_run: Literal[False] = ...,
         force_total_order: Optional[bool] = ...,
         allow_large_results: bool,
+        callback: Callable = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -916,6 +918,7 @@ class GbqDataLoader:
         dry_run: Literal[True] = ...,
         force_total_order: Optional[bool] = ...,
         allow_large_results: bool,
+        callback: Callable = ...,
     ) -> pandas.Series:
         ...
 
@@ -932,6 +935,7 @@ class GbqDataLoader:
         dry_run: bool = False,
         force_total_order: Optional[bool] = None,
         allow_large_results: bool,
+        callback: Callable = lambda _: None,
     ) -> dataframe.DataFrame | pandas.Series:
         configuration = _transform_read_gbq_configuration(configuration)
 
@@ -1016,6 +1020,7 @@ class GbqDataLoader:
             rows = self._start_query_with_job_optional(
                 query,
                 job_config=job_config,
+                callback=callback,
             )
 
             # If there is a query job, fetch it so that we can get the
@@ -1163,6 +1168,7 @@ class GbqDataLoader:
         *,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
         timeout: Optional[float] = None,
+        callback: Callable = lambda _: None,
     ) -> google.cloud.bigquery.table.RowIterator:
         """
         Starts BigQuery query with job optional and waits for results.
@@ -1179,6 +1185,7 @@ class GbqDataLoader:
             project=None,
             metrics=None,
             query_with_job=False,
+            callback=callback,
         )
         return rows
 
@@ -1188,6 +1195,7 @@ class GbqDataLoader:
         *,
         job_config: Optional[google.cloud.bigquery.QueryJobConfig] = None,
         timeout: Optional[float] = None,
+        callback: Callable = lambda _: None,
     ) -> bigquery.QueryJob:
         """
         Starts BigQuery query job and waits for results.
@@ -1204,6 +1212,7 @@ class GbqDataLoader:
             project=None,
             metrics=None,
             query_with_job=True,
+            callback=callback,
         )
         return query_job
 
