@@ -21,14 +21,19 @@ from __future__ import annotations
 import json
 from typing import Any, List, Literal, Mapping, Tuple
 
-from bigframes import clients, dtypes, series
-from bigframes.core import log_adapter
+import pandas as pd
+
+from bigframes import clients, dtypes, series, session
+from bigframes.core import convert, log_adapter
 from bigframes.operations import ai_ops
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ai")
 def generate_bool(
-    prompt: series.Series | List[str | series.Series] | Tuple[str | series.Series, ...],
+    prompt: series.Series
+    | pd.Series
+    | List[str | series.Series | pd.Series]
+    | Tuple[str | series.Series | pd.Series, ...],
     *,
     connection_id: str | None = None,
     endpoint: str | None = None,
@@ -77,8 +82,9 @@ def generate_bool(
         Name: result, dtype: boolean
 
     Args:
-        prompt (series.Series | List[str|series.Series] | Tuple[str|series.Series, ...]):
-            A mixture of Series and string literals that specifies the prompt to send to the model.
+        prompt (Series | List[str|Series] | Tuple[str|Series, ...]):
+            A mixture of Series and string literals that specifies the prompt to send to the model. The Series can be BigFrames Series
+            or pandas Series.
         connection_id (str, optional):
             Specifies the connection to use to communicate with the model. For example, `myproject.us.myconnection`.
             If not provided, the connection from the current session will be used.
@@ -142,16 +148,17 @@ def _separate_context_and_series(
     prompt_context: List[str | None] = []
     series_list: List[series.Series] = []
 
+    session = None
     for item in prompt:
         if isinstance(item, str):
             prompt_context.append(item)
 
-        elif isinstance(item, series.Series):
+        elif isinstance(item, (series.Series, pd.Series)):
             prompt_context.append(None)
 
-            if item.dtype == dtypes.OBJ_REF_DTYPE:
-                # Multi-model support
-                item = item.blob.read_url()
+            if isinstance(item, series.Series) and session is None:
+                # use the session from the first BigFrames session if possible
+                session = item._session
             series_list.append(item)
 
         else:
@@ -160,7 +167,20 @@ def _separate_context_and_series(
     if not series_list:
         raise ValueError("Please provide at least one Series in the prompt")
 
+    series_list = [_convert_series(s, session) for s in series_list]
+
     return prompt_context, series_list
+
+
+def _convert_series(
+    s: series.Series | pd.Series, session: session.Session | None
+) -> series.Series:
+    result = convert.to_bf_series(s, default_index=None, session=session)
+
+    if result.dtype == dtypes.OBJ_REF_DTYPE:
+        # Support multimodel
+        return result.blob.read_url()
+    return result
 
 
 def _resolve_connection_id(series: series.Series, connection_id: str | None):
