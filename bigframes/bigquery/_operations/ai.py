@@ -59,23 +59,6 @@ def generate_bool(
         2    False
         Name: result, dtype: boolean
 
-        >>> model_params = {
-        ...     "generation_config": {
-        ...         "thinking_config": {
-        ...             "thinking_budget": 0
-        ...         }
-        ...     }
-        ... }
-        >>> bbq.ai.generate_bool(
-        ...     (df["col_1"], " is a ", df["col_2"]),
-        ...     endpoint="gemini-2.5-pro",
-        ...     model_params=model_params,
-        ... ).struct.field("result")
-        0     True
-        1     True
-        2    False
-        Name: result, dtype: boolean
-
     Args:
         prompt (series.Series | List[str|series.Series] | Tuple[str|series.Series, ...]):
             A mixture of Series and string literals that specifies the prompt to send to the model.
