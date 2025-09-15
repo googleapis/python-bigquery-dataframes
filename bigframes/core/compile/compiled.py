@@ -166,18 +166,6 @@ class UnorderedIR:
             bigframes.core.compile.ibis_types.ibis_dtype_to_bigframes_dtype(ibis_type),
         )
 
-    def row_count(self, name: str) -> UnorderedIR:
-        original_table = self._to_ibis_expr()
-        ibis_table = original_table.agg(
-            [
-                original_table.count().name(name),
-            ]
-        )
-        return UnorderedIR(
-            ibis_table,
-            (ibis_table[name],),
-        )
-
     def _to_ibis_expr(
         self,
         *,

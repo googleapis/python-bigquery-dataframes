@@ -774,7 +774,7 @@ class Value(Expr):
         @deferrable
         def bind(table):
             winfunc = rewrite_window_input(
-                node, window.bind(table) if table else window
+                node, window.bind(table) if (table is not None) else window
             )
             if winfunc == node:
                 raise com.IbisTypeError(
@@ -784,7 +784,7 @@ class Value(Expr):
 
         try:
             return bind(table)
-        except com.IbisInputError as e:
+        except com.IbisInputError:
             return bind(_)
 
     def isnull(self) -> ir.BooleanValue:
