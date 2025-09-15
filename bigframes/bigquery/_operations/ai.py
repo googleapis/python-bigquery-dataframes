@@ -150,7 +150,7 @@ def _separate_context_and_series(
         return [None], [prompt]
 
     prompt_context: List[str | None] = []
-    series_list: List[series.Series] = []
+    series_list: List[series.Series | pd.Series] = []
 
     session = None
     for item in prompt:
