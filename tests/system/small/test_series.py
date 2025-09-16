@@ -2704,10 +2704,48 @@ def test_series_nsmallest(scalars_df_index, scalars_pandas_df_index, keep):
     )
 
 
-def test_rank_ints(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("na_option", "method", "ascending", "numeric_only", "pct"),
+    [
+        ("keep", "average", True, True, False),
+        ("top", "min", False, False, True),
+        ("bottom", "max", False, False, False),
+        ("top", "first", False, False, True),
+        ("bottom", "dense", False, False, False),
+    ],
+)
+def test_series_rank(
+    scalars_df_index,
+    scalars_pandas_df_index,
+    na_option,
+    method,
+    ascending,
+    numeric_only,
+    pct,
+):
     col_name = "int64_too"
-    bf_result = scalars_df_index[col_name].rank().to_pandas()
-    pd_result = scalars_pandas_df_index[col_name].rank().astype(pd.Float64Dtype())
+    bf_result = (
+        scalars_df_index[col_name]
+        .rank(
+            na_option=na_option,
+            method=method,
+            ascending=ascending,
+            numeric_only=numeric_only,
+            pct=pct,
+        )
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_name]
+        .rank(
+            na_option=na_option,
+            method=method,
+            ascending=ascending,
+            numeric_only=numeric_only,
+            pct=pct,
+        )
+        .astype(pd.Float64Dtype())
+    )
 
     pd.testing.assert_series_equal(
         bf_result,
@@ -3896,6 +3934,18 @@ def test_float_astype_json(errors):
     bf_series = series.Series(data, dtype=dtypes.FLOAT_DTYPE)
 
     bf_result = bf_series.astype(dtypes.JSON_DTYPE, errors=errors)
+    assert bf_result.dtype == dtypes.JSON_DTYPE
+
+    expected_result = pd.Series(data, dtype=dtypes.JSON_DTYPE)
+    expected_result.index = expected_result.index.astype("Int64")
+    pd.testing.assert_series_equal(bf_result.to_pandas(), expected_result)
+
+
+def test_float_astype_json_str():
+    data = ["1.25", "2500000000", None, "-12323.24"]
+    bf_series = series.Series(data, dtype=dtypes.FLOAT_DTYPE)
+
+    bf_result = bf_series.astype("json")
     assert bf_result.dtype == dtypes.JSON_DTYPE
 
     expected_result = pd.Series(data, dtype=dtypes.JSON_DTYPE)

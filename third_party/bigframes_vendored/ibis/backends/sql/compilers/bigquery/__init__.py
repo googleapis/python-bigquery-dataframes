@@ -1088,6 +1088,37 @@ class BigQueryCompiler(SQLGlotCompiler):
             expr = arg
         return sge.IgnoreNulls(this=self.agg.array_agg(expr, where=where))
 
+    def visit_StringAgg(self, op, *, arg, sep, order_by, where):
+        if len(order_by) > 0:
+            expr = sge.Order(
+                this=arg,
+                expressions=[
+                    # Avoid adding NULLS FIRST / NULLS LAST in SQL, which is
+                    # unsupported in ARRAY_AGG by reconstructing the node as
+                    # plain SQL text.
+                    f"({order_column.args['this'].sql(dialect='bigquery')}) {'DESC' if order_column.args.get('desc') else 'ASC'}"
+                    for order_column in order_by
+                ],
+            )
+        else:
+            expr = arg
+        return self.agg.string_agg(expr, sep, where=where)
+
+    def visit_AIGenerateBool(self, op, **kwargs):
+        func_name = "AI.GENERATE_BOOL"
+
+        args = []
+        for key, val in kwargs.items():
+            if val is None:
+                continue
+
+            if key == "model_params":
+                val = sge.JSON(this=val)
+
+            args.append(sge.Kwarg(this=sge.Identifier(this=key), expression=val))
+
+        return sge.func(func_name, *args)
+
     def visit_FirstNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.FirstValue(this=arg))
 

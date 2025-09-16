@@ -17,13 +17,18 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
-from typing import ClassVar, Iterable, Optional
+from typing import Callable, ClassVar, Iterable, Optional, TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 
+from bigframes.core import agg_expressions
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as signatures
+
+if TYPE_CHECKING:
+    from bigframes.core import expression
 
 
 @dataclasses.dataclass(frozen=True)
@@ -110,6 +115,14 @@ class NullaryAggregateOp(AggregateOp, NullaryWindowOp):
     def arguments(self) -> int:
         return 0
 
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> agg_expressions.NullaryAggregation:
+        from bigframes.core import agg_expressions
+
+        return agg_expressions.NullaryAggregation(self)
+
 
 @dataclasses.dataclass(frozen=True)
 class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
@@ -117,12 +130,44 @@ class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
     def arguments(self) -> int:
         return 1
 
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> agg_expressions.UnaryAggregation:
+        from bigframes.core import agg_expressions
+        from bigframes.operations.base_ops import _convert_expr_input
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+        return agg_expressions.UnaryAggregation(
+            self,
+            inputs[0],
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class BinaryAggregateOp(AggregateOp):
     @property
     def arguments(self) -> int:
         return 2
+
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> agg_expressions.BinaryAggregation:
+        from bigframes.core import agg_expressions
+        from bigframes.operations.base_ops import _convert_expr_input
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+
+        return agg_expressions.BinaryAggregation(self, inputs[0], inputs[1])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -335,9 +380,26 @@ class ArrayAggOp(UnaryAggregateOp):
         return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return pd.ArrowDtype(
-            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_types[0]))
-        )
+        return dtypes.list_type(input_types[0])
+
+
+@dataclasses.dataclass(frozen=True)
+class StringAggOp(UnaryAggregateOp):
+    name: ClassVar[str] = "string_agg"
+    sep: str = ","
+
+    @property
+    def order_independent(self):
+        return False
+
+    @property
+    def skips_nulls(self):
+        return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] != dtypes.STRING_DTYPE:
+            raise TypeError(f"Type {input_types[0]} is not string-like")
+        return dtypes.STRING_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
@@ -617,7 +679,7 @@ first_op = FirstOp()
 
 
 # TODO: Alternative names and lookup from numpy function objects
-_AGGREGATIONS_LOOKUP: typing.Dict[
+_STRING_TO_AGG_OP: typing.Dict[
     str, typing.Union[UnaryAggregateOp, NullaryAggregateOp]
 ] = {
     op.name: op
@@ -644,17 +706,32 @@ _AGGREGATIONS_LOOKUP: typing.Dict[
     ]
 }
 
+_CALLABLE_TO_AGG_OP: typing.Dict[
+    Callable, typing.Union[UnaryAggregateOp, NullaryAggregateOp]
+] = {
+    np.sum: sum_op,
+    np.mean: mean_op,
+    np.median: median_op,
+    np.prod: product_op,
+    np.max: max_op,
+    np.min: min_op,
+    np.std: std_op,
+    np.var: var_op,
+    np.all: all_op,
+    np.any: any_op,
+    np.unique: nunique_op,
+    # TODO(b/443252872): Solve
+    # list: ArrayAggOp(),
+    np.size: size_op,
+}
 
-def lookup_agg_func(key: str) -> typing.Union[UnaryAggregateOp, NullaryAggregateOp]:
-    if callable(key):
-        raise NotImplementedError(
-            "Aggregating with callable object not supported, pass method name as string instead (eg. 'sum' instead of np.sum)."
-        )
-    if not isinstance(key, str):
-        raise ValueError(
-            f"Cannot aggregate using object of type: {type(key)}. Use string method name (eg. 'sum')"
-        )
-    if key in _AGGREGATIONS_LOOKUP:
-        return _AGGREGATIONS_LOOKUP[key]
+
+def lookup_agg_func(
+    key,
+) -> tuple[typing.Union[UnaryAggregateOp, NullaryAggregateOp], str]:
+    if key in _STRING_TO_AGG_OP:
+        return (_STRING_TO_AGG_OP[key], key)
+    if key in _CALLABLE_TO_AGG_OP:
+        return (_CALLABLE_TO_AGG_OP[key], key.__name__)
     else:
         raise ValueError(f"Unrecognize aggregate function: {key}")

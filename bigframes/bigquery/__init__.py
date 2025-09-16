@@ -16,6 +16,9 @@
 such as array functions:
 https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. """
 
+import sys
+
+from bigframes.bigquery._operations import ai
 from bigframes.bigquery._operations.approx_agg import approx_top_count
 from bigframes.bigquery._operations.array import (
     array_agg,
@@ -48,47 +51,57 @@ from bigframes.bigquery._operations.json import (
     json_value,
     json_value_array,
     parse_json,
+    to_json_string,
 )
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
 from bigframes.bigquery._operations.sql import sql_scalar
 from bigframes.bigquery._operations.struct import struct
+from bigframes.core import log_adapter
 
-__all__ = [
+_functions = [
     # approximate aggregate ops
-    "approx_top_count",
+    approx_top_count,
     # array ops
-    "array_agg",
-    "array_length",
-    "array_to_string",
+    array_agg,
+    array_length,
+    array_to_string,
     # datetime ops
-    "unix_micros",
-    "unix_millis",
-    "unix_seconds",
+    unix_micros,
+    unix_millis,
+    unix_seconds,
     # geo ops
-    "st_area",
-    "st_buffer",
-    "st_centroid",
-    "st_convexhull",
-    "st_difference",
-    "st_distance",
-    "st_intersection",
-    "st_isclosed",
-    "st_length",
+    st_area,
+    st_buffer,
+    st_centroid,
+    st_convexhull,
+    st_difference,
+    st_distance,
+    st_intersection,
+    st_isclosed,
+    st_length,
     # json ops
-    "json_extract",
-    "json_extract_array",
-    "json_extract_string_array",
-    "json_query",
-    "json_query_array",
-    "json_set",
-    "json_value",
-    "json_value_array",
-    "parse_json",
+    json_extract,
+    json_extract_array,
+    json_extract_string_array,
+    json_query,
+    json_query_array,
+    json_set,
+    json_value,
+    json_value_array,
+    parse_json,
+    to_json_string,
     # search ops
-    "create_vector_index",
-    "vector_search",
+    create_vector_index,
+    vector_search,
     # sql ops
-    "sql_scalar",
+    sql_scalar,
     # struct ops
-    "struct",
+    struct,
 ]
+
+__all__ = [f.__name__ for f in _functions] + ["ai"]
+
+_module = sys.modules[__name__]
+for f in _functions:
+    _decorated_object = log_adapter.method_logger(f, custom_base_name="bigquery")
+    setattr(_module, f.__name__, _decorated_object)

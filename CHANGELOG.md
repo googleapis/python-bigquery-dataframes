@@ -4,6 +4,84 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.20.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.19.0...v2.20.0) (2025-09-16)
+
+
+### Features
+
+* Add `__dataframe__` interchange support ([#2063](https://github.com/googleapis/python-bigquery-dataframes/issues/2063)) ([3b46a0d](https://github.com/googleapis/python-bigquery-dataframes/commit/3b46a0d91eb379c61ced45ae0b25339281326c3d))
+* Add ai_generate_bool to the bigframes.bigquery package ([#2060](https://github.com/googleapis/python-bigquery-dataframes/issues/2060)) ([70d6562](https://github.com/googleapis/python-bigquery-dataframes/commit/70d6562df64b2aef4ff0024df6f57702d52dcaf8))
+* Add bigframes.bigquery.to_json_string ([#2076](https://github.com/googleapis/python-bigquery-dataframes/issues/2076)) ([41e8f33](https://github.com/googleapis/python-bigquery-dataframes/commit/41e8f33ceb46a7c2a75d1c59a4a3f2f9413d281d))
+* Add rank(pct=True) support ([#2084](https://github.com/googleapis/python-bigquery-dataframes/issues/2084)) ([c1e871d](https://github.com/googleapis/python-bigquery-dataframes/commit/c1e871d9327bf6c920d17e1476fed3088d506f5f))
+* Add StreamingDataFrame.to_bigtable and .to_pubsub start_timestamp parameter ([#2066](https://github.com/googleapis/python-bigquery-dataframes/issues/2066)) ([a63cbae](https://github.com/googleapis/python-bigquery-dataframes/commit/a63cbae24ff2dc191f0a53dced885bc95f38ec96))
+* Can call agg with some callables ([#2055](https://github.com/googleapis/python-bigquery-dataframes/issues/2055)) ([17a1ed9](https://github.com/googleapis/python-bigquery-dataframes/commit/17a1ed99ec8c6d3215d3431848814d5d458d4ff1))
+* Support astype to json ([#2073](https://github.com/googleapis/python-bigquery-dataframes/issues/2073)) ([6bd6738](https://github.com/googleapis/python-bigquery-dataframes/commit/6bd67386341de7a92ada948381702430c399406e))
+* Support pandas.Index as key for DataFrame.__setitem__() ([#2062](https://github.com/googleapis/python-bigquery-dataframes/issues/2062)) ([b3cf824](https://github.com/googleapis/python-bigquery-dataframes/commit/b3cf8248e3b8ea76637ded64fb12028d439448d1))
+* Support pd.cut() for array-like type ([#2064](https://github.com/googleapis/python-bigquery-dataframes/issues/2064)) ([21eb213](https://github.com/googleapis/python-bigquery-dataframes/commit/21eb213c5f0e0f696f2d1ca1f1263678d791cf7c))
+* Support to cast struct to json ([#2067](https://github.com/googleapis/python-bigquery-dataframes/issues/2067)) ([b0ff718](https://github.com/googleapis/python-bigquery-dataframes/commit/b0ff718a04fadda33cfa3613b1d02822cde34bc2))
+
+
+### Bug Fixes
+
+* Deflake ai_gen_bool multimodel test ([#2085](https://github.com/googleapis/python-bigquery-dataframes/issues/2085)) ([566a37a](https://github.com/googleapis/python-bigquery-dataframes/commit/566a37a30ad5677aef0c5f79bdd46bca2139cc1e))
+* Do not scroll page selector in anywidget `repr_mode` ([#2082](https://github.com/googleapis/python-bigquery-dataframes/issues/2082)) ([5ce5d63](https://github.com/googleapis/python-bigquery-dataframes/commit/5ce5d63fcb51bfb3df2769108b7486287896ccb9))
+* Fix the potential invalid VPC egress configuration ([#2068](https://github.com/googleapis/python-bigquery-dataframes/issues/2068)) ([cce4966](https://github.com/googleapis/python-bigquery-dataframes/commit/cce496605385f2ac7ab0becc0773800ed5901aa5))
+* Return a DataFrame containing query stats for all non-SELECT statements ([#2071](https://github.com/googleapis/python-bigquery-dataframes/issues/2071)) ([a52b913](https://github.com/googleapis/python-bigquery-dataframes/commit/a52b913d9d8794b4b959ea54744a38d9f2f174e7))
+* Use the remote and managed functions for bigframes results ([#2079](https://github.com/googleapis/python-bigquery-dataframes/issues/2079)) ([49b91e8](https://github.com/googleapis/python-bigquery-dataframes/commit/49b91e878de651de23649756259ee35709e3f5a8))
+
+
+### Performance Improvements
+
+* Avoid re-authenticating if credentials have already been fetched ([#2058](https://github.com/googleapis/python-bigquery-dataframes/issues/2058)) ([913de1b](https://github.com/googleapis/python-bigquery-dataframes/commit/913de1b31f3bb0b306846fddae5dcaff6be3cec4))
+* Improve apply axis=1 performance ([#2077](https://github.com/googleapis/python-bigquery-dataframes/issues/2077)) ([12e4380](https://github.com/googleapis/python-bigquery-dataframes/commit/12e438051134577e911c1a6ce9d5a5885a0b45ad))
+
+## [2.19.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.18.0...v2.19.0) (2025-09-09)
+
+
+### Features
+
+* Add str.join method ([#2054](https://github.com/googleapis/python-bigquery-dataframes/issues/2054)) ([8804ada](https://github.com/googleapis/python-bigquery-dataframes/commit/8804adaf8ba23fdcad6e42a7bf034bd0a11c890f))
+* Support display.max_colwidth option ([#2053](https://github.com/googleapis/python-bigquery-dataframes/issues/2053)) ([5229e07](https://github.com/googleapis/python-bigquery-dataframes/commit/5229e07b4535c01b0cdbd731455ff225a373b5c8))
+* Support VPC egress setting in remote function ([#2059](https://github.com/googleapis/python-bigquery-dataframes/issues/2059)) ([5df779d](https://github.com/googleapis/python-bigquery-dataframes/commit/5df779d4f421d3ba777cfd928d99ca2e8a3f79ad))
+
+
+### Bug Fixes
+
+* Fix issue mishandling chunked array while loading data ([#2051](https://github.com/googleapis/python-bigquery-dataframes/issues/2051)) ([873d0ee](https://github.com/googleapis/python-bigquery-dataframes/commit/873d0eee474ed34f1d5164c37383f2737dbec4db))
+* Remove warning for slot_millis_sum ([#2047](https://github.com/googleapis/python-bigquery-dataframes/issues/2047)) ([425a691](https://github.com/googleapis/python-bigquery-dataframes/commit/425a6917d5442eeb4df486c6eed1fd136bbcedfb))
+
+## [2.18.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.17.0...v2.18.0) (2025-09-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* add `allow_large_results` option to `read_gbq_query`, aligning with `bpd.options.compute.allow_large_results` option ([#1935](https://github.com/googleapis/python-bigquery-dataframes/issues/1935))
+
+### Features
+
+* Add `allow_large_results` option to `read_gbq_query`, aligning with `bpd.options.compute.allow_large_results` option ([#1935](https://github.com/googleapis/python-bigquery-dataframes/issues/1935)) ([a7963fe](https://github.com/googleapis/python-bigquery-dataframes/commit/a7963fe57a0e141debf726f0bc7b0e953ebe9634))
+* Add parameter shuffle for ml.model_selection.train_test_split ([#2030](https://github.com/googleapis/python-bigquery-dataframes/issues/2030)) ([2c72c56](https://github.com/googleapis/python-bigquery-dataframes/commit/2c72c56fb5893eb01d5aec6273d11945c9c532c5))
+* Can pivot unordered, unindexed dataframe ([#2040](https://github.com/googleapis/python-bigquery-dataframes/issues/2040)) ([1a0f710](https://github.com/googleapis/python-bigquery-dataframes/commit/1a0f710ac11418fd71ab3373f3f6002fa581b180))
+* Local date accessor execution support ([#2034](https://github.com/googleapis/python-bigquery-dataframes/issues/2034)) ([7ac6fe1](https://github.com/googleapis/python-bigquery-dataframes/commit/7ac6fe16f7f2c09d2efac6ab813ec841c21baef8))
+* Support args in dataframe apply method ([#2026](https://github.com/googleapis/python-bigquery-dataframes/issues/2026)) ([164c481](https://github.com/googleapis/python-bigquery-dataframes/commit/164c4818bc4ff2990dca16b9f22a798f47e0a60b))
+* Support args in series apply method ([#2013](https://github.com/googleapis/python-bigquery-dataframes/issues/2013)) ([d9d725c](https://github.com/googleapis/python-bigquery-dataframes/commit/d9d725cfbc3dca9e66b460cae4084e25162f2acf))
+* Support callable for dataframe mask method ([#2020](https://github.com/googleapis/python-bigquery-dataframes/issues/2020)) ([9d4504b](https://github.com/googleapis/python-bigquery-dataframes/commit/9d4504be310d38b63515d67c0f60d2e48e68c7b5))
+* Support multi-column assignment for DataFrame ([#2028](https://github.com/googleapis/python-bigquery-dataframes/issues/2028)) ([ba0d23b](https://github.com/googleapis/python-bigquery-dataframes/commit/ba0d23b59c44ba5a46ace8182ad0e0cfc703b3ab))
+* Support string matching in local executor ([#2032](https://github.com/googleapis/python-bigquery-dataframes/issues/2032)) ([c0b54f0](https://github.com/googleapis/python-bigquery-dataframes/commit/c0b54f03849ee3115413670e690e68f3ef10f2ec))
+
+
+### Bug Fixes
+
+* Fix scalar op lowering tree walk ([#2029](https://github.com/googleapis/python-bigquery-dataframes/issues/2029)) ([935af10](https://github.com/googleapis/python-bigquery-dataframes/commit/935af107ef98837fb2b81d72185d0b6a9e09fbcf))
+* Read_csv fails when check file size for wildcard gcs files ([#2019](https://github.com/googleapis/python-bigquery-dataframes/issues/2019)) ([b0d620b](https://github.com/googleapis/python-bigquery-dataframes/commit/b0d620bbe8227189bbdc2ba5a913b03c70575296))
+* Resolve the validation issue for other arg in dataframe where method ([#2042](https://github.com/googleapis/python-bigquery-dataframes/issues/2042)) ([8689199](https://github.com/googleapis/python-bigquery-dataframes/commit/8689199aa82212ed300fff592097093812e0290e))
+
+
+### Performance Improvements
+
+* Improve axis=1 aggregation performance ([#2036](https://github.com/googleapis/python-bigquery-dataframes/issues/2036)) ([fbb2094](https://github.com/googleapis/python-bigquery-dataframes/commit/fbb209468297a8057d9d49c40e425c3bfdeb92bd))
+* Improve iter_nodes_topo performance using Kahn's algorithm ([#2038](https://github.com/googleapis/python-bigquery-dataframes/issues/2038)) ([3961637](https://github.com/googleapis/python-bigquery-dataframes/commit/39616374bba424996ebeb9a12096bfaf22660b44))
+
 ## [2.17.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.16.0...v2.17.0) (2025-08-22)
 
 
