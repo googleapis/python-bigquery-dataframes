@@ -331,24 +331,16 @@ def _precision_score_per_class(y_true: bpd.Series, y_pred: bpd.Series) -> pd.Ser
 def _precision_score_binary_pos_only(
     y_true: bpd.Series, y_pred: bpd.Series, pos_label: int | float | bool | str
 ) -> float:
-    y_true_classes = y_true.unique(keep_order=False)
-    y_pred_classes = y_pred.unique(keep_order=False)
+    unique_labels = bpd.concat([y_true, y_pred]).unique(keep_order=False)
 
-    if y_true_classes.count() != 2 or y_pred_classes.count() != 2:
+    if unique_labels.count() != 2:
         raise ValueError(
             "Target is multiclass but average='binary'. Please choose another average setting."
         )
 
-    total_labels = set(y_true_classes.to_list() + y_pred_classes.to_list())
-
-    if len(total_labels) != 2:
+    if pos_label not in unique_labels:
         raise ValueError(
-            "Target is multiclass but average='binary'. Please choose another average setting."
-        )
-
-    if pos_label not in total_labels:
-        raise ValueError(
-            f"pos_labe={pos_label} is not a valid label. It should be one of {list(total_labels)}"
+            f"pos_labe={pos_label} is not a valid label. It should be one of {unique_labels.to_list()}"
         )
 
     target_elem_idx = y_pred == pos_label
