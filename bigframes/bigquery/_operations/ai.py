@@ -144,7 +144,7 @@ def _separate_context_and_series(
             prompt_context.append(None)
 
             if isinstance(item, series.Series) and session is None:
-                # use the session from the first BigFrames session if possible
+                # Use the first available BF session if there's any.
                 session = item._session
             series_list.append(item)
 
