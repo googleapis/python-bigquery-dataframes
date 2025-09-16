@@ -293,7 +293,7 @@ def precision_score(
     y_true_series, y_pred_series = utils.batch_convert_to_series(y_true, y_pred)
 
     if average is None:
-        return _precision_score_per_class(y_true_series, y_pred_series)
+        return _precision_score_per_label(y_true_series, y_pred_series)
 
     if average == "binary":
         return _precision_score_binary_pos_only(y_true_series, y_pred_series, pos_label)
@@ -308,7 +308,7 @@ precision_score.__doc__ = inspect.getdoc(
 )
 
 
-def _precision_score_per_class(y_true: bpd.Series, y_pred: bpd.Series) -> pd.Series:
+def _precision_score_per_label(y_true: bpd.Series, y_pred: bpd.Series) -> pd.Series:
     is_accurate = y_true == y_pred
     unique_labels = (
         bpd.concat([y_true, y_pred], join="outer")
@@ -338,7 +338,7 @@ def _precision_score_binary_pos_only(
             "Target is multiclass but average='binary'. Please choose another average setting."
         )
 
-    if pos_label not in unique_labels:
+    if not (unique_labels == pos_label).any():
         raise ValueError(
             f"pos_labe={pos_label} is not a valid label. It should be one of {unique_labels.to_list()}"
         )
