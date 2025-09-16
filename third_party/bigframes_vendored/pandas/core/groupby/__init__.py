@@ -9,6 +9,8 @@ expose these user-facing objects to provide specific functionality.
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from bigframes import constants
 
 
@@ -16,6 +18,82 @@ class GroupBy:
     """
     Class for grouping and aggregating relational data.
     """
+
+    def describe(self, include: None | Literal["all"] = None):
+        """
+        Generate descriptive statistics.
+
+        Descriptive statistics include those that summarize the central
+        tendency, dispersion and shape of a
+        dataset's distribution, excluding ``NaN`` values.
+
+        Args:
+            include ("all" or None, optional):
+                If "all": All columns of the input will be included in the output.
+                If None: The result will include all numeric columns.
+
+        .. note::
+            Percentile values are approximates only.
+
+        .. note::
+            For numeric data, the result's index will include ``count``,
+            ``mean``, ``std``, ``min``, ``max`` as well as lower, ``50`` and
+            upper percentiles. By default the lower percentile is ``25`` and the
+            upper percentile is ``75``. The ``50`` percentile is the
+            same as the median.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8], "C": ["cat", "cat", "dog"]})
+            >>> df
+               A  B    C
+            0  3  0  cat
+            1  1  2  cat
+            2  2  8  dog
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+            >>> df.describe()
+                     A         B
+            count  3.0       3.0
+            mean   2.0  3.333333
+            std    1.0  4.163332
+            min    1.0       0.0
+            25%    1.0       0.0
+            50%    2.0       2.0
+            75%    3.0       8.0
+            max    3.0       8.0
+            <BLANKLINE>
+            [8 rows x 2 columns]
+
+
+        Using describe with include = "all":
+            >>> df.describe(include="all")
+                        A         B     C
+            count     3.0       3.0     3
+            nunique  <NA>      <NA>     2
+            mean      2.0  3.333333  <NA>
+            std       1.0  4.163332  <NA>
+            min       1.0       0.0  <NA>
+            25%       1.0       0.0  <NA>
+            50%       2.0       2.0  <NA>
+            75%       3.0       8.0  <NA>
+            max       3.0       8.0  <NA>
+            <BLANKLINE>
+            [9 rows x 3 columns]
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                Summary statistics of the Series or Dataframe provided.
+
+        Raises:
+            ValueError:
+                If unsupported ``include`` type is provided.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def any(self):
         """
