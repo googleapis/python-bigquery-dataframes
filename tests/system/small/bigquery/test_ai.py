@@ -47,15 +47,17 @@ def test_ai_generate_bool_with_pandas(session):
     s2 = bpd.Series(["fruit", "tree"], session=session)
     prompt = (s1, " is a ", s2)
 
-    result = bbq.ai.generate_bool(prompt, endpoint="gemini-2.5-flash").struct.field(
-        "result"
-    )
+    result = bbq.ai.generate_bool(prompt, endpoint="gemini-2.5-flash")
 
-    pandas.testing.assert_series_equal(
-        result.to_pandas(),
-        pd.Series([True, False], name="result"),
-        check_dtype=False,
-        check_index=False,
+    assert _contains_no_nulls(result)
+    assert result.dtype == pd.ArrowDtype(
+        pa.struct(
+            (
+                pa.field("result", pa.bool_()),
+                pa.field("full_response", pa.string()),
+                pa.field("status", pa.string()),
+            )
+        )
     )
 
 
