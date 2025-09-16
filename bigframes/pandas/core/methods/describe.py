@@ -20,7 +20,6 @@ import pandas as pd
 
 from bigframes import dataframe, dtypes, series
 from bigframes.core import agg_expressions, blocks
-from bigframes.core.reshape import api as rs
 from bigframes.operations import aggregations
 
 _DEFAULT_DTYPES = (
@@ -38,34 +37,11 @@ def describe(
     elif not isinstance(input, dataframe.DataFrame):
         raise TypeError(f"Unsupported type: {type(input)}")
 
-    if include is None:
-        numeric_df = _select_dtypes(
-            input,
-            _DEFAULT_DTYPES,
-        )
-        if len(numeric_df.columns) == 0:
-            # Describe eligible non-numeric columns
-            return _describe_non_numeric(input)
+    block = input._block
 
-        # Otherwise, only describe numeric columns
-        return _describe_numeric(input)
+    describe_block = _describe(block, columns=block.value_columns, include=include)
 
-    elif include == "all":
-        numeric_result = _describe_numeric(input)
-        non_numeric_result = _describe_non_numeric(input)
-
-        if len(numeric_result.columns) == 0:
-            return non_numeric_result
-        elif len(non_numeric_result.columns) == 0:
-            return numeric_result
-        else:
-            # Use reindex after join to preserve the original column order.
-            return rs.concat(
-                [non_numeric_result, numeric_result], axis=1
-            )._reindex_columns(input.columns)
-
-    else:
-        raise ValueError(f"Unsupported include type: {include}")
+    return dataframe.DataFrame(describe_block).stack().droplevel(level=0)
 
 
 def _describe(
@@ -79,6 +55,13 @@ def _describe(
 ) -> blocks.Block:
     stats: list[agg_expressions.Aggregation] = []
     column_labels: list[typing.Hashable] = []
+
+    # include=None behaves like include='all' if no numeric columns present
+    if include is None:
+        if not any(
+            block.expr.get_column_type(col) in _DEFAULT_DTYPES for col in columns
+        ):
+            include = "all"
 
     for col_id in columns:
         label = block.col_id_to_label[col_id]
@@ -94,7 +77,7 @@ def _describe(
         by_column_ids=by_col_ids,
         aggregations=stats,
         dropna=dropna,
-        column_labels=pd.Index(column_labels, name=(*block.index.names, None)),
+        column_labels=pd.Index(column_labels, name=(*block.column_labels.names, None)),
     )
     return agg_block if as_index else agg_block.reset_index(drop=False)
 
@@ -122,70 +105,3 @@ def _get_aggs_for_dtype(dtype) -> list[aggregations.UnaryAggregateOp]:
         return [aggregations.count_op, aggregations.nunique_op]
     else:
         return []
-
-
-def _describe_numeric(df: dataframe.DataFrame) -> dataframe.DataFrame:
-    number_df_result = typing.cast(
-        dataframe.DataFrame,
-        _select_dtypes(df, dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE).agg(
-            [
-                "count",
-                "mean",
-                "std",
-                "min",
-                "25%",
-                "50%",
-                "75%",
-                "max",
-            ]
-        ),
-    )
-    temporal_df_result = typing.cast(
-        dataframe.DataFrame,
-        _select_dtypes(df, dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES).agg(["count"]),
-    )
-
-    if len(number_df_result.columns) == 0:
-        return temporal_df_result
-    elif len(temporal_df_result.columns) == 0:
-        return number_df_result
-    else:
-        import bigframes.core.reshape.api as rs
-
-        original_columns = _select_dtypes(
-            df,
-            _DEFAULT_DTYPES,
-        ).columns
-
-        # Use reindex after join to preserve the original column order.
-        return rs.concat(
-            [number_df_result, temporal_df_result],
-            axis=1,
-        )._reindex_columns(original_columns)
-
-
-def _describe_non_numeric(df: dataframe.DataFrame) -> dataframe.DataFrame:
-    return typing.cast(
-        dataframe.DataFrame,
-        _select_dtypes(
-            df,
-            [
-                dtypes.STRING_DTYPE,
-                dtypes.BOOL_DTYPE,
-                dtypes.BYTES_DTYPE,
-                dtypes.TIME_DTYPE,
-            ],
-        ).agg(["count", "nunique"]),
-    )
-
-
-def _select_dtypes(
-    df: dataframe.DataFrame, dtypes: typing.Sequence[dtypes.Dtype]
-) -> dataframe.DataFrame:
-    """Selects columns without considering inheritance relationships."""
-    columns = [
-        col_id
-        for col_id, dtype in zip(df._block.value_columns, df._block.dtypes)
-        if dtype in dtypes
-    ]
-    return dataframe.DataFrame(df._block.select_columns(columns))
