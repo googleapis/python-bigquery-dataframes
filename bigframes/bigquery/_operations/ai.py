@@ -94,7 +94,7 @@ def generate_bool(
     Returns:
         bigframes.series.Series: A new struct Series with the result data. The struct contains these fields:
         * "result": a BOOL value containing the model's response to the prompt. The result is None if the request fails or is filtered by responsible AI.
-        * "full_response": a STRING value containing the JSON response from the projects.locations.endpoints.generateContent call to the model.
+        * "full_response": a JSON value containing the response from the projects.locations.endpoints.generateContent call to the model.
         The generated text is in the text element.
         * "status": a STRING value that contains the API response status for the corresponding row. This value is empty if the operation was successful.
     """
