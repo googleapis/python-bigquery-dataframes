@@ -154,9 +154,9 @@ def _separate_context_and_series(
     if not series_list:
         raise ValueError("Please provide at least one Series in the prompt")
 
-    series_list = [_convert_series(s, session) for s in series_list]
+    converted_list = [_convert_series(s, session) for s in series_list]
 
-    return prompt_context, series_list
+    return prompt_context, converted_list
 
 
 def _convert_series(
