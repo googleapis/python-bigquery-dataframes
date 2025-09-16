@@ -80,7 +80,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
         return df.DataFrame(
             describe._describe(
-                self._block.select_column(self._value_column),
+                self._block,
                 columns=[self._value_column],
                 include=include,
                 as_index=True,
