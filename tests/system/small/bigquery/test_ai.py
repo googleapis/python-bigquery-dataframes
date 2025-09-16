@@ -18,7 +18,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from bigframes import series
+from bigframes import dtypes, series
 import bigframes.bigquery as bbq
 import bigframes.pandas as bpd
 
@@ -35,7 +35,7 @@ def test_ai_generate_bool(session):
         pa.struct(
             (
                 pa.field("result", pa.bool_()),
-                pa.field("full_response", pa.string()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
                 pa.field("status", pa.string()),
             )
         )
@@ -54,7 +54,7 @@ def test_ai_generate_bool_with_pandas(session):
         pa.struct(
             (
                 pa.field("result", pa.bool_()),
-                pa.field("full_response", pa.string()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
                 pa.field("status", pa.string()),
             )
         )
@@ -81,7 +81,7 @@ def test_ai_generate_bool_with_model_params(session):
         pa.struct(
             (
                 pa.field("result", pa.bool_()),
-                pa.field("full_response", pa.string()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
                 pa.field("status", pa.string()),
             )
         )
@@ -100,7 +100,7 @@ def test_ai_generate_bool_multi_model(session):
         pa.struct(
             (
                 pa.field("result", pa.bool_()),
-                pa.field("full_response", pa.string()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
                 pa.field("status", pa.string()),
             )
         )
