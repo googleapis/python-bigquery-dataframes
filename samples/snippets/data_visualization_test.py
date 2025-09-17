@@ -26,7 +26,7 @@ def test_data_visualization() -> None:
 
     noaa_surface = bpd.read_gbq("bigquery-public-data.noaa_gsod.gsod2021")
 
-    # Calculate median temperature for each day
+    # Calculate the median temperature for each day.
     noaa_surface_median_temps = noaa_surface[["date", "temp"]].groupby("date").median()
 
     noaa_surface_median_temps.plot.line()
@@ -37,14 +37,14 @@ def test_data_visualization() -> None:
 
     usa_names = bpd.read_gbq("bigquery-public-data.usa_names.usa_1910_2013")
 
-    # Count the occurences of the target names each year. The result is a dataframe with a multi-index.
+    # Count the occurrences of the target names each year. The result is a DataFrame with a multi-index.
     name_counts = (
         usa_names[usa_names["name"].isin(("Mary", "Emily", "Lisa"))]
         .groupby(("year", "name"))["number"]
         .sum()
     )
 
-    # Flatten the index of the dataframe so that the counts for each name has their own columns.
+    # Flatten the index of the DataFrame so that the counts for each name have their own columns.
     name_counts = name_counts.unstack(level=1).fillna(0)
 
     name_counts.plot.area(stacked=False, alpha=0.5)
@@ -70,13 +70,13 @@ def test_data_visualization() -> None:
         "bigquery-public-data.new_york_taxi_trips.tlc_yellow_trips_2021"
     ).dropna()
 
-    # Data Cleaning
+    # Data cleaning.
     taxi_trips = taxi_trips[
         taxi_trips["trip_distance"].between(0, 10, inclusive="right")
     ]
     taxi_trips = taxi_trips[taxi_trips["fare_amount"].between(0, 50, inclusive="right")]
 
-    # If you are using partial ordering mode, you will also need to assign an order to your dataset.
+    # If you're using partial ordering mode, you also need to assign an order to your dataset.
     # Otherwise, the next line can be skipped.
     taxi_trips = taxi_trips.sort_values("pickup_datetime")
 
@@ -88,7 +88,7 @@ def test_data_visualization() -> None:
 
     noaa_surface = bpd.read_gbq("bigquery-public-data.noaa_gsod.gsod2021")
 
-    # Calculate median temperature for each day
+    # Calculate the median temperature for each day.
     noaa_surface_median_temps = noaa_surface[["date", "temp"]].groupby("date").median()
 
     noaa_surface_median_temps.plot.line(sampling_n=40)
@@ -99,14 +99,14 @@ def test_data_visualization() -> None:
 
     usa_names = bpd.read_gbq("bigquery-public-data.usa_names.usa_1910_2013")
 
-    # Count the occurences of the target names each year. The result is a dataframe with a multi-index.
+    # Count the occurrences of the target names each year. The result is a DataFrame with a multi-index.
     name_counts = (
         usa_names[usa_names["name"].isin(("Mary", "Emily", "Lisa"))]
         .groupby(("year", "name"))["number"]
         .sum()
     )
 
-    # Flatten the index of the dataframe so that the counts for each name has their own columns.
+    # Flatten the index of the DataFrame so that the counts for each name have their own columns.
     name_counts = name_counts.unstack(level=1).fillna(0)
 
     name_counts.plot.area(subplots=True, alpha=0.5)
@@ -119,13 +119,13 @@ def test_data_visualization() -> None:
         "bigquery-public-data.new_york_taxi_trips.tlc_yellow_trips_2021"
     ).dropna()
 
-    # Data Cleaning
+    # Data cleaning.
     taxi_trips = taxi_trips[
         taxi_trips["trip_distance"].between(0, 10, inclusive="right")
     ]
     taxi_trips = taxi_trips[taxi_trips["fare_amount"].between(0, 50, inclusive="right")]
 
-    # If you are using partial ordering mode, you also need to assign an order to your dataset.
+    # If you're using partial ordering mode, you also need to assign an order to your dataset.
     # Otherwise, the next line can be skipped.
     taxi_trips = taxi_trips.sort_values("pickup_datetime")
 
