@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import os
-import typing
 from typing import cast, Literal, Optional, Union
 import warnings
 
@@ -372,10 +371,7 @@ class BlobAccessor(base.SeriesMethods):
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
         verbose: bool = False,
-    ) -> typing.Union[
-        bigframes.series.Series,
-        typing.Tuple[bigframes.series.Series, bigframes.series.Series],
-    ]:
+    ) -> bigframes.series.Series:
         """Blurs images.
 
         Args:
@@ -478,8 +474,11 @@ class BlobAccessor(base.SeriesMethods):
             )
             content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
             dst_blobs = content_series.str.to_blob(connection=connection)
-
-            return dst_blobs, blurred_status_series
+            results_df = bpd.DataFrame(
+                {"status": blurred_status_series, "content": dst_blobs}
+            )
+            results_struct = bbq.struct(results_df).rename("blurred_results")
+            return results_struct
         else:
             return res.str.to_blob(connection=connection)
 
@@ -632,10 +631,7 @@ class BlobAccessor(base.SeriesMethods):
         container_cpu: Union[float, int] = 0.33,
         container_memory: str = "512Mi",
         verbose: bool = False,
-    ) -> typing.Union[
-        bigframes.series.Series,
-        typing.Tuple[bigframes.series.Series, bigframes.series.Series],
-    ]:
+    ) -> bigframes.series.Series:
         """Normalize images.
 
         Args:
@@ -744,8 +740,14 @@ class BlobAccessor(base.SeriesMethods):
             )
             content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
             dst_blobs = content_series.str.to_blob(connection=connection)
-
-            return dst_blobs, normalized_status_series
+            results_df = bpd.DataFrame(
+                {
+                    "status": normalized_status_series,
+                    "content": dst_blobs,
+                }
+            )
+            results_struct = bbq.struct(results_df).rename("normalized_results")
+            return results_struct
         else:
             return res.str.to_blob(connection=connection)
 
