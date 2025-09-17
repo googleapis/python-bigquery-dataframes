@@ -47,43 +47,25 @@ class GroupBy:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8], "C": ["cat", "cat", "dog"]})
+            >>> df = bpd.DataFrame({"A": [1, 1, 1, 2, 2], "B": [0, 2, 8, 2, 7], "C": ["cat", "cat", "dog", "mouse", "cat"]})
             >>> df
-               A  B    C
-            0  3  0  cat
-            1  1  2  cat
-            2  2  8  dog
+               A  B      C
+            0  1  0    cat
+            1  1  2    cat
+            2  1  8    dog
+            3  2  2  mouse
+            4  2  7    cat
             <BLANKLINE>
-            [3 rows x 3 columns]
+            [5 rows x 3 columns]
 
-            >>> df.describe()
-                     A         B
-            count  3.0       3.0
-            mean   2.0  3.333333
-            std    1.0  4.163332
-            min    1.0       0.0
-            25%    1.0       0.0
-            50%    2.0       2.0
-            75%    3.0       8.0
-            max    3.0       8.0
+            >>> df.groupby("A").describe(include="all")
+                  B                                             C
+              count      mean       std min 25% 50% 75% max count nunique
+            A
+            1     3  3.333333  4.163332   0   0   2   8   8     3       2
+            2     2       4.5  3.535534   2   2   2   7   7     2       2
             <BLANKLINE>
-            [8 rows x 2 columns]
-
-
-        Using describe with include = "all":
-            >>> df.describe(include="all")
-                        A         B     C
-            count     3.0       3.0     3
-            nunique  <NA>      <NA>     2
-            mean      2.0  3.333333  <NA>
-            std       1.0  4.163332  <NA>
-            min       1.0       0.0  <NA>
-            25%       1.0       0.0  <NA>
-            50%       2.0       2.0  <NA>
-            75%       3.0       8.0  <NA>
-            max       3.0       8.0  <NA>
-            <BLANKLINE>
-            [9 rows x 3 columns]
+            [2 rows x 10 columns]
 
         Returns:
             bigframes.pandas.DataFrame:

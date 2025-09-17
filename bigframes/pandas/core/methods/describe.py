@@ -40,8 +40,25 @@ def describe(
     block = input._block
 
     describe_block = _describe(block, columns=block.value_columns, include=include)
+    # we override default stack behavior, because we want very specific ordering
+    stack_cols = pd.Index(
+        [
+            "count",
+            "nunique",
+            "top",
+            "freq",
+            "mean",
+            "std",
+            "min",
+            "25%",
+            "50%",
+            "75%",
+            "max",
+        ]
+    ).intersection(describe_block.column_labels.get_level_values(-1))
+    describe_block = describe_block.stack(override_labels=stack_cols)
 
-    return dataframe.DataFrame(describe_block).stack().droplevel(level=0)
+    return dataframe.DataFrame(describe_block).droplevel(level=0)
 
 
 def _describe(
