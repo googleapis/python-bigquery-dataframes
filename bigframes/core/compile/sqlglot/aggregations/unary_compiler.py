@@ -46,6 +46,33 @@ def _(
     return apply_window_if_present(sge.func("COUNT", column.expr), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.MaxOp)
+def _(
+    op: agg_ops.MaxOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("MAX", column.expr), window)
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.MinOp)
+def _(
+    op: agg_ops.MinOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("MIN", column.expr), window)
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.SizeUnaryOp)
+def _(
+    op: agg_ops.SizeUnaryOp,
+    _,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.SumOp)
 def _(
     op: agg_ops.SumOp,
@@ -58,12 +85,3 @@ def _(
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     expr = apply_window_if_present(sge.func("SUM", expr), window)
     return sge.func("IFNULL", expr, ir._literal(0, column.dtype))
-
-
-@UNARY_OP_REGISTRATION.register(agg_ops.SizeUnaryOp)
-def _(
-    op: agg_ops.SizeUnaryOp,
-    _,
-    window: typing.Optional[window_spec.WindowSpec] = None,
-) -> sge.Expression:
-    return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
