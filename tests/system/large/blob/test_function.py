@@ -120,7 +120,6 @@ def test_blob_image_blur_to_series(
         content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
         assert hasattr(content_series, "blob")
-        assert not content_series.blob.size().isna().any()
 
     else:
         expected_df = pd.DataFrame(
@@ -132,13 +131,14 @@ def test_blob_image_blur_to_series(
             }
         )
         pd.testing.assert_frame_equal(
-            actual.blob.to_frame().to_pandas(),
+            actual.struct.explode().to_pandas(),
             expected_df,
             check_dtype=False,
             check_index_type=False,
         )
-        # verify the files exist
-        assert not actual.blob.size().isna().any()
+
+    # verify the files exist
+    assert not actual.blob.size().isna().any()
 
 
 @pytest.mark.parametrize("verbose", [True, False])
@@ -168,7 +168,6 @@ def test_blob_image_blur_to_folder(
         content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
         assert hasattr(content_series, "blob")
-        assert not content_series.blob.size().isna().any()
 
     else:
         expected_df = pd.DataFrame(
@@ -180,13 +179,14 @@ def test_blob_image_blur_to_folder(
             }
         )
         pd.testing.assert_frame_equal(
-            actual.blob.to_frame().to_pandas(),
+            actual.struct.explode().to_pandas(),
             expected_df,
             check_dtype=False,
             check_index_type=False,
         )
-        # verify the files exist
-        assert not actual.blob.size().isna().any()
+
+    # verify the files exist
+    assert not actual.blob.size().isna().any()
 
 
 @pytest.mark.parametrize("verbose", [True, False])
@@ -248,7 +248,6 @@ def test_blob_image_resize_to_series(
         content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
         assert hasattr(content_series, "blob")
-        assert not content_series.blob.size().isna().any()
 
     else:
         expected_df = pd.DataFrame(
@@ -260,13 +259,14 @@ def test_blob_image_resize_to_series(
             }
         )
         pd.testing.assert_frame_equal(
-            actual.blob.to_frame().to_pandas(),
+            actual.struct.explode().to_pandas(),
             expected_df,
             check_dtype=False,
             check_index_type=False,
         )
-        # verify the files exist
-        assert not actual.blob.size().isna().any()
+
+    # verify the files exist
+    assert not actual.blob.size().isna().any()
 
 
 @pytest.mark.parametrize("verbose", [True, False])
@@ -297,7 +297,6 @@ def test_blob_image_resize_to_folder(
         content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
         assert hasattr(content_series, "blob")
-        assert not content_series.blob.size().isna().any()
 
     else:
         expected_df = pd.DataFrame(
@@ -309,13 +308,14 @@ def test_blob_image_resize_to_folder(
             }
         )
         pd.testing.assert_frame_equal(
-            actual.blob.to_frame().to_pandas(),
+            actual.struct.explode().to_pandas(),
             expected_df,
             check_dtype=False,
             check_index_type=False,
         )
-        # verify the files exist
-        assert not actual.blob.size().isna().any()
+
+    # verify the files exist
+    assert not actual.blob.size().isna().any()
 
 
 @pytest.mark.parametrize("verbose", [True, False])
@@ -368,6 +368,7 @@ def test_blob_image_normalize_to_series(
     )
 
     if verbose:
+
         assert hasattr(actual, "struct")
         actual_exploded = actual.struct.explode()
         assert "status" in actual_exploded.columns
@@ -379,7 +380,6 @@ def test_blob_image_normalize_to_series(
         content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
         assert hasattr(content_series, "blob")
-        assert not content_series.blob.size().isna().any()
 
     else:
         expected_df = pd.DataFrame(
@@ -391,7 +391,7 @@ def test_blob_image_normalize_to_series(
             }
         )
         pd.testing.assert_frame_equal(
-            actual.blob.to_frame().to_pandas(),
+            actual.struct.explode().to_pandas(),
             expected_df,
             check_dtype=False,
             check_index_type=False,
@@ -431,7 +431,6 @@ def test_blob_image_normalize_to_folder(
         content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
         assert hasattr(content_series, "blob")
-        assert not content_series.blob.size().isna().any()
 
     else:
         expected_df = pd.DataFrame(
@@ -443,14 +442,14 @@ def test_blob_image_normalize_to_folder(
             }
         )
         pd.testing.assert_frame_equal(
-            actual.blob.to_frame().to_pandas(),
+            actual.struct.explode().to_pandas(),
             expected_df,
             check_dtype=False,
             check_index_type=False,
         )
 
-        # verify the files exist
-        assert not actual.blob.size().isna().any()
+    # verify the files exist
+    assert not actual.blob.size().isna().any()
 
 
 @pytest.mark.parametrize("verbose", [True, False])
