@@ -20,8 +20,7 @@ import pytest
 
 import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
-
-from ...utils import assert_series_equal
+from bigframes.testing.utils import assert_series_equal
 
 
 def test_find(scalars_dfs):
@@ -98,6 +97,7 @@ def test_str_extract(scalars_dfs, pat):
         (re.compile("(?i).e.."), "blah", None, 0, True),
         ("H", "h", True, 0, False),
         (", ", "__", True, 0, False),
+        (re.compile(r"hEllo", flags=re.I), "blah", None, 0, True),
     ],
 )
 def test_str_replace(scalars_dfs, pat, repl, case, flags, regex):
@@ -265,6 +265,28 @@ def test_strip(scalars_dfs):
     )
 
 
+@pytest.mark.parametrize(
+    ("to_strip"),
+    [
+        pytest.param(None, id="none"),
+        pytest.param(" ", id="space"),
+        pytest.param(" \n", id="space_newline"),
+        pytest.param("123.!? \n\t", id="multiple_chars"),
+    ],
+)
+def test_strip_w_to_strip(to_strip):
+    s = bpd.Series(["1. Ant.  ", "2. Bee!\n", "3. Cat?\t", bpd.NA])
+    pd_s = s.to_pandas()
+
+    bf_result = s.str.strip(to_strip=to_strip).to_pandas()
+    pd_result = pd_s.str.strip(to_strip=to_strip)
+
+    assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_upper(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
@@ -303,7 +325,9 @@ def test_isalpha(weird_strings, weird_strings_pd):
 
 
 def test_isdigit(weird_strings, weird_strings_pd):
-    pd_result = weird_strings_pd.str.isdigit()
+    # check the behavior against normal pandas str, since pyarrow has a bug with superscripts/fractions b/333484335
+    # astype object instead of str to support pd.NA
+    pd_result = weird_strings_pd.astype(object).str.isdigit()
     bf_result = weird_strings.str.isdigit().to_pandas()
 
     pd.testing.assert_series_equal(
@@ -387,12 +411,56 @@ def test_rstrip(scalars_dfs):
     )
 
 
+@pytest.mark.parametrize(
+    ("to_strip"),
+    [
+        pytest.param(None, id="none"),
+        pytest.param(" ", id="space"),
+        pytest.param(" \n", id="space_newline"),
+        pytest.param("123.!? \n\t", id="multiple_chars"),
+    ],
+)
+def test_rstrip_w_to_strip(to_strip):
+    s = bpd.Series(["1. Ant.  ", "2. Bee!\n", "3. Cat?\t", bpd.NA])
+    pd_s = s.to_pandas()
+
+    bf_result = s.str.rstrip(to_strip=to_strip).to_pandas()
+    pd_result = pd_s.str.rstrip(to_strip=to_strip)
+
+    assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
 def test_lstrip(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     col_name = "string_col"
     bf_series: bpd.Series = scalars_df[col_name]
     bf_result = bf_series.str.lstrip().to_pandas()
     pd_result = scalars_pandas_df[col_name].str.lstrip()
+
+    assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("to_strip"),
+    [
+        pytest.param(None, id="none"),
+        pytest.param(" ", id="space"),
+        pytest.param(" \n", id="space_newline"),
+        pytest.param("123.!? \n\t", id="multiple_chars"),
+    ],
+)
+def test_lstrip_w_to_strip(to_strip):
+    s = bpd.Series(["1. Ant.  ", "2. Bee!\n", "3. Cat?\t", bpd.NA])
+    pd_s = s.to_pandas()
+
+    bf_result = s.str.lstrip(to_strip=to_strip).to_pandas()
+    pd_result = pd_s.str.lstrip(to_strip=to_strip)
 
     assert_series_equal(
         pd_result,
@@ -668,3 +736,14 @@ def test_getitem_w_struct_array():
     expected = bpd.Series(expected_data, dtype=bpd.ArrowDtype((pa_struct)))
 
     assert_series_equal(result.to_pandas(), expected.to_pandas())
+
+
+def test_string_join(session):
+    pd_series = pd.Series([["a", "b", "c"], ["100"], ["hello", "world"], []])
+    bf_series = session.read_pandas(pd_series)
+
+    pd_result = pd_series.str.join("--")
+    bf_result = bf_series.str.join("--").to_pandas()
+
+    pd_result = pd_result.astype("string[pyarrow]")
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)

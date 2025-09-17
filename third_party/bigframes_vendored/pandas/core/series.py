@@ -19,8 +19,8 @@ from typing import (
 from bigframes_vendored.pandas.core.generic import NDFrame
 import numpy
 import numpy as np
-from pandas._libs import lib
 from pandas._typing import Axis, FilePath, NaPosition, WriteBuffer
+from pandas.api import extensions as pd_ext
 
 from bigframes import constants
 
@@ -321,9 +321,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def reset_index(
         self,
+        level=None,
         *,
         drop: bool = False,
-        name=lib.no_default,
+        name=pd_ext.no_default,
+        inplace: bool = False,
+        allow_duplicates: Optional[bool] = None,
     ) -> DataFrame | Series | None:
         """
         Generate a new DataFrame or Series with the index reset.
@@ -399,6 +402,9 @@ class Series(NDFrame):  # type: ignore[misc]
             [4 rows x 3 columns]
 
         Args:
+            level (int, str, tuple, or list, default optional):
+                For a Series with a MultiIndex, only remove the specified levels
+                from the index. Removes all levels by default.
             drop (bool, default False):
                 Just reset the index, without inserting it as a column in
                 the new DataFrame.
@@ -406,6 +412,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 The name to use for the column containing the original Series
                 values. Uses ``self.name`` by default. This argument is ignored
                 when `drop` is True.
+            inplace (bool, default False):
+                Modify the Series in place (do not create a new object).
+            allow_duplicates (bool, optional, default None):
+                Allow duplicate column labels to be created.
 
         Returns:
             bigframes.pandas.Series or bigframes.pandas.DataFrame or None:
@@ -458,6 +468,8 @@ class Series(NDFrame):  # type: ignore[misc]
         name: bool = False,
         max_rows: int | None = None,
         min_rows: int | None = None,
+        *,
+        allow_large_results: Optional[bool] = None,
     ) -> str | None:
         """
         Render a string representation of the Series.
@@ -486,6 +498,9 @@ class Series(NDFrame):  # type: ignore[misc]
             min_rows (int, optional):
                 The number of rows to display in a truncated repr (when number
                 of rows is above `max_rows`).
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             str or None:
@@ -498,6 +513,8 @@ class Series(NDFrame):  # type: ignore[misc]
         buf: IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
         """
@@ -537,6 +554,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 Buffer to write to. If None, the output is returned as a string.
             mode (str, optional):
                 Mode in which file is opened, "wt" by default.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
             index (bool, optional, default True):
                 Add index (row) labels.
 
@@ -546,7 +566,12 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_dict(self, into: type[dict] = dict) -> Mapping:
+    def to_dict(
+        self,
+        into: type[dict] = dict,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> Mapping:
         """
         Convert Series to {label -> value} dict or dict-like object.
 
@@ -573,6 +598,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 object. Can be the actual class or an empty
                 instance of the mapping type you want.  If you want a
                 collections.defaultdict, you must pass it initialized.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             collections.abc.Mapping:
@@ -611,7 +639,13 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_excel(self, excel_writer, sheet_name):
+    def to_excel(
+        self,
+        excel_writer,
+        sheet_name,
+        *,
+        allow_large_results=None,
+    ):
         """
         Write Series to an Excel sheet.
 
@@ -630,10 +664,22 @@ class Series(NDFrame):  # type: ignore[misc]
                 File path or existing ExcelWriter.
             sheet_name (str, default 'Sheet1'):
                 Name of sheet to contain Series.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_latex(self, buf=None, columns=None, header=True, index=True, **kwargs):
+    def to_latex(
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        allow_large_results=None,
+        **kwargs,
+    ):
         """
         Render object to a LaTeX tabular, longtable, or nested table.
 
@@ -647,6 +693,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 it is assumed to be aliases for the column names.
             index (bool, default True):
                 Write row names (index).
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             str or None:
@@ -655,7 +704,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def tolist(self) -> list:
+    def tolist(self, *, allow_large_results: Optional[bool] = None) -> list:
         """
         Return a list of the values.
 
@@ -678,6 +727,11 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s.to_list()
             [1, 2, 3]
 
+        Args:
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
+
         Returns:
             list:
                 list of the values.
@@ -686,7 +740,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
     to_list = tolist
 
-    def to_numpy(self, dtype, copy=False, na_value=None):
+    def to_numpy(
+        self, dtype, copy=False, na_value=pd_ext.no_default, *, allow_large_results=None
+    ):
         """
         A NumPy ndarray representing the values in this Series or Index.
 
@@ -727,6 +783,9 @@ class Series(NDFrame):  # type: ignore[misc]
             na_value (Any, optional):
                 The value to use for missing values. The default value depends
                 on `dtype` and the type of the array.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
             ``**kwargs``:
                 Additional keywords passed through to the ``to_numpy`` method
                 of the underlying array (for extension arrays).
@@ -738,7 +797,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_pickle(self, path, **kwargs):
+    def to_pickle(self, path, *, allow_large_results=None, **kwargs):
         """
         Pickle (serialize) object to file.
 
@@ -776,13 +835,16 @@ class Series(NDFrame):  # type: ignore[misc]
                 String, path object (implementing ``os.PathLike[str]``), or file-like
                 object implementing a binary ``write()`` function. File path where
                 the pickled object will be stored.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
 
         Returns:
             None
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_xarray(self):
+    def to_xarray(self, *, allow_large_results=None):
         """
         Return an xarray object from the pandas object.
 
@@ -791,6 +853,9 @@ class Series(NDFrame):  # type: ignore[misc]
                 Data in the pandas structure
                 converted to Dataset if the object is a DataFrame, or a DataArray if
                 the object is a Series.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1451,10 +1516,11 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         *,
         axis: Axis = 0,
+        inplace: bool = False,
         ascending: bool | int | Sequence[bool] | Sequence[int] = True,
         kind: str = "quicksort",
         na_position: str = "last",
-    ) -> Series | None:
+    ):
         """
         Sort by the values.
 
@@ -1528,6 +1594,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Args:
             axis (0 or 'index'):
                 Unused. Parameter needed for compatibility with DataFrame.
+            inplace (bool, default False):
+                Whether to modify the Series rather than creating a new one.
             ascending (bool or list of bools, default True):
                 If True, sort values in ascending order, otherwise descending.
             kind (str, default to 'quicksort'):
@@ -1548,9 +1616,10 @@ class Series(NDFrame):  # type: ignore[misc]
         self,
         *,
         axis: Axis = 0,
+        inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
         na_position: NaPosition = "last",
-    ) -> Series | None:
+    ):
         """
         Sort Series by index labels.
 
@@ -1594,6 +1663,8 @@ class Series(NDFrame):  # type: ignore[misc]
         Args:
             axis ({0 or 'index'}):
                 Unused. Parameter needed for compatibility with DataFrame.
+            inplace (bool, default False):
+                Whether to modify the Series rather than creating a new one.
             ascending (bool or list-like of bools, default True):
                 Sort ascending vs. descending. When the index is a MultiIndex the
                 sort direction can be controlled for each level individually.
@@ -1801,7 +1872,7 @@ class Series(NDFrame):  # type: ignore[misc]
         to potentially reuse a previously deployed `remote_function` from
         the same user defined function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -1830,6 +1901,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> @bpd.remote_function(
             ...     reuse=False,
             ...     packages=["cryptography"],
+            ...     cloud_function_service_account="default"
             ... )
             ... def get_hash(input: str) -> str:
             ...     from cryptography.fernet import Fernet
@@ -1847,7 +1919,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         You could return an array output from the remote function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def text_analyzer(text: str) -> list[int]:
             ...     words = text.count(" ") + 1
             ...     periods = text.count(".")
@@ -4788,6 +4860,47 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def describe(self):
+        """
+        Generate descriptive statistics.
+
+        Descriptive statistics include those that summarize the central
+        tendency, dispersion and shape of a
+        dataset's distribution, excluding ``NaN`` values.
+
+        .. note::
+            Percentile values are approximates only.
+
+        .. note::
+            For numeric data, the result's index will include ``count``,
+            ``mean``, ``std``, ``min``, ``max`` as well as lower, ``50`` and
+            upper percentiles. By default the lower percentile is ``25`` and the
+            upper percentile is ``75``. The ``50`` percentile is the
+            same as the median.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series(['A', 'A', 'B'])
+            >>> s
+            0    A
+            1    A
+            2    B
+            dtype: string
+
+            >>> s.describe()
+            count      3
+            nunique    2
+            Name: 0, dtype: Int64
+
+        Returns:
+            bigframes.pandas.Series:
+                Summary statistics of the Series.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def skew(self):
         """Return unbiased skew over requested axis.
 
@@ -4868,6 +4981,26 @@ class Series(NDFrame):  # type: ignore[misc]
         Returns:
             scalar or scalar:
                 Unbiased kurtosis over requested axis.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def item(self: Series, *args, **kwargs):
+        """Return the first element of the underlying data as a Python scalar.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1])
+            >>> s.item()
+            np.int64(1)
+
+        Returns:
+            scalar: The first element of Series.
+
+        Raises:
+            ValueError: If the data is not length = 1.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -5016,7 +5149,7 @@ class Series(NDFrame):  # type: ignore[misc]
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def should_mask(name: str) -> bool:
             ...     hash = 0
             ...     for char_ in name:
@@ -5195,7 +5328,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, index, **kwargs) -> Series | None:
+    def rename(self, index, *, inplace, **kwargs):
         """
         Alter Series index labels or name.
 
@@ -5239,15 +5372,17 @@ class Series(NDFrame):  # type: ignore[misc]
                 the index.
                 Scalar or hashable sequence-like will alter the ``Series.name``
                 attribute.
+            inplace (bool):
+                Default False. Whether to return a new Series.
 
         Returns:
-            bigframes.pandas.Series:
-                Series with index labels.
+            bigframes.pandas.Series | None:
+                Series with index labels or None if ``inplace=True``.
 
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper, **kwargs):
+    def rename_axis(self, mapper, *, inplace, **kwargs):
         """
         Set the name of the axis for the index or columns.
 
@@ -5612,7 +5747,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         It also accepts a remote function:
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def my_mapper(val: str) -> str:
             ...     vowels = ["a", "e", "i", "o", "u"]
             ...     if val:
@@ -5941,7 +6076,7 @@ class Series(NDFrame):  # type: ignore[misc]
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
         """
         Returns the values as NumPy array.
 
@@ -5965,6 +6100,8 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype (str or numpy.dtype, optional):
                 The dtype to use for the resulting NumPy array. By default,
                 the dtype is inferred from the data.
+            copy (bool or None, optional):
+                Whether to copy the data, False is not supported.
 
         Returns:
             numpy.ndarray:

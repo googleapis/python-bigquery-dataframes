@@ -14,16 +14,12 @@
 
 import re
 
-import bigframes_vendored.ibis.backends.bigquery.datatypes as third_party_ibis_bqtypes
-from bigframes_vendored.ibis.expr import datatypes as ibis_types
 import pandas
 import pytest
 
-import bigframes.core.compile.ibis_types
-import bigframes.dtypes
 import bigframes.functions.function as bff
 import bigframes.series
-from tests.unit import resources
+from bigframes.testing import mocks
 
 
 @pytest.mark.parametrize(
@@ -41,8 +37,10 @@ from tests.unit import resources
 )
 def test_series_input_types_to_str(series_type):
     """Check that is_row_processor=True uses str as the input type to serialize a row."""
-    session = resources.create_bigquery_session()
-    remote_function_decorator = bff.remote_function(session=session)
+    session = mocks.create_bigquery_session()
+    remote_function_decorator = bff.remote_function(
+        session=session, cloud_function_service_account="default"
+    )
 
     with pytest.warns(
         bigframes.exceptions.PreviewWarning,
@@ -55,25 +53,13 @@ def test_series_input_types_to_str(series_type):
 
     # Still works as a normal function.
     assert axis_1_function(pandas.Series({"str_col": "World"})) == "Hello, World!"
-    assert axis_1_function.ibis_node is not None
-
-
-def test_supported_types_correspond():
-    # The same types should be representable by the supported Python and BigQuery types.
-    ibis_types_from_python = {
-        ibis_types.dtype(t) for t in bigframes.dtypes.RF_SUPPORTED_IO_PYTHON_TYPES
-    }
-    ibis_types_from_bigquery = {
-        third_party_ibis_bqtypes.BigQueryType.to_ibis(tk)
-        for tk in bigframes.dtypes.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS
-    }
-
-    assert ibis_types_from_python == ibis_types_from_bigquery
 
 
 def test_missing_input_types():
-    session = resources.create_bigquery_session()
-    remote_function_decorator = bff.remote_function(session=session)
+    session = mocks.create_bigquery_session()
+    remote_function_decorator = bff.remote_function(
+        session=session, cloud_function_service_account="default"
+    )
 
     def function_without_parameter_annotations(myparam) -> str:
         return str(myparam)
@@ -88,8 +74,10 @@ def test_missing_input_types():
 
 
 def test_missing_output_type():
-    session = resources.create_bigquery_session()
-    remote_function_decorator = bff.remote_function(session=session)
+    session = mocks.create_bigquery_session()
+    remote_function_decorator = bff.remote_function(
+        session=session, cloud_function_service_account="default"
+    )
 
     def function_without_return_annotation(myparam: int):
         return str(myparam)
@@ -101,3 +89,57 @@ def test_missing_output_type():
         match="'output_type' was not set .* missing a return type annotation",
     ):
         remote_function_decorator(function_without_return_annotation)
+
+
+def test_deploy_remote_function():
+    session = mocks.create_bigquery_session()
+
+    def my_remote_func(x: int) -> int:
+        return x * 2
+
+    deployed = session.deploy_remote_function(
+        my_remote_func, cloud_function_service_account="test_sa@example.com"
+    )
+
+    # Test that the function would have been deployed somewhere.
+    assert deployed.bigframes_bigquery_function
+
+
+def test_deploy_remote_function_with_name():
+    session = mocks.create_bigquery_session()
+
+    def my_remote_func(x: int) -> int:
+        return x * 2
+
+    deployed = session.deploy_remote_function(
+        my_remote_func,
+        name="my_custom_name",
+        cloud_function_service_account="test_sa@example.com",
+    )
+
+    # Test that the function would have been deployed somewhere.
+    assert "my_custom_name" in deployed.bigframes_bigquery_function
+
+
+def test_deploy_udf():
+    session = mocks.create_bigquery_session()
+
+    def my_remote_func(x: int) -> int:
+        return x * 2
+
+    deployed = session.deploy_udf(my_remote_func)
+
+    # Test that the function would have been deployed somewhere.
+    assert deployed.bigframes_bigquery_function
+
+
+def test_deploy_udf_with_name():
+    session = mocks.create_bigquery_session()
+
+    def my_remote_func(x: int) -> int:
+        return x * 2
+
+    deployed = session.deploy_udf(my_remote_func, name="my_custom_name")
+
+    # Test that the function would have been deployed somewhere.
+    assert "my_custom_name" in deployed.bigframes_bigquery_function

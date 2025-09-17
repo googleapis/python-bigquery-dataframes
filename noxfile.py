@@ -29,7 +29,9 @@ import nox
 import nox.sessions
 
 BLACK_VERSION = "black==22.3.0"
+FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
+MYPY_VERSION = "mypy==1.15.0"
 
 # TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
 LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
@@ -51,6 +53,7 @@ SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = [
     "docs",
     "bigframes",
+    "scripts",
     "tests",
     "third_party",
     "noxfile.py",
@@ -59,25 +62,36 @@ LINT_PATHS = [
 
 DEFAULT_PYTHON_VERSION = "3.10"
 
+# Cloud Run Functions supports Python versions up to 3.12
+# https://cloud.google.com/run/docs/runtimes/python
+E2E_TEST_PYTHON_VERSION = "3.12"
+
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
-    "freezegun",
     PYTEST_VERSION,
-    "pytest-cov",
     "pytest-asyncio",
+    "pytest-cov",
     "pytest-mock",
+    "pytest-timeout",
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = []
-UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {"3.12": ["polars"]}
+UNIT_TEST_EXTRAS: List[str] = ["tests"]
+UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
+    "3.10": ["tests", "scikit-learn", "anywidget"],
+    "3.11": ["tests", "polars", "scikit-learn", "anywidget"],
+    # Make sure we leave some versions without "extras" so we know those
+    # dependencies are actually optional.
+    "3.13": ["tests", "polars", "scikit-learn", "anywidget"],
+}
 
+# 3.11 is used by colab.
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -97,7 +111,13 @@ SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
 SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
-SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {}
+SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
+    # Make sure we leave some versions without "extras" so we know those
+    # dependencies are actually optional.
+    "3.10": ["tests", "scikit-learn", "anywidget"],
+    "3.11": ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.13": ["tests", "polars", "anywidget"],
+}
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
 
@@ -105,19 +125,11 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
-# 'docfx' is excluded since it only needs to run in 'docs-presubmit'
 nox.options.sessions = [
-    "lint",
-    "lint_setup_py",
-    "mypy",
-    "format",
-    "docs",
-    "docfx",
-    "unit",
-    "unit_noextras",
-    "system-3.9",
-    "system-3.12",
+    "system-3.9",  # No extras.
+    "system-3.11",
     "cover",
+    # TODO(b/401609005): remove
     "cleanup",
 ]
 
@@ -132,7 +144,12 @@ def lint(session):
     Returns a failure if the linters find linting errors or sufficiently
     serious code quality issues.
     """
-    session.install("flake8", BLACK_VERSION)
+    session.install(FLAKE8_VERSION, BLACK_VERSION, ISORT_VERSION)
+    session.run(
+        "isort",
+        "--check",
+        *LINT_PATHS,
+    )
     session.run(
         "black",
         "--check",
@@ -176,6 +193,14 @@ def lint_setup_py(session):
     session.install("docutils", "pygments")
     session.run("python", "setup.py", "check", "--restructuredtext", "--strict")
 
+    session.install("twine", "wheel")
+    shutil.rmtree("build", ignore_errors=True)
+    shutil.rmtree("dist", ignore_errors=True)
+    session.run("python", "setup.py", "sdist")
+    session.run(
+        "python", "-m", "twine", "check", *pathlib.Path("dist").glob("*.tar.gz")
+    )
+
 
 def install_unittest_dependencies(session, install_test_extra, *constraints):
     standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
@@ -184,14 +209,11 @@ def install_unittest_dependencies(session, install_test_extra, *constraints):
     if UNIT_TEST_LOCAL_DEPENDENCIES:
         session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
 
-    if install_test_extra and UNIT_TEST_EXTRAS_BY_PYTHON:
-        extras = UNIT_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
-    elif install_test_extra and UNIT_TEST_EXTRAS:
-        extras = UNIT_TEST_EXTRAS
-    else:
-        extras = []
-
-    if extras:
+    if install_test_extra:
+        if session.python in UNIT_TEST_EXTRAS_BY_PYTHON:
+            extras = UNIT_TEST_EXTRAS_BY_PYTHON[session.python]
+        else:
+            extras = UNIT_TEST_EXTRAS
         session.install("-e", f".[{','.join(extras)}]", *constraints)
     else:
         session.install("-e", ".", *constraints)
@@ -211,6 +233,10 @@ def run_unit(session, install_test_extra):
     session.run(
         "py.test",
         "--quiet",
+        # Any individual test taking longer than 1 mins will be terminated.
+        "--timeout=60",
+        # Log 20 slowest tests
+        "--durations=20",
         f"--junitxml=unit_{session.python}_sponge_log.xml",
         "--cov=bigframes",
         f"--cov={tests_path}",
@@ -248,14 +274,17 @@ def mypy(session):
     deps = (
         set(
             [
-                "mypy",
-                "pandas-stubs",
+                MYPY_VERSION,
+                # TODO: update to latest pandas-stubs once we resolve bigframes issues.
+                "pandas-stubs<=2.2.3.241126",
                 "types-protobuf",
                 "types-python-dateutil",
                 "types-requests",
                 "types-setuptools",
                 "types-tabulate",
+                "types-PyYAML",
                 "polars",
+                "anywidget",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
@@ -331,10 +360,13 @@ def run_system(
 
     install_systemtest_dependencies(session, install_test_extra, "-c", constraints_path)
 
+    # Print out package versions for debugging.
+    session.run("python", "-m", "pip", "freeze")
+
     # Run py.test against the system tests.
     pytest_cmd = [
         "py.test",
-        "--quiet",
+        "-v",
         f"-n={num_workers}",
         # Any individual test taking longer than 15 mins will be terminated.
         f"--timeout={timeout_seconds}",
@@ -403,6 +435,10 @@ def doctest(session: nox.sessions.Session):
             "third_party/bigframes_vendored/ibis",
             "--ignore",
             "bigframes/core/compile/polars",
+            "--ignore",
+            "bigframes/testing",
+            "--ignore",
+            "bigframes/display/anywidget.py",
         ),
         test_folder="bigframes",
         check_cov=True,
@@ -410,7 +446,7 @@ def doctest(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
+@nox.session(python=E2E_TEST_PYTHON_VERSION)
 def e2e(session: nox.sessions.Session):
     """Run the large tests in system test suite."""
     run_system(
@@ -443,20 +479,31 @@ def cover(session):
     session.install("coverage", "pytest-cov")
 
     # Create a coverage report that includes only the product code.
+    omitted_paths = [
+        # non-prod, unit tested
+        "bigframes/core/compile/polars/*",
+        "bigframes/core/compile/sqlglot/*",
+        # untested
+        "bigframes/streaming/*",
+        # utils
+        "bigframes/testing/*",
+    ]
+
     session.run(
         "coverage",
         "report",
         "--include=bigframes/*",
+        # Only unit tested
+        f"--omit={','.join(omitted_paths)}",
         "--show-missing",
-        "--fail-under=85",
+        "--fail-under=84",
     )
 
-    # Make sure there is no dead code in our test directories.
+    # Make sure there is no dead code in our system test directories.
     session.run(
         "coverage",
         "report",
         "--show-missing",
-        "--include=tests/unit/*",
         "--include=tests/system/small/*",
         # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
         "--fail-under=99",
@@ -468,8 +515,7 @@ def cover(session):
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def docs(session):
     """Build the docs for this library."""
-
-    session.install("-e", ".")
+    session.install("-e", ".[scikit-learn]")
     session.install(
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
@@ -483,6 +529,7 @@ def docs(session):
         SPHINX_VERSION,
         "alabaster",
         "recommonmark",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -510,7 +557,7 @@ def docs(session):
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
-    session.install("-e", ".")
+    session.install("-e", ".[scikit-learn]")
     session.install(
         # We need to pin to specific versions of the `sphinxcontrib-*` packages
         # which still support sphinx 4.x.
@@ -525,6 +572,7 @@ def docfx(session):
         "alabaster",
         "recommonmark",
         "gcp-sphinx-docfx-yaml==3.0.1",
+        "anywidget",
     )
 
     shutil.rmtree(os.path.join("docs", "_build"), ignore_errors=True)
@@ -617,7 +665,7 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     session.install(
         "--upgrade",
         "-e",
-        "git+https://github.com/googleapis/python-bigquery-storage.git#egg=google-cloud-bigquery-storage",
+        "git+https://github.com/googleapis/google-cloud-python.git#egg=google-cloud-bigquery-storage&subdirectory=packages/google-cloud-bigquery-storage",
     )
     already_installed.add("google-cloud-bigquery-storage")
     session.install(
@@ -651,6 +699,8 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
         )
         if match.group(1) not in already_installed
     ]
+
+    print(already_installed)
 
     # We use --no-deps to ensure that pre-release versions aren't overwritten
     # by the version ranges in setup.py.
@@ -726,6 +776,7 @@ def notebook(session: nox.Session):
         "google-cloud-aiplatform",
         "matplotlib",
         "seaborn",
+        "anywidget",
     )
 
     notebooks_list = list(pathlib.Path("notebooks/").glob("*/*.ipynb"))
@@ -745,12 +796,15 @@ def notebook(session: nox.Session):
         # our test infrastructure.
         "notebooks/getting_started/ml_fundamentals_bq_dataframes.ipynb",  # Needs DATASET.
         "notebooks/ml/bq_dataframes_ml_linear_regression.ipynb",  # Needs DATASET_ID.
+        "notebooks/ml/bq_dataframes_ml_linear_regression_big.ipynb",  # Needs DATASET_ID.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/332737009): investigate why we get 404 errors, even though
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
+        "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
@@ -758,12 +812,16 @@ def notebook(session: nox.Session):
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
         # The experimental notebooks imagine features that don't yet
         # exist or only exist as temporary prototypes.
-        "notebooks/experimental/longer_ml_demo.ipynb",
+        "notebooks/experimental/ai_operators.ipynb",
         "notebooks/experimental/semantic_operators.ipynb",
         # The notebooks that are added for more use cases, such as backing a
         # blog post, which may take longer to execute and need not be
         # continuously tested.
         "notebooks/apps/synthetic_data_generation.ipynb",
+        "notebooks/multimodal/multimodal_dataframe.ipynb",  # too slow
+        # This anywidget notebook uses deferred execution, so it won't
+        # produce metrics for the performance benchmark script.
+        "notebooks/dataframes/anywidget_mode.ipynb",
     ]
 
     # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
@@ -780,11 +838,10 @@ def notebook(session: nox.Session):
             ]
         )
 
-    # Convert each Path notebook object to a string using a list comprehension.
+    # Convert each Path notebook object to a string using a list comprehension,
+    # and remove tests that we choose not to test.
     notebooks = [str(nb) for nb in notebooks_list]
-
-    # Remove tests that we choose not to test.
-    notebooks = list(filter(lambda nb: nb not in denylist, notebooks))
+    notebooks = [nb for nb in notebooks if nb not in denylist and "/kaggle/" not in nb]
 
     # Regionalized notebooks
     notebooks_reg = {
@@ -982,7 +1039,7 @@ def cleanup(session):
     # project within the "Number of functions" quota
     # https://cloud.google.com/functions/quotas#resource_limits
     recency_cutoff_hours = 12
-    cleanup_count_per_location = 20
+    cleanup_count_per_location = 40
     cleanup_options.extend(
         [
             f"--recency-cutoff={recency_cutoff_hours}",

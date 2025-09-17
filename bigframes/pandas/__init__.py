@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
-from datetime import datetime
+from datetime import date, datetime
 import inspect
 import sys
 import typing
@@ -27,6 +27,7 @@ import bigframes_vendored.pandas.core.tools.datetimes as vendored_pandas_datetim
 import pandas
 
 import bigframes._config as config
+from bigframes.core import log_adapter
 import bigframes.core.blocks
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
@@ -37,7 +38,9 @@ import bigframes.enums
 import bigframes.functions._utils as bff_utils
 from bigframes.pandas.core.api import to_timedelta
 from bigframes.pandas.io.api import (
+    _read_gbq_colab,
     from_glob_path,
+    read_arrow,
     read_csv,
     read_gbq,
     read_gbq_function,
@@ -65,24 +68,33 @@ except ImportError:
 
 
 def remote_function(
+    # Make sure that the input/output types, and dataset can be used
+    # positionally. This avoids the worst of the breaking change from 1.x to
+    # 2.x while still preventing possible mixups between consecutive str
+    # parameters.
     input_types: Union[None, type, Sequence[type]] = None,
     output_type: Optional[type] = None,
     dataset: Optional[str] = None,
+    *,
     bigquery_connection: Optional[str] = None,
     reuse: bool = True,
     name: Optional[str] = None,
     packages: Optional[Sequence[str]] = None,
-    cloud_function_service_account: Optional[str] = None,
+    cloud_function_service_account: str,
     cloud_function_kms_key_name: Optional[str] = None,
     cloud_function_docker_repository: Optional[str] = None,
     max_batching_rows: Optional[int] = 1000,
     cloud_function_timeout: Optional[int] = 600,
     cloud_function_max_instances: Optional[int] = None,
     cloud_function_vpc_connector: Optional[str] = None,
+    cloud_function_vpc_connector_egress_settings: Optional[
+        Literal["all", "private-ranges-only", "unspecified"]
+    ] = None,
     cloud_function_memory_mib: Optional[int] = 1024,
     cloud_function_ingress_settings: Literal[
         "all", "internal-only", "internal-and-gclb"
-    ] = "all",
+    ] = "internal-only",
+    cloud_build_service_account: Optional[str] = None,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -100,12 +112,73 @@ def remote_function(
         cloud_function_timeout=cloud_function_timeout,
         cloud_function_max_instances=cloud_function_max_instances,
         cloud_function_vpc_connector=cloud_function_vpc_connector,
+        cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
         cloud_function_memory_mib=cloud_function_memory_mib,
         cloud_function_ingress_settings=cloud_function_ingress_settings,
+        cloud_build_service_account=cloud_build_service_account,
     )
 
 
 remote_function.__doc__ = inspect.getdoc(bigframes.session.Session.remote_function)
+
+
+def deploy_remote_function(
+    func,
+    **kwargs,
+):
+    return global_session.with_default_session(
+        bigframes.session.Session.deploy_remote_function,
+        func=func,
+        **kwargs,
+    )
+
+
+deploy_remote_function.__doc__ = inspect.getdoc(
+    bigframes.session.Session.deploy_remote_function
+)
+
+
+def udf(
+    *,
+    input_types: Union[None, type, Sequence[type]] = None,
+    output_type: Optional[type] = None,
+    dataset: str,
+    bigquery_connection: Optional[str] = None,
+    name: str,
+    packages: Optional[Sequence[str]] = None,
+    max_batching_rows: Optional[int] = None,
+    container_cpu: Optional[float] = None,
+    container_memory: Optional[str] = None,
+):
+    return global_session.with_default_session(
+        bigframes.session.Session.udf,
+        input_types=input_types,
+        output_type=output_type,
+        dataset=dataset,
+        bigquery_connection=bigquery_connection,
+        name=name,
+        packages=packages,
+        max_batching_rows=max_batching_rows,
+        container_cpu=container_cpu,
+        container_memory=container_memory,
+    )
+
+
+udf.__doc__ = inspect.getdoc(bigframes.session.Session.udf)
+
+
+def deploy_udf(
+    func,
+    **kwargs,
+):
+    return global_session.with_default_session(
+        bigframes.session.Session.deploy_udf,
+        func=func,
+        **kwargs,
+    )
+
+
+deploy_udf.__doc__ = inspect.getdoc(bigframes.session.Session.deploy_udf)
 
 
 @typing.overload
@@ -125,7 +198,7 @@ def to_datetime(
 
 @typing.overload
 def to_datetime(
-    arg: Union[int, float, str, datetime],
+    arg: Union[int, float, str, datetime, date],
     *,
     utc: bool = False,
     format: Optional[str] = None,
@@ -136,7 +209,7 @@ def to_datetime(
 
 def to_datetime(
     arg: Union[
-        Union[int, float, str, datetime],
+        Union[int, float, str, datetime, date],
         vendored_pandas_datetimes.local_iterables,
         bigframes.series.Series,
         bigframes.dataframe.DataFrame,
@@ -171,6 +244,7 @@ def get_default_session_id() -> str:
     return get_global_session().session_id
 
 
+@log_adapter.method_logger
 def clean_up_by_session_id(
     session_id: str,
     location: Optional[str] = None,
@@ -217,14 +291,13 @@ def clean_up_by_session_id(
             session.bqclient,
             location=location,
             project=project,
-            api_name="clean_up_by_session_id",
         )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(
         session.bqclient, dataset, session_id
     )
 
-    bff_utils._clean_up_by_session_id(
+    bff_utils.clean_up_by_session_id(
         session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
@@ -243,6 +316,7 @@ ArrowDtype = pandas.ArrowDtype
 DataFrame = bigframes.dataframe.DataFrame
 Index = bigframes.core.indexes.Index
 MultiIndex = bigframes.core.indexes.MultiIndex
+DatetimeIndex = bigframes.core.indexes.DatetimeIndex
 Series = bigframes.series.Series
 __version__ = bigframes.version.__version__
 
@@ -293,31 +367,37 @@ if resource is not None:
         except Exception:
             pass
 
-# Use __all__ to let type checkers know what is part of the public API.
-__all__ = [
-    # Functions
-    "clean_up_by_session_id",
-    "concat",
-    "cut",
-    "get_default_session_id",
-    "get_dummies",
-    "merge",
-    "qcut",
-    "read_csv",
-    "read_gbq",
-    "read_gbq_function",
-    "read_gbq_model",
-    "read_gbq_object_table",
-    "read_gbq_query",
-    "read_gbq_table",
-    "read_json",
-    "read_pandas",
-    "read_parquet",
-    "read_pickle",
-    "remote_function",
-    "to_datetime",
-    "to_timedelta",
-    "from_glob_path",
+_functions = [
+    clean_up_by_session_id,
+    concat,
+    cut,
+    deploy_remote_function,
+    deploy_udf,
+    get_default_session_id,
+    get_dummies,
+    merge,
+    qcut,
+    read_csv,
+    read_arrow,
+    read_gbq,
+    _read_gbq_colab,
+    read_gbq_function,
+    read_gbq_model,
+    read_gbq_object_table,
+    read_gbq_query,
+    read_gbq_table,
+    read_json,
+    read_pandas,
+    read_parquet,
+    read_pickle,
+    remote_function,
+    to_datetime,
+    to_timedelta,
+    from_glob_path,
+]
+
+_function_names = [_function.__name__ for _function in _functions]
+_other_names = [
     # pandas dtype attributes
     "NA",
     "BooleanDtype",
@@ -329,6 +409,7 @@ __all__ = [
     "DataFrame",
     "Index",
     "MultiIndex",
+    "DatetimeIndex",
     "Series",
     "__version__",
     # Other public pandas attributes
@@ -339,4 +420,14 @@ __all__ = [
     "get_global_session",
     "close_session",
     "reset_session",
+    "udf",
 ]
+
+# Use __all__ to let type checkers know what is part of the public API.
+__all__ = _function_names + _other_names
+
+_module = sys.modules[__name__]
+
+for _function in _functions:
+    _decorated_object = log_adapter.method_logger(_function, custom_base_name="pandas")
+    setattr(_module, _function.__name__, _decorated_object)

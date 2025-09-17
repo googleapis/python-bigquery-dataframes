@@ -57,7 +57,7 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001") # doctest: +SKIP
 
             >>> df = bpd.DataFrame(
             ... {
@@ -68,7 +68,7 @@ class Semantics:
             ...     ],
             ...     "Year": [1997, 2013, 2010],
             ... })
-            >>> df.semantics.agg(
+            >>> df.semantics.agg( # doctest: +SKIP
             ...     "Find the first name shared by all actors in {Movies}. One word answer.",
             ...     model=model,
             ... )
@@ -141,11 +141,11 @@ class Semantics:
         column = columns[0]
 
         if ground_with_google_search:
-            msg = (
+            msg = exceptions.format_message(
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
-            warnings.warn(msg)
+            warnings.warn(msg, category=UserWarning)
 
         user_instruction = self._format_instruction(instruction, columns)
 
@@ -252,7 +252,7 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator()
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
 
             >>> df = bpd.DataFrame({
             ...     "Product": ["Smartphone", "Laptop", "T-shirt", "Jeans"],
@@ -326,10 +326,10 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001") # doctest: +SKIP
 
             >>> df = bpd.DataFrame({"country": ["USA", "Germany"], "city": ["Seattle", "Berlin"]})
-            >>> df.semantics.filter("{city} is the capital of {country}", model)
+            >>> df.semantics.filter("{city} is the capital of {country}", model) # doctest: +SKIP
                country    city
             1  Germany  Berlin
             <BLANKLINE>
@@ -372,30 +372,51 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            msg = (
+            msg = exceptions.format_message(
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
-            warnings.warn(msg)
+            warnings.warn(msg, category=UserWarning)
 
         self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        has_blob_column = False
         for column in columns:
+            if df[column].dtype == dtypes.OBJ_REF_DTYPE:
+                # Don't cast blob columns to string
+                has_blob_column = True
+                continue
+
             if df[column].dtype != dtypes.STRING_DTYPE:
                 df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
         user_instruction = self._format_instruction(instruction, columns)
         output_instruction = "Based on the provided context, reply to the following claim by only True or False:"
 
-        results = typing.cast(
-            bigframes.dataframe.DataFrame,
-            model.predict(
-                self._make_prompt(df, columns, user_instruction, output_instruction),
-                temperature=0.0,
-                ground_with_google_search=ground_with_google_search,
-            ),
-        )
+        if has_blob_column:
+            results = typing.cast(
+                bigframes.dataframe.DataFrame,
+                model.predict(
+                    df,
+                    prompt=self._make_multimodel_prompt(
+                        df, columns, user_instruction, output_instruction
+                    ),
+                    temperature=0.0,
+                    ground_with_google_search=ground_with_google_search,
+                ),
+            )
+        else:
+            results = typing.cast(
+                bigframes.dataframe.DataFrame,
+                model.predict(
+                    self._make_text_prompt(
+                        df, columns, user_instruction, output_instruction
+                    ),
+                    temperature=0.0,
+                    ground_with_google_search=ground_with_google_search,
+                ),
+            )
 
         return self._df[
             results["ml_generate_text_llm_result"].str.lower().str.contains("true")
@@ -419,10 +440,10 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001") # doctest: +SKIP
 
             >>> df = bpd.DataFrame({"ingredient_1": ["Burger Bun", "Soy Bean"], "ingredient_2": ["Beef Patty", "Bittern"]})
-            >>> df.semantics.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", output_column="food", model=model)
+            >>> df.semantics.map("What is the food made from {ingredient_1} and {ingredient_2}? One word only.", output_column="food", model=model) # doctest: +SKIP
               ingredient_1 ingredient_2      food
             0   Burger Bun   Beef Patty  Burger
             <BLANKLINE>
@@ -471,16 +492,22 @@ class Semantics:
                 raise ValueError(f"Column {column} not found.")
 
         if ground_with_google_search:
-            msg = (
+            msg = exceptions.format_message(
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
-            warnings.warn(msg)
+            warnings.warn(msg, category=UserWarning)
 
         self._confirm_operation(len(self._df))
 
         df: bigframes.dataframe.DataFrame = self._df[columns].copy()
+        has_blob_column = False
         for column in columns:
+            if df[column].dtype == dtypes.OBJ_REF_DTYPE:
+                # Don't cast blob columns to string
+                has_blob_column = True
+                continue
+
             if df[column].dtype != dtypes.STRING_DTYPE:
                 df[column] = df[column].astype(dtypes.STRING_DTYPE)
 
@@ -489,14 +516,29 @@ class Semantics:
             "Based on the provided contenxt, answer the following instruction:"
         )
 
-        results = typing.cast(
-            bigframes.series.Series,
-            model.predict(
-                self._make_prompt(df, columns, user_instruction, output_instruction),
-                temperature=0.0,
-                ground_with_google_search=ground_with_google_search,
-            )["ml_generate_text_llm_result"],
-        )
+        if has_blob_column:
+            results = typing.cast(
+                bigframes.series.Series,
+                model.predict(
+                    df,
+                    prompt=self._make_multimodel_prompt(
+                        df, columns, user_instruction, output_instruction
+                    ),
+                    temperature=0.0,
+                    ground_with_google_search=ground_with_google_search,
+                )["ml_generate_text_llm_result"],
+            )
+        else:
+            results = typing.cast(
+                bigframes.series.Series,
+                model.predict(
+                    self._make_text_prompt(
+                        df, columns, user_instruction, output_instruction
+                    ),
+                    temperature=0.0,
+                    ground_with_google_search=ground_with_google_search,
+                )["ml_generate_text_llm_result"],
+            )
 
         from bigframes.core.reshape.api import concat
 
@@ -521,12 +563,12 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001") # doctest: +SKIP
 
             >>> cities = bpd.DataFrame({'city': ['Seattle', 'Ottawa', 'Berlin', 'Shanghai', 'New Delhi']})
             >>> continents = bpd.DataFrame({'continent': ['North America', 'Africa', 'Asia']})
 
-            >>> cities.semantics.join(continents, "{city} is in {continent}", model)
+            >>> cities.semantics.join(continents, "{city} is in {continent}", model) # doctest: +SKIP
                     city      continent
             0    Seattle  North America
             1     Ottawa  North America
@@ -573,11 +615,11 @@ class Semantics:
         columns = self._parse_columns(instruction)
 
         if ground_with_google_search:
-            msg = (
+            msg = exceptions.format_message(
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
-            warnings.warn(msg)
+            warnings.warn(msg, category=UserWarning)
 
         work_estimate = len(self._df) * len(other)
         self._confirm_operation(work_estimate)
@@ -662,10 +704,10 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005") # doctest: +SKIP
 
             >>> df = bpd.DataFrame({"creatures": ["salmon", "sea urchin", "frog", "chimpanzee"]})
-            >>> df.semantics.search("creatures", "monkey", top_k=1, model=model, score_column='distance')
+            >>> df.semantics.search("creatures", "monkey", top_k=1, model=model, score_column='distance') # doctest: +SKIP
                 creatures  distance
             3  chimpanzee  0.635844
             <BLANKLINE>
@@ -763,15 +805,19 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.GeminiTextGenerator(model_name="gemini-1.5-flash-001")
+            >>> model = llm.GeminiTextGenerator(model_name="gemini-2.0-flash-001") # doctest: +SKIP
 
-            >>> df = bpd.DataFrame({"Animals": ["Dog", "Bird", "Cat", "Horse"]})
-            >>> df.semantics.top_k("{Animals} are more popular as pets", model=model, k=2)
-              Animals
-            0     Dog
-            2     Cat
+            >>> df = bpd.DataFrame(
+            ... {
+            ...     "Animals": ["Dog", "Bird", "Cat", "Horse"],
+            ...     "Sounds": ["Woof", "Chirp", "Meow", "Neigh"],
+            ... })
+            >>> df.semantics.top_k("{Animals} are more popular as pets", model=model, k=2) # doctest: +SKIP
+              Animals Sounds
+            0     Dog   Woof
+            2     Cat   Meow
             <BLANKLINE>
-            [2 rows x 1 columns]
+            [2 rows x 2 columns]
 
         Args:
             instruction (str):
@@ -811,16 +857,14 @@ class Semantics:
             if column not in self._df.columns:
                 raise ValueError(f"Column {column} not found.")
         if len(columns) > 1:
-            raise NotImplementedError(
-                "Semantic aggregations are limited to a single column."
-            )
+            raise NotImplementedError("Semantic top K are limited to a single column.")
 
         if ground_with_google_search:
-            msg = (
+            msg = exceptions.format_message(
                 "Enables Grounding with Google Search may impact billing cost. See pricing "
                 "details: https://cloud.google.com/vertex-ai/generative-ai/pricing#google_models"
             )
-            warnings.warn(msg)
+            warnings.warn(msg, category=UserWarning)
 
         work_estimate = int(len(self._df) * (len(self._df) - 1) / 2)
         self._confirm_operation(work_estimate)
@@ -854,7 +898,9 @@ class Semantics:
         #  - 1.0: Selected as part of the top-k items
         #  - -1.0: Excluded from the top-k items
         status_column = guid.generate_guid("status")
-        df[status_column] = bigframes.series.Series(None, dtype=dtypes.FLOAT_DTYPE)
+        df[status_column] = bigframes.series.Series(
+            None, dtype=dtypes.FLOAT_DTYPE, session=df._session
+        )
 
         num_selected = 0
         while num_selected < k:
@@ -869,14 +915,8 @@ class Semantics:
             )
             num_selected += num_new_selected
 
-        df = (
-            df[df[status_column] > 0]
-            .drop(["index", status_column], axis=1)
-            .rename(columns={"old_index": "index"})
-            .set_index("index")
-        )
-        df.index.name = None
-        return df
+        result_df: bigframes.dataframe.DataFrame = self._df.copy()
+        return result_df[df.set_index("old_index")[status_column] > 0.0]
 
     @staticmethod
     def _topk_partition(
@@ -966,12 +1006,12 @@ class Semantics:
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
-            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005")
+            >>> model = llm.TextEmbeddingGenerator(model_name="text-embedding-005") # doctest: +SKIP
 
             >>> df1 = bpd.DataFrame({'animal': ['monkey', 'spider']})
             >>> df2 = bpd.DataFrame({'animal': ['scorpion', 'baboon']})
 
-            >>> df1.semantics.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1)
+            >>> df1.semantics.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1) # doctest: +SKIP
             animal  animal_1
             0  monkey    baboon
             1  spider  scorpion
@@ -1060,8 +1100,19 @@ class Semantics:
         result_df[embedding_column] = embeddings
         return result_df
 
-    def _make_prompt(
-        self, prompt_df, columns, user_instruction: str, output_instruction: str
+    @staticmethod
+    def _make_multimodel_prompt(
+        prompt_df, columns, user_instruction: str, output_instruction: str
+    ):
+        prompt = [f"{output_instruction}\n{user_instruction}\nContext: "]
+        for col in columns:
+            prompt.extend([f"{col} is ", prompt_df[col]])
+
+        return prompt
+
+    @staticmethod
+    def _make_text_prompt(
+        prompt_df, columns, user_instruction: str, output_instruction: str
     ):
         prompt_df["prompt"] = f"{output_instruction}\n{user_instruction}\nContext: "
 
@@ -1071,7 +1122,8 @@ class Semantics:
 
         return prompt_df["prompt"]
 
-    def _parse_columns(self, instruction: str) -> List[str]:
+    @staticmethod
+    def _parse_columns(instruction: str) -> List[str]:
         """Extracts column names enclosed in curly braces from the user instruction.
         For example, _parse_columns("{city} is in {continent}") == ["city", "continent"]
         """

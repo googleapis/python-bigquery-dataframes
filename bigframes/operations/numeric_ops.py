@@ -19,91 +19,118 @@ from bigframes import dtypes
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
-sin_op = base_ops.create_unary_op(
+SinOp = base_ops.create_unary_op(
     name="sin", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+sin_op = SinOp()
 
-cos_op = base_ops.create_unary_op(
+CosOp = base_ops.create_unary_op(
     name="cos", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+cos_op = CosOp()
 
-tan_op = base_ops.create_unary_op(
+TanOp = base_ops.create_unary_op(
     name="tan", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+tan_op = TanOp()
 
-arcsin_op = base_ops.create_unary_op(
+ArcsinOp = base_ops.create_unary_op(
     name="arcsin", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+arcsin_op = ArcsinOp()
 
-arccos_op = base_ops.create_unary_op(
+ArccosOp = base_ops.create_unary_op(
     name="arccos", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+arccos_op = ArccosOp()
 
-arctan_op = base_ops.create_unary_op(
+ArctanOp = base_ops.create_unary_op(
     name="arctan", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+arctan_op = ArctanOp()
 
-sinh_op = base_ops.create_unary_op(
+SinhOp = base_ops.create_unary_op(
     name="sinh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+sinh_op = SinhOp()
 
-cosh_op = base_ops.create_unary_op(
+CoshOp = base_ops.create_unary_op(
     name="cosh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+cosh_op = CoshOp()
 
-tanh_op = base_ops.create_unary_op(
+TanhOp = base_ops.create_unary_op(
     name="tanh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+tanh_op = TanhOp()
 
-arcsinh_op = base_ops.create_unary_op(
+ArcsinhOp = base_ops.create_unary_op(
     name="arcsinh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+arcsinh_op = ArcsinhOp()
 
-arccosh_op = base_ops.create_unary_op(
+ArccoshOp = base_ops.create_unary_op(
     name="arccosh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+arccosh_op = ArccoshOp()
 
-arctanh_op = base_ops.create_unary_op(
+ArctanhOp = base_ops.create_unary_op(
     name="arctanh", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+arctanh_op = ArctanhOp()
 
-floor_op = base_ops.create_unary_op(
+FloorOp = base_ops.create_unary_op(
     name="floor", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+floor_op = FloorOp()
 
-ceil_op = base_ops.create_unary_op(
+CeilOp = base_ops.create_unary_op(
     name="ceil", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+ceil_op = CeilOp()
 
-abs_op = base_ops.create_unary_op(name="abs", type_signature=op_typing.UNARY_NUMERIC)
+AbsOp = base_ops.create_unary_op(
+    name="abs", type_signature=op_typing.UNARY_NUMERIC_AND_TIMEDELTA
+)
+abs_op = AbsOp()
 
-pos_op = base_ops.create_unary_op(name="pos", type_signature=op_typing.UNARY_NUMERIC)
+PosOp = base_ops.create_unary_op(
+    name="pos", type_signature=op_typing.UNARY_NUMERIC_AND_TIMEDELTA
+)
+pos_op = PosOp()
 
-neg_op = base_ops.create_unary_op(name="neg", type_signature=op_typing.UNARY_NUMERIC)
+NegOp = base_ops.create_unary_op(
+    name="neg", type_signature=op_typing.UNARY_NUMERIC_AND_TIMEDELTA
+)
+neg_op = NegOp()
 
-exp_op = base_ops.create_unary_op(
+ExpOp = base_ops.create_unary_op(
     name="exp", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+exp_op = ExpOp()
 
-expm1_op = base_ops.create_unary_op(
+Expm1Op = base_ops.create_unary_op(
     name="expm1", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+expm1_op = Expm1Op()
 
-ln_op = base_ops.create_unary_op(
-    name="log", type_signature=op_typing.UNARY_REAL_NUMERIC
-)
+LnOp = base_ops.create_unary_op(name="log", type_signature=op_typing.UNARY_REAL_NUMERIC)
+ln_op = LnOp()
 
-log10_op = base_ops.create_unary_op(
+Log10Op = base_ops.create_unary_op(
     name="log10", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+log10_op = Log10Op()
 
-log1p_op = base_ops.create_unary_op(
+Log1pOp = base_ops.create_unary_op(
     name="log1p", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+log1p_op = Log1pOp()
 
-sqrt_op = base_ops.create_unary_op(
+SqrtOp = base_ops.create_unary_op(
     name="sqrt", type_signature=op_typing.UNARY_REAL_NUMERIC
 )
+sqrt_op = SqrtOp()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -113,15 +140,25 @@ class AddOp(base_ops.BinaryOp):
     def output_type(self, *input_types):
         left_type = input_types[0]
         right_type = input_types[1]
-        if all(map(dtypes.is_string_like, input_types)) and len(set(input_types)) == 1:
+        # TODO: Binary/bytes addition requires impl
+        if all(map(lambda t: t == dtypes.STRING_DTYPE, input_types)):
             # String addition
             return input_types[0]
 
-        # Timestamp addition.
-        if dtypes.is_datetime_like(left_type) and right_type is dtypes.TIMEDELTA_DTYPE:
+        # Temporal addition.
+        if dtypes.is_datetime_like(left_type) and right_type == dtypes.TIMEDELTA_DTYPE:
             return left_type
-        if left_type is dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right_type):
+        if left_type == dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right_type):
             return right_type
+
+        if left_type == dtypes.DATE_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.DATETIME_DTYPE
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.DATE_DTYPE:
+            return dtypes.DATETIME_DTYPE
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
 
         if (left_type is None or dtypes.is_numeric(left_type)) and (
             right_type is None or dtypes.is_numeric(right_type)
@@ -142,45 +179,172 @@ class SubOp(base_ops.BinaryOp):
     def output_type(self, *input_types):
         left_type = input_types[0]
         right_type = input_types[1]
+
+        if left_type == dtypes.DATETIME_DTYPE and right_type == dtypes.DATETIME_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
+        if left_type == dtypes.TIMESTAMP_DTYPE and right_type == dtypes.TIMESTAMP_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
+        if left_type == dtypes.DATE_DTYPE and right_type == dtypes.DATE_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
+        if dtypes.is_datetime_like(left_type) and right_type == dtypes.TIMEDELTA_DTYPE:
+            return left_type
+
+        if left_type == dtypes.DATE_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.DATETIME_DTYPE
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
+        if left_type == dtypes.BOOL_DTYPE and right_type == dtypes.BOOL_DTYPE:
+            raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
+
         if (left_type is None or dtypes.is_numeric(left_type)) and (
             right_type is None or dtypes.is_numeric(right_type)
         ):
             # Numeric subtraction
             return dtypes.coerce_to_common(left_type, right_type)
 
-        if dtypes.is_datetime_like(left_type) and dtypes.is_datetime_like(right_type):
-            return dtypes.TIMEDELTA_DTYPE
-
-        if dtypes.is_datetime_like(left_type) and right_type is dtypes.TIMEDELTA_DTYPE:
-            return left_type
-
         raise TypeError(f"Cannot subtract dtypes {left_type} and {right_type}")
 
 
 sub_op = SubOp()
 
-mul_op = base_ops.create_binary_op(name="mul", type_signature=op_typing.BINARY_NUMERIC)
 
-div_op = base_ops.create_binary_op(
-    name="div", type_signature=op_typing.BINARY_REAL_NUMERIC
-)
+@dataclasses.dataclass(frozen=True)
+class MulOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "mul"
 
-floordiv_op = base_ops.create_binary_op(
-    name="floordiv", type_signature=op_typing.BINARY_NUMERIC
-)
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        left_type = input_types[0]
+        right_type = input_types[1]
 
-pow_op = base_ops.create_binary_op(name="pow", type_signature=op_typing.BINARY_NUMERIC)
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type in (
+            dtypes.INT_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ):
+            return dtypes.TIMEDELTA_DTYPE
+        if (
+            left_type in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE)
+            and right_type == dtypes.TIMEDELTA_DTYPE
+        ):
+            return dtypes.TIMEDELTA_DTYPE
 
-mod_op = base_ops.create_binary_op(name="mod", type_signature=op_typing.BINARY_NUMERIC)
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            return dtypes.coerce_to_common(left_type, right_type)
 
-arctan2_op = base_ops.create_binary_op(
+        raise TypeError(f"Cannot multiply dtypes {left_type} and {right_type}")
+
+
+mul_op = MulOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class DivOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "div"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        left_type = input_types[0]
+        right_type = input_types[1]
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right_type):
+            # will fail outright if result undefined or otherwise can't be coerced back into an int
+            return dtypes.TIMEDELTA_DTYPE
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.FLOAT_DTYPE
+
+        if left_type == dtypes.BOOL_DTYPE and right_type == dtypes.BOOL_DTYPE:
+            raise TypeError(f"Cannot divide dtypes {left_type} and {right_type}")
+
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            lcd_type = dtypes.coerce_to_common(left_type, right_type)
+            # Real numeric ops produce floats on int input
+            return dtypes.FLOAT_DTYPE if lcd_type == dtypes.INT_DTYPE else lcd_type
+
+        raise TypeError(f"Cannot divide dtypes {left_type} and {right_type}")
+
+
+div_op = DivOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class FloorDivOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "floordiv"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        left_type = input_types[0]
+        right_type = input_types[1]
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.INT_DTYPE
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right_type):
+            return dtypes.TIMEDELTA_DTYPE
+
+        if left_type == dtypes.BOOL_DTYPE and right_type == dtypes.BOOL_DTYPE:
+            raise TypeError(f"Cannot floor divide dtypes {left_type} and {right_type}")
+
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            return dtypes.coerce_to_common(left_type, right_type)
+
+        raise TypeError(f"Cannot floor divide dtypes {left_type} and {right_type}")
+
+
+floordiv_op = FloorDivOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class ModOp(base_ops.BinaryOp):
+    name: typing.ClassVar[str] = "mod"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        left_type = input_types[0]
+        right_type = input_types[1]
+
+        if left_type == dtypes.TIMEDELTA_DTYPE and right_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+        if left_type in (
+            dtypes.NUMERIC_DTYPE,
+            dtypes.BIGNUMERIC_DTYPE,
+        ) or right_type in (dtypes.NUMERIC_DTYPE, dtypes.BIGNUMERIC_DTYPE):
+            raise TypeError(f"Cannot mod dtypes {left_type} and {right_type}")
+
+        if left_type == dtypes.BOOL_DTYPE and right_type == dtypes.BOOL_DTYPE:
+            raise TypeError(f"Cannot mod dtypes {left_type} and {right_type}")
+
+        if (left_type is None or dtypes.is_numeric(left_type)) and (
+            right_type is None or dtypes.is_numeric(right_type)
+        ):
+            return dtypes.coerce_to_common(left_type, right_type)
+
+        raise TypeError(f"Cannot mod dtypes {left_type} and {right_type}")
+
+
+mod_op = ModOp()
+
+PowOp = base_ops.create_binary_op(name="pow", type_signature=op_typing.BINARY_NUMERIC)
+pow_op = PowOp()
+
+Arctan2Op = base_ops.create_binary_op(
     name="arctan2", type_signature=op_typing.BINARY_REAL_NUMERIC
 )
+arctan2_op = Arctan2Op()
 
-round_op = base_ops.create_binary_op(
-    name="round", type_signature=op_typing.BINARY_REAL_NUMERIC
+RoundOp = base_ops.create_binary_op(
+    name="round", type_signature=op_typing.BINARY_NUMERIC
 )
+round_op = RoundOp()
 
-unsafe_pow_op = base_ops.create_binary_op(
+UnsafePowOp = base_ops.create_binary_op(
     name="unsafe_pow_op", type_signature=op_typing.BINARY_REAL_NUMERIC
 )
+unsafe_pow_op = UnsafePowOp()

@@ -17,13 +17,18 @@ from __future__ import annotations
 import abc
 import dataclasses
 import typing
-from typing import ClassVar, Iterable, Optional
+from typing import Callable, ClassVar, Iterable, Optional, TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 
+from bigframes.core import agg_expressions
 import bigframes.dtypes as dtypes
 import bigframes.operations.type as signatures
+
+if TYPE_CHECKING:
+    from bigframes.core import expression
 
 
 @dataclasses.dataclass(frozen=True)
@@ -32,6 +37,11 @@ class WindowOp:
     def skips_nulls(self):
         """Whether the window op skips null rows."""
         return True
+
+    @property
+    def nulls_count_for_min_values(self) -> bool:
+        """Whether null values count for min_values."""
+        return not self.skips_nulls
 
     @property
     def implicitly_inherits_order(self):
@@ -105,6 +115,14 @@ class NullaryAggregateOp(AggregateOp, NullaryWindowOp):
     def arguments(self) -> int:
         return 0
 
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> agg_expressions.NullaryAggregation:
+        from bigframes.core import agg_expressions
+
+        return agg_expressions.NullaryAggregation(self)
+
 
 @dataclasses.dataclass(frozen=True)
 class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
@@ -112,12 +130,44 @@ class UnaryAggregateOp(AggregateOp, UnaryWindowOp):
     def arguments(self) -> int:
         return 1
 
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> agg_expressions.UnaryAggregation:
+        from bigframes.core import agg_expressions
+        from bigframes.operations.base_ops import _convert_expr_input
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+        return agg_expressions.UnaryAggregation(
+            self,
+            inputs[0],
+        )
+
 
 @dataclasses.dataclass(frozen=True)
 class BinaryAggregateOp(AggregateOp):
     @property
     def arguments(self) -> int:
         return 2
+
+    def as_expr(
+        self,
+        *exprs: typing.Union[str, expression.Expression],
+    ) -> agg_expressions.BinaryAggregation:
+        from bigframes.core import agg_expressions
+        from bigframes.operations.base_ops import _convert_expr_input
+
+        # Keep this in sync with output_type and compilers
+        inputs: list[expression.Expression] = []
+
+        for expr in exprs:
+            inputs.append(_convert_expr_input(expr))
+
+        return agg_expressions.BinaryAggregation(self, inputs[0], inputs[1])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -142,12 +192,15 @@ class SumOp(UnaryAggregateOp):
     name: ClassVar[str] = "sum"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if not dtypes.is_numeric(input_types[0]):
-            raise TypeError(f"Type {input_types[0]} is not numeric")
-        if pd.api.types.is_bool_dtype(input_types[0]):
-            return dtypes.INT_DTYPE
-        else:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
+        if dtypes.is_numeric(input_types[0]):
+            if pd.api.types.is_bool_dtype(input_types[0]):
+                return dtypes.INT_DTYPE
             return input_types[0]
+
+        raise TypeError(f"Type {input_types[0]} is not numeric or timedelta")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -171,6 +224,7 @@ class MedianOp(UnaryAggregateOp):
 @dataclasses.dataclass(frozen=True)
 class QuantileOp(UnaryAggregateOp):
     q: float
+    should_floor_result: bool = False
 
     @property
     def name(self):
@@ -181,6 +235,8 @@ class QuantileOp(UnaryAggregateOp):
         return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
@@ -224,7 +280,11 @@ class ApproxTopCountOp(UnaryAggregateOp):
 class MeanOp(UnaryAggregateOp):
     name: ClassVar[str] = "mean"
 
+    should_floor_result: bool = False
+
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
         return signatures.UNARY_REAL_NUMERIC.output_type(input_types[0])
 
 
@@ -262,7 +322,12 @@ class MinOp(UnaryAggregateOp):
 class StdOp(UnaryAggregateOp):
     name: ClassVar[str] = "std"
 
+    should_floor_result: bool = False
+
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+
         return signatures.FixedOutputType(
             dtypes.is_numeric, dtypes.FLOAT_DTYPE, "numeric"
         ).output_type(input_types[0])
@@ -315,37 +380,67 @@ class ArrayAggOp(UnaryAggregateOp):
         return True
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        return pd.ArrowDtype(
-            pa.list_(dtypes.bigframes_dtype_to_arrow_dtype(input_types[0]))
-        )
+        return dtypes.list_type(input_types[0])
+
+
+@dataclasses.dataclass(frozen=True)
+class StringAggOp(UnaryAggregateOp):
+    name: ClassVar[str] = "string_agg"
+    sep: str = ","
+
+    @property
+    def order_independent(self):
+        return False
+
+    @property
+    def skips_nulls(self):
+        return True
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] != dtypes.STRING_DTYPE:
+            raise TypeError(f"Type {input_types[0]} is not string-like")
+        return dtypes.STRING_DTYPE
 
 
 @dataclasses.dataclass(frozen=True)
 class CutOp(UnaryWindowOp):
     # TODO: Unintuitive, refactor into multiple ops?
     bins: typing.Union[int, Iterable]
-    labels: Optional[bool]
+    right: Optional[bool]
+    labels: typing.Union[bool, Iterable[str], None]
 
     @property
     def skips_nulls(self):
         return False
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if isinstance(self.bins, int) and (self.labels is False):
+        if self.labels is False:
             return dtypes.INT_DTYPE
+        elif isinstance(self.labels, Iterable):
+            return dtypes.STRING_DTYPE
         else:
             # Assumption: buckets use same numeric type
-            interval_dtype = (
-                pa.float64()
-                if isinstance(self.bins, int)
-                else dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
-            )
+            if isinstance(self.bins, int):
+                interval_dtype = pa.float64()
+            elif len(list(self.bins)) == 0:
+                interval_dtype = pa.int64()
+            else:
+                interval_dtype = dtypes.infer_literal_arrow_type(list(self.bins)[0][0])
             pa_type = pa.struct(
                 [
-                    pa.field("left_exclusive", interval_dtype, nullable=True),
-                    pa.field("right_inclusive", interval_dtype, nullable=True),
+                    pa.field(
+                        "left_exclusive" if self.right else "left_inclusive",
+                        interval_dtype,
+                        nullable=True,
+                    ),
+                    pa.field(
+                        "right_inclusive" if self.right else "right_exclusive",
+                        interval_dtype,
+                        nullable=True,
+                    ),
                 ]
             )
+
             return pd.ArrowDtype(pa_type)
 
     @property
@@ -411,7 +506,6 @@ class RowNumberOp(NullaryWindowOp):
         return dtypes.INT_DTYPE
 
 
-# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class RankOp(UnaryWindowOp):
     name: ClassVar[str] = "rank"
@@ -428,7 +522,6 @@ class RankOp(UnaryWindowOp):
         return False
 
 
-# TODO: Convert to NullaryWindowOp
 @dataclasses.dataclass(frozen=True)
 class DenseRankOp(UnaryWindowOp):
     @property
@@ -454,6 +547,10 @@ class FirstNonNullOp(UnaryWindowOp):
     def skips_nulls(self):
         return False
 
+    @property
+    def nulls_count_for_min_values(self) -> bool:
+        return False
+
 
 @dataclasses.dataclass(frozen=True)
 class LastOp(UnaryWindowOp):
@@ -464,6 +561,10 @@ class LastOp(UnaryWindowOp):
 class LastNonNullOp(UnaryWindowOp):
     @property
     def skips_nulls(self):
+        return False
+
+    @property
+    def nulls_count_for_min_values(self) -> bool:
         return False
 
 
@@ -478,11 +579,45 @@ class ShiftOp(UnaryWindowOp):
 
 @dataclasses.dataclass(frozen=True)
 class DiffOp(UnaryWindowOp):
+    name: ClassVar[str] = "diff"
     periods: int
 
     @property
     def skips_nulls(self):
         return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if dtypes.is_date_like(input_types[0]):
+            return dtypes.TIMEDELTA_DTYPE
+        return super().output_type(*input_types)
+
+
+@dataclasses.dataclass(frozen=True)
+class TimeSeriesDiffOp(UnaryWindowOp):
+    periods: int
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if dtypes.is_datetime_like(input_types[0]):
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"expect datetime-like types, but got {input_types[0]}")
+
+
+@dataclasses.dataclass(frozen=True)
+class DateSeriesDiffOp(UnaryWindowOp):
+    periods: int
+
+    @property
+    def skips_nulls(self):
+        return False
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] == dtypes.DATE_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"expect date type, but got {input_types[0]}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -544,7 +679,7 @@ first_op = FirstOp()
 
 
 # TODO: Alternative names and lookup from numpy function objects
-_AGGREGATIONS_LOOKUP: typing.Dict[
+_STRING_TO_AGG_OP: typing.Dict[
     str, typing.Union[UnaryAggregateOp, NullaryAggregateOp]
 ] = {
     op.name: op
@@ -571,17 +706,32 @@ _AGGREGATIONS_LOOKUP: typing.Dict[
     ]
 }
 
+_CALLABLE_TO_AGG_OP: typing.Dict[
+    Callable, typing.Union[UnaryAggregateOp, NullaryAggregateOp]
+] = {
+    np.sum: sum_op,
+    np.mean: mean_op,
+    np.median: median_op,
+    np.prod: product_op,
+    np.max: max_op,
+    np.min: min_op,
+    np.std: std_op,
+    np.var: var_op,
+    np.all: all_op,
+    np.any: any_op,
+    np.unique: nunique_op,
+    # TODO(b/443252872): Solve
+    # list: ArrayAggOp(),
+    np.size: size_op,
+}
 
-def lookup_agg_func(key: str) -> typing.Union[UnaryAggregateOp, NullaryAggregateOp]:
-    if callable(key):
-        raise NotImplementedError(
-            "Aggregating with callable object not supported, pass method name as string instead (eg. 'sum' instead of np.sum)."
-        )
-    if not isinstance(key, str):
-        raise ValueError(
-            f"Cannot aggregate using object of type: {type(key)}. Use string method name (eg. 'sum')"
-        )
-    if key in _AGGREGATIONS_LOOKUP:
-        return _AGGREGATIONS_LOOKUP[key]
+
+def lookup_agg_func(
+    key,
+) -> tuple[typing.Union[UnaryAggregateOp, NullaryAggregateOp], str]:
+    if key in _STRING_TO_AGG_OP:
+        return (_STRING_TO_AGG_OP[key], key)
+    if key in _CALLABLE_TO_AGG_OP:
+        return (_CALLABLE_TO_AGG_OP[key], key.__name__)
     else:
         raise ValueError(f"Unrecognize aggregate function: {key}")

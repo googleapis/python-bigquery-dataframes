@@ -19,9 +19,10 @@ from bigframes import dtypes
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
-obj_fetch_metadata_op = base_ops.create_unary_op(
+ObjFetchMetadataOp = base_ops.create_unary_op(
     name="obj_fetch_metadata", type_signature=op_typing.BLOB_TRANSFORM
 )
+obj_fetch_metadata_op = ObjFetchMetadataOp()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -35,11 +36,11 @@ class ObjGetAccessUrl(base_ops.UnaryOp):
 
 @dataclasses.dataclass(frozen=True)
 class ObjMakeRef(base_ops.BinaryOp):
-    name: typing.ClassVar[str] = "obj.make_ref"
+    name: typing.ClassVar[str] = "obj_make_ref"
 
     def output_type(self, *input_types):
         if not all(map(dtypes.is_string_like, input_types)):
-            raise TypeError("obj.make_ref requires string-like arguments")
+            raise TypeError("obj_make_ref requires string-like arguments")
 
         return dtypes.OBJ_REF_DTYPE
 

@@ -12,38 +12,84 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
+from google.cloud import bigquery_connection_v1, resourcemanager_v3
+from google.iam.v1 import policy_pb2
 import pytest
 
 from bigframes import clients
 
 
-def test_get_connection_name_full_connection_id():
-    connection_name = clients.resolve_full_bq_connection_name(
+def test_get_canonical_bq_connection_id_connection_id_only():
+    connection_id = clients.get_canonical_bq_connection_id(
         "connection-id", default_project="default-project", default_location="us"
     )
-    assert connection_name == "default-project.us.connection-id"
+    assert connection_id == "default-project.us.connection-id"
 
 
-def test_get_connection_name_full_location_connection_id():
-    connection_name = clients.resolve_full_bq_connection_name(
+def test_get_canonical_bq_connection_id_location_and_connection_id():
+    connection_id = clients.get_canonical_bq_connection_id(
         "eu.connection-id", default_project="default-project", default_location="us"
     )
-    assert connection_name == "default-project.eu.connection-id"
+    assert connection_id == "default-project.eu.connection-id"
 
 
-def test_get_connection_name_full_all():
-    connection_name = clients.resolve_full_bq_connection_name(
+def test_get_canonical_bq_connection_id_already_canonical():
+    connection_id = clients.get_canonical_bq_connection_id(
         "my-project.eu.connection-id",
         default_project="default-project",
         default_location="us",
     )
-    assert connection_name == "my-project.eu.connection-id"
+    assert connection_id == "my-project.eu.connection-id"
 
 
-def test_get_connection_name_full_raise_value_error():
-    with pytest.raises(ValueError):
-        clients.resolve_full_bq_connection_name(
+def test_get_canonical_bq_connection_id_invalid():
+    with pytest.raises(ValueError, match="Invalid connection id format"):
+        clients.get_canonical_bq_connection_id(
             "my-project.eu.connection-id.extra_field",
             default_project="default-project",
             default_location="us",
         )
+
+
+def test_get_canonical_bq_connection_id_valid_path():
+    connection_id = clients.get_canonical_bq_connection_id(
+        "projects/project_id/locations/northamerica-northeast1/connections/connection-id",
+        default_project="default-project",
+        default_location="us",
+    )
+    assert connection_id == "project_id.northamerica-northeast1.connection-id"
+
+
+def test_get_canonical_bq_connection_id_invalid_path():
+    with pytest.raises(ValueError, match="Invalid connection id format"):
+        clients.get_canonical_bq_connection_id(
+            "/projects/project_id/locations/northamerica-northeast1/connections/connection-id",
+            default_project="default-project",
+            default_location="us",
+        )
+
+
+def test_ensure_iam_binding():
+    bq_connection_client = mock.create_autospec(
+        bigquery_connection_v1.ConnectionServiceClient, instance=True
+    )
+    resource_manager_client = mock.create_autospec(
+        resourcemanager_v3.ProjectsClient, instance=True
+    )
+    resource_manager_client.get_iam_policy.return_value = policy_pb2.Policy(
+        bindings=[
+            policy_pb2.Binding(
+                role="roles/test.role1", members=["serviceAccount:serviceAccount1"]
+            )
+        ]
+    )
+    bq_connection_manager = clients.BqConnectionManager(
+        bq_connection_client, resource_manager_client
+    )
+    bq_connection_manager._IAM_WAIT_SECONDS = 0  # no need to wait in test
+    bq_connection_manager._ensure_iam_binding(
+        "test-project", "serviceAccount2", "roles/test.role2"
+    )
+    resource_manager_client.set_iam_policy.assert_called_once()

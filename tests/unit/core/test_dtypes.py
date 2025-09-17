@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa  # type: ignore
 import pytest
+import shapely.geometry  # type: ignore
 
 import bigframes.core.compile.ibis_types
 import bigframes.dtypes
@@ -224,6 +225,22 @@ def test_bigframes_string_dtype_converts(ibis_dtype, bigframes_dtype_str):
     assert result == ibis_dtype
 
 
+@pytest.mark.parametrize(
+    ["python_type", "expected_dtype"],
+    [
+        (bool, bigframes.dtypes.BOOL_DTYPE),
+        (int, bigframes.dtypes.INT_DTYPE),
+        (str, bigframes.dtypes.STRING_DTYPE),
+        (shapely.geometry.Point, bigframes.dtypes.GEO_DTYPE),
+        (shapely.geometry.Polygon, bigframes.dtypes.GEO_DTYPE),
+        (shapely.geometry.base.BaseGeometry, bigframes.dtypes.GEO_DTYPE),
+    ],
+)
+def test_bigframes_type_supports_python_types(python_type, expected_dtype):
+    got_dtype = bigframes.dtypes.bigframes_type(python_type)
+    assert got_dtype == expected_dtype
+
+
 def test_unsupported_dtype_raises_unexpected_datatype():
     """Incompatible dtypes should fail when passed into BigQuery DataFrames"""
     with pytest.raises(ValueError, match="Datatype has no ibis type mapping"):
@@ -250,20 +267,17 @@ def test_literal_to_ibis_scalar_converts(literal, ibis_scalar):
     )
 
 
-def test_literal_to_ibis_scalar_throws_on_incompatible_literal():
-    with pytest.raises(
-        ValueError,
-    ):
-        bigframes.core.compile.ibis_types.literal_to_ibis_scalar({"mykey": "myval"})
-
-
-def test_remote_function_io_types_are_supported_bigframes_types():
-    from bigframes_vendored.ibis.expr.datatypes.core import (
-        dtype as python_type_to_ibis_type,
-    )
-
-    from bigframes.dtypes import RF_SUPPORTED_IO_PYTHON_TYPES as rf_supported_io_types
-
-    for python_type in rf_supported_io_types:
-        ibis_type = python_type_to_ibis_type(python_type)
-        assert ibis_type in bigframes.core.compile.ibis_types.IBIS_TO_BIGFRAMES
+@pytest.mark.parametrize(
+    ["scalar", "expected_dtype"],
+    [
+        (pa.scalar(1_000_000_000, type=pa.int64()), bigframes.dtypes.INT_DTYPE),
+        (pa.scalar(True, type=pa.bool_()), bigframes.dtypes.BOOL_DTYPE),
+        (pa.scalar("hello", type=pa.string()), bigframes.dtypes.STRING_DTYPE),
+        # Support NULL scalars.
+        (pa.scalar(None, type=pa.int64()), bigframes.dtypes.INT_DTYPE),
+        (pa.scalar(None, type=pa.bool_()), bigframes.dtypes.BOOL_DTYPE),
+        (pa.scalar(None, type=pa.string()), bigframes.dtypes.STRING_DTYPE),
+    ],
+)
+def test_infer_literal_type_arrow_scalar(scalar, expected_dtype):
+    assert bigframes.dtypes.infer_literal_type(scalar) == expected_dtype

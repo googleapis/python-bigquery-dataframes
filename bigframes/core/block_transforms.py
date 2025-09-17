@@ -21,6 +21,7 @@ import bigframes_vendored.constants as constants
 import pandas as pd
 
 import bigframes.constants
+from bigframes.core import agg_expressions
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -132,7 +133,7 @@ def quantile(
     block, _ = block.aggregate(
         grouping_column_ids,
         tuple(
-            ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col))
+            agg_expressions.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col))
             for col in quantile_cols
         ),
         column_labels=pd.Index(labels),
@@ -212,8 +213,8 @@ def _interpolate_column(
     if interpolate_method not in ["linear", "nearest", "ffill"]:
         raise ValueError("interpolate method not supported")
     window_ordering = (ordering.OrderingExpression(ex.deref(x_values)),)
-    backwards_window = windows.rows(following=0, ordering=window_ordering)
-    forwards_window = windows.rows(preceding=0, ordering=window_ordering)
+    backwards_window = windows.rows(end=0, ordering=window_ordering)
+    forwards_window = windows.rows(start=0, ordering=window_ordering)
 
     # Note, this method may
     block, notnull = block.apply_unary_op(column, ops.notnull_op)
@@ -354,24 +355,28 @@ def value_counts(
     normalize: bool = False,
     sort: bool = True,
     ascending: bool = False,
-    dropna: bool = True,
+    drop_na: bool = True,
+    grouping_keys: typing.Sequence[str] = (),
 ):
-    block, dummy = block.create_constant(1)
+    if grouping_keys and drop_na:
+        # only need this if grouping_keys is involved, otherwise the drop_na in the aggregation will handle it for us
+        block = dropna(block, columns, how="any")
     block, agg_ids = block.aggregate(
-        by_column_ids=columns,
-        aggregations=[ex.UnaryAggregation(agg_ops.count_op, ex.deref(dummy))],
-        dropna=dropna,
+        by_column_ids=(*grouping_keys, *columns),
+        aggregations=[agg_expressions.NullaryAggregation(agg_ops.size_op)],
+        dropna=drop_na and not grouping_keys,
     )
     count_id = agg_ids[0]
     if normalize:
-        unbound_window = windows.unbound()
+        unbound_window = windows.unbound(grouping_keys=tuple(grouping_keys))
         block, total_count_id = block.apply_window_op(
             count_id, agg_ops.sum_op, unbound_window
         )
         block, count_id = block.apply_binary_op(count_id, total_count_id, ops.div_op)
 
     if sort:
-        block = block.order_by(
+        order_parts = [ordering.ascending_over(id) for id in grouping_keys]
+        order_parts.extend(
             [
                 ordering.OrderingExpression(
                     ex.deref(count_id),
@@ -381,6 +386,7 @@ def value_counts(
                 )
             ]
         )
+        block = block.order_by(order_parts)
     return block.select_column(count_id).with_column_labels(
         ["proportion" if normalize else "count"]
     )
@@ -409,6 +415,9 @@ def rank(
     method: str = "average",
     na_option: str = "keep",
     ascending: bool = True,
+    grouping_cols: tuple[str, ...] = (),
+    columns: tuple[str, ...] = (),
+    pct: bool = False,
 ):
     if method not in ["average", "min", "max", "first", "dense"]:
         raise ValueError(
@@ -417,8 +426,8 @@ def rank(
     if na_option not in ["keep", "top", "bottom"]:
         raise ValueError("na_option must be one of 'keep', 'top', or 'bottom'")
 
-    columns = block.value_columns
-    labels = block.column_labels
+    columns = columns or tuple(col for col in block.value_columns)
+    labels = [block.col_id_to_label[id] for id in columns]
     # Step 1: Calculate row numbers for each row
     # Identify null values to be treated according to na_option param
     rownum_col_ids = []
@@ -442,11 +451,21 @@ def rank(
         block, rownum_id = block.apply_window_op(
             col if na_option == "keep" else nullity_col_id,
             agg_ops.dense_rank_op if method == "dense" else agg_ops.count_op,
-            window_spec=windows.unbound(ordering=window_ordering)
+            window_spec=windows.unbound(
+                grouping_keys=grouping_cols, ordering=window_ordering
+            )
             if method == "dense"
-            else windows.rows(following=0, ordering=window_ordering),
+            else windows.rows(
+                end=0, ordering=window_ordering, grouping_keys=grouping_cols
+            ),
             skip_reproject_unsafe=(col != columns[-1]),
         )
+        if pct:
+            block, max_id = block.apply_window_op(
+                rownum_id, agg_ops.max_op, windows.unbound(grouping_keys=grouping_cols)
+            )
+            block, rownum_id = block.project_expr(ops.div_op.as_expr(rownum_id, max_id))
+
         rownum_col_ids.append(rownum_id)
 
     # Step 2: Apply aggregate to groups of like input values.
@@ -462,11 +481,31 @@ def rank(
             block, result_id = block.apply_window_op(
                 rownum_col_ids[i],
                 agg_op,
-                window_spec=windows.unbound(grouping_keys=(columns[i],)),
+                window_spec=windows.unbound(grouping_keys=(columns[i], *grouping_cols)),
                 skip_reproject_unsafe=(i < (len(columns) - 1)),
             )
             post_agg_rownum_col_ids.append(result_id)
         rownum_col_ids = post_agg_rownum_col_ids
+
+    # Pandas masks all values where any grouping column is null
+    # Note: we use pd.NA instead of float('nan')
+    if grouping_cols:
+        predicate = functools.reduce(
+            ops.and_op.as_expr,
+            [ops.notnull_op.as_expr(column_id) for column_id in grouping_cols],
+        )
+        block = block.project_exprs(
+            [
+                ops.where_op.as_expr(
+                    ex.deref(col),
+                    predicate,
+                    ex.const(None),
+                )
+                for col in rownum_col_ids
+            ],
+            labels=labels,
+        )
+        rownum_col_ids = list(block.value_columns[-len(rownum_col_ids) :])
 
     # Step 3: post processing: mask null values and cast to float
     if method in ["min", "max", "first", "dense"]:
@@ -495,7 +534,8 @@ def rank(
 def dropna(
     block: blocks.Block,
     column_ids: typing.Sequence[str],
-    how: typing.Literal["all", "any"] = "any",
+    how: str = "any",
+    thresh: typing.Optional[int] = None,
     subset: Optional[typing.Sequence[str]] = None,
 ):
     """
@@ -504,17 +544,38 @@ def dropna(
     if subset is None:
         subset = column_ids
 
+    # Predicates to check for non-null values in the subset of columns
     predicates = [
         ops.notnull_op.as_expr(column_id)
         for column_id in column_ids
         if column_id in subset
     ]
+
     if len(predicates) == 0:
         return block
-    if how == "any":
-        predicate = functools.reduce(ops.and_op.as_expr, predicates)
-    else:  # "all"
-        predicate = functools.reduce(ops.or_op.as_expr, predicates)
+
+    if thresh is not None:
+        # Handle single predicate case
+        if len(predicates) == 1:
+            count_expr = ops.AsTypeOp(pd.Int64Dtype()).as_expr(predicates[0])
+        else:
+            # Sum the boolean expressions to count non-null values
+            count_expr = functools.reduce(
+                lambda a, b: ops.add_op.as_expr(
+                    ops.AsTypeOp(pd.Int64Dtype()).as_expr(a),
+                    ops.AsTypeOp(pd.Int64Dtype()).as_expr(b),
+                ),
+                predicates,
+            )
+        # Filter rows where count >= thresh
+        predicate = ops.ge_op.as_expr(count_expr, ex.const(thresh))
+    else:
+        # Only handle 'how' parameter when thresh is not specified
+        if how == "any":
+            predicate = functools.reduce(ops.and_op.as_expr, predicates)
+        else:  # "all"
+            predicate = functools.reduce(ops.or_op.as_expr, predicates)
+
     return block.filter(predicate)
 
 
@@ -593,15 +654,15 @@ def skew(
     # counts, moment3 for each column
     aggregations = []
     for i, col in enumerate(original_columns):
-        count_agg = ex.UnaryAggregation(
+        count_agg = agg_expressions.UnaryAggregation(
             agg_ops.count_op,
             ex.deref(col),
         )
-        moment3_agg = ex.UnaryAggregation(
+        moment3_agg = agg_expressions.UnaryAggregation(
             agg_ops.mean_op,
             ex.deref(delta3_ids[i]),
         )
-        variance_agg = ex.UnaryAggregation(
+        variance_agg = agg_expressions.UnaryAggregation(
             agg_ops.PopVarOp(),
             ex.deref(col),
         )
@@ -644,9 +705,13 @@ def kurt(
     # counts, moment4 for each column
     aggregations = []
     for i, col in enumerate(original_columns):
-        count_agg = ex.UnaryAggregation(agg_ops.count_op, ex.deref(col))
-        moment4_agg = ex.UnaryAggregation(agg_ops.mean_op, ex.deref(delta4_ids[i]))
-        variance_agg = ex.UnaryAggregation(agg_ops.PopVarOp(), ex.deref(col))
+        count_agg = agg_expressions.UnaryAggregation(agg_ops.count_op, ex.deref(col))
+        moment4_agg = agg_expressions.UnaryAggregation(
+            agg_ops.mean_op, ex.deref(delta4_ids[i])
+        )
+        variance_agg = agg_expressions.UnaryAggregation(
+            agg_ops.PopVarOp(), ex.deref(col)
+        )
         aggregations.extend([count_agg, moment4_agg, variance_agg])
 
     block, agg_ids = block.aggregate(

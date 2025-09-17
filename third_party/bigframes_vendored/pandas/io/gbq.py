@@ -25,6 +25,7 @@ class GBQIOMixin:
         filters: FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
+        allow_large_results: Optional[bool] = None,
     ):
         """Loads a DataFrame from BigQuery.
 
@@ -45,7 +46,7 @@ class GBQIOMixin:
         * (Recommended) Set the ``index_col`` argument to one or more columns.
           Unique values for the row labels are recommended. Duplicate labels
           are possible, but note that joins on a non-unique index can duplicate
-          rows via pandas-like outer join behavior.
+          rows via pandas-compatible outer join behavior.
 
         .. note::
             By default, even SQL query inputs with an ORDER BY clause create a
@@ -67,6 +68,7 @@ class GBQIOMixin:
             >>> df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
         Read table path with wildcard suffix and filters:
+
             >>> df = bpd.read_gbq_table("bigquery-public-data.noaa_gsod.gsod19*", filters=[("_table_suffix", ">=", "30"), ("_table_suffix", "<=", "39")])
 
         Preserve ordering in a query input.
@@ -155,6 +157,11 @@ class GBQIOMixin:
                 `configuration` to avoid conflicts.
             col_order (Iterable[str]):
                 Alias for columns, retained for backwards compatibility.
+            allow_large_results (bool, optional):
+                Whether to allow large query results. If ``True``, the query
+                results can be larger than the maximum response size. This
+                option is only applicable when ``query_or_table`` is a query.
+                Defaults to ``bpd.options.compute.allow_large_results``.
 
         Raises:
             bigframes.exceptions.DefaultIndexWarning:

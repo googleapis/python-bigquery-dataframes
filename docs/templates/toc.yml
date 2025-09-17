@@ -45,6 +45,10 @@
         uid: bigframes.operations.plotting.PlotAccessor
       - name: StructAccessor
         uid: bigframes.operations.structs.StructFrameAccessor
+      - name: AI
+        uid: bigframes.operations.ai.AIAccessor
+        status: beta
+      name: DataFrame
     - items:
       - name: DataFrameGroupBy
         uid: bigframes.core.groupby.DataFrameGroupBy
@@ -82,8 +86,13 @@
         uid: bigframes.operations.strings.StringMethods
       - name: StructAccessor
         uid: bigframes.operations.structs.StructAccessor
+      - name: ListAccessor
+        uid: bigframes.operations.lists.ListAccessor
       - name: PlotAccessor
         uid: bigframes.operations.plotting.PlotAccessor
+      - name: BlobAccessor
+        uid: bigframes.operations.blob.BlobAccessor
+        status: beta
       name: Series
     - name: Window
       uid: bigframes.core.window.Window
@@ -106,6 +115,8 @@
         uid: bigframes.ml.decomposition
       - name: PCA
         uid: bigframes.ml.decomposition.PCA
+      - name: MatrixFactorization
+        uid: bigframes.ml.decomposition.MatrixFactorization
       name: decomposition
     - items:
       - name: Overview
@@ -207,6 +218,8 @@
   - items:
     - name: BigQuery built-in functions
       uid: bigframes.bigquery
+    - name: BigQuery AI Functions
+      uid: bigframes.bigquery.ai
     name: bigframes.bigquery
   - items:
     - name: GeoSeries

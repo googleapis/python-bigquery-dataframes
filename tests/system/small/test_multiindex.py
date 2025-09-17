@@ -17,7 +17,23 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal, skip_legacy_pandas
+from bigframes.testing.utils import assert_pandas_df_equal
+
+# Sample MultiIndex for testing DataFrames where() method.
+_MULTI_INDEX = pandas.MultiIndex.from_tuples(
+    [
+        (0, "a"),
+        (1, "b"),
+        (2, "c"),
+        (0, "d"),
+        (1, "e"),
+        (2, "f"),
+        (0, "g"),
+        (1, "h"),
+        (2, "i"),
+    ],
+    names=["A", "B"],
+)
 
 
 def test_multi_index_from_arrays():
@@ -45,8 +61,9 @@ def test_multi_index_from_arrays():
     pandas.testing.assert_index_equal(bf_idx.to_pandas(), pd_idx)
 
 
-@skip_legacy_pandas
 def test_read_pandas_multi_index_axes():
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     index = pandas.MultiIndex.from_arrays(
         [
             pandas.Index([4, 99], dtype=pandas.Int64Dtype()),
@@ -84,18 +101,67 @@ def test_set_multi_index(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_reset_multi_index(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("level", "drop"),
+    [
+        (None, True),
+        (None, False),
+        (1, True),
+        ("bool_col", True),
+        (["float64_col", "int64_too"], True),
+        ([2, 0], False),
+    ],
+)
+def test_df_reset_multi_index(scalars_df_index, scalars_pandas_df_index, level, drop):
     bf_result = (
-        scalars_df_index.set_index(["bool_col", "int64_too"]).reset_index().to_pandas()
+        scalars_df_index.set_index(["bool_col", "int64_too", "float64_col"])
+        .reset_index(level=level, drop=drop)
+        .to_pandas()
     )
     pd_result = scalars_pandas_df_index.set_index(
-        ["bool_col", "int64_too"]
-    ).reset_index()
+        ["bool_col", "int64_too", "float64_col"]
+    ).reset_index(level=level, drop=drop)
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
-    pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
+    if pd_result.index.dtype != bf_result.index.dtype:
+        pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("level", "drop"),
+    [
+        (None, True),
+        (None, False),
+        (1, True),
+        ("bool_col", True),
+        (["float64_col", "int64_too"], True),
+        ([2, 0], False),
+    ],
+)
+def test_series_reset_multi_index(
+    scalars_df_index, scalars_pandas_df_index, level, drop
+):
+    bf_result = (
+        scalars_df_index.set_index(["bool_col", "int64_too", "float64_col"])[
+            "string_col"
+        ]
+        .reset_index(level=level, drop=drop)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.set_index(
+        ["bool_col", "int64_too", "float64_col"]
+    )["string_col"].reset_index(level=level, drop=drop)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    if pd_result.index.dtype != bf_result.index.dtype:
+        pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
+
+    if drop:
+        pandas.testing.assert_series_equal(bf_result, pd_result)
+    else:
+        pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_series_multi_index_idxmin(scalars_df_index, scalars_pandas_df_index):
@@ -540,6 +606,140 @@ def test_multi_index_dataframe_join_on(scalars_dfs, how):
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
 
 
+def test_multi_index_dataframe_where_series_cond_none_other(
+    scalars_df_index, scalars_pandas_df_index
+):
+    columns = ["int64_col", "float64_col"]
+
+    # Create multi-index dataframe.
+    dataframe_bf = bpd.DataFrame(
+        scalars_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_df_index[columns].columns,
+    )
+    dataframe_pd = pandas.DataFrame(
+        scalars_pandas_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_pandas_df_index[columns].columns,
+    )
+    dataframe_bf.columns.name = "test_name"
+    dataframe_pd.columns.name = "test_name"
+
+    # When condition is series and other is None.
+    series_cond_bf = dataframe_bf["int64_col"] > 0
+    series_cond_pd = dataframe_pd["int64_col"] > 0
+
+    bf_result = dataframe_bf.where(series_cond_bf).to_pandas()
+    pd_result = dataframe_pd.where(series_cond_pd)
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+    # Assert the index is still MultiIndex after the operation.
+    assert isinstance(bf_result.index, pandas.MultiIndex), "Expected a MultiIndex"
+    assert isinstance(pd_result.index, pandas.MultiIndex), "Expected a MultiIndex"
+
+
+def test_multi_index_dataframe_where_series_cond_dataframe_other(
+    scalars_df_index, scalars_pandas_df_index
+):
+    columns = ["int64_col", "int64_too"]
+
+    # Create multi-index dataframe.
+    dataframe_bf = bpd.DataFrame(
+        scalars_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_df_index[columns].columns,
+    )
+    dataframe_pd = pandas.DataFrame(
+        scalars_pandas_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_pandas_df_index[columns].columns,
+    )
+
+    # When condition is series and other is dataframe.
+    series_cond_bf = dataframe_bf["int64_col"] > 1000.0
+    series_cond_pd = dataframe_pd["int64_col"] > 1000.0
+    dataframe_other_bf = dataframe_bf * 100.0
+    dataframe_other_pd = dataframe_pd * 100.0
+
+    bf_result = dataframe_bf.where(series_cond_bf, dataframe_other_bf).to_pandas()
+    pd_result = dataframe_pd.where(series_cond_pd, dataframe_other_pd)
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+
+
+def test_multi_index_dataframe_where_dataframe_cond_constant_other(
+    scalars_df_index, scalars_pandas_df_index
+):
+    columns = ["int64_col", "float64_col"]
+
+    # Create multi-index dataframe.
+    dataframe_bf = bpd.DataFrame(
+        scalars_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_df_index[columns].columns,
+    )
+    dataframe_pd = pandas.DataFrame(
+        scalars_pandas_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_pandas_df_index[columns].columns,
+    )
+
+    # When condition is dataframe and other is a constant.
+    dataframe_cond_bf = dataframe_bf > 0
+    dataframe_cond_pd = dataframe_pd > 0
+    other = 0
+
+    bf_result = dataframe_bf.where(dataframe_cond_bf, other).to_pandas()
+    pd_result = dataframe_pd.where(dataframe_cond_pd, other)
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+
+
+def test_multi_index_dataframe_where_dataframe_cond_dataframe_other(
+    scalars_df_index, scalars_pandas_df_index
+):
+    columns = ["int64_col", "int64_too", "float64_col"]
+
+    # Create multi-index dataframe.
+    dataframe_bf = bpd.DataFrame(
+        scalars_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_df_index[columns].columns,
+    )
+    dataframe_pd = pandas.DataFrame(
+        scalars_pandas_df_index[columns].values,
+        index=_MULTI_INDEX,
+        columns=scalars_pandas_df_index[columns].columns,
+    )
+
+    # When condition is dataframe and other is dataframe.
+    dataframe_cond_bf = dataframe_bf < 1000.0
+    dataframe_cond_pd = dataframe_pd < 1000.0
+    dataframe_other_bf = dataframe_bf * -1.0
+    dataframe_other_pd = dataframe_pd * -1.0
+
+    bf_result = dataframe_bf.where(dataframe_cond_bf, dataframe_other_bf).to_pandas()
+    pd_result = dataframe_pd.where(dataframe_cond_pd, dataframe_other_pd)
+    pandas.testing.assert_frame_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        check_dtype=False,
+    )
+
+
 @pytest.mark.parametrize(
     ("level",),
     [
@@ -729,16 +929,30 @@ def test_column_multi_index_rename(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_column_multi_index_reset_index(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("names", "col_fill", "col_level"),
+    [
+        (None, "", "l2"),
+        (("new_name"), "fill", 1),
+        ("new_name", "fill", 0),
+    ],
+)
+def test_column_multi_index_reset_index(
+    scalars_df_index, scalars_pandas_df_index, names, col_fill, col_level
+):
     columns = ["int64_too", "int64_col", "float64_col"]
-    multi_columns = pandas.MultiIndex.from_tuples(zip(["a", "b", "a"], ["a", "b", "b"]))
+    multi_columns = pandas.MultiIndex.from_tuples(
+        zip(["a", "b", "a"], ["a", "b", "b"]), names=["l1", "l2"]
+    )
     bf_df = scalars_df_index[columns].copy()
     bf_df.columns = multi_columns
     pd_df = scalars_pandas_df_index[columns].copy()
     pd_df.columns = multi_columns
 
-    bf_result = bf_df.reset_index().to_pandas()
-    pd_result = pd_df.reset_index()
+    bf_result = bf_df.reset_index(
+        names=names, col_fill=col_fill, col_level=col_level
+    ).to_pandas()
+    pd_result = pd_df.reset_index(names=names, col_fill=col_fill, col_level=col_level)
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
@@ -759,8 +973,9 @@ def test_column_multi_index_binary_op(scalars_df_index, scalars_pandas_df_index)
     pandas.testing.assert_series_equal(bf_result, pd_result)
 
 
-@skip_legacy_pandas
 def test_column_multi_index_any():
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     columns = pandas.MultiIndex.from_tuples(
         [("col0", "col00"), ("col0", "col00"), ("col1", "col11")]
     )
@@ -1236,3 +1451,26 @@ def test_column_multi_index_w_na_stack(scalars_df_index, scalars_pandas_df_index
     # Pandas produces pd.NA, where bq dataframes produces NaN
     pd_result["c"] = pd_result["c"].replace(pandas.NA, np.nan)
     pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("key",),
+    [
+        ("hello",),
+        (2,),
+        (123123321,),
+        (2.0,),
+        (pandas.NA,),
+        (False,),
+        ((2,),),
+        ((2, False),),
+        ((2.0, False),),
+        ((2, True),),
+    ],
+)
+def test_multi_index_contains(scalars_df_index, scalars_pandas_df_index, key):
+    col_name = ["int64_col", "bool_col"]
+    bf_result = key in scalars_df_index.set_index(col_name).index
+    pd_result = key in scalars_pandas_df_index.set_index(col_name).index
+
+    assert bf_result == pd_result

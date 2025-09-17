@@ -15,14 +15,15 @@
 import dataclasses
 import typing
 
-from bigframes import dtypes
+from bigframes.functions import udf_def
 from bigframes.operations import base_ops
 
 
+# TODO: Enforce input type constraints from function def
 @dataclasses.dataclass(frozen=True)
 class RemoteFunctionOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "remote_function"
-    func: typing.Callable
+    function_def: udf_def.BigqueryUdf
     apply_on_null: bool
 
     @property
@@ -30,63 +31,30 @@ class RemoteFunctionOp(base_ops.UnaryOp):
         return True
 
     def output_type(self, *input_types):
-        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        if hasattr(self.func, "output_dtype"):
-            if dtypes.is_array_like(self.func.output_dtype):
-                # TODO(b/284515241): remove this special handling to support
-                # array output types once BQ remote functions support ARRAY.
-                # Until then, use json serialized strings at the remote function
-                # level, and parse that to the intended output type at the
-                # bigframes level.
-                return dtypes.STRING_DTYPE
-            return self.func.output_dtype
-        else:
-            raise AttributeError("output_dtype not defined")
+        return self.function_def.bigframes_output_type
 
 
 @dataclasses.dataclass(frozen=True)
 class BinaryRemoteFunctionOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "binary_remote_function"
-    func: typing.Callable
+    function_def: udf_def.BigqueryUdf
 
     @property
     def expensive(self) -> bool:
         return True
 
     def output_type(self, *input_types):
-        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        if hasattr(self.func, "output_dtype"):
-            if dtypes.is_array_like(self.func.output_dtype):
-                # TODO(b/284515241): remove this special handling to support
-                # array output types once BQ remote functions support ARRAY.
-                # Until then, use json serialized strings at the remote function
-                # level, and parse that to the intended output type at the
-                # bigframes level.
-                return dtypes.STRING_DTYPE
-            return self.func.output_dtype
-        else:
-            raise AttributeError("output_dtype not defined")
+        return self.function_def.bigframes_output_type
 
 
 @dataclasses.dataclass(frozen=True)
 class NaryRemoteFunctionOp(base_ops.NaryOp):
     name: typing.ClassVar[str] = "nary_remote_function"
-    func: typing.Callable
+    function_def: udf_def.BigqueryUdf
 
     @property
     def expensive(self) -> bool:
         return True
 
     def output_type(self, *input_types):
-        # This property should be set to a valid Dtype by the @remote_function decorator or read_gbq_function method
-        if hasattr(self.func, "output_dtype"):
-            if dtypes.is_array_like(self.func.output_dtype):
-                # TODO(b/284515241): remove this special handling to support
-                # array output types once BQ remote functions support ARRAY.
-                # Until then, use json serialized strings at the remote function
-                # level, and parse that to the intended output type at the
-                # bigframes level.
-                return dtypes.STRING_DTYPE
-            return self.func.output_dtype
-        else:
-            raise AttributeError("output_dtype not defined")
+        return self.function_def.bigframes_output_type

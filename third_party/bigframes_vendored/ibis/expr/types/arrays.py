@@ -416,7 +416,7 @@ class ArrayValue(Value):
 
         The most succinct way to use `map` is with `Deferred` expressions:
 
-        >>> t.a.map((_ + 100).cast("float"))
+        >>> t.a.map((_ + 100).cast(float))
         ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
         ┃ ArrayMap(a, Cast(Add(_, 100), float64)) ┃
         ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -429,7 +429,7 @@ class ArrayValue(Value):
 
         You can also use `map` with a lambda function:
 
-        >>> t.a.map(lambda x: (x + 100).cast("float"))
+        >>> t.a.map(lambda x: (x + 100).cast(float))
         ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
         ┃ ArrayMap(a, Cast(Add(x, 100), float64)) ┃
         ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
@@ -485,6 +485,24 @@ class ArrayValue(Value):
         )
         body = resolve(parameter.to_expr())
         return ops.ArrayMap(self, param=parameter.param, body=body).to_expr()
+
+    def reduce(self, func: Deferred | Callable[[ir.Value], ir.Value]) -> ir.ArrayValue:
+        if isinstance(func, Deferred):
+            name = "_"
+            resolve = func.resolve
+        elif callable(func):
+            name = next(iter(inspect.signature(func).parameters.keys()))
+            resolve = func
+        else:
+            raise TypeError(
+                f"`func` must be a Deferred or Callable, got `{type(func).__name__}`"
+            )
+
+        parameter = ops.Argument(
+            name=name, shape=self.op().shape, dtype=self.type().value_type
+        )
+        body = resolve(parameter.to_expr())
+        return ops.ArrayReduce(self, param=parameter.param, body=body).to_expr()
 
     def filter(
         self, predicate: Deferred | Callable[[ir.Value], bool | ir.BooleanValue]

@@ -11,12 +11,13 @@ labeling information
 """
 from __future__ import annotations
 
-from typing import Hashable, Iterable, Literal, Mapping, Optional, Sequence, Union
+from typing import Hashable, Iterable, Literal, Optional, Sequence, Union
 
 from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.generic as generic
 import numpy as np
 import pandas as pd
+from pandas.api import extensions as pd_ext
 
 # -----------------------------------------------------------------------
 # DataFrame class
@@ -365,7 +366,15 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_numpy(self, dtype=None, copy=False, na_value=None, **kwargs) -> np.ndarray:
+    def to_numpy(
+        self,
+        dtype=None,
+        copy=False,
+        na_value=pd_ext.no_default,
+        *,
+        allow_large_results=None,
+        **kwargs,
+    ) -> np.ndarray:
         """
         Convert the DataFrame to a NumPy array.
 
@@ -388,7 +397,9 @@ class DataFrame(generic.NDFrame):
             na_value (Any, default None):
                 The value to use for missing values. The default value
                 depends on dtype and the dtypes of the DataFrame columns.
-
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
         Returns:
             numpy.ndarray: The converted NumPy array.
         """
@@ -509,6 +520,7 @@ class DataFrame(generic.NDFrame):
         *,
         compression: Optional[Literal["snappy", "gzip"]] = "snappy",
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[bytes]:
         """Write a DataFrame to the binary Parquet format.
 
@@ -534,14 +546,16 @@ class DataFrame(generic.NDFrame):
                 should be formatted ``gs://<bucket_name>/<object_name_or_glob>``.
                 If the data size is more than 1GB, you must use a wildcard to export
                 the data into multiple files and the size of the files varies.
-
             compression (str, default 'snappy'):
                 Name of the compression to use. Use ``None`` for no compression.
                 Supported options: ``'gzip'``, ``'snappy'``.
-
             index (bool, default True):
                 If ``True``, include the dataframe's index(es) in the file output.
                 If ``False``, they will not be written to the file.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB. This parameter has
+                no effect when results are saved to Google Cloud Storage (GCS).
 
         Returns:
             None or bytes:
@@ -560,6 +574,8 @@ class DataFrame(generic.NDFrame):
             "dict", "list", "series", "split", "tight", "records", "index"
         ] = "dict",
         into: type[dict] = dict,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> dict | list[dict]:
         """
@@ -613,11 +629,13 @@ class DataFrame(generic.NDFrame):
                 in the return value.  Can be the actual class or an empty
                 instance of the mapping type you want.  If you want a
                 collections.defaultdict, you must pass it initialized.
-
             index (bool, default True):
                 Whether to include the index item (and index_names item if `orient`
                 is 'tight') in the returned dictionary. Can only be ``False``
                 when `orient` is 'split' or 'tight'.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             dict or list of dict: Return a collections.abc.Mapping object representing the DataFrame.
@@ -625,7 +643,14 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_excel(self, excel_writer, sheet_name: str = "Sheet1", **kwargs) -> None:
+    def to_excel(
+        self,
+        excel_writer,
+        sheet_name: str = "Sheet1",
+        *,
+        allow_large_results: Optional[bool] = None,
+        **kwargs,
+    ) -> None:
         """
         Write DataFrame to an Excel sheet.
 
@@ -653,11 +678,21 @@ class DataFrame(generic.NDFrame):
                 File path or existing ExcelWriter.
             sheet_name (str, default 'Sheet1'):
                 Name of sheet which will contain DataFrame.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_latex(
-        self, buf=None, columns=None, header=True, index=True, **kwargs
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> str | None:
         r"""
         Render object to a LaTeX tabular, longtable, or nested table.
@@ -693,6 +728,9 @@ class DataFrame(generic.NDFrame):
                 it is assumed to be aliases for the column names.
             index (bool, default True):
                 Write row names (index).
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             str or None: If buf is None, returns the result as a string. Otherwise returns
@@ -701,7 +739,12 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def to_records(
-        self, index: bool = True, column_dtypes=None, index_dtypes=None
+        self,
+        index: bool = True,
+        column_dtypes=None,
+        index_dtypes=None,
+        *,
+        allow_large_results=None,
     ) -> np.recarray:
         """
         Convert DataFrame to a NumPy record array.
@@ -731,6 +774,9 @@ class DataFrame(generic.NDFrame):
                 If a string or type, the data type to store all index levels. If
                 a dictionary, a mapping of index level names and indices
                 (zero-indexed) to specific data types.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
                 This mapping is applied only if `index=True`.
 
@@ -761,6 +807,8 @@ class DataFrame(generic.NDFrame):
         min_rows: int | None = None,
         max_colwidth: int | None = None,
         encoding: str | None = None,
+        *,
+        allow_large_results: Optional[bool] = None,
     ):
         """Render a DataFrame to a console-friendly tabular output.
 
@@ -824,6 +872,9 @@ class DataFrame(generic.NDFrame):
                 Max width to truncate each column in characters. By default, no limit.
             encoding (str, default "utf-8"):
                 Set character encoding.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB.
 
         Returns:
             str or None: If buf is None, returns the result as a string. Otherwise returns
@@ -856,6 +907,8 @@ class DataFrame(generic.NDFrame):
         table_id: str | None = None,
         render_links: bool = False,
         encoding: str | None = None,
+        *,
+        allow_large_results: bool | None = None,
     ):
         """Render a DataFrame as an HTML table.
 
@@ -948,6 +1001,9 @@ class DataFrame(generic.NDFrame):
                 Convert URLs to HTML links.
             encoding (str, default "utf-8"):
                 Set character encoding.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
 
         Returns:
             str or None: If buf is None, returns the result as a string. Otherwise
@@ -960,6 +1016,8 @@ class DataFrame(generic.NDFrame):
         buf=None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ):
         """Print DataFrame in Markdown-friendly format.
@@ -983,6 +1041,9 @@ class DataFrame(generic.NDFrame):
                 Mode in which file is opened.
             index (bool, optional, default True):
                 Add index (row) labels.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
             **kwargs
                 These parameters will be passed to `tabulate <https://pypi.org/project/tabulate>`_.
 
@@ -992,7 +1053,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_pickle(self, path, **kwargs) -> None:
+    def to_pickle(self, path, *, allow_large_results, **kwargs) -> None:
         """Pickle (serialize) object to file.
 
         **Examples:**
@@ -1007,10 +1068,13 @@ class DataFrame(generic.NDFrame):
         Args:
             path (str):
                 File path where the pickled object will be stored.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_orc(self, path=None, **kwargs) -> bytes | None:
+    def to_orc(self, path=None, *, allow_large_results=None, **kwargs) -> bytes | None:
         """
         Write a DataFrame to the ORC format.
 
@@ -1030,6 +1094,9 @@ class DataFrame(generic.NDFrame):
                 we refer to objects with a write() method, such as a file handle
                 (e.g. via builtin open function). If path is None,
                 a bytes object is returned.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
 
         Returns:
             bytes or None:
@@ -1325,8 +1392,9 @@ class DataFrame(generic.NDFrame):
     def rename(
         self,
         *,
-        columns: Mapping,
-    ) -> DataFrame:
+        columns,
+        inplace,
+    ):
         """Rename columns.
 
         Dict values must be unique (1-to-1). Labels not contained in a dict
@@ -1359,16 +1427,20 @@ class DataFrame(generic.NDFrame):
         Args:
             columns (Mapping):
                 Dict-like from old column labels to new column labels.
+            inplace (bool):
+                Default False. Whether to modify the DataFrame rather than
+                creating a new one.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame with the renamed axis labels.
+            bigframes.pandas.DataFrame | None:
+                DataFrame with the renamed axis labels or None if ``inplace=True``.
 
         Raises:
             KeyError: If any of the labels is not found.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename_axis(self, mapper: Optional[str], **kwargs) -> DataFrame:
+    def rename_axis(self, mapper, *, inplace, **kwargs):
         """
         Set the name of the axis for the index.
 
@@ -1376,11 +1448,15 @@ class DataFrame(generic.NDFrame):
             Currently only accepts a single string parameter (the new name of the index).
 
         Args:
-            mapper str:
+            mapper (str):
                 Value to set the axis name attribute.
+            inplace (bool):
+                Default False. Modifies the object directly, instead of
+                creating a new Series or DataFrame.
 
         Returns:
-            bigframes.pandas.DataFrame: DataFrame with the new index name
+            bigframes.pandas.DataFrame | None:
+                DataFrame with the new index name or None if ``inplace=True``.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -1525,8 +1601,14 @@ class DataFrame(generic.NDFrame):
 
     def reset_index(
         self,
+        level=None,
         *,
         drop: bool = False,
+        inplace: bool = False,
+        col_level: Hashable = 0,
+        col_fill: Hashable = "",
+        allow_duplicates: Optional[bool] = None,
+        names: Hashable | Sequence[Hashable] | None = None,
     ) -> DataFrame | None:
         """Reset the index.
 
@@ -1620,9 +1702,27 @@ class DataFrame(generic.NDFrame):
 
 
         Args:
+            level (int, str, tuple, or list, default None):
+                Only remove the given levels from the index. Removes all levels by
+                default.
             drop (bool, default False):
                 Do not try to insert index into dataframe columns. This resets
                 the index to the default integer index.
+            inplace (bool, default False):
+                Whether to modify the DataFrame rather than creating a new one.
+            col_level (int or str, default 0):
+                If the columns have multiple levels, determines which level the
+                labels are inserted into. By default it is inserted into the first
+                level.
+            col_fill (object, default ''):
+                If the columns have multiple levels, determines how the other
+                levels are named. If None then the index name is repeated.
+            allow_duplicates (bool, optional, default None):
+                Allow duplicate column labels to be created.
+            names (str or 1-dimensional list, default None):
+                Using the given string, rename the DataFrame column which contains the
+                index data. If the DataFrame has a MultiIndex, this has to be a list or
+                tuple with length equal to the number of levels
 
         Returns:
             bigframes.pandas.DataFrame: DataFrame with the new index.
@@ -1686,6 +1786,7 @@ class DataFrame(generic.NDFrame):
         *,
         axis: int | str = 0,
         how: str = "any",
+        thresh: Optional[int] = None,
         subset=None,
         inplace: bool = False,
         ignore_index=False,
@@ -1736,6 +1837,25 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [3 rows x 3 columns]
 
+        Keep rows with at least 2 non-null values.
+
+            >>> df.dropna(thresh=2)
+                            name        toy        born
+            1    Batman  Batmobile  1940-04-25
+            2  Catwoman   Bullwhip        <NA>
+            <BLANKLINE>
+            [2 rows x 3 columns]
+
+        Keep columns with at least 2 non-null values:
+
+            >>> df.dropna(axis='columns', thresh=2)
+                name        toy
+            0    Alfred       <NA>
+            1    Batman  Batmobile
+            2  Catwoman   Bullwhip
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Define in which columns to look for missing values.
 
             >>> df.dropna(subset=['name', 'toy'])
@@ -1746,7 +1866,7 @@ class DataFrame(generic.NDFrame):
             [2 rows x 3 columns]
 
         Args:
-            axis ({0 or 'index', 1 or 'columns'}, default 'columns'):
+            axis ({0 or 'index', 1 or 'columns'}, default 0):
                 Determine if rows or columns which contain missing values are
                 removed.
 
@@ -1758,6 +1878,8 @@ class DataFrame(generic.NDFrame):
 
                 * 'any' : If any NA values are present, drop that row or column.
                 * 'all' : If all values are NA, drop that row or column.
+            thresh (int, optional):
+                Require that many non-NA values. Cannot be combined with how.
             subset (column label or sequence of labels, optional):
                 Labels along other axis to consider, e.g. if you are dropping
                 rows these would be a list of columns to include.
@@ -1775,6 +1897,8 @@ class DataFrame(generic.NDFrame):
         Raises:
             ValueError:
                 If ``how`` is not one of ``any`` or ``all``.
+            TyperError:
+                If both ``how`` and ``thresh`` are specified.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -2147,10 +2271,11 @@ class DataFrame(generic.NDFrame):
         self,
         by: str | Sequence[str],
         *,
+        inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
         kind: str = "quicksort",
-        na_position="last",
-    ) -> DataFrame:
+        na_position: Literal["first", "last"] = "last",
+    ):
         """Sort by the values along row axis.
 
         **Examples:**
@@ -2234,6 +2359,8 @@ class DataFrame(generic.NDFrame):
                 Sort ascending vs. descending. Specify list for multiple sort
                 orders.  If this is a list of bools, must match the length of
                 the by.
+            inplace (bool, default False):
+                If True, perform operation in-place.
             kind (str, default 'quicksort'):
                 Choice of sorting algorithm. Accepts 'quicksort', 'mergesort',
                 'heapsort', 'stable'. Ignored except when determining whether to
@@ -2243,8 +2370,8 @@ class DataFrame(generic.NDFrame):
              if `first`; `last` puts NaNs at the end.
 
         Returns:
-            bigframes.pandas.DataFrame:
-                DataFrame with sorted values.
+            bigframes.pandas.DataFram or None:
+                DataFrame with sorted values or None if inplace=True.
 
         Raises:
             ValueError:
@@ -2254,12 +2381,25 @@ class DataFrame(generic.NDFrame):
 
     def sort_index(
         self,
-    ) -> DataFrame:
+        *,
+        ascending: bool = True,
+        inplace: bool = False,
+        na_position: Literal["first", "last"] = "last",
+    ):
         """Sort object by labels (along an axis).
+
+        Args:
+            ascending (bool, default True)
+                Sort ascending vs. descending.
+            inplace (bool, default False):
+                Whether to modify the DataFrame rather than creating a new one.
+            na_position ({'first', 'last'}, default 'last'):
+                Puts NaNs at the beginning if `first`; `last` puts NaNs at the end.
+                Not implemented for MultiIndex.
 
         Returns:
             bigframes.pandas.DataFrame:
-                The original DataFrame sorted by the labels.
+                DataFrame with sorted values or None if inplace=True.
 
         Raises:
             ValueError:
@@ -2945,6 +3085,20 @@ class DataFrame(generic.NDFrame):
             axis ({0 or 'index', 1 or 'columns'}):
                 Whether to compare by the index (0 or 'index') or columns.
                 (1 or 'columns'). For Series input, axis to match Series index on.
+
+        Returns:
+            bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def __radd__(self, other) -> DataFrame:
+        """Get addition of other and DataFrame, element-wise (binary operator `+`).
+
+        Equivalent to ``DataFrame.radd(other)``.
+
+        Args:
+            other (float, int, or Series):
+                Any single or multiple element data structure, or list-like object.
 
         Returns:
             bigframes.pandas.DataFrame: DataFrame result of the arithmetic operation.
@@ -4032,6 +4186,7 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
             >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [[0, 1, 2], [], [], [3, 4]],
@@ -4161,6 +4316,7 @@ class DataFrame(generic.NDFrame):
         correlations.
 
         **Examples:**
+
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
@@ -4367,7 +4523,7 @@ class DataFrame(generic.NDFrame):
         to potentially reuse a previously deployed ``remote_function`` from
         the same user defined function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -4442,7 +4598,15 @@ class DataFrame(generic.NDFrame):
     # ----------------------------------------------------------------------
     # Merging / joining methods
 
-    def join(self, other, *, on: Optional[str] = None, how: str) -> DataFrame:
+    def join(
+        self,
+        other,
+        *,
+        on: Optional[str] = None,
+        how: str,
+        lsuffix: str = "",
+        rsuffix: str = "",
+    ) -> DataFrame:
         """Join columns of another DataFrame.
 
         Join columns with `other` DataFrame on index
@@ -4515,6 +4679,19 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 4 columns]
 
+        If there are overlapping columns, `lsuffix` and `rsuffix` can be used:
+
+            >>> df1 = bpd.DataFrame({'key': ['K0', 'K1', 'K2'], 'A': ['A0', 'A1', 'A2']})
+            >>> df2 = bpd.DataFrame({'key': ['K0', 'K1', 'K2'], 'A': ['B0', 'B1', 'B2']})
+            >>> df1.set_index('key').join(df2.set_index('key'), lsuffix='_left', rsuffix='_right')
+                 A_left A_right
+            key
+            K0       A0      B0
+            K1       A1      B1
+            K2       A2      B2
+            <BLANKLINE>
+            [3 rows x 2 columns]
+
         Args:
             other:
                 DataFrame or Series with an Index similar to the Index of this one.
@@ -4531,6 +4708,10 @@ class DataFrame(generic.NDFrame):
                 index, preserving the order of the calling's one.
                 ``cross``: creates the cartesian product from both frames, preserves
                 the order of the left keys.
+            lsuffix(str, default ''):
+                Suffix to use from left frame's overlapping columns.
+            rsuffix(str, default ''):
+                Suffix to use from right frame's overlapping columns.
 
         Returns:
             bigframes.pandas.DataFrame:
@@ -4545,6 +4726,10 @@ class DataFrame(generic.NDFrame):
             ValueError:
                 If left index to join on does not have the same number of levels
                 as the right index.
+            ValueError:
+                If columns overlap but no suffix is specified.
+            ValueError:
+                If `on` column is not unique.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
@@ -4654,7 +4839,7 @@ class DataFrame(generic.NDFrame):
             right:
                 Object to merge with.
             how:
-                ``{'left', 'right', 'outer', 'inner'}, default 'inner'``
+                ``{'left', 'right', 'outer', 'inner', 'cross'}, default 'inner'``
                 Type of merge to be performed.
                 ``left``: use only keys from left frame, similar to a SQL left outer join;
                 preserve key order.
@@ -4706,6 +4891,83 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def round(self, decimals):
+        """
+        Round a DataFrame to a variable number of decimal places.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> df = bpd.DataFrame([(.21, .32), (.01, .67), (.66, .03), (.21, .18)],
+            ...                   columns=['dogs', 'cats'])
+            >>> df
+               dogs  cats
+            0  0.21  0.32
+            1  0.01  0.67
+            2  0.66  0.03
+            3  0.21  0.18
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            By providing an integer each column is rounded to the same number
+            of decimal places
+
+            >>> df.round(1)
+                dogs  cats
+            0   0.2   0.3
+            1   0.0   0.7
+            2   0.7   0.0
+            3   0.2   0.2
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            With a dict, the number of places for specific columns can be
+            specified with the column names as key and the number of decimal
+            places as value
+
+            >>> df.round({'dogs': 1, 'cats': 0})
+                dogs  cats
+            0   0.2   0.0
+            1   0.0   1.0
+            2   0.7   0.0
+            3   0.2   0.0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+            Using a Series, the number of places for specific columns can be
+            specified with the column names as index and the number of
+            decimal places as value
+
+            >>> decimals = pd.Series([0, 1], index=['cats', 'dogs'])
+            >>> df.round(decimals)
+                dogs  cats
+            0   0.2   0.0
+            1   0.0   1.0
+            2   0.7   0.0
+            3   0.2   0.0
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
+        Args:
+            decimals (int, dict, Series):
+                Number of decimal places to round each column to. If an int is
+                given, round each column to the same number of places.
+                Otherwise dict and Series round to variable numbers of places.
+                Column names should be in the keys if `decimals` is a
+                dict-like, or in the index if `decimals` is a Series. Any
+                columns not included in `decimals` will be left as is. Elements
+                of `decimals` which are not columns of the input will be
+                ignored.
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                A DataFrame with the affected columns rounded to the specified
+                number of decimal places.
+
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def apply(self, func, *, axis=0, args=(), **kwargs):
         """Apply a function along an axis of the DataFrame.
 
@@ -4747,7 +5009,7 @@ class DataFrame(generic.NDFrame):
         to select only the necessary columns before calling `apply()`. Note: This
         feature is currently in **preview**.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def foo(row: pd.Series) -> int:
             ...     result = 1
             ...     result += row["col1"]
@@ -4762,7 +5024,7 @@ class DataFrame(generic.NDFrame):
         You could return an array output for every input row from the remote
         function.
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def marks_analyzer(marks: pd.Series) -> list[float]:
             ...     import statistics
             ...     average = marks.mean()
@@ -4803,7 +5065,7 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> @bpd.remote_function(reuse=False)
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
             ... def foo(x: int, y: int, z: int) -> float:
             ...     result = 1
             ...     result += x
@@ -5734,22 +5996,18 @@ class DataFrame(generic.NDFrame):
         Using `melt` without optional arguments:
 
             >>> df.melt()
-                variable    value
-            0	       A      1.0
-            1	       A     <NA>
-            2	       A      3.0
-            3	       A      4.0
-            4	       A      5.0
-            5	       B      1.0
-            6	       B      2.0
-            7	       B      3.0
-            8	       B      4.0
-            9	       B      5.0
-            10	       C     <NA>
-            11	       C      3.5
-            12	       C     <NA>
-            13	       C      4.5
-            14	       C      5.0
+              variable  value
+            0        A    1.0
+            1        A   <NA>
+            2        A    3.0
+            3        A    4.0
+            4        A    5.0
+            5        B    1.0
+            6        B    2.0
+            7        B    3.0
+            8        B    4.0
+            9        B    5.0
+            ...
             <BLANKLINE>
             [15 rows x 2 columns]
 
@@ -6052,7 +6310,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def describe(self):
+    def describe(self, include: None | Literal["all"] = None):
         """
         Generate descriptive statistics.
 
@@ -6060,7 +6318,10 @@ class DataFrame(generic.NDFrame):
         tendency, dispersion and shape of a
         dataset's distribution, excluding ``NaN`` values.
 
-        Only supports numeric columns.
+        Args:
+            include ("all" or None, optional):
+                If "all": All columns of the input will be included in the output.
+                If None: The result will include all numeric columns.
 
         .. note::
             Percentile values are approximates only.
@@ -6077,27 +6338,43 @@ class DataFrame(generic.NDFrame):
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8]})
+            >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8], "C": ["cat", "cat", "dog"]})
             >>> df
-                A	B
-            0	3	0
-            1	1	2
-            2	2	8
+               A  B    C
+            0  3  0  cat
+            1  1  2  cat
+            2  2  8  dog
             <BLANKLINE>
-            [3 rows x 2 columns]
+            [3 rows x 3 columns]
 
             >>> df.describe()
-                          A	          B
-            count       3.0	        3.0
-            mean        2.0	   3.333333
-            std	        1.0	   4.163332
-            min	        1.0	        0.0
-            25%	        1.0	        0.0
-            50%	        2.0	        2.0
-            75%	        3.0	        8.0
-            max	        3.0	        8.0
+                     A         B
+            count  3.0       3.0
+            mean   2.0  3.333333
+            std    1.0  4.163332
+            min    1.0       0.0
+            25%    1.0       0.0
+            50%    2.0       2.0
+            75%    3.0       8.0
+            max    3.0       8.0
             <BLANKLINE>
             [8 rows x 2 columns]
+
+
+        Using describe with include = "all":
+            >>> df.describe(include="all")
+                        A         B     C
+            count     3.0       3.0     3
+            nunique  <NA>      <NA>     2
+            mean      2.0  3.333333  <NA>
+            std       1.0  4.163332  <NA>
+            min       1.0       0.0  <NA>
+            25%       1.0       0.0  <NA>
+            50%       2.0       2.0  <NA>
+            75%       3.0       8.0  <NA>
+            max       3.0       8.0  <NA>
+            <BLANKLINE>
+            [9 rows x 3 columns]
 
         Returns:
             bigframes.pandas.DataFrame:
@@ -7179,7 +7456,7 @@ class DataFrame(generic.NDFrame):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def __array__(self):
+    def __array__(self, dtype=None, copy: Optional[bool] = None):
         """
         Returns the rows as NumPy array.
 
@@ -7210,6 +7487,8 @@ class DataFrame(generic.NDFrame):
             dtype (str or numpy.dtype, optional):
                 The dtype to use for the resulting NumPy array. By default,
                 the dtype is inferred from the data.
+            copy (bool or None, optional):
+                Whether to copy the data, False is not supported.
 
         Returns:
             numpy.ndarray:
@@ -7347,11 +7626,43 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [3 rows x 5 columns]
 
+        You can assign a scalar to multiple columns.
+
+            >>> df[["age", "new_age"]] = 25
+            >>> df
+                name  age location country  new_age
+            0  alpha   25       WA     USA       25
+            1   beta   25       NY     USA       25
+            2  gamma   25       CA     USA       25
+            <BLANKLINE>
+            [3 rows x 5 columns]
+
+        You can use a sequence of scalars for assignment of multiple columns:
+
+            >>> df[["age", "is_happy"]] = [20, True]
+            >>> df
+                name  age location country  new_age  is_happy
+            0  alpha   20       WA     USA       25      True
+            1   beta   20       NY     USA       25      True
+            2  gamma   20       CA     USA       25      True
+            <BLANKLINE>
+            [3 rows x 6 columns]
+
+        You can use a dataframe for assignment of multiple columns:
+            >>> df[["age", "new_age"]] = df[["new_age", "age"]]
+            >>> df
+            name  age location country  new_age  is_happy
+            0  alpha   25       WA     USA       20      True
+            1   beta   25       NY     USA       20      True
+            2  gamma   25       CA     USA       20      True
+            <BLANKLINE>
+            [3 rows x 6 columns]
+
         Args:
             key (column index):
                 It can be a new column to be inserted, or an existing column to
                 be modified.
-            value (scalar or Series):
+            value (scalar, Sequence, DataFrame, or Series):
                 Value to be assigned to the column
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

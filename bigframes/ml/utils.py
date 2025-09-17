@@ -13,7 +13,17 @@
 # limitations under the License.
 
 import typing
-from typing import Any, Generator, Hashable, Literal, Mapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Generator,
+    Hashable,
+    Iterable,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import bigframes_vendored.constants as constants
 from google.cloud import bigquery
@@ -67,6 +77,30 @@ def batch_convert_to_series(
         )
         for frame in input
     )
+
+
+def batch_convert_to_bf_equivalent(
+    *input: ArrayType, session: Optional[Session] = None
+) -> Generator[Union[bpd.DataFrame, bpd.Series], None, None]:
+    """Converts the input to BigFrames DataFrame or Series.
+
+    Args:
+        session:
+            The session to convert local pandas instances to BigFrames counter-parts.
+            It is not used if the input itself is already a BigFrame data frame or series.
+
+    """
+    _validate_sessions(*input, session=session)
+
+    for frame in input:
+        if isinstance(frame, bpd.DataFrame) or isinstance(frame, pd.DataFrame):
+            yield convert.to_bf_dataframe(frame, default_index=None, session=session)
+        elif isinstance(frame, bpd.Series) or isinstance(frame, pd.Series):
+            yield convert.to_bf_series(
+                _get_only_column(frame), default_index=None, session=session
+            )
+        else:
+            raise ValueError(f"Unsupported type: {type(frame)}")
 
 
 def _validate_sessions(*input: ArrayType, session: Optional[Session]):
@@ -178,3 +212,16 @@ def combine_training_and_evaluation_data(
     bqml_options["data_split_col"] = split_col
 
     return X, y, bqml_options
+
+
+def standardize_type(v: str, supported_dtypes: Optional[Iterable[str]] = None):
+    t = v.lower()
+    t = t.replace("boolean", "bool")
+
+    if supported_dtypes:
+        if t not in supported_dtypes:
+            raise ValueError(
+                f"Data type {v} is not supported. We only support {', '.join(supported_dtypes)}."
+            )
+
+    return t

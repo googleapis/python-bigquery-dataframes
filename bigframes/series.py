@@ -23,23 +23,36 @@ import itertools
 import numbers
 import textwrap
 import typing
-from typing import Any, cast, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    cast,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    overload,
+    Sequence,
+    Tuple,
+    Union,
+)
+import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.series as vendored_pandas_series
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas
+from pandas.api import extensions as pd_ext
 import pandas.core.dtypes.common
 import pyarrow as pa
 import typing_extensions
 
 import bigframes.core
-from bigframes.core import log_adapter
+from bigframes.core import agg_expressions, groupby, log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
-import bigframes.core.groupby as groupby
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
@@ -47,10 +60,13 @@ import bigframes.core.scalar as scalars
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
 import bigframes.core.window
+from bigframes.core.window import rolling
 import bigframes.core.window_spec as windows
 import bigframes.dataframe
 import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
+import bigframes.functions
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.base
@@ -68,9 +84,9 @@ LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
-_remote_function_recommendation_message = (
+_bigquery_function_recommendation_message = (
     "Your functions could not be applied directly to the Series."
-    " Try converting it to a remote function."
+    " Try converting it to a BigFrames BigQuery function."
 )
 
 _list = list  # Type alias to escape Series.list property
@@ -78,6 +94,13 @@ _list = list  # Type alias to escape Series.list property
 
 @log_adapter.class_logger
 class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Series):
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 13000
+
+    # Ensure mypy can more robustly determine the type of self._block since it
+    # gets set in various places.
+    _block: blocks.Block
+
     def __init__(self, *args, **kwargs):
         self._query_job: Optional[bigquery.QueryJob] = None
         super().__init__(*args, **kwargs)
@@ -234,24 +257,50 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             map(lambda x: x.squeeze(axis=1), self._block.to_pandas_batches())
         )
 
+    def __contains__(self, key) -> bool:
+        return key in self.index
+
     def copy(self) -> Series:
         return Series(self._block)
 
+    @overload
     def rename(
-        self, index: Union[blocks.Label, Mapping[Any, Any]] = None, **kwargs
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
     ) -> Series:
+        ...
+
+    @overload
+    def rename(
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
+        *,
+        inplace: Literal[False],
+        **kwargs,
+    ) -> Series:
+        ...
+
+    @overload
+    def rename(
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
+        *,
+        inplace: Literal[True],
+        **kwargs,
+    ) -> None:
+        ...
+
+    def rename(
+        self,
+        index: Union[blocks.Label, Mapping[Any, Any]] = None,
+        *,
+        inplace: bool = False,
+        **kwargs,
+    ) -> Optional[Series]:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 f"rename does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
             )
-
-        # rename the Series name
-        if index is None or isinstance(
-            index, str
-        ):  # Python 3.9 doesn't allow isinstance of Optional
-            index = typing.cast(Optional[str], index)
-            block = self._block.with_column_labels([index])
-            return Series(block)
 
         # rename the index
         if isinstance(index, Mapping):
@@ -277,22 +326,61 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
                 block = block.set_index(new_idx_ids, index_labels=block.index.names)
 
-            return Series(block)
+            if inplace:
+                self._block = block
+                return None
+            else:
+                return Series(block)
 
         # rename the Series name
         if isinstance(index, typing.Hashable):
+            # Python 3.9 doesn't allow isinstance of Optional
             index = typing.cast(Optional[str], index)
             block = self._block.with_column_labels([index])
-            return Series(block)
+
+            if inplace:
+                self._block = block
+                return None
+            else:
+                return Series(block)
 
         raise ValueError(f"Unsupported type of parameter index: {type(index)}")
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+    ) -> Series:
+        ...
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: Literal[False],
+        **kwargs,
+    ) -> Series:
+        ...
+
+    @overload
+    def rename_axis(
+        self,
+        mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: Literal[True],
+        **kwargs,
+    ) -> None:
+        ...
 
     @validations.requires_index
     def rename_axis(
         self,
         mapper: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
+        *,
+        inplace: bool = False,
         **kwargs,
-    ) -> Series:
+    ) -> Optional[Series]:
         if len(kwargs) != 0:
             raise NotImplementedError(
                 f"rename_axis does not currently support any keyword arguments. {constants.FEEDBACK_LINK}"
@@ -302,7 +390,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             labels = mapper
         else:
             labels = [mapper]
-        return Series(self._block.with_index_labels(labels))
+
+        block = self._block.with_index_labels(labels)
+        if inplace:
+            self._block = block
+            return None
+        else:
+            return Series(block)
 
     def equals(
         self, other: typing.Union[Series, bigframes.dataframe.DataFrame]
@@ -312,17 +406,65 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return False
         return block_ops.equals(self._block, other._block)
 
+    @overload  # type: ignore[override]
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        *,
+        name: typing.Optional[str] = ...,
+        drop: Literal[False] = ...,
+        inplace: Literal[False] = ...,
+        allow_duplicates: Optional[bool] = ...,
+    ) -> bigframes.dataframe.DataFrame:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        *,
+        name: typing.Optional[str] = ...,
+        drop: Literal[True] = ...,
+        inplace: Literal[False] = ...,
+        allow_duplicates: Optional[bool] = ...,
+    ) -> Series:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        *,
+        name: typing.Optional[str] = ...,
+        drop: bool = ...,
+        inplace: Literal[True] = ...,
+        allow_duplicates: Optional[bool] = ...,
+    ) -> None:
+        ...
+
     @validations.requires_ordering()
     def reset_index(
         self,
+        level: blocks.LevelsType = None,
         *,
         name: typing.Optional[str] = None,
         drop: bool = False,
-    ) -> bigframes.dataframe.DataFrame | Series:
-        block = self._block.reset_index(drop)
+        inplace: bool = False,
+        allow_duplicates: Optional[bool] = None,
+    ) -> bigframes.dataframe.DataFrame | Series | None:
+        if allow_duplicates is None:
+            allow_duplicates = False
+        block = self._block.reset_index(level, drop, allow_duplicates=allow_duplicates)
         if drop:
+            if inplace:
+                self._set_block(block)
+                return None
             return Series(block)
         else:
+            if inplace:
+                raise ValueError(
+                    "Series.reset_index cannot combine inplace=True and drop=False"
+                )
             if name:
                 block = block.assign_label(self._value_column, name)
             return bigframes.dataframe.DataFrame(block)
@@ -339,7 +481,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
@@ -378,47 +522,193 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         random_state: Optional[int] = None,
         *,
         ordered: bool = True,
+        dry_run: bool = False,
+        allow_large_results: Optional[bool] = None,
     ) -> pandas.Series:
         """Writes Series to pandas Series.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([4, 3, 2])
+
+        Download the data from BigQuery and convert it into an in-memory pandas Series.
+
+            >>> s.to_pandas()
+            0    4
+            1    3
+            2    2
+            dtype: Int64
+
+        Estimate job statistics without processing or downloading data by using `dry_run=True`.
+
+            >>> s.to_pandas(dry_run=True) # doctest: +SKIP
+            columnCount                                                            1
+            columnDtypes                                               {None: Int64}
+            indexLevel                                                             1
+            indexDtypes                                                      [Int64]
+            projectId                                                  bigframes-dev
+            location                                                              US
+            jobType                                                            QUERY
+            destinationTable       {'projectId': 'bigframes-dev', 'datasetId': '_...
+            useLegacySql                                                       False
+            referencedTables                                                    None
+            totalBytesProcessed                                                    0
+            cacheHit                                                           False
+            statementType                                                     SELECT
+            creationTime                            2025-04-03 18:54:59.219000+00:00
+            dtype: object
+
         Args:
             max_download_size (int, default None):
-                Download size threshold in MB. If max_download_size is exceeded when downloading data
-                (e.g., to_pandas()), the data will be downsampled if
-                bigframes.options.sampling.enable_downsampling is True, otherwise, an error will be
-                raised. If set to a value other than None, this will supersede the global config.
+                .. deprecated:: 2.0.0
+                    ``max_download_size`` parameter is deprecated. Please use ``to_pandas_batches()``
+                    method instead.
+
+                Download size threshold in MB. If ``max_download_size`` is exceeded when downloading data,
+                the data will be downsampled if ``bigframes.options.sampling.enable_downsampling`` is
+                ``True``, otherwise, an error will be raised. If set to a value other than ``None``,
+                this will supersede the global config.
             sampling_method (str, default None):
+                .. deprecated:: 2.0.0
+                    ``sampling_method`` parameter is deprecated. Please use ``sample()`` method instead.
+
                 Downsampling algorithms to be chosen from, the choices are: "head": This algorithm
                 returns a portion of the data from the beginning. It is fast and requires minimal
                 computations to perform the downsampling; "uniform": This algorithm returns uniform
                 random samples of the data. If set to a value other than None, this will supersede
                 the global config.
             random_state (int, default None):
+                .. deprecated:: 2.0.0
+                    ``random_state`` parameter is deprecated. Please use ``sample()`` method instead.
+
                 The seed for the uniform downsampling algorithm. If provided, the uniform method may
                 take longer to execute and require more computation. If set to a value other than
                 None, this will supersede the global config.
             ordered (bool, default True):
                 Determines whether the resulting pandas series will be  ordered.
                 In some cases, unordered may result in a faster-executing query.
-
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas Series containing dry run job statistics
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
 
         Returns:
             pandas.Series: A pandas Series with all rows of this Series if the data_sampling_threshold_mb
-                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame.
+                is not exceeded; otherwise, a pandas Series with downsampled rows of the DataFrame. If dry_run
+                is set to True, a pandas Series containing dry run statistics will be returned.
         """
+        if max_download_size is not None:
+            msg = bfe.format_message(
+                "DEPRECATED: The `max_download_size` parameters for `Series.to_pandas()` "
+                "are deprecated and will be removed soon. Please use `Series.to_pandas_batches()`."
+            )
+            warnings.warn(msg, category=FutureWarning)
+        if sampling_method is not None or random_state is not None:
+            msg = bfe.format_message(
+                "DEPRECATED: The `sampling_method` and `random_state` parameters for "
+                "`Series.to_pandas()` are deprecated and will be removed soon. "
+                "Please use `Series.sample().to_pandas()` instead for sampling."
+            )
+            warnings.warn(msg, category=FutureWarning)
+
+        if dry_run:
+            dry_run_stats, dry_run_job = self._block._compute_dry_run(
+                max_download_size=max_download_size,
+                sampling_method=sampling_method,
+                random_state=random_state,
+                ordered=ordered,
+            )
+
+            self._set_internal_query_job(dry_run_job)
+            return dry_run_stats
+
+        # Repeat the to_pandas() call to make mypy deduce type correctly, because mypy cannot resolve
+        # Literal[True/False] to bool
         df, query_job = self._block.to_pandas(
             max_download_size=max_download_size,
             sampling_method=sampling_method,
             random_state=random_state,
             ordered=ordered,
+            allow_large_results=allow_large_results,
         )
-        self._set_internal_query_job(query_job)
+
+        if query_job:
+            self._set_internal_query_job(query_job)
+
         series = df.squeeze(axis=1)
         series.name = self._name
         return series
 
+    def to_pandas_batches(
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> Iterable[pandas.Series]:
+        """Stream Series results to an iterable of pandas Series.
+
+        page_size and max_results determine the size and number of batches,
+        see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob#google_cloud_bigquery_job_QueryJob_result
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([4, 3, 2, 2, 3])
+
+        Iterate through the results in batches, limiting the total rows yielded
+        across all batches via `max_results`:
+
+            >>> for s_batch in s.to_pandas_batches(max_results=3):
+            ...     print(s_batch)
+            0    4
+            1    3
+            2    2
+            dtype: Int64
+
+        Alternatively, control the approximate size of each batch using `page_size`
+        and fetch batches manually using `next()`:
+
+            >>> it = s.to_pandas_batches(page_size=2)
+            >>> next(it)
+            0    4
+            1    3
+            dtype: Int64
+            >>> next(it)
+            2    2
+            3    2
+            dtype: Int64
+
+        Args:
+            page_size (int, default None):
+                The maximum number of rows of each batch. Non-positive values are ignored.
+            max_results (int, default None):
+                The maximum total number of rows of all batches.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
+
+        Returns:
+            Iterable[pandas.Series]:
+                An iterable of smaller Series which combine to
+                form the original Series. Results stream from bigquery,
+                see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
+        """
+        batches = self._block.to_pandas_batches(
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
+        )
+        return map(lambda df: cast(pandas.Series, df.squeeze(1)), batches)
+
     def _compute_dry_run(self) -> bigquery.QueryJob:
-        return self._block._compute_dry_run((self._value_column,))
+        _, query_job = self._block._compute_dry_run((self._value_column,))
+        return query_job
 
     def drop(
         self,
@@ -514,7 +804,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def ffill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = windows.rows(preceding=limit, following=0)
+        window = windows.rows(start=None if limit is None else -limit, end=0)
         return self._apply_window_op(agg_ops.LastNonNullOp(), window)
 
     pad = ffill
@@ -522,7 +812,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     @validations.requires_ordering()
     def bfill(self, *, limit: typing.Optional[int] = None) -> Series:
-        window = windows.rows(preceding=0, following=limit)
+        window = windows.rows(start=0, end=limit)
         return self._apply_window_op(agg_ops.FirstNonNullOp(), window)
 
     @validations.requires_ordering()
@@ -561,8 +851,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         numeric_only=False,
         na_option: str = "keep",
         ascending: bool = True,
+        pct: bool = False,
     ) -> Series:
-        return Series(block_ops.rank(self._block, method, na_option, ascending))
+        return Series(
+            block_ops.rank(self._block, method, na_option, ascending, pct=pct)
+        )
 
     def fillna(self, value=None) -> Series:
         return self._apply_binary_op(value, ops.fillna_op)
@@ -682,7 +975,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     def tail(self, n: int = 5) -> Series:
         return typing.cast(Series, self.iloc[-n:])
 
-    def peek(self, n: int = 5, *, force: bool = True) -> pandas.Series:
+    def peek(
+        self, n: int = 5, *, force: bool = True, allow_large_results=None
+    ) -> pandas.Series:
         """
         Preview n arbitrary elements from the series without guarantees about row selection or ordering.
 
@@ -696,17 +991,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             force (bool, default True):
                 If the data cannot be peeked efficiently, the series will instead be fully materialized as part
                 of the operation if ``force=True``. If ``force=False``, the operation will throw a ValueError.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
         Returns:
             pandas.Series: A pandas Series with n rows.
 
         Raises:
             ValueError: If force=False and data cannot be efficiently peeked.
         """
-        maybe_result = self._block.try_peek(n)
+        maybe_result = self._block.try_peek(n, allow_large_results=allow_large_results)
         if maybe_result is None:
             if force:
                 self._cached()
-                maybe_result = self._block.try_peek(n, force=True)
+                maybe_result = self._block.try_peek(
+                    n, force=True, allow_large_results=allow_large_results
+                )
                 assert maybe_result is not None
             else:
                 raise ValueError(
@@ -715,6 +1015,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         as_series = maybe_result.squeeze(axis=1)
         as_series.name = self.name
         return as_series
+
+    def item(self):
+        # Docstring is in third_party/bigframes_vendored/pandas/core/series.py
+        return self.peek(2).item()
 
     def nlargest(self, n: int = 5, keep: str = "first") -> Series:
         if keep not in ("first", "last", "all"):
@@ -735,8 +1039,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def isin(self, values) -> "Series" | None:
-        if isinstance(values, (Series,)):
+        if isinstance(values, Series):
             return Series(self._block.isin(values._block))
+        if isinstance(values, indexes.Index):
+            return Series(self._block.isin(values.to_series()._block))
         if not _is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -961,6 +1267,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
         self._set_block(result._get_block())
 
+    def __abs__(self) -> Series:
+        return self.abs()
+
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
 
@@ -1024,7 +1333,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 raise NotImplementedError(
                     f"Multiple aggregations only supported on numeric series. {constants.FEEDBACK_LINK}"
                 )
-            aggregations = [agg_ops.lookup_agg_func(f) for f in func]
+            aggregations = [agg_ops.lookup_agg_func(f)[0] for f in func]
             return Series(
                 self._block.summarize(
                     [self._value_column],
@@ -1032,12 +1341,15 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 )
             )
         else:
-            return self._apply_aggregation(
-                agg_ops.lookup_agg_func(typing.cast(str, func))
-            )
+            return self._apply_aggregation(agg_ops.lookup_agg_func(func)[0])
 
     aggregate = agg
     aggregate.__doc__ = inspect.getdoc(vendored_pandas_series.Series.agg)
+
+    def describe(self) -> Series:
+        from bigframes.pandas.core.methods import describe
+
+        return cast(Series, describe.describe(self, include="all"))
 
     def skew(self):
         count = self.count()
@@ -1080,7 +1392,9 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         block, agg_ids = block.aggregate(
             by_column_ids=[self._value_column],
             aggregations=(
-                ex.UnaryAggregation(agg_ops.count_op, ex.deref(self._value_column)),
+                agg_expressions.UnaryAggregation(
+                    agg_ops.count_op, ex.deref(self._value_column)
+                ),
             ),
         )
         value_count_col_id = agg_ids[0]
@@ -1173,21 +1487,40 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             for item in batch_df.squeeze(axis=1).items():
                 yield item
 
+    def _apply_callable(self, condition):
+        """ "Executes the possible callable condition as needed."""
+        if callable(condition):
+            # When it's a bigframes function.
+            if hasattr(condition, "bigframes_bigquery_function"):
+                return self.apply(condition)
+            # When it's a plain Python function.
+            else:
+                return self.apply(condition, by_row=False)
+
+        # When it's not a callable.
+        return condition
+
     def where(self, cond, other=None):
+        cond = self._apply_callable(cond)
+        other = self._apply_callable(other)
+
         value_id, cond_id, other_id, block = self._align3(cond, other)
         block, result_id = block.project_expr(
             ops.where_op.as_expr(value_id, cond_id, other_id)
         )
         return Series(block.select_column(result_id).with_column_labels([self.name]))
 
-    def clip(self, lower, upper):
+    def clip(self, lower=None, upper=None):
         if lower is None and upper is None:
             return self
         if lower is None:
             return self._apply_binary_op(upper, ops.minimum_op, alignment="left")
         if upper is None:
             return self._apply_binary_op(lower, ops.maximum_op, alignment="left")
-        value_id, lower_id, upper_id, block = self._align3(lower, upper)
+        # special rule to coerce scalar string args to date
+        value_id, lower_id, upper_id, block = self._align3(
+            lower, upper, cast_scalars=(bigframes.dtypes.is_date_like(self.dtype))
+        )
         block, result_id = block.project_expr(
             ops.clip_op.as_expr(value_id, lower_id, upper_id),
         )
@@ -1319,7 +1652,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             raise AttributeError(key)
         elif hasattr(pandas.Series, key):
             log_adapter.submit_pandas_labels(
-                self._block.expr.session.bqclient, self.__class__.__name__, key
+                self._block.session.bqclient, self.__class__.__name__, key
             )
             raise AttributeError(
                 textwrap.dedent(
@@ -1334,12 +1667,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         else:
             raise AttributeError(key)
 
+    def __setitem__(self, key, value) -> None:
+        """Set item using direct assignment, delegating to .loc indexer."""
+        self.loc[key] = value
+
     def _apply_aggregation(
         self, op: agg_ops.UnaryAggregateOp | agg_ops.NullaryAggregateOp
     ) -> Any:
         return self._block.get_stat(self._value_column, op)
 
-    def _apply_window_op(self, op: agg_ops.WindowOp, window_spec: windows.WindowSpec):
+    def _apply_window_op(
+        self, op: agg_ops.UnaryWindowOp, window_spec: windows.WindowSpec
+    ):
         block = self._block
         block, result_id = block.apply_window_op(
             self._value_column, op, window_spec=window_spec, result_label=self.name
@@ -1359,13 +1698,43 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             [self._value_column],
             normalize=normalize,
             ascending=ascending,
-            dropna=dropna,
+            drop_na=dropna,
         )
         return Series(block)
 
+    @typing.overload  # type: ignore[override]
     def sort_values(
-        self, *, axis=0, ascending=True, kind: str = "quicksort", na_position="last"
+        self,
+        *,
+        axis=...,
+        inplace: Literal[True] = ...,
+        ascending: bool | typing.Sequence[bool] = ...,
+        kind: str = ...,
+        na_position: typing.Literal["first", "last"] = ...,
+    ) -> None:
+        ...
+
+    @typing.overload
+    def sort_values(
+        self,
+        *,
+        axis=...,
+        inplace: Literal[False] = ...,
+        ascending: bool | typing.Sequence[bool] = ...,
+        kind: str = ...,
+        na_position: typing.Literal["first", "last"] = ...,
     ) -> Series:
+        ...
+
+    def sort_values(
+        self,
+        *,
+        axis=0,
+        inplace: bool = False,
+        ascending=True,
+        kind: str = "quicksort",
+        na_position: typing.Literal["first", "last"] = "last",
+    ) -> Optional[Series]:
         if axis != 0 and axis != "index":
             raise ValueError(f"No axis named {axis} for object type Series")
         if na_position not in ["first", "last"]:
@@ -1377,10 +1746,28 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
                 else order.descending_over(self._value_column, (na_position == "last"))
             ],
         )
-        return Series(block)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return Series(block)
+
+    @typing.overload  # type: ignore[override]
+    def sort_index(
+        self, *, axis=..., inplace: Literal[False] = ..., ascending=..., na_position=...
+    ) -> Series:
+        ...
+
+    @typing.overload
+    def sort_index(
+        self, *, axis=0, inplace: Literal[True] = ..., ascending=..., na_position=...
+    ) -> None:
+        ...
 
     @validations.requires_index
-    def sort_index(self, *, axis=0, ascending=True, na_position="last") -> Series:
+    def sort_index(
+        self, *, axis=0, inplace: bool = False, ascending=True, na_position="last"
+    ) -> Optional[Series]:
         # TODO(tbergeron): Support level parameter once multi-index introduced.
         if axis != 0 and axis != "index":
             raise ValueError(f"No axis named {axis} for object type Series")
@@ -1395,16 +1782,35 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             for column in block.index_columns
         ]
         block = block.order_by(ordering)
-        return Series(block)
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return Series(block)
 
     @validations.requires_ordering()
-    def rolling(self, window: int, min_periods=None) -> bigframes.core.window.Window:
-        # To get n size window, need current row and n-1 preceding rows.
-        window_spec = windows.rows(
-            preceding=window - 1, following=0, min_periods=min_periods or window
-        )
-        return bigframes.core.window.Window(
-            self._block, window_spec, self._block.value_columns, is_series=True
+    def rolling(
+        self,
+        window: int | pandas.Timedelta | numpy.timedelta64 | datetime.timedelta | str,
+        min_periods: int | None = None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
+    ) -> bigframes.core.window.Window:
+        if isinstance(window, int):
+            # Rows rolling
+            window_spec = windows.WindowSpec(
+                bounds=windows.RowsWindowBounds.from_window_size(window, closed),
+                min_periods=window if min_periods is None else min_periods,
+            )
+            return bigframes.core.window.Window(
+                self._block, window_spec, self._block.value_columns, is_series=True
+            )
+
+        return rolling.create_range_window(
+            block=self._block,
+            window=window,
+            min_periods=min_periods,
+            closed=closed,
+            is_series=True,
         )
 
     @validations.requires_ordering()
@@ -1501,9 +1907,22 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def apply(
-        self, func, by_row: typing.Union[typing.Literal["compat"], bool] = "compat"
+        self,
+        func,
+        by_row: typing.Union[typing.Literal["compat"], bool] = "compat",
+        *,
+        args: typing.Tuple = (),
     ) -> Series:
-        # TODO(shobs, b/274645634): Support convert_dtype, args, **kwargs
+        # Note: This signature differs from pandas.Series.apply. Specifically,
+        # `args` is keyword-only and `by_row` is a custom parameter here. Full
+        # alignment would involve breaking changes. However, given that by_row
+        # is not frequently used, we defer any such changes until there is a
+        # clear need based on user feedback.
+        #
+        # See pandas docs for reference:
+        # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.apply.html
+
+        # TODO(shobs, b/274645634): Support convert_dtype, **kwargs
         # is actually a ternary op
 
         if by_row not in ["compat", False]:
@@ -1511,17 +1930,29 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         if not callable(func):
             raise ValueError(
-                "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
+                "Only a ufunc (a function that applies to the entire Series) or"
+                " a BigFrames BigQuery function that only works on single values"
+                " are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
-            # It is not a remote function
+        if not isinstance(func, bigframes.functions.BigqueryCallableRoutine):
+            # It is neither a remote function nor a managed function.
             # Then it must be a vectorized function that applies to the Series
-            # as a whole
+            # as a whole.
             if by_row:
                 raise ValueError(
-                    "A vectorized non-remote function can be provided only with by_row=False."
-                    " For element-wise operation it must be a remote function."
+                    "You have passed a function as-is. If your intention is to "
+                    "apply this function in a vectorized way (i.e. to the "
+                    "entire Series as a whole, and you are sure that it "
+                    "performs only the operations that are implemented for a "
+                    "Series (e.g. a chain of arithmetic/logical operations, "
+                    "such as `def foo(s): return s % 2 == 1`), please also "
+                    "specify `by_row=False`. If your function contains "
+                    "arbitrary code, it can only be applied to every element "
+                    "in the Series individually, in which case you must "
+                    "convert it to a BigFrames BigQuery function using "
+                    "`bigframes.pandas.udf`, "
+                    "or `bigframes.pandas.remote_function` before passing."
                 )
 
             try:
@@ -1529,27 +1960,24 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             except Exception as ex:
                 # This could happen if any of the operators in func is not
                 # supported on a Series. Let's guide the customer to use a
-                # remote function instead
+                # bigquery function instead
                 if hasattr(ex, "message"):
-                    ex.message += f"\n{_remote_function_recommendation_message}"
+                    ex.message += f"\n{_bigquery_function_recommendation_message}"
                 raise
 
-        # We are working with remote function at this point
-        result_series = self._apply_unary_op(
-            ops.RemoteFunctionOp(func=func, apply_on_null=True)
-        )
-
-        # if the output is an array, reconstruct it from the json serialized
-        # string form
-        if bigframes.dtypes.is_array_like(func.output_dtype):
-            import bigframes.bigquery as bbq
-
-            result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
-                func.output_dtype.pyarrow_dtype.value_type
+        # We are working with bigquery function at this point
+        if args:
+            result_series = self._apply_nary_op(
+                ops.NaryRemoteFunctionOp(function_def=func.udf_def), args
             )
-            result_series = bbq.json_extract_string_array(
-                result_series, value_dtype=result_dtype
+            # TODO(jialuo): Investigate why `_apply_nary_op` drops the series
+            # `name`. Manually reassigning it here as a temporary fix.
+            result_series.name = self.name
+        else:
+            result_series = self._apply_unary_op(
+                ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
             )
+        result_series = func._post_process_series(result_series)
 
         return result_series
 
@@ -1560,37 +1988,27 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> Series:
         if not callable(func):
             raise ValueError(
-                "Only a ufunc (a function that applies to the entire Series) or a remote function that only works on single values are supported."
+                "Only a ufunc (a function that applies to the entire Series) or"
+                " a BigFrames BigQuery function that only works on single values"
+                " are supported."
             )
 
-        if not hasattr(func, "bigframes_remote_function"):
+        if not isinstance(func, bigframes.functions.BigqueryCallableRoutine):
             # Keep this in sync with .apply
             try:
                 return func(self, other)
             except Exception as ex:
                 # This could happen if any of the operators in func is not
                 # supported on a Series. Let's guide the customer to use a
-                # remote function instead
+                # bigquery function instead
                 if hasattr(ex, "message"):
-                    ex.message += f"\n{_remote_function_recommendation_message}"
+                    ex.message += f"\n{_bigquery_function_recommendation_message}"
                 raise
 
         result_series = self._apply_binary_op(
-            other, ops.BinaryRemoteFunctionOp(func=func)
+            other, ops.BinaryRemoteFunctionOp(function_def=func.udf_def)
         )
-
-        # if the output is an array, reconstruct it from the json serialized
-        # string form
-        if bigframes.dtypes.is_array_like(func.output_dtype):
-            import bigframes.bigquery as bbq
-
-            result_dtype = bigframes.dtypes.arrow_dtype_to_bigframes_dtype(
-                func.output_dtype.pyarrow_dtype.value_type
-            )
-            result_series = bbq.json_extract_string_array(
-                result_series, value_dtype=result_dtype
-            )
-
+        result_series = func._post_process_series(result_series)
         return result_series
 
     @validations.requires_index
@@ -1600,6 +2018,13 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     @validations.requires_index
     def add_suffix(self, suffix: str, axis: int | str | None = None) -> Series:
         return Series(self._get_block().add_suffix(suffix))
+
+    def take(
+        self, indices: typing.Sequence[int], axis: int | str | None = 0, **kwargs
+    ) -> Series:
+        if not utils.is_list_like(indices):
+            raise ValueError("indices should be a list-like object.")
+        return typing.cast(Series, self.iloc[indices])
 
     def filter(
         self,
@@ -1694,7 +2119,11 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             return self.drop_duplicates()
         block, result = self._block.aggregate(
             [self._value_column],
-            [ex.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(self._value_column))],
+            [
+                agg_expressions.UnaryAggregation(
+                    agg_ops.AnyValueOp(), ex.deref(self._value_column)
+                )
+            ],
             column_labels=self._block.column_labels,
             dropna=False,
         )
@@ -1713,13 +2142,8 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         )
 
     def mask(self, cond, other=None) -> Series:
-        if callable(cond):
-            if hasattr(cond, "bigframes_remote_function"):
-                cond = self.apply(cond)
-            else:
-                # For non-remote function assume that it is applicable on Series
-                cond = self.apply(cond, by_row=False)
-
+        cond = self._apply_callable(cond)
+        other = self._apply_callable(other)
         if not isinstance(cond, Series):
             raise TypeError(
                 f"Only bigframes series condition is supported, received {type(cond).__name__}. "
@@ -1742,22 +2166,36 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         header: bool = True,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         if utils.is_gcs_path(path_or_buf):
             return self.to_frame().to_csv(
-                path_or_buf, sep=sep, header=header, index=index
+                path_or_buf,
+                sep=sep,
+                header=header,
+                index=index,
+                allow_large_results=allow_large_results,
             )
         else:
-            pd_series = self.to_pandas()
+            pd_series = self.to_pandas(allow_large_results=allow_large_results)
             return pd_series.to_csv(
                 path_or_buf=path_or_buf, sep=sep, header=header, index=index
             )
 
-    def to_dict(self, into: type[dict] = dict) -> typing.Mapping:
-        return typing.cast(dict, self.to_pandas().to_dict(into))  # type: ignore
+    def to_dict(
+        self,
+        into: type[dict] = dict,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> typing.Mapping:
+        return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into))  # type: ignore
 
-    def to_excel(self, excel_writer, sheet_name="Sheet1", **kwargs) -> None:
-        return self.to_pandas().to_excel(excel_writer, sheet_name, **kwargs)
+    def to_excel(
+        self, excel_writer, sheet_name="Sheet1", *, allow_large_results=None, **kwargs
+    ) -> None:
+        return self.to_pandas(allow_large_results=allow_large_results).to_excel(
+            excel_writer, sheet_name, **kwargs
+        )
 
     def to_json(
         self,
@@ -1768,26 +2206,42 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         *,
         lines: bool = False,
         index: bool = True,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         if utils.is_gcs_path(path_or_buf):
             return self.to_frame().to_json(
-                path_or_buf=path_or_buf, orient=orient, lines=lines, index=index
+                path_or_buf=path_or_buf,
+                orient=orient,
+                lines=lines,
+                index=index,
+                allow_large_results=allow_large_results,
             )
         else:
-            pd_series = self.to_pandas()
+            pd_series = self.to_pandas(allow_large_results=allow_large_results)
             return pd_series.to_json(
                 path_or_buf=path_or_buf, orient=orient, lines=lines, index=index  # type: ignore
             )
 
     def to_latex(
-        self, buf=None, columns=None, header=True, index=True, **kwargs
+        self,
+        buf=None,
+        columns=None,
+        header=True,
+        index=True,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_latex(
+        return self.to_pandas(allow_large_results=allow_large_results).to_latex(
             buf, columns=columns, header=header, index=index, **kwargs
         )
 
-    def tolist(self) -> _list:
-        return self.to_pandas().to_list()
+    def tolist(
+        self,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> _list:
+        return self.to_pandas(allow_large_results=allow_large_results).to_list()
 
     to_list = tolist
     to_list.__doc__ = inspect.getdoc(vendored_pandas_series.Series.tolist)
@@ -1797,22 +2251,36 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         buf: typing.IO[str] | None = None,
         mode: str = "wt",
         index: bool = True,
+        *,
+        allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_numpy(
-        self, dtype=None, copy=False, na_value=None, **kwargs
+        self,
+        dtype=None,
+        copy=False,
+        na_value=pd_ext.no_default,
+        *,
+        allow_large_results=None,
+        **kwargs,
     ) -> numpy.ndarray:
-        return self.to_pandas().to_numpy(dtype, copy, na_value, **kwargs)
+        return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
+            dtype, copy, na_value, **kwargs
+        )
 
-    def __array__(self, dtype=None) -> numpy.ndarray:
+    def __array__(self, dtype=None, copy: Optional[bool] = None) -> numpy.ndarray:
+        if copy is False:
+            raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
 
     __array__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.__array__)
 
-    def to_pickle(self, path, **kwargs) -> None:
-        return self.to_pandas().to_pickle(path, **kwargs)
+    def to_pickle(self, path, *, allow_large_results=None, **kwargs) -> None:
+        return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
+            path, **kwargs
+        )
 
     def to_string(
         self,
@@ -1826,8 +2294,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         name=False,
         max_rows=None,
         min_rows=None,
+        *,
+        allow_large_results=None,
     ) -> typing.Optional[str]:
-        return self.to_pandas().to_string(
+        return self.to_pandas(allow_large_results=allow_large_results).to_string(
             buf,
             na_rep,
             float_format,
@@ -1840,8 +2310,12 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             min_rows,
         )
 
-    def to_xarray(self):
-        return self.to_pandas().to_xarray()
+    def to_xarray(
+        self,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ):
+        return self.to_pandas(allow_large_results=allow_large_results).to_xarray()
 
     def _throw_if_index_contains_duplicates(
         self, error_message: typing.Optional[str] = None

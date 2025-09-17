@@ -20,8 +20,10 @@ import typing
 
 from bigframes import dtypes
 from bigframes import operations as ops
+from bigframes.core import agg_expressions as ex_types
 from bigframes.core import expression as ex
 from bigframes.core import nodes, schema, utils
+from bigframes.operations import aggregations as aggs
 
 
 @dataclasses.dataclass
@@ -59,6 +61,29 @@ def rewrite_timedelta_expressions(root: nodes.BigFrameNode) -> nodes.BigFrameNod
         by = tuple(_rewrite_ordering_expr(x, root.schema) for x in root.by)
         return nodes.OrderByNode(root.child, by)
 
+    if isinstance(root, nodes.WindowOpNode):
+        return nodes.WindowOpNode(
+            root.child,
+            _rewrite_aggregation(root.expression, root.schema),
+            root.window_spec,
+            root.output_name,
+            root.never_skip_nulls,
+            root.skip_reproject_unsafe,
+        )
+
+    if isinstance(root, nodes.AggregateNode):
+        updated_aggregations = tuple(
+            (_rewrite_aggregation(agg, root.child.schema), col_id)
+            for agg, col_id in root.aggregations
+        )
+        return nodes.AggregateNode(
+            root.child,
+            updated_aggregations,
+            root.by_column_ids,
+            root.order_by,
+            root.dropna,
+        )
+
     return root
 
 
@@ -87,7 +112,7 @@ def _rewrite_expressions(expr: ex.Expression, schema: schema.ArraySchema) -> _Ty
 
 
 def _rewrite_scalar_constant_expr(expr: ex.ScalarConstantExpression) -> _TypedExpr:
-    if expr.dtype is dtypes.TIMEDELTA_DTYPE:
+    if expr.dtype == dtypes.TIMEDELTA_DTYPE:
         int_repr = utils.timedelta_to_micros(expr.value)  # type: ignore
         return _TypedExpr(ex.const(int_repr, expr.dtype), expr.dtype)
 
@@ -103,6 +128,20 @@ def _rewrite_op_expr(
     if isinstance(expr.op, ops.AddOp):
         return _rewrite_add_op(inputs[0], inputs[1])
 
+    if isinstance(expr.op, ops.MulOp):
+        return _rewrite_mul_op(inputs[0], inputs[1])
+
+    if isinstance(expr.op, ops.DivOp):
+        return _rewrite_div_op(inputs[0], inputs[1])
+
+    if isinstance(expr.op, ops.FloorDivOp):
+        # We need to re-write floor div because for numerics: int // float => float
+        # but for timedeltas: int(timedelta) // float => int(timedelta)
+        return _rewrite_floordiv_op(inputs[0], inputs[1])
+
+    if isinstance(expr.op, ops.ToTimedeltaOp):
+        return _rewrite_to_timedelta_op(expr.op, inputs[0])
+
     return _TypedExpr.create_op_expr(expr.op, *inputs)
 
 
@@ -110,19 +149,114 @@ def _rewrite_sub_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
     if dtypes.is_datetime_like(left.dtype) and dtypes.is_datetime_like(right.dtype):
         return _TypedExpr.create_op_expr(ops.timestamp_diff_op, left, right)
 
-    if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
+    if dtypes.is_datetime_like(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE:
         return _TypedExpr.create_op_expr(ops.timestamp_sub_op, left, right)
+
+    if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.DATE_DTYPE:
+        return _TypedExpr.create_op_expr(ops.date_diff_op, left, right)
+
+    if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.TIMEDELTA_DTYPE:
+        return _TypedExpr.create_op_expr(ops.date_sub_op, left, right)
 
     return _TypedExpr.create_op_expr(ops.sub_op, left, right)
 
 
 def _rewrite_add_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
-    if dtypes.is_datetime_like(left.dtype) and right.dtype is dtypes.TIMEDELTA_DTYPE:
+    if dtypes.is_datetime_like(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE:
         return _TypedExpr.create_op_expr(ops.timestamp_add_op, left, right)
 
-    if left.dtype is dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right.dtype):
+    if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_datetime_like(right.dtype):
         # Re-arrange operands such that timestamp is always on the left and timedelta is
         # always on the right.
         return _TypedExpr.create_op_expr(ops.timestamp_add_op, right, left)
 
+    if left.dtype == dtypes.DATE_DTYPE and right.dtype == dtypes.TIMEDELTA_DTYPE:
+        return _TypedExpr.create_op_expr(ops.date_add_op, left, right)
+
+    if left.dtype == dtypes.TIMEDELTA_DTYPE and right.dtype == dtypes.DATE_DTYPE:
+        # Re-arrange operands such that date is always on the left and timedelta is
+        # always on the right.
+        return _TypedExpr.create_op_expr(ops.date_add_op, right, left)
+
     return _TypedExpr.create_op_expr(ops.add_op, left, right)
+
+
+def _rewrite_mul_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
+    result = _TypedExpr.create_op_expr(ops.mul_op, left, right)
+
+    if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
+        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+    if dtypes.is_numeric(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE:
+        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+
+    return result
+
+
+def _rewrite_div_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
+    result = _TypedExpr.create_op_expr(ops.div_op, left, right)
+
+    if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
+        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+
+    return result
+
+
+def _rewrite_floordiv_op(left: _TypedExpr, right: _TypedExpr) -> _TypedExpr:
+    result = _TypedExpr.create_op_expr(ops.floordiv_op, left, right)
+
+    if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
+        return _TypedExpr.create_op_expr(ops.timedelta_floor_op, result)
+
+    return result
+
+
+def _rewrite_to_timedelta_op(op: ops.ToTimedeltaOp, arg: _TypedExpr):
+    if arg.dtype == dtypes.TIMEDELTA_DTYPE:
+        # Do nothing for values that are already timedeltas
+        return arg
+
+    return _TypedExpr.create_op_expr(op, arg)
+
+
+@functools.cache
+def _rewrite_aggregation(
+    aggregation: ex_types.Aggregation, schema: schema.ArraySchema
+) -> ex_types.Aggregation:
+    if not isinstance(aggregation, ex_types.UnaryAggregation):
+        return aggregation
+
+    if isinstance(aggregation.arg, ex.DerefOp):
+        input_type = schema.get_type(aggregation.arg.id.sql)
+    else:
+        input_type = aggregation.arg.output_type
+
+    if isinstance(aggregation.op, aggs.DiffOp):
+        if dtypes.is_datetime_like(input_type):
+            return ex_types.UnaryAggregation(
+                aggs.TimeSeriesDiffOp(aggregation.op.periods), aggregation.arg
+            )
+        elif input_type == dtypes.DATE_DTYPE:
+            return ex_types.UnaryAggregation(
+                aggs.DateSeriesDiffOp(aggregation.op.periods), aggregation.arg
+            )
+
+    if isinstance(aggregation.op, aggs.StdOp) and input_type == dtypes.TIMEDELTA_DTYPE:
+        return ex_types.UnaryAggregation(
+            aggs.StdOp(should_floor_result=True), aggregation.arg
+        )
+
+    if isinstance(aggregation.op, aggs.MeanOp) and input_type == dtypes.TIMEDELTA_DTYPE:
+        return ex_types.UnaryAggregation(
+            aggs.MeanOp(should_floor_result=True), aggregation.arg
+        )
+
+    if (
+        isinstance(aggregation.op, aggs.QuantileOp)
+        and input_type == dtypes.TIMEDELTA_DTYPE
+    ):
+        return ex_types.UnaryAggregation(
+            aggs.QuantileOp(q=aggregation.op.q, should_floor_result=True),
+            aggregation.arg,
+        )
+
+    return aggregation

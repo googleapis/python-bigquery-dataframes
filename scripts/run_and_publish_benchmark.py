@@ -84,66 +84,57 @@ def collect_benchmark_result(
     path = pathlib.Path(benchmark_path)
     try:
         results_dict: Dict[str, List[Union[int, float, None]]] = {}
-        bytes_files = sorted(path.rglob("*.bytesprocessed"))
-        millis_files = sorted(path.rglob("*.slotmillis"))
-        bq_seconds_files = sorted(path.rglob("*.bq_exec_time_seconds"))
+        # Use local_seconds_files as the baseline
         local_seconds_files = sorted(path.rglob("*.local_exec_time_seconds"))
-        query_char_count_files = sorted(path.rglob("*.query_char_count"))
-
         error_files = sorted(path.rglob("*.error"))
+        benchmarks_with_missing_files = []
 
-        if not (
-            len(bytes_files)
-            == len(millis_files)
-            == len(local_seconds_files)
-            == len(bq_seconds_files)
-            == len(query_char_count_files)
-        ):
-            raise ValueError(
-                "Mismatch in the number of report files for bytes, millis, seconds and query char count."
-            )
+        for local_seconds_file in local_seconds_files:
+            base_name = local_seconds_file.name.removesuffix(".local_exec_time_seconds")
+            base_path = local_seconds_file.parent / base_name
+            filename = base_path.relative_to(path)
 
-        for idx in range(len(bytes_files)):
-            bytes_file = bytes_files[idx]
-            millis_file = millis_files[idx]
-            bq_seconds_file = bq_seconds_files[idx]
-            query_char_count_file = query_char_count_files[idx]
+            # Construct paths for other metric files
+            bytes_file = pathlib.Path(f"{base_path}.bytesprocessed")
+            millis_file = pathlib.Path(f"{base_path}.slotmillis")
+            bq_seconds_file = pathlib.Path(f"{base_path}.bq_exec_time_seconds")
+            query_char_count_file = pathlib.Path(f"{base_path}.query_char_count")
 
-            filename = bytes_file.relative_to(path).with_suffix("")
+            # Check if all corresponding files exist
+            missing_files = []
+            if not bytes_file.exists():
+                missing_files.append(bytes_file.name)
+            if not millis_file.exists():
+                missing_files.append(millis_file.name)
+            if not bq_seconds_file.exists():
+                missing_files.append(bq_seconds_file.name)
+            if not query_char_count_file.exists():
+                missing_files.append(query_char_count_file.name)
 
-            if filename != millis_file.relative_to(path).with_suffix(
-                ""
-            ) or filename != bq_seconds_file.relative_to(path).with_suffix(""):
-                raise ValueError(
-                    "File name mismatch among bytes, millis, and seconds reports."
-                )
+            if missing_files:
+                benchmarks_with_missing_files.append((str(filename), missing_files))
+                continue
 
-            local_seconds_file = local_seconds_files[idx]
-            if filename != local_seconds_file.relative_to(path).with_suffix(""):
-                raise ValueError(
-                    "File name mismatch among bytes, millis, and seconds reports."
-                )
+            with open(query_char_count_file, "r") as file:
+                lines = file.read().splitlines()
+                query_char_count = sum(int(line) for line in lines) / iterations
+                query_count = len(lines) / iterations
+
+            with open(local_seconds_file, "r") as file:
+                lines = file.read().splitlines()
+                local_seconds = sum(float(line) for line in lines) / iterations
 
             with open(bytes_file, "r") as file:
                 lines = file.read().splitlines()
-                query_count = len(lines) / iterations
                 total_bytes = sum(int(line) for line in lines) / iterations
 
             with open(millis_file, "r") as file:
                 lines = file.read().splitlines()
                 total_slot_millis = sum(int(line) for line in lines) / iterations
 
-            with open(local_seconds_file, "r") as file:
-                lines = file.read().splitlines()
-                local_seconds = sum(float(line) for line in lines) / iterations
-
             with open(bq_seconds_file, "r") as file:
                 lines = file.read().splitlines()
                 bq_seconds = sum(float(line) for line in lines) / iterations
-
-            with open(query_char_count_file, "r") as file:
-                lines = file.read().splitlines()
-                query_char_count = sum(int(line) for line in lines) / iterations
 
             results_dict[str(filename)] = [
                 query_count,
@@ -194,11 +185,11 @@ def collect_benchmark_result(
         )
         print(
             f"{index} - query count: {row['Query_Count']},"
-            f" query char count: {row['Query_Char_Count']},",
-            f" bytes processed sum: {row['Bytes_Processed']},"
-            f" slot millis sum: {row['Slot_Millis']},"
-            f" local execution time: {formatted_local_exec_time} seconds,"
-            f" bigquery execution time: {round(row['BigQuery_Execution_Time_Sec'], 1)} seconds",
+            + f" query char count: {row['Query_Char_Count']},"
+            + f" bytes processed sum: {row['Bytes_Processed']},"
+            + f" slot millis sum: {row['Slot_Millis']},"
+            + f" local execution time: {formatted_local_exec_time}"
+            + f", bigquery execution time: {round(row['BigQuery_Execution_Time_Sec'], 1)} seconds"
         )
 
     geometric_mean_queries = geometric_mean_excluding_zeros(
@@ -221,25 +212,29 @@ def collect_benchmark_result(
     )
 
     print(
-        f"---Geometric mean of queries: {geometric_mean_queries}, "
-        f"Geometric mean of queries char counts: {geometric_mean_query_char_count}, "
-        f"Geometric mean of bytes processed: {geometric_mean_bytes}, "
-        f"Geometric mean of slot millis: {geometric_mean_slot_millis}, "
-        f"Geometric mean of local execution time: {geometric_mean_local_seconds} seconds, "
-        f"Geometric mean of BigQuery execution time: {geometric_mean_bq_seconds} seconds---"
+        f"---Geometric mean of queries: {geometric_mean_queries},"
+        + f" Geometric mean of queries char counts: {geometric_mean_query_char_count},"
+        + f" Geometric mean of bytes processed: {geometric_mean_bytes},"
+        + f" Geometric mean of slot millis: {geometric_mean_slot_millis},"
+        + f" Geometric mean of local execution time: {geometric_mean_local_seconds} seconds"
+        + f", Geometric mean of BigQuery execution time: {geometric_mean_bq_seconds} seconds---"
     )
 
-    error_message = (
-        "\n"
-        + "\n".join(
-            [
-                f"Failed: {error_file.relative_to(path).with_suffix('')}"
-                for error_file in error_files
-            ]
+    all_errors: List[str] = []
+    if error_files:
+        all_errors.extend(
+            f"Failed: {error_file.relative_to(path).with_suffix('')}"
+            for error_file in error_files
         )
-        if error_files
-        else None
-    )
+    if (
+        benchmarks_with_missing_files
+        and os.getenv("BENCHMARK_AND_PUBLISH", "false") == "true"
+    ):
+        all_errors.extend(
+            f"Missing files for benchmark '{name}': {files}"
+            for name, files in benchmarks_with_missing_files
+        )
+    error_message = "\n" + "\n".join(all_errors) if all_errors else None
     return (
         benchmark_metrics.reset_index().rename(columns={"index": "Benchmark_Name"}),
         error_message,

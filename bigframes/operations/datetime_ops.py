@@ -22,19 +22,43 @@ from bigframes import dtypes
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
-date_op = base_ops.create_unary_op(
+DateOp = base_ops.create_unary_op(
     name="date",
     type_signature=op_typing.FixedOutputType(
         dtypes.is_date_like, dtypes.DATE_DTYPE, description="date-like"
     ),
 )
+date_op = DateOp()
 
-time_op = base_ops.create_unary_op(
+TimeOp = base_ops.create_unary_op(
     name="time",
     type_signature=op_typing.FixedOutputType(
         dtypes.is_time_like, dtypes.TIME_DTYPE, description="time-like"
     ),
 )
+time_op = TimeOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class ParseDatetimeOp(base_ops.UnaryOp):
+    # TODO: Support strict format
+    name: typing.ClassVar[str] = "parse_datetime"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] != dtypes.STRING_DTYPE:
+            raise TypeError("expected string input")
+        return pd.ArrowDtype(pa.timestamp("us", tz=None))
+
+
+@dataclasses.dataclass(frozen=True)
+class ParseTimestampOp(base_ops.UnaryOp):
+    # TODO: Support strict format
+    name: typing.ClassVar[str] = "parse_timestamp"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if input_types[0] != dtypes.STRING_DTYPE:
+            raise TypeError("expected string input")
+        return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -48,6 +72,7 @@ class ToDatetimeOp(base_ops.UnaryOp):
             dtypes.FLOAT_DTYPE,
             dtypes.INT_DTYPE,
             dtypes.STRING_DTYPE,
+            dtypes.DATE_DTYPE,
         ):
             raise TypeError("expected string or numeric input")
         return pd.ArrowDtype(pa.timestamp("us", tz=None))
@@ -65,6 +90,7 @@ class ToTimestampOp(base_ops.UnaryOp):
             dtypes.FLOAT_DTYPE,
             dtypes.INT_DTYPE,
             dtypes.STRING_DTYPE,
+            dtypes.DATE_DTYPE,
         ):
             raise TypeError("expected string or numeric input")
         return pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
@@ -84,7 +110,7 @@ class UnixSeconds(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "unix_seconds"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is not dtypes.TIMESTAMP_DTYPE:
+        if input_types[0] != dtypes.TIMESTAMP_DTYPE:
             raise TypeError("expected timestamp input")
         return dtypes.INT_DTYPE
 
@@ -94,7 +120,7 @@ class UnixMillis(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "unix_millis"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is not dtypes.TIMESTAMP_DTYPE:
+        if input_types[0] != dtypes.TIMESTAMP_DTYPE:
             raise TypeError("expected timestamp input")
         return dtypes.INT_DTYPE
 
@@ -104,7 +130,7 @@ class UnixMicros(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "unix_micros"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is not dtypes.TIMESTAMP_DTYPE:
+        if input_types[0] != dtypes.TIMESTAMP_DTYPE:
             raise TypeError("expected timestamp input")
         return dtypes.INT_DTYPE
 
@@ -114,7 +140,7 @@ class TimestampDiff(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_diff"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
-        if input_types[0] is not input_types[1]:
+        if input_types[0] != input_types[1]:
             raise TypeError(
                 f"two inputs have different types. left: {input_types[0]}, right: {input_types[1]}"
             )

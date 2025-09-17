@@ -78,8 +78,48 @@ def test_linear_regression(random_model_id: str) -> None:
     # 332	  4740.7907	       Gentoo penguin (Pygoscelis papua)	Biscoe	      46.2	            14.4	        214.0	          4650.0	    <NA>
     # 160	  4731.310452	   Gentoo penguin (Pygoscelis papua)	Biscoe	      44.5	            14.3	        216.0	          4100.0	    <NA>
     # [END bigquery_dataframes_bqml_linear_predict]
+    # [START bigquery_dataframes_bqml_linear_predict_explain]
+    # Use 'predict_explain' function to understand why the model is generating these prediction results.
+    # 'predict_explain'is an extended version of the 'predict' function that not only outputs prediction results, but also outputs additional columns to explain the prediction results.
+    # Using the trained model and utilizing data specific to Biscoe Island, explain the predictions of the top 3 features
+    explained = model.predict_explain(biscoe_data, top_k_features=3)
+
+    # Expected results:
+    #   predicted_body_mass_g               top_feature_attributions	        baseline_prediction_value	prediction_value	approximation_error	              species	            island	culmen_length_mm	culmen_depth_mm	flipper_length_mm	body_mass_g	    sex
+    # 0	 5413.510134	        [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          5413.510134	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    45.2	              16.4	        223.0	           5950.0	    MALE
+    # 1	 4768.351092            [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          4768.351092	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    46.5	              14.5	        213.0	           4400.0	   FEMALE
+    # 2	 3235.896372	        [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          3235.896372	            0.0	        Adelie Penguin (Pygoscelis adeliae)	Biscoe	    37.7	              16.0          183.0	           3075.0	   FEMALE
+    # 3	 5349.603734	        [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          5349.603734	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    46.4	              15.6	        221.0	           5000.0	    MALE
+    # 4	 4637.165037	        [{'feature': 'island', 'attribution': 7348.877...	-5320.222128	          4637.165037	            0.0	         Gentoo penguin (Pygoscelis papua)	Biscoe	    46.1	              13.2	        211.0	           4500.0	   FEMALE
+    # [END bigquery_dataframes_bqml_linear_predict_explain]
+    # [START bigquery_dataframes_bqml_linear_global_explain]
+    # To use the `global_explain()` function, the model must be recreated with `enable_global_explain` set to `True`.
+    model = LinearRegression(enable_global_explain=True)
+
+    # The model must the be fitted before it can be saved to BigQuery and then explained.
+    training_data = bq_df.dropna(subset=["body_mass_g"])
+    X = training_data.drop(columns=["body_mass_g"])
+    y = training_data[["body_mass_g"]]
+    model.fit(X, y)
+    model.to_gbq("bqml_tutorial.penguins_model", replace=True)
+
+    # Explain the model
+    explain_model = model.global_explain()
+
+    # Expected results:
+    #                       attribution
+    # feature
+    # island	            5737.315921
+    # species	            4073.280549
+    # sex	                622.070896
+    # flipper_length_mm	    193.612051
+    # culmen_depth_mm	    117.084944
+    # culmen_length_mm	    94.366793
+    # [END bigquery_dataframes_bqml_linear_global_explain]
+    assert explain_model is not None
     assert feature_columns is not None
     assert label_columns is not None
     assert model is not None
     assert score is not None
     assert result is not None
+    assert explained is not None

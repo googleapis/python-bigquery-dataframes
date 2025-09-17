@@ -26,14 +26,23 @@ import pandas as pd
 class DisplayOptions:
     __doc__ = vendored_pandas_config.display_options_doc
 
+    # Options borrowed from pandas.
     max_columns: int = 20
-    max_rows: int = 25
-    progress_bar: Optional[str] = "auto"
-    repr_mode: Literal["head", "deferred"] = "head"
+    max_rows: int = 10
+    precision: int = 6
 
+    # Options unique to BigQuery DataFrames.
+    progress_bar: Optional[str] = "auto"
+    repr_mode: Literal["head", "deferred", "anywidget"] = "head"
+
+    max_colwidth: Optional[int] = 50
     max_info_columns: int = 100
     max_info_rows: Optional[int] = 200000
     memory_usage: bool = True
+
+    blob_display: bool = True
+    blob_display_width: Optional[int] = None
+    blob_display_height: Optional[int] = None
 
 
 @contextlib.contextmanager
@@ -44,10 +53,14 @@ def pandas_repr(display_options: DisplayOptions):
     so that we don't override pandas behavior.
     """
     with pd.option_context(
+        "display.max_colwidth",
+        display_options.max_colwidth,
         "display.max_columns",
         display_options.max_columns,
         "display.max_rows",
         display_options.max_rows,
+        "display.precision",
+        display_options.precision,
         "display.show_dimensions",
         True,
     ) as pandas_context:

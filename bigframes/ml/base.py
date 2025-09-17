@@ -22,11 +22,12 @@ This library is an evolving attempt to
 """
 
 import abc
-from typing import Callable, cast, Mapping, Optional, TypeVar
+from typing import cast, Optional, TypeVar, Union
 import warnings
 
 import bigframes_vendored.sklearn.base
 
+import bigframes.exceptions as bfe
 from bigframes.ml import core
 import bigframes.ml.utils as utils
 import bigframes.pandas as bpd
@@ -243,53 +244,38 @@ class UnsupervisedTrainablePredictor(TrainablePredictor):
 
 
 class RetriableRemotePredictor(BaseEstimator):
-    @property
-    @abc.abstractmethod
-    def _predict_func(self) -> Callable[[bpd.DataFrame, Mapping], bpd.DataFrame]:
-        pass
-
-    @property
-    @abc.abstractmethod
-    def _status_col(self) -> str:
-        pass
-
     def _predict_and_retry(
-        self, X: bpd.DataFrame, options: Mapping, max_retries: int
+        self,
+        bqml_model_predict_tvf: core.BqmlModel.TvfDef,
+        X: bpd.DataFrame,
+        options: dict,
+        max_retries: int,
     ) -> bpd.DataFrame:
         assert self._bqml_model is not None
 
-        df_result = bpd.DataFrame(session=self._bqml_model.session)  # placeholder
-        df_fail = X
-        for _ in range(max_retries + 1):
-            df = self._predict_func(df_fail, options)
+        df_result: Union[bpd.DataFrame, None] = None  # placeholder
+        df_succ = df_fail = X
+        for i in range(max_retries + 1):
+            if i > 0 and df_fail.empty:
+                break
+            if i > 0 and df_succ.empty:
+                msg = bfe.format_message("Can't make any progress, stop retrying.")
+                warnings.warn(msg, category=RuntimeWarning)
+                break
 
-            success = df[self._status_col].str.len() == 0
+            df = bqml_model_predict_tvf.tvf(self._bqml_model, df_fail, options)
+
+            success = df[bqml_model_predict_tvf.status_col].str.len() == 0
             df_succ = df[success]
             df_fail = df[~success]
 
-            if df_succ.empty:
-                if max_retries > 0:
-                    msg = "Can't make any progress, stop retrying."
-                    warnings.warn(msg, category=RuntimeWarning)
-                break
-
             df_result = (
-                bpd.concat([df_result, df_succ]) if not df_result.empty else df_succ
+                bpd.concat([df_result, df_succ]) if df_result is not None else df_succ
             )
-
-            if df_fail.empty:
-                break
-
-        if not df_fail.empty:
-            msg = (
-                f"Some predictions failed. Check column {self._status_col} for detailed "
-                "status. You may want to filter the failed rows and retry."
-            )
-            warnings.warn(msg, category=RuntimeWarning)
 
         df_result = cast(
             bpd.DataFrame,
-            bpd.concat([df_result, df_fail]) if not df_result.empty else df_fail,
+            bpd.concat([df_result, df_fail]) if df_result is not None else df_fail,
         )
         return df_result
 

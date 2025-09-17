@@ -24,8 +24,8 @@ import bigframes_vendored.version
 
 FEEDBACK_LINK = (
     "Share your usecase with the BigQuery DataFrames team at the "
-    "https://bit.ly/bigframes-feedback survey."
-    f"You are currently running BigFrames version {bigframes_vendored.version.__version__}"
+    "https://bit.ly/bigframes-feedback survey. "
+    f"You are currently running BigFrames version {bigframes_vendored.version.__version__}."
 )
 
 ABSTRACT_METHOD_ERROR_MESSAGE = (
@@ -47,6 +47,11 @@ WRITE_ENGINE_REQUIRES_BIGQUERY_ENGINE_TEMPLATE = (
 )
 
 WriteEngineType = Literal[
-    "default", "bigquery_inline", "bigquery_load", "bigquery_streaming"
+    "default",
+    "bigquery_inline",
+    "bigquery_load",
+    "bigquery_streaming",
+    "bigquery_write",
+    "_deferred",
 ]
 VALID_WRITE_ENGINES = typing.get_args(WriteEngineType)

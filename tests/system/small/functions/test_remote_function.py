@@ -14,7 +14,10 @@
 
 import inspect
 import re
+import textwrap
+from typing import Sequence
 
+import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 from google.cloud import bigquery
 import pandas as pd
@@ -23,11 +26,13 @@ import pytest
 import test_utils.prefixer
 
 import bigframes
+import bigframes.clients
 import bigframes.dtypes
 import bigframes.exceptions
 from bigframes.functions import _utils as bff_utils
 from bigframes.functions import function as bff
-from tests.system.utils import assert_pandas_df_equal
+import bigframes.session._io.bigquery
+from bigframes.testing.utils import assert_pandas_df_equal, get_function_name
 
 _prefixer = test_utils.prefixer.Prefixer("bigframes", "")
 
@@ -90,21 +95,12 @@ def session_with_bq_connection(bq_cf_connection) -> bigframes.Session:
     return session
 
 
-def get_rf_name(func, package_requirements=None, is_row_processor=False):
-    """Get a remote function name for testing given a udf."""
-    # Augment user package requirements with any internal package
-    # requirements
-    package_requirements = bff_utils._get_updated_package_requirements(
-        package_requirements, is_row_processor
-    )
-
-    # Compute a unique hash representing the user code
-    function_hash = bff_utils._get_hash(func, package_requirements)
-
-    return f"bigframes_{function_hash}"
+def get_bq_connection_id_path_format(connection_id_dot_format):
+    fields = connection_id_dot_format.split(".")
+    return f"projects/{fields[0]}/locations/{fields[1]}/connections/{fields[2]}"
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+# @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
     bigquery_client,
     bigqueryconnection_client,
@@ -118,8 +114,8 @@ def test_remote_function_direct_no_session_param(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
+        input_types=int,
+        output_type=int,
         bigquery_client=bigquery_client,
         bigquery_connection_client=bigqueryconnection_client,
         cloud_functions_client=cloudfunctions_client,
@@ -128,7 +124,8 @@ def test_remote_function_direct_no_session_param(
         bigquery_connection=bq_cf_connection,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
-        name=get_rf_name(square),
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -136,8 +133,8 @@ def test_remote_function_direct_no_session_param(
 
     # Function should have extra metadata attached for remote execution.
     assert hasattr(square, "bigframes_remote_function")
+    assert hasattr(square, "bigframes_bigquery_function")
     assert hasattr(square, "bigframes_cloud_function")
-    assert hasattr(square, "ibis_node")
 
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -164,11 +161,8 @@ def test_remote_function_direct_no_session_param(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_location_specified(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_location(
+    session,
     scalars_dfs,
     dataset_id_permanent,
     bq_cf_connection_location,
@@ -177,17 +171,15 @@ def test_remote_function_direct_no_session_param_location_specified(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
-        bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        cloud_functions_client=cloudfunctions_client,
-        resource_manager_client=resourcemanager_client,
+        input_types=int,
+        output_type=int,
+        session=session,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection_location,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
-        name=get_rf_name(square),
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -218,11 +210,8 @@ def test_remote_function_direct_no_session_param_location_specified(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_location_mismatched(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_location_mismatched(
+    session,
     dataset_id_permanent,
     bq_cf_connection_location_mismatched,
 ):
@@ -231,31 +220,41 @@ def test_remote_function_direct_no_session_param_location_mismatched(
         # connection doesn't match the location of the dataset.
         return x * x  # pragma: NO COVER
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape("The location does not match BigQuery connection location:"),
-    ):
-        bff.remote_function(
-            int,
-            int,
-            bigquery_client=bigquery_client,
-            bigquery_connection_client=bigqueryconnection_client,
-            cloud_functions_client=cloudfunctions_client,
-            resource_manager_client=resourcemanager_client,
-            dataset=dataset_id_permanent,
-            bigquery_connection=bq_cf_connection_location_mismatched,
-            # See e2e tests for tests that actually deploy the Cloud Function.
-            reuse=True,
-            name=get_rf_name(square),
-        )(square)
+    bq_cf_connection_location_mismatched_path_fmt = get_bq_connection_id_path_format(
+        bigframes.clients.get_canonical_bq_connection_id(
+            bq_cf_connection_location_mismatched,
+            session.bqclient.project,
+            session._location,
+        )
+    )
+    connection_ids = [
+        bq_cf_connection_location_mismatched,
+        bq_cf_connection_location_mismatched_path_fmt,
+    ]
+
+    for connection_id in connection_ids:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "The location does not match BigQuery connection location:"
+            ),
+        ):
+            bff.remote_function(
+                input_types=int,
+                output_type=int,
+                session=session,
+                dataset=dataset_id_permanent,
+                bigquery_connection=connection_id,
+                # See e2e tests for tests that actually deploy the Cloud Function.
+                reuse=True,
+                name=get_function_name(square),
+                cloud_function_service_account="default",
+            )(square)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_location_project_specified(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_location_project(
+    session,
     scalars_dfs,
     dataset_id_permanent,
     bq_cf_connection_location_project,
@@ -264,17 +263,15 @@ def test_remote_function_direct_no_session_param_location_project_specified(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
-        bigquery_client=bigquery_client,
-        bigquery_connection_client=bigqueryconnection_client,
-        cloud_functions_client=cloudfunctions_client,
-        resource_manager_client=resourcemanager_client,
+        input_types=int,
+        output_type=int,
+        session=session,
         dataset=dataset_id_permanent,
         bigquery_connection=bq_cf_connection_location_project,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
-        name=get_rf_name(square),
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -305,11 +302,8 @@ def test_remote_function_direct_no_session_param_location_project_specified(
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_direct_no_session_param_project_mismatched(
-    bigquery_client,
-    bigqueryconnection_client,
-    cloudfunctions_client,
-    resourcemanager_client,
+def test_remote_function_connection_w_project_mismatched(
+    session,
     dataset_id_permanent,
     bq_cf_connection_location_project_mismatched,
 ):
@@ -318,25 +312,38 @@ def test_remote_function_direct_no_session_param_project_mismatched(
         # connection doesn't match the project of the dataset.
         return x * x  # pragma: NO COVER
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "The project_id does not match BigQuery connection gcp_project_id:"
-        ),
-    ):
-        bff.remote_function(
-            int,
-            int,
-            bigquery_client=bigquery_client,
-            bigquery_connection_client=bigqueryconnection_client,
-            cloud_functions_client=cloudfunctions_client,
-            resource_manager_client=resourcemanager_client,
-            dataset=dataset_id_permanent,
-            bigquery_connection=bq_cf_connection_location_project_mismatched,
-            # See e2e tests for tests that actually deploy the Cloud Function.
-            reuse=True,
-            name=get_rf_name(square),
-        )(square)
+    bq_cf_connection_location_project_mismatched_path_fmt = (
+        get_bq_connection_id_path_format(
+            bigframes.clients.get_canonical_bq_connection_id(
+                bq_cf_connection_location_project_mismatched,
+                session.bqclient.project,
+                session._location,
+            )
+        )
+    )
+    connection_ids = [
+        bq_cf_connection_location_project_mismatched,
+        bq_cf_connection_location_project_mismatched_path_fmt,
+    ]
+
+    for connection_id in connection_ids:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "The project_id does not match BigQuery connection gcp_project_id:"
+            ),
+        ):
+            bff.remote_function(
+                input_types=int,
+                output_type=int,
+                session=session,
+                dataset=dataset_id_permanent,
+                bigquery_connection=connection_id,
+                # See e2e tests for tests that actually deploy the Cloud Function.
+                reuse=True,
+                name=get_function_name(square),
+                cloud_function_service_account="default",
+            )(square)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -347,11 +354,12 @@ def test_remote_function_direct_session_param(
         return x * x
 
     square = bff.remote_function(
-        int,
-        int,
+        input_types=int,
+        output_type=int,
         session=session_with_bq_connection,
         dataset=dataset_id_permanent,
-        name=get_rf_name(square),
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -396,7 +404,11 @@ def test_remote_function_via_session_default(
     # udf is same as the one used in other tests in this file so the underlying
     # cloud function would be common and quickly reused.
     square = session_with_bq_connection.remote_function(
-        int, int, dataset_id_permanent, name=get_rf_name(square)
+        input_types=int,
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -434,13 +446,14 @@ def test_remote_function_via_session_with_overrides(
         return x * x
 
     square = session.remote_function(
-        int,
-        int,
-        dataset_id_permanent,
-        bq_cf_connection,
+        input_types=int,
+        output_type=int,
+        dataset=dataset_id_permanent,
+        bigquery_connection=bq_cf_connection,
         # See e2e tests for tests that actually deploy the Cloud Function.
         reuse=True,
-        name=get_rf_name(square),
+        name=get_function_name(square),
+        cloud_function_service_account="default",
     )(square)
 
     # Function should still work normally.
@@ -478,7 +491,11 @@ def test_dataframe_applymap(
         return x + 1
 
     remote_add_one = session_with_bq_connection.remote_function(
-        [int], int, dataset_id_permanent, name=get_rf_name(add_one)
+        input_types=[int],
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_one),
+        cloud_function_service_account="default",
     )(add_one)
 
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -509,7 +526,11 @@ def test_dataframe_applymap_explicit_filter(
         return x + 1
 
     remote_add_one = session_with_bq_connection.remote_function(
-        [int], int, dataset_id_permanent, name=get_rf_name(add_one)
+        input_types=[int],
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_one),
+        cloud_function_service_account="default",
     )(add_one)
 
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -540,7 +561,11 @@ def test_dataframe_applymap_na_ignore(
         return x + 1
 
     remote_add_one = session_with_bq_connection.remote_function(
-        [int], int, dataset_id_permanent, name=get_rf_name(add_one)
+        input_types=[int],
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_one),
+        cloud_function_service_account="default",
     )(add_one)
 
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -584,8 +609,9 @@ def test_series_map_bytes(
     packages = ["pandas"]
     remote_bytes_to_hex = session_with_bq_connection.remote_function(
         dataset=dataset_id_permanent,
-        name=get_rf_name(bytes_to_hex, package_requirements=packages),
+        name=get_function_name(bytes_to_hex, package_requirements=packages),
         packages=packages,
+        cloud_function_service_account="default",
     )(bytes_to_hex)
     bf_result = scalars_df.bytes_col.map(remote_bytes_to_hex).to_pandas()
 
@@ -628,11 +654,14 @@ def test_skip_bq_connection_check(dataset_id_permanent):
             return x + 1  # pragma: NO COVER
 
         session.remote_function(
-            [int], int, dataset=dataset_id_permanent, name=get_rf_name(add_one)
+            input_types=[int],
+            output_type=int,
+            dataset=dataset_id_permanent,
+            name=get_function_name(add_one),
+            cloud_function_service_account="default",
         )(add_one)
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_detects_invalid_function(session, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     with pytest.raises(ValueError) as e:
@@ -659,8 +688,8 @@ def test_read_gbq_function_like_original(
         return x * x
 
     square1 = bff.remote_function(
-        [int],
-        int,
+        input_types=[int],
+        output_type=int,
         bigquery_client=bigquery_client,
         bigquery_connection_client=bigqueryconnection_client,
         dataset=dataset_id_permanent,
@@ -668,14 +697,15 @@ def test_read_gbq_function_like_original(
         resource_manager_client=resourcemanager_client,
         bigquery_connection=bq_cf_connection,
         reuse=True,
-        name=get_rf_name(square1),
+        name=get_function_name(square1),
+        cloud_function_service_account="default",
     )(square1)
 
     # Function should still work normally.
     assert square1(2) == 4
 
     square2 = bff.read_gbq_function(
-        function_name=square1.bigframes_remote_function,  # type: ignore
+        function_name=square1.bigframes_bigquery_function,  # type: ignore
         session=session,
     )
 
@@ -683,13 +713,17 @@ def test_read_gbq_function_like_original(
     # cloud function associated with it, while the read-back version (square2)
     # should only have a remote function.
     assert square1.bigframes_remote_function  # type: ignore
+    assert square1.bigframes_bigquery_function  # type: ignore
     assert square1.bigframes_cloud_function  # type: ignore
 
     assert square2.bigframes_remote_function
-    assert not hasattr(square2, "bigframes_cloud_function")
+    assert square2.bigframes_bigquery_function
+    assert square2.bigframes_cloud_function is None
 
     # They should point to the same function.
     assert square1.bigframes_remote_function == square2.bigframes_remote_function  # type: ignore
+    assert square1.bigframes_bigquery_function == square2.bigframes_bigquery_function  # type: ignore
+    assert square2.bigframes_remote_function == square2.bigframes_bigquery_function  # type: ignore
 
     # The result of applying them should be the same.
     int64_col = scalars_df_index["int64_col"]
@@ -705,21 +739,148 @@ def test_read_gbq_function_like_original(
     assert_pandas_df_equal(s1_result.to_pandas(), s2_result.to_pandas())
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_runs_existing_udf(session):
     func = session.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
     got = func("AURÉLIE")
     assert got == "aurÉlie"
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_runs_existing_udf_4_params(session):
     func = session.read_gbq_function("bqutil.fn.cw_instr4")
     got = func("TestStr123456Str", "Str", 1, 2)
     assert got == 14
 
 
-@pytest.mark.flaky(retries=2, delay=120)
+def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_unique):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, x]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+        location=None,
+        project=None,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello")
+    assert got == ["hello", "hello"]
+
+    # Test on a series, assert pandas parity
+    pd_s = pd.Series(["alpha", "beta", "gamma"])
+    bf_s = session.read_pandas(pd_s)
+    pd_result = pd_s.apply(func)
+    bf_result = bf_s.apply(func)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
+def test_read_gbq_function_runs_existing_udf_2_params_array_output(
+    session, routine_id_unique
+):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING, y STRING)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, y]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+        location=None,
+        project=None,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello", "world")
+    assert got == ["hello", "world"]
+
+    # Test on series, assert pandas parity
+    pd_df = pd.DataFrame(
+        {"col0": ["alpha", "beta", "gamma"], "col1": ["delta", "theta", "phi"]}
+    )
+    bf_df = session.read_pandas(pd_df)
+    pd_result = pd_df["col0"].combine(pd_df["col1"], func)
+    bf_result = bf_df["col0"].combine(bf_df["col1"], func)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
+def test_read_gbq_function_runs_existing_udf_4_params_array_output(
+    session, routine_id_unique
+):
+    bigframes.session._io.bigquery.start_query_with_client(
+        session.bqclient,
+        textwrap.dedent(
+            f"""
+                CREATE OR REPLACE FUNCTION `{routine_id_unique}`(x STRING, y BOOL, z INT64, w FLOAT64)
+                RETURNS ARRAY<STRING>
+                AS (
+                    [x, CAST(y AS STRING), CAST(z AS STRING), CAST(w AS STRING)]
+                )
+            """
+        ),
+        job_config=bigquery.QueryJobConfig(),
+        location=None,
+        project=None,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
+    )
+    func = session.read_gbq_function(routine_id_unique)
+
+    # Test on scalar value
+    got = func("hello", True, 1, 2.3)
+    assert got == ["hello", "true", "1", "2.3"]
+
+    # Test on a dataframe, assert pandas parity
+    pd_df = pd.DataFrame(
+        {
+            "col0": ["alpha", "beta", "gamma"],
+            "col1": [True, False, True],
+            "col2": [1, 2, 3],
+            "col3": [4.5, 6, 7.75],
+        }
+    )
+    bf_df = session.read_pandas(pd_df)
+    # Simulate the result directly, since the function cannot be applied
+    # directly on a pandas dataframe with axis=1, as this is a special type of
+    # function with multiple params supported only on bigframes dataframe.
+    pd_result = pd.Series(
+        [
+            ["alpha", "true", "1", "4.5"],
+            ["beta", "false", "2", "6"],
+            ["gamma", "true", "3", "7.75"],
+        ]
+    )
+    bf_result = bf_df.apply(func, axis=1)
+    assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
+    pd.testing.assert_series_equal(
+        pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
+    )
+
+
 def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
     dataset_ref = bigquery.DatasetReference.from_string(dataset_id)
     arg = bigquery.RoutineArgument(
@@ -751,9 +912,13 @@ def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
         )
 
         # It should point to the named routine and yield the expected results.
-        assert square.bigframes_remote_function == str(routine.reference)
+        assert square.bigframes_bigquery_function == str(routine.reference)
         assert square.input_dtypes == (bigframes.dtypes.INT_DTYPE,)
         assert square.output_dtype == bigframes.dtypes.INT_DTYPE
+        assert (
+            square.bigframes_bigquery_function_output_dtype
+            == bigframes.dtypes.INT_DTYPE
+        )
 
         src = {"x": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]}
 
@@ -772,7 +937,6 @@ def test_read_gbq_function_reads_udfs(session, bigquery_client, dataset_id):
         )
 
 
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_requires_explicit_types(
     session, bigquery_client, dataset_id
 ):
@@ -824,7 +988,7 @@ def test_read_gbq_function_requires_explicit_types(
     )
     with pytest.warns(
         bigframes.exceptions.UnknownDataTypeWarning,
-        match="missing input data types.*assume default data type",
+        match=r"missing input data types[\s\S]*assume default data type",
     ):
         bff.read_gbq_function(
             str(only_return_type_specified.reference),
@@ -863,7 +1027,6 @@ def test_read_gbq_function_requires_explicit_types(
         ),
     ],
 )
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_respects_python_output_type(
     request, session_fixture, bigquery_client, dataset_id, array_type, expected_data
 ):
@@ -906,7 +1069,6 @@ def test_read_gbq_function_respects_python_output_type(
         pytest.param(list[str], id="list-str"),
     ],
 )
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_supports_python_output_type_only_for_string_outputs(
     session, bigquery_client, dataset_id, array_type
 ):
@@ -945,7 +1107,6 @@ def test_read_gbq_function_supports_python_output_type_only_for_string_outputs(
         pytest.param(list[str], id="list-str"),
     ],
 )
-@pytest.mark.flaky(retries=2, delay=120)
 def test_read_gbq_function_supported_python_output_type(
     session, bigquery_client, dataset_id, array_type
 ):
@@ -985,25 +1146,11 @@ def test_df_apply_scalar_func(session, scalars_dfs):
     with pytest.raises(NotImplementedError) as context:
         bdf.apply(func_ref)
     assert str(context.value) == (
-        "BigFrames DataFrame '.apply()' does not support remote function for "
-        "column-wise (i.e. with axis=0) operations, please use a regular python "
-        "function instead. For element-wise operations of the remote function, "
-        "please use '.map()'."
-    )
-
-
-@pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_multiple_inputs_not_a_row_processor(session):
-    with pytest.raises(ValueError) as context:
-        # The remote function has two args, which cannot be row processed. Throw
-        # a ValueError for it.
-        session.read_gbq_function(
-            function_name="bqutil.fn.cw_regexp_instr_2",
-            is_row_processor=True,
-        )
-    assert str(context.value) == (
-        "A multi-input function cannot be a row processor. A row processor function "
-        "takes in a single input representing the row."
+        "BigFrames DataFrame '.apply()' does not support BigFrames BigQuery "
+        "function for column-wise (i.e. with axis=0) operations, please use a "
+        "regular python function instead. For element-wise operations of the "
+        "BigFrames BigQuery function, please use '.map()'. "
+        f"{constants.FEEDBACK_LINK}"
     )
 
 
@@ -1027,12 +1174,14 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
         match="input_types=Series is in preview.",
     ):
         add_ints_remote = session.remote_function(
-            bigframes.series.Series,
-            int,
-            dataset_id_permanent,
-            name=get_rf_name(add_ints, is_row_processor=True),
+            input_types=bigframes.series.Series,
+            output_type=int,
+            dataset=dataset_id_permanent,
+            name=get_function_name(add_ints, is_row_processor=True),
+            cloud_function_service_account="default",
         )(add_ints)
         assert add_ints_remote.bigframes_remote_function  # type: ignore
+        assert add_ints_remote.bigframes_bigquery_function  # type: ignore
         assert add_ints_remote.bigframes_cloud_function  # type: ignore
 
     with pytest.warns(
@@ -1054,11 +1203,13 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
 
     # Read back the deployed BQ remote function using read_gbq_function.
     func_ref = session.read_gbq_function(
-        function_name=add_ints_remote.bigframes_remote_function,  # type: ignore
+        function_name=add_ints_remote.bigframes_bigquery_function,  # type: ignore
         is_row_processor=True,
     )
 
     assert func_ref.bigframes_remote_function == add_ints_remote.bigframes_remote_function  # type: ignore
+    assert func_ref.bigframes_bigquery_function == add_ints_remote.bigframes_bigquery_function  # type: ignore
+    assert func_ref.bigframes_remote_function == func_ref.bigframes_bigquery_function  # type: ignore
 
     bf_result_gbq = scalars_df[columns].apply(func_ref, axis=1).to_pandas()
     pd.testing.assert_series_equal(
@@ -1076,10 +1227,11 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs, dataset_id_permanent):
         return row["int64_col"] + row["int64_too"]
 
     add_ints_remote = session.remote_function(
-        bigframes.series.Series,
-        int,
-        dataset_id_permanent,
-        name=get_rf_name(add_ints, is_row_processor=True),
+        input_types=bigframes.series.Series,
+        output_type=int,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_ints, is_row_processor=True),
+        cloud_function_service_account="default",
     )(add_ints)
 
     bf_result = (
@@ -1115,10 +1267,11 @@ def test_df_apply_axis_1_multiindex(session, dataset_id_permanent):
         return row["x"] + row["y"]
 
     add_numbers_remote = session.remote_function(
-        bigframes.series.Series,
-        float,
-        dataset_id_permanent,
-        name=get_rf_name(add_numbers, is_row_processor=True),
+        input_types=bigframes.series.Series,
+        output_type=float,
+        dataset=dataset_id_permanent,
+        name=get_function_name(add_numbers, is_row_processor=True),
+        cloud_function_service_account="default",
     )(add_numbers)
 
     bf_result = bf_df.apply(add_numbers_remote, axis=1).to_pandas()
@@ -1145,7 +1298,9 @@ def test_df_apply_axis_1_unsupported_callable(scalars_dfs):
     # pandas works
     scalars_pandas_df.apply(add_ints, axis=1)
 
-    with pytest.raises(ValueError, match="For axis=1 a remote function must be used."):
+    with pytest.raises(
+        ValueError, match="For axis=1 a BigFrames BigQuery function must be used."
+    ):
         scalars_df[columns].apply(add_ints, axis=1)
 
 
@@ -1166,10 +1321,11 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, dataset_id_perm
         return len(row)
 
     echo_len_remote = session.remote_function(
-        bigframes.series.Series,
-        float,
-        dataset_id_permanent,
-        name=get_rf_name(echo_len, is_row_processor=True),
+        input_types=bigframes.series.Series,
+        output_type=float,
+        dataset=dataset_id_permanent,
+        name=get_function_name(echo_len, is_row_processor=True),
+        cloud_function_service_account="default",
     )(echo_len)
 
     for column in columns_with_not_supported_dtypes:
@@ -1202,7 +1358,9 @@ def test_remote_function_application_repr(session, dataset_id_permanent):
     assert "name" in inspect.signature(should_mask).parameters
 
     should_mask = session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(should_mask)
+        dataset=dataset_id_permanent,
+        name=get_function_name(should_mask),
+        cloud_function_service_account="default",
     )(should_mask)
 
     s = bigframes.series.Series(["Alice", "Bob", "Caroline"])
@@ -1214,20 +1372,19 @@ def test_remote_function_application_repr(session, dataset_id_permanent):
     repr(s.mask(should_mask, "REDACTED"))
 
 
-@pytest.mark.flaky(retries=2, delay=120)
-def test_read_gbq_function_application_repr(session, dataset_id, scalars_df_index):
-    gbq_function = f"{dataset_id}.should_mask"
-
+def test_read_gbq_function_application_repr(
+    session, routine_id_unique, scalars_df_index
+):
     # This function deliberately has a param with name "name", this is to test
     # a specific ibis' internal handling of object names
     session.bqclient.query_and_wait(
-        f"CREATE OR REPLACE FUNCTION `{gbq_function}`(name STRING) RETURNS BOOL AS (MOD(LENGTH(name), 2) = 1)"
+        f"CREATE OR REPLACE FUNCTION `{routine_id_unique}`(name STRING) RETURNS BOOL AS (MOD(LENGTH(name), 2) = 1)"
     )
-    routine = session.bqclient.get_routine(gbq_function)
+    routine = session.bqclient.get_routine(routine_id_unique)
     assert "name" in [arg.name for arg in routine.arguments]
 
     # read the function and apply to dataframe
-    should_mask = session.read_gbq_function(gbq_function)
+    should_mask = session.read_gbq_function(routine_id_unique)
 
     s = scalars_df_index["string_col"]
 
@@ -1262,7 +1419,9 @@ def test_remote_function_unary_applied_after_filter(
 
     # create a remote function
     is_odd_remote = session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(is_odd)
+        dataset=dataset_id_permanent,
+        name=get_function_name(is_odd),
+        cloud_function_service_account="default",
     )(is_odd)
 
     # with nulls in the series the remote function application would fail
@@ -1312,7 +1471,9 @@ def test_remote_function_binary_applied_after_filter(
 
     # create a remote function
     add_remote = session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(add)
+        dataset=dataset_id_permanent,
+        name=get_function_name(add),
+        cloud_function_service_account="default",
     )(add)
 
     # with nulls in the series the remote function application would fail
@@ -1365,7 +1526,9 @@ def test_remote_function_nary_applied_after_filter(
 
     # create a remote function
     add_remote = session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(add)
+        dataset=dataset_id_permanent,
+        name=get_function_name(add),
+        cloud_function_service_account="default",
     )(add)
 
     # pandas does not support nary functions, so let's create a proxy function
@@ -1419,7 +1582,9 @@ def test_remote_function_unary_partial_ordering_mode_assign(
         return minutes >= 120
 
     is_long_duration = unordered_session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(is_long_duration)
+        dataset=dataset_id_permanent,
+        name=get_function_name(is_long_duration),
+        cloud_function_service_account="default",
     )(is_long_duration)
 
     method = getattr(df["duration_minutes"], method)
@@ -1438,7 +1603,9 @@ def test_remote_function_binary_partial_ordering_mode_assign(
         return x
 
     combiner = unordered_session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(combiner)
+        dataset=dataset_id_permanent,
+        name=get_function_name(combiner),
+        cloud_function_service_account="default",
     )(combiner)
 
     df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
@@ -1454,9 +1621,37 @@ def test_remote_function_nary_partial_ordering_mode_assign(
         return f"I got x={x}, y={y}, z={z} and w={w}"
 
     processor = unordered_session.remote_function(
-        dataset=dataset_id_permanent, name=get_rf_name(processor)
+        dataset=dataset_id_permanent,
+        name=get_function_name(processor),
+        cloud_function_service_account="default",
     )(processor)
 
     df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
     df1 = df.assign(combined=df.apply(processor, axis=1))
     repr(df1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_unsupported_type(
+    session,
+    dataset_id_permanent,
+    bq_cf_connection,
+):
+    # Remote functions do not support tuple return types.
+    def func_tuple(x):
+        return (x, x, x)
+
+    with pytest.raises(
+        ValueError,
+        match=r"'typing\.Sequence\[int\]' must be one of the supported types",
+    ):
+        bff.remote_function(
+            input_types=int,
+            output_type=Sequence[int],
+            session=session,
+            dataset=dataset_id_permanent,
+            bigquery_connection=bq_cf_connection,
+            reuse=True,
+            name=get_function_name(func_tuple),
+            cloud_function_service_account="default",
+        )(func_tuple)

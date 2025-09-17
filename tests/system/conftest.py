@@ -22,7 +22,6 @@ import traceback
 import typing
 from typing import Dict, Generator, Optional
 
-import bigframes_vendored.ibis.backends as ibis_backends
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery_connection_v1 as bigquery_connection_v1
@@ -41,7 +40,7 @@ import bigframes
 import bigframes.dataframe
 import bigframes.pandas as bpd
 import bigframes.series
-import tests.system.utils
+import bigframes.testing.utils
 
 # Use this to control the number of cloud functions being deleted in a single
 # test session. This should help soften the spike of the number of mutations per
@@ -91,9 +90,12 @@ def gcs_folder(gcs_client: storage.Client):
     prefix = prefixer.create_prefix()
     path = f"gs://{bucket}/{prefix}/"
     yield path
-    for blob in gcs_client.list_blobs(bucket, prefix=prefix):
-        blob = typing.cast(storage.Blob, blob)
-        blob.delete()
+    try:
+        for blob in gcs_client.list_blobs(bucket, prefix=prefix):
+            blob = typing.cast(storage.Blob, blob)
+            blob.delete()
+    except Exception as exc:
+        traceback.print_exception(type(exc), exc, None)
 
 
 @pytest.fixture(scope="session")
@@ -104,11 +106,6 @@ def bigquery_client(session: bigframes.Session) -> bigquery.Client:
 @pytest.fixture(scope="session")
 def bigquery_client_tokyo(session_tokyo: bigframes.Session) -> bigquery.Client:
     return session_tokyo.bqclient
-
-
-@pytest.fixture(scope="session")
-def ibis_client(session: bigframes.Session) -> ibis_backends.BaseBackend:
-    return session.ibis_client
 
 
 @pytest.fixture(scope="session")
@@ -139,9 +136,7 @@ def resourcemanager_client(
 
 @pytest.fixture(scope="session")
 def session() -> Generator[bigframes.Session, None, None]:
-    context = bigframes.BigQueryOptions(
-        location="US",
-    )
+    context = bigframes.BigQueryOptions(location="US")
     session = bigframes.Session(context=context)
     yield session
     session.close()  # close generated session at cleanup time
@@ -180,8 +175,27 @@ def session_tokyo(tokyo_location: str) -> Generator[bigframes.Session, None, Non
 
 
 @pytest.fixture(scope="session")
-def bq_connection(bigquery_client: bigquery.Client) -> str:
-    return f"{bigquery_client.project}.{bigquery_client.location}.bigframes-rf-conn"
+def test_session() -> Generator[bigframes.Session, None, None]:
+    context = bigframes.BigQueryOptions(
+        client_endpoints_override={
+            "bqclient": "https://test-bigquery.sandbox.google.com",
+            "bqconnectionclient": "test-bigqueryconnection.sandbox.googleapis.com",
+            "bqstoragereadclient": "test-bigquerystorage-grpc.sandbox.googleapis.com",
+        },
+    )
+    session = bigframes.Session(context=context)
+    yield session
+    session.close()
+
+
+@pytest.fixture(scope="session")
+def bq_connection_name() -> str:
+    return "bigframes-rf-conn"
+
+
+@pytest.fixture(scope="session")
+def bq_connection(bigquery_client: bigquery.Client, bq_connection_name: str) -> str:
+    return f"{bigquery_client.project}.{bigquery_client.location}.{bq_connection_name}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -251,6 +265,11 @@ def table_id_unique(dataset_id: str):
     return f"{dataset_id}.{prefixer.create_prefix()}"
 
 
+@pytest.fixture(scope="function")
+def routine_id_unique(dataset_id: str):
+    return f"{dataset_id}.{prefixer.create_prefix()}"
+
+
 @pytest.fixture(scope="session")
 def scalars_schema(bigquery_client: bigquery.Client):
     # TODO(swast): Add missing scalar data types such as BIGNUMERIC.
@@ -305,6 +324,7 @@ def load_test_data_tables(
         ("repeated", "repeated_schema.json", "repeated.jsonl"),
         ("json", "json_schema.json", "json.jsonl"),
         ("penguins", "penguins_schema.json", "penguins.jsonl"),
+        ("ratings", "ratings_schema.json", "ratings.jsonl"),
         ("time_series", "time_series_schema.json", "time_series.jsonl"),
         ("hockey_players", "hockey_players.json", "hockey_players.jsonl"),
         ("matrix_2by3", "matrix_2by3.json", "matrix_2by3.jsonl"),
@@ -402,6 +422,11 @@ def penguins_table_id(test_data_tables) -> str:
 
 
 @pytest.fixture(scope="session")
+def ratings_table_id(test_data_tables) -> str:
+    return test_data_tables["ratings"]
+
+
+@pytest.fixture(scope="session")
 def urban_areas_table_id(test_data_tables) -> str:
     return test_data_tables["urban_areas"]
 
@@ -450,7 +475,7 @@ def nested_structs_df(
 
 
 @pytest.fixture(scope="session")
-def nested_structs_pandas_df() -> pd.DataFrame:
+def nested_structs_pandas_df(nested_structs_pandas_type: pd.ArrowDtype) -> pd.DataFrame:
     """pd.DataFrame pointing at test data."""
 
     df = pd.read_json(
@@ -458,6 +483,7 @@ def nested_structs_pandas_df() -> pd.DataFrame:
         lines=True,
     )
     df = df.set_index("id")
+    df["person"] = df["person"].astype(nested_structs_pandas_type)
     return df
 
 
@@ -540,6 +566,16 @@ def scalars_df_index(
 
 
 @pytest.fixture(scope="session")
+def scalars_df_partial_ordering(
+    scalars_table_id: str, unordered_session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return unordered_session.read_gbq(
+        scalars_table_id, index_col="rowindex"
+    ).sort_index()
+
+
+@pytest.fixture(scope="session")
 def scalars_df_null_index(
     scalars_table_id: str, session: bigframes.Session
 ) -> bigframes.dataframe.DataFrame:
@@ -547,6 +583,18 @@ def scalars_df_null_index(
     return session.read_gbq(
         scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
     ).sort_values("rowindex")
+
+
+@pytest.fixture(scope="session")
+def scalars_df_unordered(
+    scalars_table_id: str, unordered_session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    df = unordered_session.read_gbq(
+        scalars_table_id, index_col=bigframes.enums.DefaultIndexKind.NULL
+    )
+    assert not df._block.explicitly_ordered
+    return df
 
 
 @pytest.fixture(scope="session")
@@ -573,7 +621,7 @@ def scalars_pandas_df_default_index() -> pd.DataFrame:
         DATA_DIR / "scalars.jsonl",
         lines=True,
     )
-    tests.system.utils.convert_pandas_dtypes(df, bytes_col=True)
+    bigframes.testing.utils.convert_pandas_dtypes(df, bytes_col=True)
 
     df = df.set_index("rowindex", drop=False)
     df.index.name = None
@@ -741,6 +789,14 @@ def penguins_df_null_index(
 ) -> bigframes.dataframe.DataFrame:
     """DataFrame pointing at test data."""
     return unordered_session.read_gbq(penguins_table_id)
+
+
+@pytest.fixture(scope="session")
+def ratings_df_default_index(
+    ratings_table_id: str, session: bigframes.Session
+) -> bigframes.dataframe.DataFrame:
+    """DataFrame pointing at test data."""
+    return session.read_gbq(ratings_table_id)
 
 
 @pytest.fixture(scope="session")
@@ -1364,14 +1420,20 @@ def floats_product_bf(session, floats_product_pd):
 
 
 @pytest.fixture(scope="session", autouse=True)
+def use_fast_query_path():
+    with bpd.option_context("compute.allow_large_results", False):
+        yield
+
+
+@pytest.fixture(scope="session", autouse=True)
 def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent):
     """Clean up stale cloud functions."""
-    permanent_endpoints = tests.system.utils.get_remote_function_endpoints(
+    permanent_endpoints = bigframes.testing.utils.get_remote_function_endpoints(
         session.bqclient, dataset_id_permanent
     )
     delete_count = 0
     try:
-        for cloud_function in tests.system.utils.get_cloud_functions(
+        for cloud_function in bigframes.testing.utils.get_cloud_functions(
             cloudfunctions_client,
             session.bqclient.project,
             session.bqclient.location,
@@ -1391,7 +1453,7 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
 
             # Go ahead and delete
             try:
-                tests.system.utils.delete_cloud_function(
+                bigframes.testing.utils.delete_cloud_function(
                     cloudfunctions_client, cloud_function.name
                 )
                 delete_count += 1
@@ -1421,3 +1483,61 @@ def cleanup_cloud_functions(session, cloudfunctions_client, dataset_id_permanent
         #
         # Let's stop further clean up and leave it to later.
         traceback.print_exception(type(exc), exc, None)
+
+
+@pytest.fixture(scope="session")
+def images_gcs_path() -> str:
+    return "gs://bigframes_blob_test/images/*"
+
+
+@pytest.fixture(scope="session")
+def images_uris() -> list[str]:
+    return [
+        "gs://bigframes_blob_test/images/img0.jpg",
+        "gs://bigframes_blob_test/images/img1.jpg",
+    ]
+
+
+@pytest.fixture(scope="session")
+def images_mm_df(
+    images_uris, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    blob_series = bpd.Series(images_uris, session=session).str.to_blob(
+        connection=bq_connection
+    )
+    return blob_series.rename("blob_col").to_frame()
+
+
+@pytest.fixture()
+def reset_default_session_and_location():
+    bpd.close_session()
+    with bpd.option_context("bigquery.location", None):
+        yield
+    bpd.close_session()
+    bpd.options.bigquery.location = None
+
+
+@pytest.fixture(scope="session")
+def pdf_gcs_path() -> str:
+    return "gs://bigframes_blob_test/pdfs/*"
+
+
+@pytest.fixture(scope="session")
+def pdf_mm_df(
+    pdf_gcs_path, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    return session.from_glob_path(pdf_gcs_path, name="pdf", connection=bq_connection)
+
+
+@pytest.fixture(scope="session")
+def audio_gcs_path() -> str:
+    return "gs://bigframes_blob_test/audio/*"
+
+
+@pytest.fixture(scope="session")
+def audio_mm_df(
+    audio_gcs_path, session: bigframes.Session, bq_connection: str
+) -> bpd.DataFrame:
+    return session.from_glob_path(
+        audio_gcs_path, name="audio", connection=bq_connection
+    )

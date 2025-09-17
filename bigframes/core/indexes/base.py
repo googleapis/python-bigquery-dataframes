@@ -16,8 +16,9 @@
 
 from __future__ import annotations
 
+import functools
 import typing
-from typing import Hashable, Literal, Optional, Sequence, Union
+from typing import cast, Hashable, Literal, Optional, overload, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.indexes.base as vendored_pandas_index
@@ -25,6 +26,8 @@ import google.cloud.bigquery as bigquery
 import numpy as np
 import pandas
 
+from bigframes import dtypes
+import bigframes.core.agg_expressions as ex_types
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
@@ -35,6 +38,8 @@ import bigframes.dtypes
 import bigframes.formatting_helpers as formatter
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.series
+import bigframes.session.execution_spec as ex_spec
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
@@ -48,6 +53,8 @@ class Index(vendored_pandas_index.Index):
     _linked_frame: Union[
         bigframes.dataframe.DataFrame, bigframes.series.Series, None
     ] = None
+    # Must be above 5000 for pandas to delegate to bigframes for binops
+    __pandas_priority__ = 12000
 
     # Overrided on __new__ to create subclasses like pandas does
     def __new__(
@@ -68,9 +75,7 @@ class Index(vendored_pandas_index.Index):
         elif isinstance(data, series.Series) or isinstance(data, Index):
             if isinstance(data, series.Series):
                 block = data._block
-                block = block.set_index(
-                    col_ids=[data._value_column],
-                )
+                block = block.set_index(col_ids=[data._value_column])
             elif isinstance(data, Index):
                 block = data._block
             index = Index(data=block)
@@ -85,17 +90,24 @@ class Index(vendored_pandas_index.Index):
             pd_df = pandas.DataFrame(index=data)
             block = df.DataFrame(pd_df, session=session)._block
         else:
+            if isinstance(dtype, str) and dtype.lower() == "json":
+                dtype = bigframes.dtypes.JSON_DTYPE
             pd_index = pandas.Index(data=data, dtype=dtype, name=name)
             pd_df = pandas.DataFrame(index=pd_index)
             block = df.DataFrame(pd_df, session=session)._block
 
         # TODO: Support more index subtypes
-        from bigframes.core.indexes.multi import MultiIndex
 
-        if len(block._index_columns) <= 1:
-            klass = cls
+        if len(block._index_columns) > 1:
+            from bigframes.core.indexes.multi import MultiIndex
+
+            klass: type[Index] = MultiIndex  # type hint to make mypy happy
+        elif _should_create_datetime_index(block):
+            from bigframes.core.indexes.datetimes import DatetimeIndex
+
+            klass = DatetimeIndex
         else:
-            klass = MultiIndex
+            klass = cls
 
         result = typing.cast(Index, object.__new__(klass))
         result._query_job = None
@@ -139,12 +151,7 @@ class Index(vendored_pandas_index.Index):
 
     @names.setter
     def names(self, values: typing.Sequence[blocks.Label]):
-        new_block = self._block.with_index_labels(values)
-        if self._linked_frame is not None:
-            self._linked_frame._set_block(
-                self._linked_frame._block.with_index_labels(values)
-            )
-        self._block = new_block
+        self.rename(values, inplace=True)
 
     @property
     def nlevels(self) -> int:
@@ -172,6 +179,11 @@ class Index(vendored_pandas_index.Index):
             data=self._block.index.dtypes,
             index=typing.cast(typing.Tuple, self._block.index.names),
         )
+
+    def __setitem__(self, key, value) -> None:
+        """Index objects are immutable. Use Index constructor to create
+        modified Index."""
+        raise TypeError("Index does not support mutable operations")
 
     @property
     def size(self) -> int:
@@ -226,7 +238,7 @@ class Index(vendored_pandas_index.Index):
         return self.transpose()
 
     @property
-    def query_job(self) -> Optional[bigquery.QueryJob]:
+    def query_job(self) -> bigquery.QueryJob:
         """BigQuery job metadata for the most recent query.
 
         Returns:
@@ -234,8 +246,98 @@ class Index(vendored_pandas_index.Index):
             <https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJob>`_.
         """
         if self._query_job is None:
-            self._query_job = self._block._compute_dry_run()
+            _, query_job = self._block._compute_dry_run()
+            self._query_job = query_job
         return self._query_job
+
+    def get_loc(self, key) -> typing.Union[int, slice, "bigframes.series.Series"]:
+        """Get integer location, slice or boolean mask for requested label.
+
+        Args:
+            key:
+                The label to search for in the index.
+
+        Returns:
+            An integer, slice, or boolean mask representing the location(s) of the key.
+
+        Raises:
+            NotImplementedError: If the index has more than one level.
+            KeyError: If the key is not found in the index.
+        """
+        if self.nlevels != 1:
+            raise NotImplementedError("get_loc only supports single-level indexes")
+
+        # Get the index column from the block
+        index_column = self._block.index_columns[0]
+
+        # Use promote_offsets to get row numbers (similar to argmax/argmin implementation)
+        block_with_offsets, offsets_id = self._block.promote_offsets(
+            "temp_get_loc_offsets_"
+        )
+
+        # Create expression to find matching positions
+        match_expr = ops.eq_op.as_expr(ex.deref(index_column), ex.const(key))
+        block_with_offsets, match_col_id = block_with_offsets.project_expr(match_expr)
+
+        # Filter to only rows where the key matches
+        filtered_block = block_with_offsets.filter_by_id(match_col_id)
+
+        # Check if key exists at all by counting
+        count_agg = ex_types.UnaryAggregation(agg_ops.count_op, ex.deref(offsets_id))
+        count_result = filtered_block._expr.aggregate([(count_agg, "count")])
+
+        count_scalar = self._block.session._executor.execute(
+            count_result, ex_spec.ExecutionSpec(promise_under_10gb=True)
+        ).to_py_scalar()
+
+        if count_scalar == 0:
+            raise KeyError(f"'{key}' is not in index")
+
+        # If only one match, return integer position
+        if count_scalar == 1:
+            min_agg = ex_types.UnaryAggregation(agg_ops.min_op, ex.deref(offsets_id))
+            position_result = filtered_block._expr.aggregate([(min_agg, "position")])
+            position_scalar = self._block.session._executor.execute(
+                position_result, ex_spec.ExecutionSpec(promise_under_10gb=True)
+            ).to_py_scalar()
+            return int(position_scalar)
+
+        # Handle multiple matches based on index monotonicity
+        is_monotonic = self.is_monotonic_increasing or self.is_monotonic_decreasing
+        if is_monotonic:
+            return self._get_monotonic_slice(filtered_block, offsets_id)
+        else:
+            # Return boolean mask for non-monotonic duplicates
+            mask_block = block_with_offsets.select_columns([match_col_id])
+            mask_block = mask_block.reset_index(drop=True)
+            result_series = bigframes.series.Series(mask_block)
+            return result_series.astype("boolean")
+
+    def _get_monotonic_slice(self, filtered_block, offsets_id: str) -> slice:
+        """Helper method to get a slice for monotonic duplicates with an optimized query."""
+        # Combine min and max aggregations into a single query for efficiency
+        min_max_aggs = [
+            (
+                ex_types.UnaryAggregation(agg_ops.min_op, ex.deref(offsets_id)),
+                "min_pos",
+            ),
+            (
+                ex_types.UnaryAggregation(agg_ops.max_op, ex.deref(offsets_id)),
+                "max_pos",
+            ),
+        ]
+        combined_result = filtered_block._expr.aggregate(min_max_aggs)
+
+        # Execute query and extract positions
+        result_df = self._block.session._executor.execute(
+            combined_result,
+            execution_spec=ex_spec.ExecutionSpec(promise_under_10gb=True),
+        ).to_pandas()
+        min_pos = int(result_df["min_pos"].iloc[0])
+        max_pos = int(result_df["max_pos"].iloc[0])
+
+        # Create slice (stop is exclusive)
+        return slice(min_pos, max_pos + 1)
 
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
@@ -249,8 +351,11 @@ class Index(vendored_pandas_index.Index):
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self._block._compute_dry_run())
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
+            _, dry_run_query_job = self._block._compute_dry_run()
+            return formatter.repr_query_job(dry_run_query_job)
 
         pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
         self._query_job = query_job
@@ -296,7 +401,13 @@ class Index(vendored_pandas_index.Index):
     def transpose(self) -> Index:
         return self
 
-    def sort_values(self, *, ascending: bool = True, na_position: str = "last"):
+    def sort_values(
+        self,
+        *,
+        inplace: bool = False,
+        ascending: bool = True,
+        na_position: str = "last",
+    ) -> Index:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
         na_last = na_position == "last"
@@ -384,7 +495,7 @@ class Index(vendored_pandas_index.Index):
             self._block.index_columns,
             normalize=normalize,
             ascending=ascending,
-            dropna=dropna,
+            drop_na=dropna,
         )
         import bigframes.series as series
 
@@ -397,11 +508,62 @@ class Index(vendored_pandas_index.Index):
             ops.fillna_op.as_expr(ex.free_var("arg"), ex.const(value))
         )
 
-    def rename(self, name: Union[str, Sequence[str]]) -> Index:
-        names = [name] if isinstance(name, str) else list(name)
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+    ) -> Index:
+        ...
+
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: Literal[False],
+    ) -> Index:
+        ...
+
+    @overload
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: Literal[True],
+    ) -> None:
+        ...
+
+    def rename(
+        self,
+        name: Union[blocks.Label, Sequence[blocks.Label]],
+        *,
+        inplace: bool = False,
+    ) -> Optional[Index]:
+        # Tuples are allowed as a label, but we specifically exclude them here.
+        # This is because tuples are hashable, but we want to treat them as a
+        # sequence. If name is iterable, we want to assume we're working with a
+        # MultiIndex. Unfortunately, strings are iterable and we don't want a
+        # list of all the characters, so specifically exclude the non-tuple
+        # hashables.
+        if isinstance(name, blocks.Label) and not isinstance(name, tuple):
+            names = [name]
+        else:
+            names = list(name)
+
         if len(names) != self.nlevels:
             raise ValueError("'name' must be same length as levels")
-        return Index(self._block.with_index_labels(names))
+
+        new_block = self._block.with_index_labels(names)
+
+        if inplace:
+            if self._linked_frame is not None:
+                self._linked_frame._set_block(
+                    self._linked_frame._block.with_index_labels(names)
+                )
+            self._block = new_block
+            return None
+        else:
+            return Index(new_block)
 
     def drop(
         self,
@@ -437,7 +599,17 @@ class Index(vendored_pandas_index.Index):
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
         return Index(block)
 
+    def unique(self, level: Hashable | int | None = None) -> Index:
+        if level is None:
+            return self.drop_duplicates()
+
+        return self.get_level_values(level).drop_duplicates()
+
     def isin(self, values) -> Index:
+        import bigframes.series as series
+
+        if isinstance(values, (series.Series, Index)):
+            return Index(self.to_series().isin(values))
         if not utils.is_list_like(values):
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -449,6 +621,29 @@ class Index(vendored_pandas_index.Index):
                 ex.free_var("arg")
             )
         ).fillna(value=False)
+
+    def __contains__(self, key) -> bool:
+        hash(key)  # to throw for unhashable values
+        if self.nlevels == 0:
+            return False
+
+        if (not isinstance(key, tuple)) or (self.nlevels == 1):
+            key = (key,)
+
+        match_exprs = []
+        for key_part, index_col, dtype in zip(
+            key, self._block.index_columns, self._block.index.dtypes
+        ):
+            key_type = bigframes.dtypes.is_compatible(key_part, dtype)
+            if key_type is None:
+                return False
+            key_expr = ex.const(key_part, key_type)
+            match_expr = ops.eq_null_match_op.as_expr(ex.deref(index_col), key_expr)
+            match_exprs.append(match_expr)
+
+        match_expr_final = functools.reduce(ops.and_op.as_expr, match_exprs)
+        block, match_col = self._block.project_expr(match_expr_final)
+        return cast(bool, block.get_stat(match_col, agg_ops.AnyOp()))
 
     def _apply_unary_expr(
         self,
@@ -488,19 +683,73 @@ class Index(vendored_pandas_index.Index):
         else:
             raise NotImplementedError(f"Index key not supported {key}")
 
-    def to_pandas(self) -> pandas.Index:
+    @overload
+    def to_pandas(  # type: ignore[overload-overlap]
+        self,
+        *,
+        allow_large_results: Optional[bool] = ...,
+        dry_run: Literal[False] = ...,
+    ) -> pandas.Index:
+        ...
+
+    @overload
+    def to_pandas(
+        self, *, allow_large_results: Optional[bool] = ..., dry_run: Literal[True] = ...
+    ) -> pandas.Series:
+        ...
+
+    def to_pandas(
+        self,
+        *,
+        allow_large_results: Optional[bool] = None,
+        dry_run: bool = False,
+    ) -> pandas.Index | pandas.Series:
         """Gets the Index as a pandas Index.
 
-        Returns:
-            pandas.Index:
-                A pandas Index with all of the labels from this Index.
-        """
-        return self._block.index.to_pandas(ordered=True)
+        Args:
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large query results
+                over the default size limit of 10 GB.
+            dry_run (bool, default False):
+                If this argument is true, this method will not process the data. Instead, it returns
+                a Pandas series containing dtype and the amount of bytes to be processed.
 
-    def to_numpy(self, dtype=None, **kwargs) -> np.ndarray:
-        return self.to_pandas().to_numpy(dtype, **kwargs)
+        Returns:
+            pandas.Index | pandas.Series:
+                A pandas Index with all of the labels from this Index. If dry run is set to True,
+                returns a Series containing dry run statistics.
+        """
+        if dry_run:
+            dry_run_stats, dry_run_job = self._block.index._compute_dry_run(
+                ordered=True
+            )
+            self._query_job = dry_run_job
+            return dry_run_stats
+
+        df, query_job = self._block.index.to_pandas(
+            ordered=True, allow_large_results=allow_large_results
+        )
+        if query_job:
+            self._query_job = query_job
+        return df
+
+    def to_numpy(self, dtype=None, *, allow_large_results=None, **kwargs) -> np.ndarray:
+        return self.to_pandas(allow_large_results=allow_large_results).to_numpy(
+            dtype, **kwargs
+        )
 
     __array__ = to_numpy
 
     def __len__(self):
         return self.shape[0]
+
+    def item(self):
+        # Docstring is in third_party/bigframes_vendored/pandas/core/indexes/base.py
+        return self.to_series().peek(2).item()
+
+
+def _should_create_datetime_index(block: blocks.Block) -> bool:
+    if len(block.index.dtypes) != 1:
+        return False
+
+    return dtypes.is_datetime_like(block.index.dtypes[0])

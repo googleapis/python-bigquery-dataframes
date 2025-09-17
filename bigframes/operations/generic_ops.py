@@ -20,34 +20,312 @@ from bigframes import dtypes
 from bigframes.operations import base_ops
 import bigframes.operations.type as op_typing
 
-invert_op = base_ops.create_unary_op(
+InvertOp = base_ops.create_unary_op(
     name="invert",
     type_signature=op_typing.TypePreserving(
         dtypes.is_binary_like,
         description="binary-like",
     ),
 )
+invert_op = InvertOp()
 
-isnull_op = base_ops.create_unary_op(
+IsNullOp = base_ops.create_unary_op(
     name="isnull",
     type_signature=op_typing.FixedOutputType(
         lambda x: True, dtypes.BOOL_DTYPE, description="nullable"
     ),
 )
+isnull_op = IsNullOp()
 
-notnull_op = base_ops.create_unary_op(
+NotNullOp = base_ops.create_unary_op(
     name="notnull",
     type_signature=op_typing.FixedOutputType(
         lambda x: True, dtypes.BOOL_DTYPE, description="nullable"
     ),
 )
+notnull_op = NotNullOp()
 
-hash_op = base_ops.create_unary_op(
+HashOp = base_ops.create_unary_op(
     name="hash",
     type_signature=op_typing.FixedOutputType(
         dtypes.is_string_like, dtypes.INT_DTYPE, description="string-like"
     ),
 )
+hash_op = HashOp()
+
+# source, dest type
+_VALID_CASTS = set(
+    (
+        # INT casts
+        (
+            dtypes.BOOL_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.FLOAT_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.NUMERIC_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.BIGNUMERIC_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.TIME_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.DATETIME_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.TIMESTAMP_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.TIMEDELTA_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        (
+            dtypes.JSON_DTYPE,
+            dtypes.INT_DTYPE,
+        ),
+        # Float casts
+        (
+            dtypes.BOOL_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ),
+        (
+            dtypes.NUMERIC_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ),
+        (
+            dtypes.BIGNUMERIC_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ),
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ),
+        (
+            dtypes.JSON_DTYPE,
+            dtypes.FLOAT_DTYPE,
+        ),
+        # Bool casts
+        (
+            dtypes.INT_DTYPE,
+            dtypes.BOOL_DTYPE,
+        ),
+        (
+            dtypes.FLOAT_DTYPE,
+            dtypes.BOOL_DTYPE,
+        ),
+        (
+            dtypes.JSON_DTYPE,
+            dtypes.BOOL_DTYPE,
+        ),
+        # String casts
+        (
+            dtypes.BYTES_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.BOOL_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.FLOAT_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.TIME_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.DATETIME_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.TIMESTAMP_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.DATE_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        (
+            dtypes.JSON_DTYPE,
+            dtypes.STRING_DTYPE,
+        ),
+        # bytes casts
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.BYTES_DTYPE,
+        ),
+        # decimal casts
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.NUMERIC_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.NUMERIC_DTYPE,
+        ),
+        (
+            dtypes.FLOAT_DTYPE,
+            dtypes.NUMERIC_DTYPE,
+        ),
+        (
+            dtypes.BIGNUMERIC_DTYPE,
+            dtypes.NUMERIC_DTYPE,
+        ),
+        # big decimal casts
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.BIGNUMERIC_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.BIGNUMERIC_DTYPE,
+        ),
+        (
+            dtypes.FLOAT_DTYPE,
+            dtypes.BIGNUMERIC_DTYPE,
+        ),
+        (
+            dtypes.NUMERIC_DTYPE,
+            dtypes.BIGNUMERIC_DTYPE,
+        ),
+        # time casts
+        (
+            dtypes.INT_DTYPE,
+            dtypes.TIME_DTYPE,
+        ),
+        (
+            dtypes.DATETIME_DTYPE,
+            dtypes.TIME_DTYPE,
+        ),
+        (
+            dtypes.TIMESTAMP_DTYPE,
+            dtypes.TIME_DTYPE,
+        ),
+        # date casts
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.DATE_DTYPE,
+        ),
+        (
+            dtypes.DATETIME_DTYPE,
+            dtypes.DATE_DTYPE,
+        ),
+        (
+            dtypes.TIMESTAMP_DTYPE,
+            dtypes.DATE_DTYPE,
+        ),
+        # datetime casts
+        (
+            dtypes.DATE_DTYPE,
+            dtypes.DATETIME_DTYPE,
+        ),
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.DATETIME_DTYPE,
+        ),
+        (
+            dtypes.TIMESTAMP_DTYPE,
+            dtypes.DATETIME_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.DATETIME_DTYPE,
+        ),
+        # timestamp casts
+        (
+            dtypes.DATE_DTYPE,
+            dtypes.TIMESTAMP_DTYPE,
+        ),
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.TIMESTAMP_DTYPE,
+        ),
+        (
+            dtypes.DATETIME_DTYPE,
+            dtypes.TIMESTAMP_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.TIMESTAMP_DTYPE,
+        ),
+        # timedelta casts
+        (
+            dtypes.INT_DTYPE,
+            dtypes.TIMEDELTA_DTYPE,
+        ),
+        # json casts
+        (
+            dtypes.BOOL_DTYPE,
+            dtypes.JSON_DTYPE,
+        ),
+        (
+            dtypes.FLOAT_DTYPE,
+            dtypes.JSON_DTYPE,
+        ),
+        (
+            dtypes.STRING_DTYPE,
+            dtypes.JSON_DTYPE,
+        ),
+        (
+            dtypes.INT_DTYPE,
+            dtypes.JSON_DTYPE,
+        ),
+    )
+)
+
+
+def _valid_scalar_cast(src: dtypes.Dtype, dst: dtypes.Dtype):
+    if src == dst:
+        return True
+    elif (src, dst) in _VALID_CASTS:
+        return True
+    return False
+
+
+def _valid_cast(src: dtypes.Dtype, dst: dtypes.Dtype):
+    if src == dst:
+        return True
+    # TODO: Might need to be more strict within list/array context
+    if dtypes.is_array_like(src) and dtypes.is_array_like(dst):
+        src_inner = dtypes.get_array_inner_type(src)
+        dst_inner = dtypes.get_array_inner_type(dst)
+        return _valid_cast(src_inner, dst_inner)
+    if dtypes.is_struct_like(src) and dtypes.is_struct_like(dst):
+        src_fields = dtypes.get_struct_fields(src)
+        dst_fields = dtypes.get_struct_fields(dst)
+        if len(src_fields) != len(dst_fields):
+            return False
+        for (_, src_dtype), (_, dst_dtype) in zip(
+            src_fields.items(), dst_fields.items()
+        ):
+            if not _valid_cast(src_dtype, dst_dtype):
+                return False
+        return True
+
+    return _valid_scalar_cast(src, dst)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -58,6 +336,9 @@ class AsTypeOp(base_ops.UnaryOp):
     safe: bool = False
 
     def output_type(self, *input_types):
+        if not _valid_cast(input_types[0], self.to_type):
+            raise TypeError(f"Cannot cast {input_types[0]} to {self.to_type}")
+
         return self.to_type
 
 
@@ -80,15 +361,17 @@ class MapOp(base_ops.UnaryOp):
         return input_types[0]
 
 
-fillna_op = base_ops.create_binary_op(name="fillna", type_signature=op_typing.COERCE)
+FillNaOp = base_ops.create_binary_op(name="fillna", type_signature=op_typing.COERCE)
+fillna_op = FillNaOp()
 
-maximum_op = base_ops.create_binary_op(name="maximum", type_signature=op_typing.COERCE)
+MaximumOp = base_ops.create_binary_op(name="maximum", type_signature=op_typing.COERCE)
+maximum_op = MaximumOp()
 
-minimum_op = base_ops.create_binary_op(name="minimum", type_signature=op_typing.COERCE)
+MinimumOp = base_ops.create_binary_op(name="minimum", type_signature=op_typing.COERCE)
+minimum_op = MinimumOp()
 
-coalesce_op = base_ops.create_binary_op(
-    name="coalesce", type_signature=op_typing.COERCE
-)
+CoalesceOp = base_ops.create_binary_op(name="coalesce", type_signature=op_typing.COERCE)
+coalesce_op = CoalesceOp()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -160,6 +443,18 @@ class SqlScalarOp(base_ops.NaryOp):
     name: typing.ClassVar[str] = "sql_scalar"
     _output_type: dtypes.ExpressionType
     sql_template: str
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return self._output_type
+
+
+@dataclasses.dataclass(frozen=True)
+class PyUdfOp(base_ops.NaryOp):
+    """Represents a local UDF."""
+
+    name: typing.ClassVar[str] = "py_udf"
+    fn: typing.Callable
+    _output_type: dtypes.ExpressionType
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return self._output_type

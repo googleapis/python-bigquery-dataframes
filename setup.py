@@ -36,36 +36,32 @@ dependencies = [
     # please keep these in sync with the minimum versions in testing/constraints-3.9.txt
     "cloudpickle >= 2.0.0",
     "fsspec >=2023.3.0",
-    "gcsfs >=2023.3.0",
+    "gcsfs >=2023.3.0, !=2025.5.0",
     "geopandas >=0.12.2",
-    "google-auth >=2.15.0,<3.0dev",
-    "google-cloud-bigtable >=2.24.0",
-    "google-cloud-pubsub >=2.21.4",
-    "google-cloud-bigquery[bqstorage,pandas] >=3.18.0",
+    "google-auth >=2.15.0,<3.0",
+    "google-cloud-bigquery[bqstorage,pandas] >=3.31.0",
+    # 2.30 needed for arrow support.
+    "google-cloud-bigquery-storage >= 2.30.0, < 3.0.0",
     "google-cloud-functions >=1.12.0",
     "google-cloud-bigquery-connection >=1.12.0",
-    "google-cloud-iam >=2.12.1",
     "google-cloud-resource-manager >=1.10.3",
     "google-cloud-storage >=2.0.0",
-    # Upper bound due to no windows build for 1.1.2
-    "jellyfish >=0.8.9,<1.1.2",
+    "grpc-google-iam-v1 >= 0.14.2",
     "numpy >=1.24.0",
     "pandas >=1.5.3",
-    "pandas-gbq >=0.26.0",
-    "pyarrow >=10.0.1",
+    "pandas-gbq >=0.26.1",
+    "pyarrow >=15.0.2",
     "pydata-google-auth >=1.8.2",
     "requests >=2.27.1",
-    "scikit-learn >=1.2.2",
-    "sqlalchemy >=1.4,<3.0dev",
+    "shapely >=1.8.5",
     "sqlglot >=23.6.3",
     "tabulate >=0.9",
     "ipywidgets >=7.7.1",
     "humanize >=4.6.0",
     "matplotlib >=3.7.1",
-    "db-dtypes >=1.4.0",
+    "db-dtypes >=1.4.2",
     # For vendored ibis-framework.
     "atpublic>=2.3,<6",
-    "parsy>=2,<3",
     "python-dateutil>=2.8.2,<3",
     "pytz>=2022.7",
     "toolz>=0.11,<2",
@@ -74,11 +70,27 @@ dependencies = [
 ]
 extras = {
     # Optional test dependencies packages. If they're missed, may skip some tests.
-    "tests": [],
-    # used for local engine, which is only needed for unit tests at present.
-    "polars": ["polars >= 1.7.0"],
+    "tests": [
+        "freezegun",
+        "pytest-snapshot",
+        "google-cloud-bigtable >=2.24.0",
+        "google-cloud-pubsub >=2.21.4",
+    ],
+    # used for local engine
+    "polars": ["polars >= 1.21.0"],
+    "scikit-learn": ["scikit-learn>=1.2.2"],
     # Packages required for basic development flow.
-    "dev": ["pytest", "pytest-mock", "pre-commit", "nox", "google-cloud-testutils"],
+    "dev": [
+        "pytest",
+        "pre-commit",
+        "nox",
+        "google-cloud-testutils",
+    ],
+    # install anywidget for SQL
+    "anywidget": [
+        "anywidget>=0.9.18",
+        "traitlets>=5.0.0",
+    ],
 }
 extras["all"] = list(sorted(frozenset(itertools.chain.from_iterable(extras.values()))))
 
@@ -112,6 +124,7 @@ setuptools.setup(
     version=version_id,
     description=description,
     long_description=readme,
+    long_description_content_type="text/x-rst",
     author="Google LLC",
     author_email="bigframes-feedback@google.com",
     license="Apache 2.0",

@@ -46,7 +46,7 @@ def test_get_standardized_ids_indexes():
     assert col_ids == ["duplicate_2"]
     assert idx_ids == [
         "string",
-        "0",
+        "_0",
         utils.UNNAMED_INDEX_ID,
         "duplicate",
         "duplicate_1",
@@ -59,7 +59,7 @@ def test_get_standardized_ids_tuple():
 
     col_ids, _ = utils.get_standardized_ids(col_labels)
 
-    assert col_ids == ["('foo', 1)", "('foo', 2)", "('bar', 1)"]
+    assert col_ids == ["_'foo'_ 1_", "_'foo'_ 2_", "_'bar'_ 1_"]
 
 
 @pytest.mark.parametrize(

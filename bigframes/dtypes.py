@@ -19,7 +19,7 @@ import datetime
 import decimal
 import textwrap
 import typing
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import db_dtypes  # type: ignore
@@ -28,7 +28,7 @@ import google.cloud.bigquery
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-import shapely  # type: ignore
+import shapely.geometry  # type: ignore
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
 Dtype = Union[
@@ -62,7 +62,9 @@ BIGNUMERIC_DTYPE = pd.ArrowDtype(pa.decimal256(76, 38))
 # No arrow equivalent
 GEO_DTYPE = gpd.array.GeometryDtype()
 # JSON
-JSON_DTYPE = db_dtypes.JSONDtype()
+# TODO: switch to pyarrow.json_(pyarrow.string()) when available.
+JSON_ARROW_TYPE = db_dtypes.JSONArrowType()
+JSON_DTYPE = pd.ArrowDtype(JSON_ARROW_TYPE)
 OBJ_REF_DTYPE = pd.ArrowDtype(
     pa.struct(
         (
@@ -80,7 +82,7 @@ OBJ_REF_DTYPE = pd.ArrowDtype(
             ),
             pa.field(
                 "details",
-                db_dtypes.JSONArrowType(),
+                JSON_ARROW_TYPE,
             ),
         )
     )
@@ -245,6 +247,7 @@ DtypeString = Literal[
     "decimal128(38, 9)[pyarrow]",
     "decimal256(76, 38)[pyarrow]",
     "binary[pyarrow]",
+    "duration[us][pyarrow]",
 ]
 
 DTYPE_STRINGS = typing.get_args(DtypeString)
@@ -286,6 +289,10 @@ def is_time_like(type_: ExpressionType) -> bool:
     return type_ in (DATETIME_DTYPE, TIMESTAMP_DTYPE, TIME_DTYPE)
 
 
+def is_time_or_date_like(type_: ExpressionType) -> bool:
+    return type_ in (DATE_DTYPE, DATETIME_DTYPE, TIME_DTYPE, TIMESTAMP_DTYPE)
+
+
 def is_geo_like(type_: ExpressionType) -> bool:
     return type_ in (GEO_DTYPE,)
 
@@ -301,7 +308,6 @@ def is_object_like(type_: Union[ExpressionType, str]) -> bool:
     return type_ in ("object", "O") or (
         getattr(type_, "kind", None) == "O"
         and getattr(type_, "storage", None) != "pyarrow"
-        and getattr(type_, "name", None) != "dbjson"
     )
 
 
@@ -339,8 +345,9 @@ def is_json_encoding_type(type_: ExpressionType) -> bool:
     return type_ != GEO_DTYPE
 
 
-def is_numeric(type_: ExpressionType) -> bool:
-    return type_ in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+def is_numeric(type_: ExpressionType, include_bool: bool = True) -> bool:
+    is_numeric = type_ in NUMERIC_BIGFRAMES_TYPES_PERMISSIVE
+    return is_numeric if include_bool else is_numeric and type_ != BOOL_DTYPE
 
 
 def is_iterable(type_: ExpressionType) -> bool:
@@ -349,6 +356,37 @@ def is_iterable(type_: ExpressionType) -> bool:
 
 def is_comparable(type_: ExpressionType) -> bool:
     return (type_ is not None) and is_orderable(type_)
+
+
+def get_struct_fields(type_: ExpressionType) -> dict[str, Dtype]:
+    assert isinstance(type_, pd.ArrowDtype)
+    assert isinstance(type_.pyarrow_dtype, pa.StructType)
+    struct_type = type_.pyarrow_dtype
+    result: dict[str, Dtype] = {}
+    for field_no in range(struct_type.num_fields):
+        field = struct_type.field(field_no)
+        result[field.name] = arrow_dtype_to_bigframes_dtype(field.type)
+    return result
+
+
+def get_array_inner_type(type_: ExpressionType) -> Dtype:
+    assert isinstance(type_, pd.ArrowDtype)
+    assert isinstance(type_.pyarrow_dtype, pa.ListType)
+    list_type = type_.pyarrow_dtype
+    return arrow_dtype_to_bigframes_dtype(list_type.value_type)
+
+
+def list_type(values_type: Dtype) -> Dtype:
+    """Create a list dtype with given value type."""
+    return pd.ArrowDtype(pa.list_(bigframes_dtype_to_arrow_dtype(values_type)))
+
+
+def struct_type(fields: Sequence[tuple[str, Dtype]]) -> Dtype:
+    """Create a struct dtype with give fields names and types."""
+    pa_fields = [
+        pa.field(str, bigframes_dtype_to_arrow_dtype(dtype)) for str, dtype in fields
+    ]
+    return pd.ArrowDtype(pa.struct(pa_fields))
 
 
 _ORDERABLE_SIMPLE_TYPES = set(
@@ -389,6 +427,8 @@ BIGFRAMES_STRING_TO_BIGFRAMES["string[pyarrow]"] = STRING_DTYPE
 # special case - both "Int64" and "int64[pyarrow]" are accepted
 BIGFRAMES_STRING_TO_BIGFRAMES["int64[pyarrow]"] = INT_DTYPE
 
+BIGFRAMES_STRING_TO_BIGFRAMES["duration[us][pyarrow]"] = TIMEDELTA_DTYPE
+
 # For the purposes of dataframe.memory_usage
 DTYPE_BYTE_SIZES = {
     type_info.dtype: type_info.logical_bytes for type_info in SIMPLE_TYPES
@@ -412,8 +452,35 @@ _ARROW_TO_BIGFRAMES = {
     if mapping.arrow_dtype is not None
 }
 
+# Include types that aren't 1:1 to BigQuery but allowed to be loaded in to BigQuery:
+_ARROW_TO_BIGFRAMES_LOSSLESS = {
+    pa.int8(): INT_DTYPE,
+    pa.int16(): INT_DTYPE,
+    pa.int32(): INT_DTYPE,
+    pa.uint8(): INT_DTYPE,
+    pa.uint16(): INT_DTYPE,
+    pa.uint32(): INT_DTYPE,
+    # uint64 is omitted because uint64 -> BigQuery INT64 is a lossy conversion.
+    pa.float16(): FLOAT_DTYPE,
+    pa.float32(): FLOAT_DTYPE,
+    # TODO(tswast): Can we support datetime/timestamp/time with units larger
+    # than microseconds?
+}
 
-def arrow_dtype_to_bigframes_dtype(arrow_dtype: pa.DataType) -> Dtype:
+
+def arrow_dtype_to_bigframes_dtype(
+    arrow_dtype: pa.DataType, allow_lossless_cast: bool = False
+) -> Dtype:
+    """
+    Convert an arrow type into the pandas-y type used to represent it in BigFrames.
+
+    Args:
+        arrow_dtype: Arrow data type.
+        allow_lossless_cast: Allow lossless conversions, such as int32 to int64.
+    """
+    if allow_lossless_cast and arrow_dtype in _ARROW_TO_BIGFRAMES_LOSSLESS:
+        return _ARROW_TO_BIGFRAMES_LOSSLESS[arrow_dtype]
+
     if arrow_dtype in _ARROW_TO_BIGFRAMES:
         return _ARROW_TO_BIGFRAMES[arrow_dtype]
 
@@ -455,6 +522,8 @@ def bigframes_dtype_to_arrow_dtype(
     if bigframes_dtype in _BIGFRAMES_TO_ARROW:
         return _BIGFRAMES_TO_ARROW[bigframes_dtype]
     if isinstance(bigframes_dtype, pd.ArrowDtype):
+        if pa.types.is_duration(bigframes_dtype.pyarrow_dtype):
+            return bigframes_dtype.pyarrow_dtype
         if pa.types.is_list(bigframes_dtype.pyarrow_dtype):
             return bigframes_dtype.pyarrow_dtype
         if pa.types.is_struct(bigframes_dtype.pyarrow_dtype):
@@ -463,33 +532,6 @@ def bigframes_dtype_to_arrow_dtype(
         raise TypeError(
             f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
         )
-
-
-def bigframes_dtype_to_literal(
-    bigframes_dtype: Dtype,
-) -> Any:
-    """Create a representative literal value for a bigframes dtype.
-
-    The inverse of infer_literal_type().
-    """
-    if isinstance(bigframes_dtype, pd.ArrowDtype):
-        arrow_type = bigframes_dtype.pyarrow_dtype
-        return arrow_type_to_literal(arrow_type)
-
-    if isinstance(bigframes_dtype, pd.Float64Dtype):
-        return 1.0
-    if isinstance(bigframes_dtype, pd.Int64Dtype):
-        return 1
-    if isinstance(bigframes_dtype, pd.BooleanDtype):
-        return True
-    if isinstance(bigframes_dtype, pd.StringDtype):
-        return "string"
-    if isinstance(bigframes_dtype, gpd.array.GeometryDtype):
-        return shapely.Point((0, 0))
-
-    raise TypeError(
-        f"No literal  conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
-    )
 
 
 def arrow_type_to_literal(
@@ -565,30 +607,32 @@ def _is_bigframes_dtype(dtype) -> bool:
     return False
 
 
-def _infer_dtype_from_python_type(type: type) -> Dtype:
-    if type in (datetime.timedelta, pd.Timedelta, np.timedelta64):
+def _infer_dtype_from_python_type(type_: type) -> Dtype:
+    if type_ in (datetime.timedelta, pd.Timedelta, np.timedelta64):
         # Must check timedelta type first. Otherwise other branchs will be evaluated to true
         # E.g. np.timedelta64 is a sublcass as np.integer
         return TIMEDELTA_DTYPE
-    if issubclass(type, (bool, np.bool_)):
+    if issubclass(type_, (bool, np.bool_)):
         return BOOL_DTYPE
-    if issubclass(type, (int, np.integer)):
+    if issubclass(type_, (int, np.integer)):
         return INT_DTYPE
-    if issubclass(type, (float, np.floating)):
+    if issubclass(type_, (float, np.floating)):
         return FLOAT_DTYPE
-    if issubclass(type, decimal.Decimal):
+    if issubclass(type_, decimal.Decimal):
         return NUMERIC_DTYPE
-    if issubclass(type, (str, np.str_)):
+    if issubclass(type_, (str, np.str_)):
         return STRING_DTYPE
-    if issubclass(type, (bytes, np.bytes_)):
+    if issubclass(type_, (bytes, np.bytes_)):
         return BYTES_DTYPE
-    if issubclass(type, datetime.date):
+    if issubclass(type_, datetime.date):
         return DATE_DTYPE
-    if issubclass(type, datetime.time):
+    if issubclass(type_, datetime.time):
         return TIME_DTYPE
+    if issubclass(type_, shapely.geometry.base.BaseGeometry):
+        return GEO_DTYPE
     else:
         raise TypeError(
-            f"No matching datatype for python type: {type}. {constants.FEEDBACK_LINK}"
+            f"No matching datatype for python type: {type_}. {constants.FEEDBACK_LINK}"
         )
 
 
@@ -597,6 +641,9 @@ def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
         return BIGFRAMES_STRING_TO_BIGFRAMES[
             typing.cast(DtypeString, str(dtype_string))
         ]
+    if isinstance(dtype_string, str) and dtype_string.lower() == "json":
+        return JSON_DTYPE
+
     raise TypeError(
         textwrap.dedent(
             f"""
@@ -608,9 +655,9 @@ def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
                         The following pandas.ExtensionDtype are supported:
                         pandas.BooleanDtype(), pandas.Float64Dtype(),
                         pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
-                        pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
-                        pd.ArrowDtype(pa.timestamp("us")),
-                        pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
+                        pandas.ArrowDtype(pa.date32()), pandas.ArrowDtype(pa.time64("us")),
+                        pandas.ArrowDtype(pa.timestamp("us")),
+                        pandas.ArrowDtype(pa.timestamp("us", tz="UTC")).
                 {constants.FEEDBACK_LINK}
                 """
         )
@@ -619,11 +666,12 @@ def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
 
 def infer_literal_type(literal) -> typing.Optional[Dtype]:
     # Maybe also normalize literal to canonical python representation to remove this burden from compilers?
+    if isinstance(literal, pa.Scalar):
+        return arrow_dtype_to_bigframes_dtype(literal.type)
     if pd.api.types.is_list_like(literal):
         element_types = [infer_literal_type(i) for i in literal]
         common_type = lcd_type(*element_types)
-        as_arrow = bigframes_dtype_to_arrow_dtype(common_type)
-        return pd.ArrowDtype(as_arrow)
+        return list_type(common_type)
     if pd.api.types.is_dict_like(literal):
         fields = []
         for key in literal.keys():
@@ -678,6 +726,12 @@ def convert_schema_field(
         pa_struct = pa.struct(fields)
         pa_type = pa.list_(pa_struct) if is_repeated else pa_struct
         return field.name, pd.ArrowDtype(pa_type)
+    elif (
+        field.field_type == "INTEGER"
+        and field.description is not None
+        and field.description.endswith(TIMEDELTA_DESCRIPTION_TAG)
+    ):
+        return field.name, TIMEDELTA_DTYPE
     elif field.field_type in _TK_TO_BIGFRAMES:
         if is_repeated:
             pa_type = pa.list_(
@@ -690,9 +744,10 @@ def convert_schema_field(
 
 
 def convert_to_schema_field(
-    name: str,
-    bigframes_dtype: Dtype,
+    name: str, bigframes_dtype: Dtype, overrides: dict[Dtype, str] = {}
 ) -> google.cloud.bigquery.SchemaField:
+    if bigframes_dtype in overrides:
+        return google.cloud.bigquery.SchemaField(name, overrides[bigframes_dtype])
     if bigframes_dtype in _BIGFRAMES_TO_TK:
         return google.cloud.bigquery.SchemaField(
             name, _BIGFRAMES_TO_TK[bigframes_dtype]
@@ -702,7 +757,7 @@ def convert_to_schema_field(
             inner_type = arrow_dtype_to_bigframes_dtype(
                 bigframes_dtype.pyarrow_dtype.value_type
             )
-            inner_field = convert_to_schema_field(name, inner_type)
+            inner_field = convert_to_schema_field(name, inner_type, overrides)
             return google.cloud.bigquery.SchemaField(
                 name, inner_field.field_type, mode="REPEATED", fields=inner_field.fields
             )
@@ -712,14 +767,18 @@ def convert_to_schema_field(
             for i in range(struct_type.num_fields):
                 field = struct_type.field(i)
                 inner_bf_type = arrow_dtype_to_bigframes_dtype(field.type)
-                inner_fields.append(convert_to_schema_field(field.name, inner_bf_type))
+                inner_fields.append(
+                    convert_to_schema_field(field.name, inner_bf_type, overrides)
+                )
 
             return google.cloud.bigquery.SchemaField(
                 name, "RECORD", fields=inner_fields
             )
         if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
             # Timedeltas are represented as integers in microseconds.
-            return google.cloud.bigquery.SchemaField(name, "INTEGER")
+            return google.cloud.bigquery.SchemaField(
+                name, "INTEGER", description=TIMEDELTA_DESCRIPTION_TAG
+            )
     raise TypeError(
         f"No arrow conversion for {bigframes_dtype}. {constants.FEEDBACK_LINK}"
     )
@@ -734,7 +793,7 @@ def bf_type_from_type_kind(
 
 def is_dtype(scalar: typing.Any, dtype: Dtype) -> bool:
     """Captures whether a scalar can be losslessly represented by a dtype."""
-    if scalar is None:
+    if pd.isna(scalar):
         return True
     if pd.api.types.is_bool_dtype(dtype):
         return pd.api.types.is_bool(scalar)
@@ -850,28 +909,4 @@ def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
     return result
 
 
-### Remote functions use only
-# TODO: Refactor into remote function module
-
-# Input and output types supported by BigQuery DataFrames remote functions.
-# TODO(shobs): Extend the support to all types supported by BQ remote functions
-# https://cloud.google.com/bigquery/docs/remote-functions#limitations
-RF_SUPPORTED_IO_PYTHON_TYPES = {bool, bytes, float, int, str}
-
-# Support array output types in BigQuery DataFrames remote functions even though
-# it is not currently (2024-10-06) supported in BigQuery remote functions.
-# https://cloud.google.com/bigquery/docs/remote-functions#limitations
-# TODO(b/284515241): remove this special handling when BigQuery remote functions
-# support array.
-RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES = {bool, float, int, str}
-
-RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS = {
-    "BOOLEAN",
-    "BOOL",
-    "BYTES",
-    "FLOAT",
-    "FLOAT64",
-    "INT64",
-    "INTEGER",
-    "STRING",
-}
+TIMEDELTA_DESCRIPTION_TAG = "#microseconds"

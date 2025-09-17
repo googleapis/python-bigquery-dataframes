@@ -16,16 +16,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import datetime
 import functools
-import io
 import typing
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 import warnings
 
 import google.cloud.bigquery
 import pandas
 import pyarrow as pa
-import pyarrow.feather as pa_feather
 
+from bigframes.core import agg_expressions
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.identifiers as ids
@@ -36,7 +35,6 @@ from bigframes.core.ordering import OrderingExpression
 import bigframes.core.ordering as orderings
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties
-import bigframes.core.utils
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
 import bigframes.exceptions as bfe
@@ -60,24 +58,20 @@ class ArrayValue:
 
     @classmethod
     def from_pyarrow(cls, arrow_table: pa.Table, session: Session):
-        adapted_table = local_data.adapt_pa_table(arrow_table)
-        schema = local_data.arrow_schema_to_bigframes(adapted_table.schema)
+        data_source = local_data.ManagedArrowTable.from_pyarrow(arrow_table)
+        return cls.from_managed(source=data_source, session=session)
 
-        iobytes = io.BytesIO()
-        pa_feather.write_feather(adapted_table, iobytes)
-        # Scan all columns by default, we define this list as it can be pruned while preserving source_def
+    @classmethod
+    def from_managed(cls, source: local_data.ManagedArrowTable, session: Session):
         scan_list = nodes.ScanList(
             tuple(
                 nodes.ScanItem(ids.ColumnId(item.column), item.dtype, item.column)
-                for item in schema.items
+                for item in source.schema.items
             )
         )
-
         node = nodes.ReadLocalNode(
-            iobytes.getvalue(),
-            data_schema=schema,
+            source,
             session=session,
-            n_rows=arrow_table.num_rows,
             scan_list=scan_list,
         )
         return cls(node)
@@ -103,13 +97,14 @@ class ArrayValue:
         at_time: Optional[datetime.datetime] = None,
         primary_key: Sequence[str] = (),
         offsets_col: Optional[str] = None,
+        n_rows: Optional[int] = None,
     ):
         if offsets_col and primary_key:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
         if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
-            msg = (
-                "Interpreting JSON column(s) as the `db_dtypes.dbjson` extension type is"
-                "in preview; this behavior may change in future versions."
+            msg = bfe.format_message(
+                "JSON column interpretation as a custom PyArrow extention in `db_dtypes` "
+                "is a preview feature and subject to change."
             )
             warnings.warn(msg, bfe.PreviewWarning)
         # define data source only for needed columns, this makes row-hashing cheaper
@@ -132,10 +127,23 @@ class ArrayValue:
             )
         )
         source_def = nodes.BigqueryDataSource(
-            table=table_def, at_time=at_time, sql_predicate=predicate, ordering=ordering
+            table=table_def,
+            at_time=at_time,
+            sql_predicate=predicate,
+            ordering=ordering,
+            n_rows=n_rows,
         )
+        return cls.from_bq_data_source(source_def, scan_list, session)
+
+    @classmethod
+    def from_bq_data_source(
+        cls,
+        source: nodes.BigqueryDataSource,
+        scan_list: nodes.ScanList,
+        session: Session,
+    ):
         node = nodes.ReadTableNode(
-            source=source_def,
+            source=source,
             scan_list=scan_list,
             table_session=session,
         )
@@ -173,43 +181,22 @@ class ArrayValue:
     def supports_fast_peek(self) -> bool:
         return bigframes.core.tree_properties.can_fast_peek(self.node)
 
-    def as_cached(
-        self: ArrayValue,
-        cache_table: google.cloud.bigquery.Table,
-        ordering: Optional[orderings.RowOrdering],
-    ) -> ArrayValue:
-        """
-        Replace the node with an equivalent one that references a table where the value has been materialized to.
-        """
-        table = nodes.GbqTable.from_table(cache_table)
-        source = nodes.BigqueryDataSource(table, ordering=ordering)
-        # Assumption: GBQ cached table uses field name as bq column name
-        scan_list = nodes.ScanList(
-            tuple(
-                nodes.ScanItem(field.id, field.dtype, field.id.name)
-                for field in self.node.fields
-            )
-        )
-        node = nodes.CachedTableNode(
-            original_node=self.node,
-            source=source,
-            table_session=self.session,
-            scan_list=scan_list,
-        )
-        return ArrayValue(node)
-
-    def _try_evaluate_local(self):
-        """Use only for unit testing paths - not fully featured. Will throw exception if fails."""
-        import bigframes.core.compile
-
-        return bigframes.core.compile.test_only_try_evaluate(self.node)
-
     def get_column_type(self, key: str) -> bigframes.dtypes.Dtype:
         return self.schema.get_type(key)
 
     def row_count(self) -> ArrayValue:
         """Get number of rows in ArrayValue as a single-entry ArrayValue."""
-        return ArrayValue(nodes.RowCountNode(child=self.node))
+        return ArrayValue(
+            nodes.AggregateNode(
+                child=self.node,
+                aggregations=(
+                    (
+                        agg_expressions.NullaryAggregation(agg_ops.size_op),
+                        ids.ColumnId(bigframes.core.guid.generate_guid()),
+                    ),
+                ),
+            )
+        )
 
     # Operations
     def filter_by_id(self, predicate_id: str, keep_null: bool = False) -> ArrayValue:
@@ -238,7 +225,9 @@ class ArrayValue:
         self, start: Optional[int], stop: Optional[int], step: Optional[int]
     ) -> ArrayValue:
         if self.node.order_ambiguous and not (self.session._strictly_ordered):
-            msg = "Window ordering may be ambiguous, this can cause unstable results."
+            msg = bfe.format_message(
+                "Window ordering may be ambiguous, this can cause unstable results."
+            )
             warnings.warn(msg, bfe.AmbiguousWindowWarning)
         return ArrayValue(
             nodes.SliceNode(
@@ -260,7 +249,7 @@ class ArrayValue:
                     "Generating offsets not supported in partial ordering mode"
                 )
             else:
-                msg = (
+                msg = bfe.format_message(
                     "Window ordering may be ambiguous, this can cause unstable results."
                 )
                 warnings.warn(msg, category=bfe.AmbiguousWindowWarning)
@@ -342,16 +331,45 @@ class ArrayValue:
 
         return self.project_to_id(ex.const(value, dtype))
 
-    def select_columns(self, column_ids: typing.Sequence[str]) -> ArrayValue:
+    def select_columns(
+        self, column_ids: typing.Sequence[str], allow_renames: bool = False
+    ) -> ArrayValue:
         # This basically just drops and reorders columns - logically a no-op except as a final step
-        selections = (
-            bigframes.core.nodes.AliasedRef.identity(ids.ColumnId(col_id))
-            for col_id in column_ids
-        )
+        selections = []
+        seen = set()
+
+        for id in column_ids:
+            if id not in seen:
+                ref = nodes.AliasedRef.identity(ids.ColumnId(id))
+            elif allow_renames:
+                ref = nodes.AliasedRef(
+                    ex.deref(id), ids.ColumnId(bigframes.core.guid.generate_guid())
+                )
+            else:
+                raise ValueError(
+                    "Must set allow_renames=True to select columns repeatedly"
+                )
+            selections.append(ref)
+            seen.add(id)
+
         return ArrayValue(
             nodes.SelectionNode(
                 child=self.node,
                 input_output_pairs=tuple(selections),
+            )
+        )
+
+    def rename_columns(self, col_id_overrides: Mapping[str, str]) -> ArrayValue:
+        if not col_id_overrides:
+            return self
+        output_ids = [col_id_overrides.get(id, id) for id in self.node.schema.names]
+        return ArrayValue(
+            nodes.SelectionNode(
+                self.node,
+                tuple(
+                    nodes.AliasedRef(ex.DerefOp(old_id), ids.ColumnId(out_id))
+                    for old_id, out_id in zip(self.node.ids, output_ids)
+                ),
             )
         )
 
@@ -362,7 +380,7 @@ class ArrayValue:
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
+        aggregations: typing.Sequence[typing.Tuple[agg_expressions.Aggregation, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> ArrayValue:
@@ -401,24 +419,40 @@ class ArrayValue:
         never_skip_nulls: will disable null skipping for operators that would otherwise do so
         skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
         """
+
+        return self.project_window_expr(
+            agg_expressions.UnaryAggregation(op, ex.deref(column_name)),
+            window_spec,
+            never_skip_nulls,
+            skip_reproject_unsafe,
+        )
+
+    def project_window_expr(
+        self,
+        expression: agg_expressions.Aggregation,
+        window: WindowSpec,
+        never_skip_nulls=False,
+        skip_reproject_unsafe: bool = False,
+    ):
         # TODO: Support non-deterministic windowing
-        if window_spec.row_bounded or not op.order_independent:
+        if window.is_row_bounded or not expression.op.order_independent:
             if self.node.order_ambiguous and not self.session._strictly_ordered:
                 if not self.session._allows_ambiguity:
                     raise ValueError(
                         "Generating offsets not supported in partial ordering mode"
                     )
                 else:
-                    msg = "Window ordering may be ambiguous, this can cause unstable results."
+                    msg = bfe.format_message(
+                        "Window ordering may be ambiguous, this can cause unstable results."
+                    )
                     warnings.warn(msg, category=bfe.AmbiguousWindowWarning)
-
         output_name = self._gen_namespaced_uid()
         return (
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    expression=ex.UnaryAggregation(op, ex.deref(column_name)),
-                    window_spec=window_spec,
+                    expression=expression,
+                    window_spec=window,
                     output_name=ids.ColumnId(output_name),
                     never_skip_nulls=never_skip_nulls,
                     skip_reproject_unsafe=skip_reproject_unsafe,
@@ -444,6 +478,7 @@ class ArrayValue:
         other: ArrayValue,
         conditions: typing.Tuple[typing.Tuple[str, str], ...] = (),
         type: typing.Literal["inner", "outer", "left", "right", "cross"] = "inner",
+        propogate_order: Optional[bool] = None,
     ) -> typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]:
         l_mapping = {  # Identity mapping, only rename right side
             lcol.name: lcol.name for lcol in self.node.ids
@@ -457,6 +492,7 @@ class ArrayValue:
                 for l_col, r_col in conditions
             ),
             type=type,
+            propogate_order=propogate_order or self.session._strictly_ordered,
         )
         return ArrayValue(join_node), (l_mapping, r_mapping)
 

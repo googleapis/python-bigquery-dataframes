@@ -15,7 +15,7 @@
 import pytest
 
 from bigframes.ml import forecasting
-from tests.system import utils
+from bigframes.testing import utils
 
 ARIMA_EVALUATE_OUTPUT_COL = [
     "non_seasonal_p",
@@ -154,6 +154,7 @@ def test_arima_plus_model_fit_params(
         holiday_region="US",
         clean_spikes_and_dips=False,
         adjust_step_changes=False,
+        forecast_limit_lower_bound=0.0,
         time_series_length_fraction=0.5,
         min_time_series_length=10,
         trend_smoothing_window_size=5,
@@ -183,6 +184,8 @@ def test_arima_plus_model_fit_params(
     assert reloaded_model.holiday_region == "US"
     assert reloaded_model.clean_spikes_and_dips is False
     assert reloaded_model.adjust_step_changes is False
+    # TODO(b/391399223): API must return forecastLimitLowerBound for the following assertion
+    # assert reloaded_model.forecast_limit_lower_bound == 0.0
     assert reloaded_model.time_series_length_fraction == 0.5
     assert reloaded_model.min_time_series_length == 10
     assert reloaded_model.trend_smoothing_window_size == 5

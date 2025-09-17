@@ -239,7 +239,7 @@ class StringMethods:
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def strip(self):
+    def strip(self, to_strip: typing.Optional[str] = None):
         """Remove leading and trailing characters.
 
         Strip whitespaces (including newlines) or a set of specified characters
@@ -252,21 +252,31 @@ class StringMethods:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = bpd.Series(['Ant', '  Bee ', '\\tCat\\n', bpd.NA])
-            >>> s
-            0       Ant
-            1      Bee
-            2       Cat
-            <BLANKLINE>
-            3      <NA>
+            >>> s = bpd.Series([
+            ...     '1. Ant.',
+            ...     '  2. Bee? ',
+            ...     '\\t3. Cat!\\n',
+            ...     bpd.NA,
+            ... ])
+            >>> s.str.strip()
+            0    1. Ant.
+            1    2. Bee?
+            2    3. Cat!
+            3       <NA>
             dtype: string
 
-            >>> s.str.strip()
-            0     Ant
-            1     Bee
-            2     Cat
-            3    <NA>
+            >>> s.str.strip('123.!? \\n\\t')
+            0       Ant
+            1       Bee
+            2       Cat
+            3       <NA>
             dtype: string
+
+        Args:
+            to_strip (str, default None):
+                Specifying the set of characters to be removed. All combinations
+                of this set of characters will be stripped. If None then
+                whitespaces are removed.
 
         Returns:
             bigframes.series.Series: Series or Index without leading
@@ -529,8 +539,8 @@ class StringMethods:
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rstrip(self):
-        """Remove trailing characters.
+    def rstrip(self, to_strip: typing.Optional[str] = None):
+        r"""Remove trailing characters.
 
         Strip whitespaces (including newlines) or a set of specified characters
         from each string in the Series/Index from right side.
@@ -542,21 +552,19 @@ class StringMethods:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = bpd.Series(['Ant', '  Bee ', '\\tCat\\n', bpd.NA])
-            >>> s
-            0       Ant
-            1      Bee
-            2       Cat
-            <BLANKLINE>
-            3      <NA>
-            dtype: string
-
+            >>> s = bpd.Series(['Ant', '  Bee ', '\tCat\n', bpd.NA])
             >>> s.str.rstrip()
             0      Ant
             1      Bee
-            2       Cat
+            2    \tCat
             3     <NA>
             dtype: string
+
+        Args:
+            to_strip (str, default None):
+                Specifying the set of characters to be removed. All combinations
+                of this set of characters will be stripped. If None then
+                whitespaces are removed.
 
         Returns:
             bigframes.series.Series: Series without trailing characters.
@@ -564,8 +572,8 @@ class StringMethods:
 
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def lstrip(self):
-        """Remove leading characters.
+    def lstrip(self, to_strip: typing.Optional[str] = None):
+        r"""Remove leading characters.
 
         Strip whitespaces (including newlines) or a set of specified characters
         from each string in the Series/Index from left side.
@@ -577,22 +585,19 @@ class StringMethods:
             >>> import bigframes.pandas as bpd
             >>> bpd.options.display.progress_bar = None
 
-            >>> s = bpd.Series(['Ant', '  Bee ', '\\tCat\\n', bpd.NA])
-            >>> s
-            0       Ant
-            1      Bee
-            2       Cat
-            <BLANKLINE>
-            3      <NA>
+            >>> s = bpd.Series(['Ant', '  Bee ', '\tCat\n', bpd.NA])
+            >>> s.str.lstrip()
+            0      Ant
+            1     Bee
+            2    Cat\n
+            3     <NA>
             dtype: string
 
-            >>> s.str.lstrip()
-            0     Ant
-            1    Bee
-            2    Cat
-            <BLANKLINE>
-            3    <NA>
-            dtype: string
+        Args:
+            to_strip (str, default None):
+                Specifying the set of characters to be removed. All combinations
+                of this set of characters will be stripped. If None then
+                whitespaces are removed.
 
         Returns:
             bigframes.series.Series: Series without leading characters.
@@ -1291,5 +1296,45 @@ class StringMethods:
 
         Returns:
             bigframes.series.Series: Returns Series or Index with minimum number of char in object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def join(self, sep: str):
+        """
+        Join lists contained as elements in the Series/Index with passed delimiter.
+
+        If the elements of a Series are lists themselves, join the content of these
+        lists using the delimiter passed to the function.
+        This function is an equivalent to :meth:`str.join`.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> import pandas as pd
+
+        Example with a list that contains non-string elements.
+
+            >>> s = bpd.Series([['lion', 'elephant', 'zebra'],
+            ...                ['dragon'],
+            ...                ['duck', 'swan', 'fish', 'guppy']])
+            >>> s
+            0       ['lion' 'elephant' 'zebra']
+            1                        ['dragon']
+            2    ['duck' 'swan' 'fish' 'guppy']
+            dtype: list<item: string>[pyarrow]
+
+            >>> s.str.join('-')
+            0     lion-elephant-zebra
+            1                  dragon
+            2    duck-swan-fish-guppy
+            dtype: string
+
+        Args:
+            sep (str):
+                Delimiter to use between list entries.
+
+        Returns:
+            bigframes.series.Series: The list entries concatenated by intervening occurrences of the delimiter.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

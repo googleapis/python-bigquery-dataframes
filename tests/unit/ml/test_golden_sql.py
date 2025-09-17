@@ -17,10 +17,10 @@ from unittest import mock
 from google.cloud import bigquery
 import pandas as pd
 import pytest
-import pytest_mock
 
 import bigframes
-from bigframes.ml import core, linear_model
+from bigframes.ml import core, decomposition, linear_model
+import bigframes.ml.core
 import bigframes.pandas as bpd
 
 TEMP_MODEL_ID = bigquery.ModelReference.from_string(
@@ -50,10 +50,11 @@ def mock_session():
 
 
 @pytest.fixture
-def bqml_model_factory(mocker: pytest_mock.MockerFixture):
-    mocker.patch(
-        "bigframes.ml.core.BqmlModelFactory._create_model_ref",
-        return_value=TEMP_MODEL_ID,
+def bqml_model_factory(monkeypatch):
+    monkeypatch.setattr(
+        bigframes.ml.core.BqmlModelFactory,
+        "_create_model_ref",
+        mock.Mock(return_value=TEMP_MODEL_ID),
     )
     bqml_model_factory = core.BqmlModelFactory()
 
@@ -66,6 +67,7 @@ def mock_y(mock_session):
     mock_y._session = mock_session
     mock_y.columns = pd.Index(["input_column_label"])
     mock_y.cache.return_value = mock_y
+    mock_y.copy.return_value = mock_y
 
     return mock_y
 
@@ -79,6 +81,8 @@ def mock_X(mock_y, mock_session):
         ["index_column_id"],
         ["index_column_label"],
     )
+    type(mock_X).sql = mock.PropertyMock(return_value="input_X_sql_property")
+    mock_X.reset_index(drop=True).cache().sql = "input_X_no_index_sql"
     mock_X.join(mock_y).sql = "input_X_y_sql"
     mock_X.join(mock_y).cache.return_value = mock_X.join(mock_y)
     mock_X.join(mock_y)._to_sql_query.return_value = (
@@ -98,6 +102,7 @@ def mock_X(mock_y, mock_session):
     )
 
     mock_X.cache.return_value = mock_X
+    mock_X.copy.return_value = mock_X
 
     return mock_X
 
@@ -138,9 +143,10 @@ def test_linear_regression_predict(mock_session, bqml_model, mock_X):
     model._bqml_model = bqml_model
     model.predict(mock_X)
 
-    mock_session.read_gbq.assert_called_once_with(
+    mock_session.read_gbq_query.assert_called_once_with(
         "SELECT * FROM ML.PREDICT(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql))",
         index_col=["index_column_id"],
+        allow_large_results=True,
     )
 
 
@@ -149,8 +155,9 @@ def test_linear_regression_score(mock_session, bqml_model, mock_X, mock_y):
     model._bqml_model = bqml_model
     model.score(mock_X, mock_y)
 
-    mock_session.read_gbq.assert_called_once_with(
-        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_y_sql))"
+    mock_session.read_gbq_query.assert_called_once_with(
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_y_sql))",
+        allow_large_results=True,
     )
 
 
@@ -162,7 +169,7 @@ def test_logistic_regression_default_fit(
     model.fit(mock_X, mock_y)
 
     mock_session._start_query_ml_ddl.assert_called_once_with(
-        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='LOGISTIC_REG',\n  data_split_method='NO_SPLIT',\n  fit_intercept=True,\n  auto_class_weights=False,\n  optimize_strategy='auto_strategy',\n  l2_reg=0.0,\n  max_iterations=20,\n  learn_rate_strategy='line_search',\n  min_rel_progress=0.01,\n  calculate_p_values=False,\n  enable_global_explain=False,\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_no_index_sql"
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='LOGISTIC_REG',\n  data_split_method='NO_SPLIT',\n  fit_intercept=True,\n  auto_class_weights=False,\n  optimize_strategy='auto_strategy',\n  l2_reg=0.0,\n  max_iterations=20,\n  learn_rate_strategy='line_search',\n  min_rel_progress=0.01,\n  calculate_p_values=False,\n  enable_global_explain=False,\n  INPUT_LABEL_COLS=['input_column_label'])\nAS input_X_y_no_index_sql",
     )
 
 
@@ -193,9 +200,10 @@ def test_logistic_regression_predict(mock_session, bqml_model, mock_X):
     model._bqml_model = bqml_model
     model.predict(mock_X)
 
-    mock_session.read_gbq.assert_called_once_with(
+    mock_session.read_gbq_query.assert_called_once_with(
         "SELECT * FROM ML.PREDICT(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql))",
         index_col=["index_column_id"],
+        allow_large_results=True,
     )
 
 
@@ -204,6 +212,77 @@ def test_logistic_regression_score(mock_session, bqml_model, mock_X, mock_y):
     model._bqml_model = bqml_model
     model.score(mock_X, mock_y)
 
-    mock_session.read_gbq.assert_called_once_with(
-        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_y_sql))"
+    mock_session.read_gbq_query.assert_called_once_with(
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_y_sql))",
+        allow_large_results=True,
+    )
+
+
+def test_decomposition_mf_default_fit(bqml_model_factory, mock_session, mock_X):
+    model = decomposition.MatrixFactorization(
+        num_factors=34,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    model._bqml_model_factory = bqml_model_factory
+    model.fit(mock_X)
+
+    mock_session._start_query_ml_ddl.assert_called_once_with(
+        "CREATE OR REPLACE MODEL `test-project`.`_anon123`.`temp_model_id`\nOPTIONS(\n  model_type='matrix_factorization',\n  feedback_type='explicit',\n  user_col='user_id',\n  item_col='item_col',\n  rating_col='rating_col',\n  l2_reg=9.83,\n  num_factors=34)\nAS input_X_no_index_sql"
+    )
+
+
+def test_decomposition_mf_predict(mock_session, bqml_model, mock_X):
+    model = decomposition.MatrixFactorization(
+        num_factors=34,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    model._bqml_model = bqml_model
+    model.predict(mock_X)
+
+    mock_session.read_gbq_query.assert_called_once_with(
+        "SELECT * FROM ML.RECOMMEND(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql))",
+        index_col=["index_column_id"],
+        allow_large_results=True,
+    )
+
+
+def test_decomposition_mf_score(mock_session, bqml_model):
+    model = decomposition.MatrixFactorization(
+        num_factors=34,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    model._bqml_model = bqml_model
+    model.score()
+    mock_session.read_gbq_query.assert_called_once_with(
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`)",
+        allow_large_results=True,
+    )
+
+
+def test_decomposition_mf_score_with_x(mock_session, bqml_model, mock_X):
+    model = decomposition.MatrixFactorization(
+        num_factors=34,
+        feedback_type="explicit",
+        user_col="user_id",
+        item_col="item_col",
+        rating_col="rating_col",
+        l2_reg=9.83,
+    )
+    model._bqml_model = bqml_model
+    model.score(mock_X)
+    mock_session.read_gbq_query.assert_called_once_with(
+        "SELECT * FROM ML.EVALUATE(MODEL `model_project`.`model_dataset`.`model_id`,\n  (input_X_sql_property))",
+        allow_large_results=True,
     )

@@ -56,12 +56,21 @@ class Options:
     """Global options affecting BigQuery DataFrames behavior."""
 
     def __init__(self):
+        self.reset()
+
+    def reset(self) -> Options:
+        """Reset the option settings to defaults.
+
+        Returns:
+            bigframes._config.Options: Options object with default values.
+        """
         self._local = ThreadLocalConfig()
 
         # BigQuery options are special because they can only be set once per
         # session, so we need an indicator as to whether we are using the
         # thread-local session or the global session.
         self._bigquery_options = bigquery_options.BigQueryOptions()
+        return self
 
     def _init_bigquery_thread_local(self):
         """Initialize thread-local options, based on current global options."""
@@ -149,6 +158,24 @@ class Options:
                 is in use; otherwise False.
         """
         return self._local.bigquery_options is not None
+
+    @property
+    def _allow_large_results(self) -> bool:
+        """The effective 'allow_large_results' setting.
+
+        This value is `self.compute.allow_large_results` if set (not `None`),
+        otherwise it defaults to `self.bigquery.allow_large_results`.
+
+        Returns:
+            bool:
+                Whether large query results are permitted.
+                - `True`: The BigQuery result size limit (e.g., 10 GB) is removed.
+                - `False`: Results are restricted to this limit (potentially faster).
+                BigQuery will raise an error if this limit is exceeded.
+        """
+        if self.compute.allow_large_results is None:
+            return self.bigquery.allow_large_results
+        return self.compute.allow_large_results
 
 
 options = Options()

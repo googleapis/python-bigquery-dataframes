@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import datetime
 import decimal
 import math
 import re
@@ -478,6 +479,11 @@ class BigQueryCompiler(SQLGlotCompiler):
             return sge.convert(str(value))
 
         elif dtype.is_int64():
+            # allows directly using values out of a duration arrow array
+            if isinstance(value, datetime.timedelta):
+                value = (
+                    (value.days * 3600 * 24) + value.seconds
+                ) * 1_000_000 + value.microseconds
             return sge.convert(np.int64(value))
         return None
 
@@ -538,7 +544,7 @@ class BigQueryCompiler(SQLGlotCompiler):
                     f"BigQuery does not allow extracting date part `{from_.unit}` from intervals"
                 )
             return self.f.extract(self.v[to.resolution.upper()], arg)
-        elif from_.is_floating() and to.is_integer():
+        elif (from_.is_floating() or from_.is_decimal()) and to.is_integer():
             return self.cast(self.f.trunc(arg), dt.int64)
         return super().visit_Cast(op, arg=arg, to=to)
 
@@ -692,6 +698,9 @@ class BigQueryCompiler(SQLGlotCompiler):
 
     def visit_ArrayMap(self, op, *, arg, body, param):
         return self.f.array(sg.select(body).from_(self._unnest(arg, as_=param)))
+
+    def visit_ArrayReduce(self, op, *, arg, body, param):
+        return sg.select(body).from_(self._unnest(arg, as_=param)).subquery()
 
     def visit_ArrayZip(self, op, *, arg):
         lengths = [self.f.array_length(arr) - 1 for arr in arg]
@@ -1024,7 +1033,7 @@ class BigQueryCompiler(SQLGlotCompiler):
         # Avoid creating temp tables for small data, which is how memtable is
         # used in BigQuery DataFrames. Inspired by:
         # https://github.com/ibis-project/ibis/blob/efa6fb72bf4c790450d00a926d7bd809dade5902/ibis/backends/druid/compiler.py#L95
-        tuples = data.to_frame().itertuples(index=False)
+        rows = data.to_pyarrow(schema=None).to_pylist()  # type: ignore
         quoted = self.quoted
         columns = [sg.column(col, quoted=quoted) for col in schema.names]
         array_expr = sge.DataType(
@@ -1042,10 +1051,10 @@ class BigQueryCompiler(SQLGlotCompiler):
             sge.Struct(
                 expressions=tuple(
                     self.visit_Literal(None, value=value, dtype=type_)
-                    for value, type_ in zip(row, schema.types)
+                    for value, type_ in zip(row.values(), schema.types)
                 )
             )
-            for row in tuples
+            for row in rows
         ]
         expr = sge.Unnest(
             expressions=[
@@ -1061,7 +1070,6 @@ class BigQueryCompiler(SQLGlotCompiler):
                 columns=columns,
             ),
         )
-        # return expr
         return sg.select(sge.Star()).from_(expr)
 
     def visit_ArrayAggregate(self, op, *, arg, order_by, where):
@@ -1079,6 +1087,37 @@ class BigQueryCompiler(SQLGlotCompiler):
         else:
             expr = arg
         return sge.IgnoreNulls(this=self.agg.array_agg(expr, where=where))
+
+    def visit_StringAgg(self, op, *, arg, sep, order_by, where):
+        if len(order_by) > 0:
+            expr = sge.Order(
+                this=arg,
+                expressions=[
+                    # Avoid adding NULLS FIRST / NULLS LAST in SQL, which is
+                    # unsupported in ARRAY_AGG by reconstructing the node as
+                    # plain SQL text.
+                    f"({order_column.args['this'].sql(dialect='bigquery')}) {'DESC' if order_column.args.get('desc') else 'ASC'}"
+                    for order_column in order_by
+                ],
+            )
+        else:
+            expr = arg
+        return self.agg.string_agg(expr, sep, where=where)
+
+    def visit_AIGenerateBool(self, op, **kwargs):
+        func_name = "AI.GENERATE_BOOL"
+
+        args = []
+        for key, val in kwargs.items():
+            if val is None:
+                continue
+
+            if key == "model_params":
+                val = sge.JSON(this=val)
+
+            args.append(sge.Kwarg(this=sge.Identifier(this=key), expression=val))
+
+        return sge.func(func_name, *args)
 
     def visit_FirstNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.FirstValue(this=arg))

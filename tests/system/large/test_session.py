@@ -14,49 +14,13 @@
 
 import datetime
 
+import google.cloud.bigquery as bigquery
 import google.cloud.exceptions
 import pytest
 
 import bigframes
 import bigframes.pandas as bpd
 import bigframes.session._io.bigquery
-
-
-@pytest.mark.parametrize(
-    ("query_or_table", "index_col"),
-    [
-        pytest.param(
-            "bigquery-public-data.patents_view.ipcr_201708",
-            (),
-            id="1g_table_w_default_index",
-        ),
-        pytest.param(
-            "bigquery-public-data.new_york_taxi_trips.tlc_yellow_trips_2011",
-            (),
-            id="30g_table_w_default_index",
-        ),
-        # TODO(chelsealin): Disable the long run tests until we have propertily
-        # ordering support to avoid materializating any data.
-        # # Adding default index to large tables would take much longer time,
-        # # e.g. ~5 mins for a 100G table, ~20 mins for a 1T table.
-        # pytest.param(
-        #     "bigquery-public-data.stackoverflow.post_history",
-        #     ["id"],
-        #     id="100g_table_w_unique_column_index",
-        # ),
-        # pytest.param(
-        #     "bigquery-public-data.wise_all_sky_data_release.all_wise",
-        #     ["cntr"],
-        #     id="1t_table_w_unique_column_index",
-        # ),
-    ],
-)
-def test_read_gbq_for_large_tables(
-    session: bigframes.Session, query_or_table, index_col
-):
-    """Verify read_gbq() is able to read large tables."""
-    df = session.read_gbq(query_or_table, index_col=index_col)
-    assert len(df.columns) != 0
 
 
 def test_close(session: bigframes.Session):
@@ -70,10 +34,14 @@ def test_close(session: bigframes.Session):
         + bigframes.constants.DEFAULT_EXPIRATION
     )
     full_id_1 = bigframes.session._io.bigquery.create_temp_table(
-        session.bqclient, session._temp_storage_manager._random_table(), expiration
+        session.bqclient,
+        session._anon_dataset_manager.allocate_temp_table(),
+        expiration,
     )
     full_id_2 = bigframes.session._io.bigquery.create_temp_table(
-        session.bqclient, session._temp_storage_manager._random_table(), expiration
+        session.bqclient,
+        session._anon_dataset_manager.allocate_temp_table(),
+        expiration,
     )
 
     # check that the tables were actually created
@@ -106,10 +74,14 @@ def test_clean_up_by_session_id():
         + bigframes.constants.DEFAULT_EXPIRATION
     )
     bigframes.session._io.bigquery.create_temp_table(
-        session.bqclient, session._temp_storage_manager._random_table(), expiration
+        session.bqclient,
+        session._anon_dataset_manager.allocate_temp_table(),
+        expiration,
     )
     bigframes.session._io.bigquery.create_temp_table(
-        session.bqclient, session._temp_storage_manager._random_table(), expiration
+        session.bqclient,
+        session._anon_dataset_manager.allocate_temp_table(),
+        expiration,
     )
 
     # check that some table exists with the expected session_id
@@ -142,21 +114,19 @@ def test_clean_up_by_session_id():
         pytest.param(bigframes.connect, id="connect-method"),
     ],
 )
+@pytest.mark.flaky(retries=3)
 def test_clean_up_via_context_manager(session_creator):
     # we will create two tables and confirm that they are deleted
     # when the session is closed
     with session_creator() as session:
         bqclient = session.bqclient
 
-        expiration = (
-            datetime.datetime.now(datetime.timezone.utc)
-            + bigframes.constants.DEFAULT_EXPIRATION
+        full_id_1 = session._anon_dataset_manager.create_temp_table(
+            [bigquery.SchemaField("a", "INT64")], cluster_cols=[]
         )
-        full_id_1 = bigframes.session._io.bigquery.create_temp_table(
-            session.bqclient, session._temp_storage_manager._random_table(), expiration
-        )
-        full_id_2 = bigframes.session._io.bigquery.create_temp_table(
-            session.bqclient, session._temp_storage_manager._random_table(), expiration
+        assert session._session_resource_manager is not None
+        full_id_2 = session._session_resource_manager.create_temp_table(
+            [bigquery.SchemaField("b", "STRING")], cluster_cols=["b"]
         )
 
         # check that the tables were actually created

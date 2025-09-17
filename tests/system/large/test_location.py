@@ -14,7 +14,8 @@
 
 import typing
 
-from google.cloud import bigquery
+import pandas
+import pandas.testing
 import pytest
 
 import bigframes
@@ -38,8 +39,17 @@ def _assert_bq_execution_location(
     if expected_location is None:
         expected_location = session._location
 
-    assert typing.cast(bigquery.QueryJob, df.query_job).location == expected_location
+    query_job = df.query_job
+    assert query_job is not None
+    assert query_job.location == expected_location
+    destination = query_job.destination
+    assert destination is not None
+    destination_dataset = session.bqclient.get_dataset(
+        f"{destination.project}.{destination.dataset_id}"
+    )
+    assert destination_dataset.location == expected_location
 
+    # Ensure operation involving BQ client suceeds
     result = (
         df[["name", "number"]]
         .groupby("name")
@@ -48,8 +58,27 @@ def _assert_bq_execution_location(
         .head()
     )
 
-    assert (
-        typing.cast(bigquery.QueryJob, result.query_job).location == expected_location
+    # Use allow_large_results = True to force a job to be created.
+    result_pd = result.to_pandas(allow_large_results=True)
+
+    query_job = df.query_job
+    assert query_job is not None
+    assert query_job.location == expected_location
+    destination = query_job.destination
+    assert destination is not None
+    destination_dataset = session.bqclient.get_dataset(
+        f"{destination.project}.{destination.dataset_id}"
+    )
+    assert destination_dataset.location == expected_location
+
+    expected_result = pandas.DataFrame(
+        {"number": [444, 222]}, index=pandas.Index(["aaa", "bbb"], name="name")
+    )
+    pandas.testing.assert_frame_equal(
+        expected_result,
+        result_pd,
+        check_dtype=False,
+        check_index_type=False,
     )
 
 
@@ -124,6 +153,8 @@ def test_bq_rep_endpoints(bigquery_location):
         )
     )
 
+    # Verify that location and endpoint is correctly set for the BigQuery API
+    # client
     assert session.bqclient.location == bigquery_location
     assert (
         session.bqclient._connection.API_BASE_URL
@@ -132,29 +163,52 @@ def test_bq_rep_endpoints(bigquery_location):
         )
     )
 
+    # Verify that endpoint is correctly set for the BigQuery Storage API client
+    # TODO(shobs): Figure out if we can verify that location is set in the
+    # BigQuery Storage API client.
+    assert (
+        session.bqstoragereadclient.api_endpoint
+        == f"bigquerystorage.{bigquery_location}.rep.googleapis.com"
+    )
+
     # assert that bigframes session honors the location
     _assert_bq_execution_location(session)
+
+
+def test_clients_provider_no_location():
+    with pytest.raises(ValueError, match="Must set location to use regional endpoints"):
+        bigframes.session.clients.ClientsProvider(use_regional_endpoints=True)
 
 
 @pytest.mark.parametrize(
     "bigquery_location",
     # Sort the set to avoid nondeterminism.
-    sorted(bigframes.constants.LEP_ENABLED_BIGQUERY_LOCATIONS),
+    sorted(bigframes.constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
 )
-def test_bq_lep_endpoints(bigquery_location):
-    # We are not testing BigFrames Session for LEP endpoints because it involves
-    # query execution using the endpoint, which requires the project to be
-    # allowlisted for LEP access. We could hardcode one project which is
-    # allowlisted but then not every open source developer will have access to
-    # that. Let's rely on just creating the clients for LEP.
-    clients_provider = bigframes.session.clients.ClientsProvider(
-        location=bigquery_location, use_regional_endpoints=True
-    )
-
-    assert clients_provider.bqclient.location == bigquery_location
-    assert (
-        clients_provider.bqclient._connection.API_BASE_URL
-        == "https://{location}-bigquery.googleapis.com".format(
-            location=bigquery_location
+def test_clients_provider_use_regional_endpoints_non_rep_locations(bigquery_location):
+    with pytest.raises(
+        ValueError,
+        match=f"not .*available in the location {bigquery_location}",
+    ):
+        bigframes.session.clients.ClientsProvider(
+            location=bigquery_location, use_regional_endpoints=True
         )
-    )
+
+
+@pytest.mark.parametrize(
+    "bigquery_location",
+    # Sort the set to avoid nondeterminism.
+    sorted(bigframes.constants.REP_NOT_ENABLED_BIGQUERY_LOCATIONS),
+)
+def test_session_init_fails_to_use_regional_endpoints_non_rep_endpoints(
+    bigquery_location,
+):
+    with pytest.raises(
+        ValueError,
+        match=f"not .*available in the location {bigquery_location}",
+    ):
+        bigframes.Session(
+            context=bigframes.BigQueryOptions(
+                location=bigquery_location, use_regional_endpoints=True
+            )
+        )

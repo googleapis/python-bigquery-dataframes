@@ -15,21 +15,43 @@ import dataclasses
 import functools
 from typing import Mapping, Tuple
 
-from bigframes.core import identifiers
-import bigframes.core.expression
+from bigframes.core import agg_expressions, expression, identifiers
 import bigframes.core.nodes
 import bigframes.core.ordering
 import bigframes.core.window_spec
-import bigframes.operations
 from bigframes.operations import aggregations as agg_ops
 
 
+def defer_order(
+    root: bigframes.core.nodes.ResultNode, output_hidden_row_keys: bool
+) -> bigframes.core.nodes.ResultNode:
+    new_child, order = _pull_up_order(root.child, order_root=True)
+    order_by = (
+        order.with_ordering_columns(root.order_by.all_ordering_columns)
+        if root.order_by
+        else order
+    )
+    if output_hidden_row_keys:
+        output_names = tuple((expression.DerefOp(id), id.sql) for id in new_child.ids)
+    else:
+        output_names = root.output_cols
+    return dataclasses.replace(
+        root, output_cols=output_names, child=new_child, order_by=order_by
+    )
+
+
+def bake_order(
+    node: bigframes.core.nodes.BigFrameNode,
+) -> bigframes.core.nodes.BigFrameNode:
+    node, _ = _pull_up_order(node, order_root=False)
+    return node
+
+
 # Makes ordering explicit in window definitions
-def pull_up_order(
+def _pull_up_order(
     root: bigframes.core.nodes.BigFrameNode,
     *,
     order_root: bool = True,
-    ordered_joins: bool = True,
 ) -> Tuple[bigframes.core.nodes.BigFrameNode, bigframes.core.ordering.RowOrdering]:
     """
     Pull the ordering up, putting full order definition into window ops.
@@ -92,7 +114,7 @@ def pull_up_order(
             child_result, child_order = pull_up_order_inner(node.child)
             return node.replace_child(child_result), child_order
         elif isinstance(node, bigframes.core.nodes.JoinNode):
-            if ordered_joins:
+            if node.propogate_order:
                 return pull_order_join(node)
             else:
                 return (
@@ -145,9 +167,7 @@ def pull_up_order(
                 )
             else:
                 # Otherwise we need to generate offsets
-                agg = bigframes.core.expression.NullaryAggregation(
-                    agg_ops.RowNumberOp()
-                )
+                agg = agg_expressions.NullaryAggregation(agg_ops.RowNumberOp())
                 window_spec = bigframes.core.window_spec.unbound(
                     ordering=tuple(child_order.all_ordering_columns)
                 )
@@ -189,11 +209,6 @@ def pull_up_order(
             )
             new_order = child_order.remap_column_refs(new_select_node.get_id_mapping())
             return new_select_node, new_order
-        elif isinstance(node, bigframes.core.nodes.RowCountNode):
-            child_result = remove_order(node.child)
-            return node.replace_child(
-                child_result
-            ), bigframes.core.ordering.TotalOrdering.from_primary_key([node.col_id])
         elif isinstance(node, bigframes.core.nodes.AggregateNode):
             if node.has_ordered_ops:
                 child_result, child_order = pull_up_order_inner(node.child)
@@ -270,9 +285,7 @@ def pull_up_order(
                     new_source, ((order_expression.scalar_expression, offsets_id),)
                 )
             else:
-                agg = bigframes.core.expression.NullaryAggregation(
-                    agg_ops.RowNumberOp()
-                )
+                agg = agg_expressions.NullaryAggregation(agg_ops.RowNumberOp())
                 window_spec = bigframes.core.window_spec.unbound(
                     ordering=tuple(order.all_ordering_columns)
                 )
@@ -406,7 +419,7 @@ def pull_up_order(
 def rewrite_promote_offsets(
     node: bigframes.core.nodes.PromoteOffsetsNode,
 ) -> bigframes.core.nodes.WindowOpNode:
-    agg = bigframes.core.expression.NullaryAggregation(agg_ops.RowNumberOp())
+    agg = agg_expressions.NullaryAggregation(agg_ops.RowNumberOp())
     window_spec = bigframes.core.window_spec.unbound()
     return bigframes.core.nodes.WindowOpNode(node.child, agg, window_spec, node.col_id)
 

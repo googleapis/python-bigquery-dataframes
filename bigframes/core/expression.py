@@ -16,16 +16,17 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import functools
 import itertools
 import typing
-from typing import Generator, Mapping, TypeVar, Union
+from typing import Callable, Generator, Mapping, TypeVar, Union
 
 import pandas as pd
 
+from bigframes import dtypes
+from bigframes.core import field
 import bigframes.core.identifiers as ids
-import bigframes.dtypes as dtypes
 import bigframes.operations
-import bigframes.operations.aggregations as agg_ops
 
 
 def const(
@@ -40,108 +41,6 @@ def deref(name: str) -> DerefOp:
 
 def free_var(id: str) -> UnboundVariableExpression:
     return UnboundVariableExpression(id)
-
-
-@dataclasses.dataclass(frozen=True)
-class Aggregation(abc.ABC):
-    """Represents windowing or aggregation over a column."""
-
-    op: agg_ops.WindowOp = dataclasses.field()
-
-    @abc.abstractmethod
-    def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
-        ...
-
-    @property
-    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        return ()
-
-    @abc.abstractmethod
-    def remap_column_refs(
-        self,
-        name_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-        allow_partial_bindings: bool = False,
-    ) -> Aggregation:
-        ...
-
-
-@dataclasses.dataclass(frozen=True)
-class NullaryAggregation(Aggregation):
-    op: agg_ops.NullaryWindowOp = dataclasses.field()
-
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        return self.op.output_type()
-
-    def remap_column_refs(
-        self,
-        name_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-        allow_partial_bindings: bool = False,
-    ) -> NullaryAggregation:
-        return self
-
-
-@dataclasses.dataclass(frozen=True)
-class UnaryAggregation(Aggregation):
-    op: agg_ops.UnaryWindowOp = dataclasses.field()
-    arg: Union[DerefOp, ScalarConstantExpression] = dataclasses.field()
-
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        return self.op.output_type(self.arg.output_type(input_types))
-
-    @property
-    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        return self.arg.column_references
-
-    def remap_column_refs(
-        self,
-        name_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-        allow_partial_bindings: bool = False,
-    ) -> UnaryAggregation:
-        return UnaryAggregation(
-            self.op,
-            self.arg.remap_column_refs(
-                name_mapping, allow_partial_bindings=allow_partial_bindings
-            ),
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class BinaryAggregation(Aggregation):
-    op: agg_ops.BinaryAggregateOp = dataclasses.field()
-    left: Union[DerefOp, ScalarConstantExpression] = dataclasses.field()
-    right: Union[DerefOp, ScalarConstantExpression] = dataclasses.field()
-
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        return self.op.output_type(
-            self.left.output_type(input_types), self.right.output_type(input_types)
-        )
-
-    @property
-    def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
-        return (*self.left.column_references, *self.right.column_references)
-
-    def remap_column_refs(
-        self,
-        name_mapping: Mapping[ids.ColumnId, ids.ColumnId],
-        allow_partial_bindings: bool = False,
-    ) -> BinaryAggregation:
-        return BinaryAggregation(
-            self.op,
-            self.left.remap_column_refs(
-                name_mapping, allow_partial_bindings=allow_partial_bindings
-            ),
-            self.right.remap_column_refs(
-                name_mapping, allow_partial_bindings=allow_partial_bindings
-            ),
-        )
 
 
 TExpression = TypeVar("TExpression", bound="Expression")
@@ -189,10 +88,17 @@ class Expression(abc.ABC):
     def is_const(self) -> bool:
         ...
 
+    @property
     @abc.abstractmethod
-    def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
+    def is_resolved(self) -> bool:
+        """
+        Returns true if and only if the expression's output type and nullability is available.
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def output_type(self) -> dtypes.ExpressionType:
         ...
 
     @abc.abstractmethod
@@ -230,6 +136,15 @@ class Expression(abc.ABC):
         """True for identity operation that does not transform input."""
         return False
 
+    @abc.abstractmethod
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        ...
+
+    def bottom_up(self, t: Callable[[Expression], Expression]) -> Expression:
+        expr = self.transform_children(lambda child: child.bottom_up(t))
+        expr = t(expr)
+        return expr
+
     def walk(self) -> Generator[Expression, None, None]:
         yield self
         for child in self.children:
@@ -256,9 +171,12 @@ class ScalarConstantExpression(Expression):
     def nullable(self) -> bool:
         return pd.isna(self.value)  # type: ignore
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+    @property
+    def is_resolved(self) -> bool:
+        return True
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
         return self.dtype
 
     def bind_variables(
@@ -289,6 +207,9 @@ class ScalarConstantExpression(Expression):
 
         return self.value == other.value and self.dtype == other.dtype
 
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
 class UnboundVariableExpression(Expression):
@@ -308,9 +229,12 @@ class UnboundVariableExpression(Expression):
     def column_references(self) -> typing.Tuple[ids.ColumnId, ...]:
         return ()
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
+    @property
+    def is_resolved(self):
+        return False
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
         raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_refs(
@@ -337,10 +261,13 @@ class UnboundVariableExpression(Expression):
     def is_identity(self) -> bool:
         return True
 
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
 class DerefOp(Expression):
-    """A variable expression representing an unbound variable."""
+    """An expression that refers to a column by ID."""
 
     id: ids.ColumnId
 
@@ -357,13 +284,13 @@ class DerefOp(Expression):
         # Safe default, need to actually bind input schema to determine
         return True
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, bigframes.dtypes.Dtype]
-    ) -> dtypes.ExpressionType:
-        if self.id in input_types:
-            return input_types[self.id]
-        else:
-            raise ValueError(f"Type of variable {self.id} has not been fixed.")
+    @property
+    def is_resolved(self) -> bool:
+        return False
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        raise ValueError(f"Type of variable {self.id} has not been fixed.")
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -389,12 +316,39 @@ class DerefOp(Expression):
     def is_identity(self) -> bool:
         return True
 
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        return self
+
+
+@dataclasses.dataclass(frozen=True)
+class ResolvedDerefOp(DerefOp):
+    """An expression that refers to a column by ID and resolved with schema bound."""
+
+    dtype: dtypes.Dtype
+    is_nullable: bool
+
+    @classmethod
+    def from_field(cls, f: field.Field):
+        return cls(id=f.id, dtype=f.dtype, is_nullable=f.nullable)
+
+    @property
+    def is_resolved(self) -> bool:
+        return True
+
+    @property
+    def nullable(self) -> bool:
+        return self.is_nullable
+
+    @property
+    def output_type(self) -> dtypes.ExpressionType:
+        return self.dtype
+
 
 @dataclasses.dataclass(frozen=True)
 class OpExpression(Expression):
     """An expression representing a scalar operation applied to 1 or more argument sub-expressions."""
 
-    op: bigframes.operations.RowOp
+    op: bigframes.operations.ScalarOp
     inputs: typing.Tuple[Expression, ...]
 
     @property
@@ -429,13 +383,18 @@ class OpExpression(Expression):
         )
         return not null_free
 
-    def output_type(
-        self, input_types: dict[ids.ColumnId, dtypes.ExpressionType]
-    ) -> dtypes.ExpressionType:
-        operand_types = tuple(
-            map(lambda x: x.output_type(input_types=input_types), self.inputs)
-        )
-        return self.op.output_type(*operand_types)
+    @functools.cached_property
+    def is_resolved(self) -> bool:
+        return all(input.is_resolved for input in self.inputs)
+
+    @functools.cached_property
+    def output_type(self) -> dtypes.ExpressionType:
+        if not self.is_resolved:
+            raise ValueError(f"Type of expression {self.op.name} has not been fixed.")
+
+        input_types = [input.output_type for input in self.inputs]
+
+        return self.op.output_type(*input_types)
 
     def bind_variables(
         self, bindings: Mapping[str, Expression], allow_partial_bindings: bool = False
@@ -473,6 +432,30 @@ class OpExpression(Expression):
         return (
             all(input.deterministic for input in self.inputs) and self.op.deterministic
         )
+
+    def transform_children(self, t: Callable[[Expression], Expression]) -> Expression:
+        new_inputs = tuple(t(input) for input in self.inputs)
+        if new_inputs != self.inputs:
+            return dataclasses.replace(self, inputs=new_inputs)
+        return self
+
+
+def bind_schema_fields(
+    expr: Expression, field_by_id: Mapping[ids.ColumnId, field.Field]
+) -> Expression:
+    """
+    Updates `DerefOp` expressions by replacing column IDs with actual schema fields(columns).
+
+    We can only deduct an expression's output type and nullability after binding schema fields to
+    all its deref expressions.
+    """
+    if expr.is_resolved:
+        return expr
+
+    expr_by_id = {
+        id: ResolvedDerefOp.from_field(field) for id, field in field_by_id.items()
+    }
+    return expr.bind_refs(expr_by_id)
 
 
 RefOrConstant = Union[DerefOp, ScalarConstantExpression]

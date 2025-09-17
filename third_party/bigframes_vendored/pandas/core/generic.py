@@ -223,6 +223,7 @@ class NDFrame(indexing.IndexingMixin):
         *,
         index: bool = True,
         lines: bool = False,
+        allow_large_results: Optional[bool] = None,
     ) -> Optional[str]:
         """Convert the object to a JSON string, written to Cloud Storage.
 
@@ -278,6 +279,11 @@ class NDFrame(indexing.IndexingMixin):
                 throw ValueError if incorrect 'orient' since others are not
                 list-like.
 
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB. This parameter has
+                no effect when results are saved to Google Cloud Storage (GCS).
+
         Returns:
             None or str:
                 If path_or_buf is None, returns the resulting json format as a
@@ -289,7 +295,13 @@ class NDFrame(indexing.IndexingMixin):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_csv(self, path_or_buf, *, index: bool = True) -> Optional[str]:
+    def to_csv(
+        self,
+        path_or_buf,
+        *,
+        index: bool = True,
+        allow_large_results: Optional[bool] = None,
+    ) -> Optional[str]:
         """Write object to a comma-separated values (csv) file on Cloud Storage.
 
         Args:
@@ -312,6 +324,11 @@ class NDFrame(indexing.IndexingMixin):
 
             index (bool, default True):
                 If True, write row names (index).
+
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow large
+                query results over the default size limit of 10 GB. This parameter has
+                no effect when results are saved to Google Cloud Storage (GCS).
 
         Returns:
             None or str: If path_or_buf is None, returns the resulting json format as a
@@ -893,6 +910,29 @@ class NDFrame(indexing.IndexingMixin):
 
     notnull = notna
 
+    def take(self, indices, axis=0, **kwargs) -> NDFrame:
+        """Return the elements in the given positional indices along an axis.
+
+        This means that we are not indexing according to actual values in the index
+        attribute of the object. We are indexing according to the actual position of
+        the element in the object.
+
+        Args:
+            indices (list-like):
+                An array of ints indicating which positions to take.
+            axis ({0 or 'index', 1 or 'columns', None}, default 0):
+                The axis on which to select elements. 0 means that we are selecting rows,
+                1 means that we are selecting columns. For Series this parameter is
+                unused and defaults to 0.
+            **kwargs:
+                For compatibility with numpy.take(). Has no effect on the output.
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Same type as input object.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def filter(
         self,
         items=None,
@@ -1002,6 +1042,10 @@ class NDFrame(indexing.IndexingMixin):
             ascending (bool, default True):
                 Whether or not the elements should be ranked in ascending order.
 
+            pct (bool, default False):
+                Whether or not to display the returned rankings in percentile
+                form.
+
         Returns:
             bigframes.pandas.DataFrame or bigframes.pandas.Series:
                 Return a Series or DataFrame with data ranks as values.
@@ -1012,36 +1056,67 @@ class NDFrame(indexing.IndexingMixin):
         self,
         window,
         min_periods: int | None = None,
+        on: str | None = None,
+        closed: Literal["right", "left", "both", "neither"] = "right",
     ):
         """
         Provide rolling window calculations.
 
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> s = bpd.Series([0,1,2,3,4])
+            >>> s.rolling(window=3).min()
+            0    <NA>
+            1    <NA>
+            2       0
+            3       1
+            4       2
+            dtype: Int64
+
+            >>> df = bpd.DataFrame({'A': [0,1,2,3], 'B': [0,2,4,6]})
+            >>> df.rolling(window=2, on='A', closed='both').sum()
+            A     B
+            0  0  <NA>
+            1  1     2
+            2  2     6
+            3  3    12
+            <BLANKLINE>
+            [4 rows x 2 columns]
+
         Args:
-            window (int, timedelta, str, offset, or BaseIndexer subclass):
+            window (int, pandas.Timedelta, numpy.timedelta64, datetime.timedelta, str):
                 Size of the moving window.
 
                 If an integer, the fixed number of observations used for
                 each window.
 
-                If a timedelta, str, or offset, the time period of each window. Each
-                window will be a variable sized based on the observations included in
-                the time-period. This is only valid for datetime-like indexes.
-                To learn more about the offsets & frequency strings, please see `this link
-                <https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases>`__.
+                If a string, the timedelta representation in string. This string
+                must be parsable by pandas.Timedelta().
 
-                If a BaseIndexer subclass, the window boundaries
-                based on the defined ``get_window_bounds`` method. Additional rolling
-                keyword arguments, namely ``min_periods``, ``center``, ``closed`` and
-                ``step`` will be passed to ``get_window_bounds``.
+                Otherwise, the time range for each window.
 
             min_periods (int, default None):
                 Minimum number of observations in window required to have a value;
                 otherwise, result is ``np.nan``.
 
-                For a window that is specified by an offset, ``min_periods`` will default to 1.
-
                 For a window that is specified by an integer, ``min_periods`` will default
                 to the size of the window.
+
+                For a window that is not spicified by an interger, ``min_periods`` will default
+                to 1.
+
+            on (str, optional):
+                For a DataFrame, a column label on which to calculate the rolling window,
+                rather than the DataFrame’s index.
+
+            closed (str, default 'right'):
+                If 'right', the first point in the window is excluded from calculations.
+                If 'left', the last point in the window is excluded from calculations.
+                If 'both', the no points in the window are excluded from calculations.
+                If 'neither', the first and last points in the window are excluded from calculations.
 
         Returns:
             bigframes.core.window.Window: ``Window`` subclass if a ``win_type`` is passed.

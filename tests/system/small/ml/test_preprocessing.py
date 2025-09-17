@@ -19,7 +19,7 @@ import pyarrow as pa
 
 import bigframes.features
 from bigframes.ml import preprocessing
-from tests.system import utils
+from bigframes.testing import utils
 
 ONE_HOT_ENCODED_DTYPE = (
     pd.ArrowDtype(pa.list_(pa.struct([("index", pa.int64()), ("value", pa.float64())])))
@@ -245,7 +245,7 @@ def test_max_abs_scaler_save_load(new_penguins_df, dataset_id):
         index=pd.Index([1633, 1672, 1690], name="tag_number", dtype="Int64"),
     )
 
-    pd.testing.assert_frame_equal(result, expected, rtol=0.1)
+    pd.testing.assert_frame_equal(result.sort_index(), expected.sort_index(), rtol=0.1)
 
 
 def test_min_max_scaler_normalized_fit_transform(new_penguins_df):

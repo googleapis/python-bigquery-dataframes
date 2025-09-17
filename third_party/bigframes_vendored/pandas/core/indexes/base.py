@@ -1,8 +1,10 @@
 # Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/indexes/base.py
 from __future__ import annotations
 
+from collections.abc import Hashable
 import typing
 
+import bigframes
 from bigframes import constants
 
 
@@ -740,6 +742,47 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def get_loc(
+        self, key: typing.Any
+    ) -> typing.Union[int, slice, bigframes.series.Series]:
+        """
+        Get integer location, slice or boolean mask for requested label.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
+            >>> unique_index = bpd.Index(list('abc'))
+            >>> unique_index.get_loc('b')
+            1
+
+            >>> monotonic_index = bpd.Index(list('abbc'))
+            >>> monotonic_index.get_loc('b')
+            slice(1, 3, None)
+
+            >>> non_monotonic_index = bpd.Index(list('abcb'))
+            >>> non_monotonic_index.get_loc('b')
+            0    False
+            1     True
+            2    False
+            3     True
+            dtype: boolean
+
+        Args:
+            key: Label to get the location for.
+
+        Returns:
+            Union[int, slice, bigframes.pandas.Series]:
+                Integer position of the label for unique indexes.
+                Slice object for monotonic indexes with duplicates.
+                Boolean Series mask for non-monotonic indexes with duplicates.
+
+        Raises:
+            KeyError: If the key is not found in the index.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def argmax(self) -> int:
         """
         Return int position of the largest value in the Series.
@@ -940,7 +983,7 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def rename(self, name) -> Index:
+    def rename(self, name, *, inplace):
         """
         Alter Index or MultiIndex name.
 
@@ -959,10 +1002,13 @@ class Index:
         Args:
             name (label or list of labels):
                 Name(s) to set.
+            inplace (bool):
+                Default False.  Modifies the object directly, instead of
+                creating a new Index or MultiIndex.
 
         Returns:
-            bigframes.pandas.Index:
-                The same type as the caller.
+            bigframes.pandas.Index | None:
+                The same type as the caller or None if ``inplace=True``.
 
         Raises:
             ValueError:
@@ -1061,13 +1107,57 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
-    def to_numpy(self, dtype):
+    def unique(self, level: Hashable | int | None = None):
+        """
+        Returns unique values in the index.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> idx = bpd.Index([1, 1, 2, 3, 3])
+            >>> idx.unique()
+            Index([1, 2, 3], dtype='Int64')
+
+        Args:
+            level (int or hashable, optional):
+                Only return values from specified level (for MultiIndex).
+                If int, gets the level by integer position, else by level name.
+
+        Returns:
+            bigframes.pandas.Index
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def item(self, *args, **kwargs):
+        """Return the first element of the underlying data as a Python scalar.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+            >>> s = bpd.Series([1], index=['a'])
+            >>> s.index.item()
+            'a'
+
+        Returns:
+            scalar: The first element of Index.
+
+        Raises:
+            ValueError: If the data is not length = 1.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def to_numpy(self, dtype, *, allow_large_results=None):
         """
         A NumPy ndarray representing the values in this Series or Index.
 
         Args:
             dtype:
                 The dtype to pass to :meth:`numpy.asarray`.
+            allow_large_results (bool, default None):
+                If not None, overrides the global setting to allow or disallow
+                large query results over the default size limit of 10 GB.
             **kwargs:
                 Additional keywords passed through to the ``to_numpy`` method
                 of the underlying array (for extension arrays).

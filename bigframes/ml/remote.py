@@ -21,6 +21,7 @@ import warnings
 
 from bigframes.core import global_session, log_adapter
 import bigframes.dataframe
+import bigframes.exceptions as bfe
 from bigframes.ml import base, core, globals, utils
 import bigframes.session
 
@@ -77,19 +78,14 @@ class VertexAIModel(base.BaseEstimator):
             "endpoint": self.endpoint,
         }
 
-        def standardize_type(v: str):
-            v = v.lower()
-            v = v.replace("boolean", "bool")
-
-            if v not in globals._SUPPORTED_DTYPES:
-                raise ValueError(
-                    f"Data type {v} is not supported. We only support {', '.join(globals._SUPPORTED_DTYPES)}."
-                )
-
-            return v
-
-        self.input = {k: standardize_type(v) for k, v in self.input.items()}
-        self.output = {k: standardize_type(v) for k, v in self.output.items()}
+        self.input = {
+            k: utils.standardize_type(v, globals._REMOTE_MODEL_SUPPORTED_DTYPES)
+            for k, v in self.input.items()
+        }
+        self.output = {
+            k: utils.standardize_type(v, globals._REMOTE_MODEL_SUPPORTED_DTYPES)
+            for k, v in self.output.items()
+        }
 
         return self._bqml_model_factory.create_remote_model(
             session=self.session,
@@ -119,7 +115,7 @@ class VertexAIModel(base.BaseEstimator):
 
         # unlike LLM models, the general remote model status is null for successful runs.
         if (df[_REMOTE_MODEL_STATUS].notna()).any():
-            msg = (
+            msg = bfe.format_message(
                 f"Some predictions failed. Check column {_REMOTE_MODEL_STATUS} for "
                 "detailed status. You may want to filter the failed rows and retry."
             )

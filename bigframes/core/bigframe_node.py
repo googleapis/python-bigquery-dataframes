@@ -20,34 +20,15 @@ import dataclasses
 import functools
 import itertools
 import typing
-from typing import Callable, Dict, Generator, Iterable, Mapping, Set, Tuple
+from typing import Callable, Dict, Generator, Iterable, Mapping, Sequence, Tuple
 
-from bigframes.core import identifiers
-import bigframes.core.guid
+from bigframes.core import expression, field, identifiers
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 
-if typing.TYPE_CHECKING:
-    import bigframes.session
-
 COLUMN_SET = frozenset[identifiers.ColumnId]
 
-
-@dataclasses.dataclass(frozen=True)
-class Field:
-    id: identifiers.ColumnId
-    dtype: bigframes.dtypes.Dtype
-    # Best effort, nullable=True if not certain
-    nullable: bool = True
-
-    def with_nullable(self) -> Field:
-        return Field(self.id, self.dtype, nullable=True)
-
-    def with_nonnull(self) -> Field:
-        return Field(self.id, self.dtype, nullable=False)
-
-    def with_id(self, id: identifiers.ColumnId) -> Field:
-        return Field(id, self.dtype, nullable=self.nullable)
+T = typing.TypeVar("T")
 
 
 @dataclasses.dataclass(eq=False, frozen=True)
@@ -161,7 +142,7 @@ class BigFrameNode:
     # TODO: Store some local data lazily for select, aggregate nodes.
     @property
     @abc.abstractmethod
-    def fields(self) -> Iterable[Field]:
+    def fields(self) -> Sequence[field.Field]:
         ...
 
     @property
@@ -291,8 +272,15 @@ class BigFrameNode:
         return {field.id: field.dtype for field in self.fields}
 
     @functools.cached_property
-    def field_by_id(self) -> Mapping[identifiers.ColumnId, Field]:
+    def field_by_id(self) -> Mapping[identifiers.ColumnId, field.Field]:
         return {field.id: field for field in self.fields}
+
+    @property
+    def _node_expressions(
+        self,
+    ) -> Sequence[expression.Expression]:
+        """List of expressions. Intended for checking engine compatibility with used ops."""
+        return ()
 
     # Plan algorithms
     def unique_nodes(
@@ -308,33 +296,31 @@ class BigFrameNode:
                 seen.add(item)
                 stack.extend(item.child_nodes)
 
-    def edges(
+    def iter_nodes_topo(
         self: BigFrameNode,
-    ) -> Generator[Tuple[BigFrameNode, BigFrameNode], None, None]:
-        for item in self.unique_nodes():
-            for child in item.child_nodes:
-                yield (item, child)
-
-    def iter_nodes_topo(self: BigFrameNode) -> Generator[BigFrameNode, None, None]:
-        """Returns nodes from bottom up."""
-        queue = collections.deque(
-            [node for node in self.unique_nodes() if not node.child_nodes]
-        )
-
+    ) -> Generator[BigFrameNode, None, None]:
+        """Returns nodes in reverse topological order, using Kahn's algorithm."""
         child_to_parents: Dict[
-            BigFrameNode, Set[BigFrameNode]
-        ] = collections.defaultdict(set)
-        for parent, child in self.edges():
-            child_to_parents[child].add(parent)
+            BigFrameNode, list[BigFrameNode]
+        ] = collections.defaultdict(list)
+        out_degree: Dict[BigFrameNode, int] = collections.defaultdict(int)
 
-        yielded = set()
+        queue: collections.deque["BigFrameNode"] = collections.deque()
+        for node in list(self.unique_nodes()):
+            num_children = len(node.child_nodes)
+            out_degree[node] = num_children
+            if num_children == 0:
+                queue.append(node)
+            for child in node.child_nodes:
+                child_to_parents[child].append(node)
 
         while queue:
             item = queue.popleft()
             yield item
-            yielded.add(item)
-            for parent in child_to_parents[item]:
-                if set(parent.child_nodes).issubset(yielded):
+            parents = child_to_parents.get(item, [])
+            for parent in parents:
+                out_degree[parent] -= 1
+                if out_degree[parent] == 0:
                     queue.append(parent)
 
     def top_down(
@@ -379,6 +365,17 @@ class BigFrameNode:
             # child nodes have already been transformed
             result = node.transform_children(lambda x: results[x])
             result = transform(result)
+            results[node] = result
+
+        return results[self]
+
+    def reduce_up(self, reduction: Callable[[BigFrameNode, Tuple[T, ...]], T]) -> T:
+        """Apply a bottom-up reduction to the tree."""
+        results: dict[BigFrameNode, T] = {}
+        for node in list(self.iter_nodes_topo()):
+            # child nodes have already been transformed
+            child_results = tuple(results[child] for child in node.child_nodes)
+            result = reduction(node, child_results)
             results[node] = result
 
         return results[self]

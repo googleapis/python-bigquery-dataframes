@@ -22,12 +22,13 @@ import re
 import textwrap
 import types
 import typing
-from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
+from typing import Dict, Iterable, Literal, Mapping, Optional, overload, Tuple, Union
 
+import bigframes_vendored.google_cloud_bigquery.retry as third_party_gcb_retry
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
+import google.api_core.retry
 import google.cloud.bigquery as bigquery
-import google.cloud.bigquery.table
 
 from bigframes.core import log_adapter
 import bigframes.core.compile.googlesql as googlesql
@@ -39,7 +40,6 @@ CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-
 
 
 IO_ORDERING_ID = "bqdf_row_nums"
-MAX_LABELS_COUNT = 64 - 8
 _LIST_TABLES_LIMIT = 10000  # calls to bqclient.list_tables
 # will be limited to this many tables
 
@@ -49,7 +49,6 @@ _MAX_CLUSTER_COLUMNS = 4
 def create_job_configs_labels(
     job_configs_labels: Optional[Dict[str, str]],
     api_methods: typing.List[str],
-    api_name: Optional[str] = None,
 ) -> Dict[str, str]:
     if job_configs_labels is None:
         job_configs_labels = {}
@@ -58,9 +57,6 @@ def create_job_configs_labels(
     # they are preserved.
     for key, value in bigframes.options.compute.extra_query_labels.items():
         job_configs_labels[key] = value
-
-    if api_name is not None:
-        job_configs_labels["bigframes-api"] = api_name
 
     if api_methods and "bigframes-api" not in job_configs_labels:
         job_configs_labels["bigframes-api"] = api_methods[0]
@@ -78,7 +74,12 @@ def create_job_configs_labels(
         )
     )
     values = list(itertools.chain(job_configs_labels.values(), api_methods))
-    return dict(zip(labels[:MAX_LABELS_COUNT], values[:MAX_LABELS_COUNT]))
+    return dict(
+        zip(
+            labels[: log_adapter.MAX_LABELS_COUNT],
+            values[: log_adapter.MAX_LABELS_COUNT],
+        )
+    )
 
 
 def create_export_data_statement(
@@ -144,6 +145,28 @@ def create_temp_table(
     return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
 
 
+def create_temp_view(
+    bqclient: bigquery.Client,
+    table_ref: bigquery.TableReference,
+    *,
+    expiration: datetime.datetime,
+    sql: str,
+) -> str:
+    """Create an empty table with an expiration in the desired session.
+
+    The table will be deleted when the session is closed or the expiration
+    is reached.
+    """
+    destination = bigquery.Table(table_ref)
+    destination.expires = expiration
+    destination.view_query = sql
+
+    # Ok if already exists, since this will only happen from retries internal to this method
+    # as the requested table id has a random UUID4 component.
+    bqclient.create_table(destination, exists_ok=True)
+    return f"{table_ref.project}.{table_ref.dataset_id}.{table_ref.table_id}"
+
+
 def set_table_expiration(
     bqclient: bigquery.Client,
     table_ref: bigquery.TableReference,
@@ -203,45 +226,124 @@ def format_option(key: str, value: Union[bool, str]) -> str:
     return f"{key}={repr(value)}"
 
 
-def add_and_trim_labels(job_config, api_name: Optional[str] = None):
+def add_and_trim_labels(job_config):
     """
     Add additional labels to the job configuration and trim the total number of labels
-    to ensure they do not exceed the maximum limit allowed by BigQuery, which is 64
-    labels per job.
+    to ensure they do not exceed MAX_LABELS_COUNT labels per job.
     """
     api_methods = log_adapter.get_and_reset_api_methods(dry_run=job_config.dry_run)
     job_config.labels = create_job_configs_labels(
         job_configs_labels=job_config.labels,
         api_methods=api_methods,
-        api_name=api_name,
     )
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[True],
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[False],
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[True],
+    job_retry: google.api_core.retry.Retry,
+) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    ...
+
+
+@overload
+def start_query_with_client(
+    bq_client: bigquery.Client,
+    sql: str,
+    *,
+    job_config: bigquery.QueryJobConfig,
+    location: Optional[str],
+    project: Optional[str],
+    timeout: Optional[float],
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
+    query_with_job: Literal[False],
+    job_retry: google.api_core.retry.Retry,
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+    ...
 
 
 def start_query_with_client(
     bq_client: bigquery.Client,
     sql: str,
-    job_config: bigquery.job.QueryJobConfig,
+    *,
+    job_config: bigquery.QueryJobConfig,
     location: Optional[str] = None,
     project: Optional[str] = None,
-    max_results: Optional[int] = None,
-    page_size: Optional[int] = None,
     timeout: Optional[float] = None,
-    api_name: Optional[str] = None,
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
-) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+    query_with_job: bool = True,
+    # TODO(tswast): We can stop providing our own default once we use a
+    # google-cloud-bigquery version with
+    # https://github.com/googleapis/python-bigquery/pull/2256 merged, likely
+    # version 3.36.0 or later.
+    job_retry: google.api_core.retry.Retry = third_party_gcb_retry.DEFAULT_JOB_RETRY,
+) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
     """
     try:
-        # Note: Ensure no additional labels are added to job_config after this point,
-        # as `add_and_trim_labels` ensures the label count does not exceed 64.
-        add_and_trim_labels(job_config, api_name=api_name)
+        # Note: Ensure no additional labels are added to job_config after this
+        # point, as `add_and_trim_labels` ensures the label count does not
+        # exceed MAX_LABELS_COUNT.
+        add_and_trim_labels(job_config)
+        if not query_with_job:
+            results_iterator = bq_client.query_and_wait(
+                sql,
+                job_config=job_config,
+                location=location,
+                project=project,
+                api_timeout=timeout,
+                job_retry=job_retry,
+            )
+            if metrics is not None:
+                metrics.count_job_stats(row_iterator=results_iterator)
+            return results_iterator, None
+
         query_job = bq_client.query(
             sql,
             job_config=job_config,
             location=location,
             project=project,
             timeout=timeout,
+            job_retry=job_retry,
         )
     except google.api_core.exceptions.Forbidden as ex:
         if "Drive credentials" in ex.message:
@@ -252,17 +354,13 @@ def start_query_with_client(
     if opts.progress_bar is not None and not query_job.configuration.dry_run:
         results_iterator = formatting_helpers.wait_for_query_job(
             query_job,
-            max_results=max_results,
             progress_bar=opts.progress_bar,
-            page_size=page_size,
         )
     else:
-        results_iterator = query_job.result(
-            max_results=max_results, page_size=page_size
-        )
+        results_iterator = query_job.result()
 
     if metrics is not None:
-        metrics.count_job_stats(query_job)
+        metrics.count_job_stats(query_job=query_job)
     return results_iterator, query_job
 
 
@@ -299,9 +397,8 @@ def delete_tables_matching_session_id(
 
 def create_bq_dataset_reference(
     bq_client: bigquery.Client,
-    location=None,
-    project=None,
-    api_name: str = "unknown",
+    location: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> bigquery.DatasetReference:
     """Create and identify dataset(s) for temporary BQ resources.
 
@@ -330,7 +427,9 @@ def create_bq_dataset_reference(
         location=location,
         job_config=job_config,
         project=project,
-        api_name=api_name,
+        timeout=None,
+        metrics=None,
+        query_with_job=True,
     )
 
     # The anonymous dataset is used by BigQuery to write query results and

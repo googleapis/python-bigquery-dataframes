@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-from tests.system.utils import assert_pandas_df_equal
+from bigframes.testing.utils import assert_pandas_df_equal
 
 # =================
 # DataFrame.groupby
@@ -95,6 +96,46 @@ def test_dataframe_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q
 
 
 @pytest.mark.parametrize(
+    ("na_option", "method", "ascending", "pct"),
+    [
+        (
+            "keep",
+            "average",
+            True,
+            False,
+        ),
+        ("top", "min", False, False),
+        ("bottom", "max", False, False),
+        ("top", "first", False, True),
+        ("bottom", "dense", False, True),
+    ],
+)
+def test_dataframe_groupby_rank(
+    scalars_df_index, scalars_pandas_df_index, na_option, method, ascending, pct
+):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    col_names = ["int64_too", "float64_col", "int64_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names]
+        .groupby("string_col")
+        .rank(na_option=na_option, method=method, ascending=ascending, pct=pct)
+    ).to_pandas()
+    pd_result = (
+        (
+            scalars_pandas_df_index[col_names]
+            .groupby("string_col")
+            .rank(na_option=na_option, method=method, ascending=ascending, pct=pct)
+        )
+        .astype("float64")
+        .astype("Float64")
+    )
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+@pytest.mark.parametrize(
     ("operator"),
     [
         (lambda x: x.count()),
@@ -151,16 +192,21 @@ def test_dataframe_groupby_agg_size_string(scalars_df_index, scalars_pandas_df_i
 def test_dataframe_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
     bf_result = (
-        scalars_df_index[col_names].groupby("string_col").agg(["count", "min", "size"])
+        scalars_df_index[col_names].groupby("string_col").agg(["count", np.min, "size"])
     )
     pd_result = (
         scalars_pandas_df_index[col_names]
         .groupby("string_col")
-        .agg(["count", "min", "size"])
+        .agg(["count", np.min, "size"])
     )
     bf_result_computed = bf_result.to_pandas()
 
-    pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+    # some inconsistency between versions, so normalize to bigframes behavior
+    pd_result = pd_result.rename({"amin": "min"}, axis="columns")
+    bf_result_computed = bf_result_computed.rename({"amin": "min"}, axis="columns")
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result_computed, check_dtype=False, check_index_type=False
+    )
 
 
 def test_dataframe_groupby_agg_list_w_column_multi_index(
@@ -173,8 +219,8 @@ def test_dataframe_groupby_agg_list_w_column_multi_index(
     pd_df = scalars_pandas_df_index[columns].copy()
     pd_df.columns = multi_columns
 
-    bf_result = bf_df.groupby(level=0).agg(["count", "min", "size"])
-    pd_result = pd_df.groupby(level=0).agg(["count", "min", "size"])
+    bf_result = bf_df.groupby(level=0).agg(["count", np.min, "size"])
+    pd_result = pd_df.groupby(level=0).agg(["count", np.min, "size"])
 
     bf_result_computed = bf_result.to_pandas()
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
@@ -194,15 +240,21 @@ def test_dataframe_groupby_agg_dict_with_list(
     bf_result = (
         scalars_df_index[col_names]
         .groupby("string_col", as_index=as_index)
-        .agg({"int64_too": ["mean", "max"], "string_col": "count", "bool_col": "size"})
+        .agg(
+            {"int64_too": [np.mean, np.max], "string_col": "count", "bool_col": "size"}
+        )
     )
     pd_result = (
         scalars_pandas_df_index[col_names]
         .groupby("string_col", as_index=as_index)
-        .agg({"int64_too": ["mean", "max"], "string_col": "count", "bool_col": "size"})
+        .agg(
+            {"int64_too": [np.mean, np.max], "string_col": "count", "bool_col": "size"}
+        )
     )
     bf_result_computed = bf_result.to_pandas()
 
+    # some inconsistency between versions, so normalize to bigframes behavior
+    pd_result = pd_result.rename({"amax": "max"}, axis="columns")
     pd.testing.assert_frame_equal(
         pd_result, bf_result_computed, check_dtype=False, check_index_type=False
     )
@@ -213,12 +265,12 @@ def test_dataframe_groupby_agg_dict_no_lists(scalars_df_index, scalars_pandas_df
     bf_result = (
         scalars_df_index[col_names]
         .groupby("string_col")
-        .agg({"int64_too": "mean", "string_col": "count"})
+        .agg({"int64_too": np.mean, "string_col": "count"})
     )
     pd_result = (
         scalars_pandas_df_index[col_names]
         .groupby("string_col")
-        .agg({"int64_too": "mean", "string_col": "count"})
+        .agg({"int64_too": np.mean, "string_col": "count"})
     )
     bf_result_computed = bf_result.to_pandas()
 
@@ -231,7 +283,7 @@ def test_dataframe_groupby_agg_named(scalars_df_index, scalars_pandas_df_index):
         scalars_df_index[col_names]
         .groupby("string_col")
         .agg(
-            agg1=bpd.NamedAgg("int64_too", "sum"),
+            agg1=bpd.NamedAgg("int64_too", np.sum),
             agg2=bpd.NamedAgg("float64_col", "max"),
         )
     )
@@ -239,7 +291,8 @@ def test_dataframe_groupby_agg_named(scalars_df_index, scalars_pandas_df_index):
         scalars_pandas_df_index[col_names]
         .groupby("string_col")
         .agg(
-            agg1=pd.NamedAgg("int64_too", "sum"), agg2=pd.NamedAgg("float64_col", "max")
+            agg1=pd.NamedAgg("int64_too", np.sum),
+            agg2=pd.NamedAgg("float64_col", "max"),
         )
     )
     bf_result_computed = bf_result.to_pandas()
@@ -253,14 +306,14 @@ def test_dataframe_groupby_agg_kw_tuples(scalars_df_index, scalars_pandas_df_ind
         scalars_df_index[col_names]
         .groupby("string_col")
         .agg(
-            agg1=("int64_too", "sum"),
+            agg1=("int64_too", np.sum),
             agg2=("float64_col", "max"),
         )
     )
     pd_result = (
         scalars_pandas_df_index[col_names]
         .groupby("string_col")
-        .agg(agg1=("int64_too", "sum"), agg2=("float64_col", "max"))
+        .agg(agg1=("int64_too", np.sum), agg2=("float64_col", "max"))
     )
     bf_result_computed = bf_result.to_pandas()
 
@@ -316,14 +369,14 @@ def test_dataframe_groupby_multi_sum(
 
 
 @pytest.mark.parametrize(
-    ("operator"),
+    ("operator", "dropna"),
     [
-        (lambda x: x.cumsum(numeric_only=True)),
-        (lambda x: x.cummax(numeric_only=True)),
-        (lambda x: x.cummin(numeric_only=True)),
+        (lambda x: x.cumsum(numeric_only=True), True),
+        (lambda x: x.cummax(numeric_only=True), True),
+        (lambda x: x.cummin(numeric_only=True), False),
         # Pre-pandas 2.2 doesn't always proeduce float.
-        (lambda x: x.cumprod().astype("Float64")),
-        (lambda x: x.shift(periods=2)),
+        (lambda x: x.cumprod().astype("Float64"), False),
+        (lambda x: x.shift(periods=2), True),
     ],
     ids=[
         "cumsum",
@@ -334,14 +387,42 @@ def test_dataframe_groupby_multi_sum(
     ],
 )
 def test_dataframe_groupby_analytic(
-    scalars_df_index, scalars_pandas_df_index, operator
+    scalars_df_index,
+    scalars_pandas_df_index,
+    operator,
+    dropna,
 ):
     col_names = ["float64_col", "int64_col", "bool_col", "string_col"]
-    bf_result = operator(scalars_df_index[col_names].groupby("string_col"))
-    pd_result = operator(scalars_pandas_df_index[col_names].groupby("string_col"))
+    bf_result = operator(
+        scalars_df_index[col_names].groupby("string_col", dropna=dropna)
+    )
+    pd_result = operator(
+        scalars_pandas_df_index[col_names].groupby("string_col", dropna=dropna)
+    )
     bf_result_computed = bf_result.to_pandas()
 
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("ascending", "dropna"),
+    [
+        (True, True),
+        (False, False),
+    ],
+)
+def test_dataframe_groupby_cumcount(
+    scalars_df_index, scalars_pandas_df_index, ascending, dropna
+):
+    bf_result = scalars_df_index.groupby("string_col", dropna=dropna).cumcount(
+        ascending
+    )
+    pd_result = scalars_pandas_df_index.groupby("string_col", dropna=dropna).cumcount(
+        ascending
+    )
+    bf_result_computed = bf_result.to_pandas()
+
+    pd.testing.assert_series_equal(pd_result, bf_result_computed, check_dtype=False)
 
 
 def test_dataframe_groupby_size_as_index_false(
@@ -480,11 +561,105 @@ def test_dataframe_groupby_nonnumeric_with_mean():
     )
     pd_result = df.groupby(["key1", "key2"]).mean()
 
-    with bpd.option_context("bigquery.location", "US"):
-        bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
+    bf_result = bpd.DataFrame(df).groupby(["key1", "key2"]).mean().to_pandas()
 
     pd.testing.assert_frame_equal(
         pd_result, bf_result, check_index_type=False, check_dtype=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("subset", "normalize", "ascending", "dropna", "as_index"),
+    [
+        (None, True, True, True, True),
+        (["int64_too", "int64_col"], False, False, False, False),
+    ],
+)
+def test_dataframe_groupby_value_counts(
+    scalars_df_index,
+    scalars_pandas_df_index,
+    subset,
+    normalize,
+    ascending,
+    dropna,
+    as_index,
+):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
+    col_names = ["float64_col", "int64_col", "bool_col", "int64_too"]
+    bf_result = (
+        scalars_df_index[col_names]
+        .groupby("bool_col", as_index=as_index)
+        .value_counts(
+            subset=subset, normalize=normalize, ascending=ascending, dropna=dropna
+        )
+        .to_pandas()
+    )
+    pd_result = (
+        scalars_pandas_df_index[col_names]
+        .groupby("bool_col", as_index=as_index)
+        .value_counts(
+            subset=subset, normalize=normalize, ascending=ascending, dropna=dropna
+        )
+    )
+
+    if as_index:
+        pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    else:
+        pd_result.index = pd_result.index.astype("Int64")
+        pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("numeric_only", "min_count"),
+    [
+        (False, 4),
+        (True, 0),
+    ],
+)
+def test_dataframe_groupby_first(
+    scalars_df_index, scalars_pandas_df_index, numeric_only, min_count
+):
+    # min_count seems to not work properly on older pandas
+    pytest.importorskip("pandas", minversion="2.0.0")
+    # bytes, dates not handling min_count properly in pandas
+    bf_result = (
+        scalars_df_index.drop(columns=["bytes_col", "date_col"])
+        .groupby(scalars_df_index.int64_col % 2)
+        .first(numeric_only=numeric_only, min_count=min_count)
+    ).to_pandas()
+    pd_result = (
+        scalars_pandas_df_index.drop(columns=["bytes_col", "date_col"])
+        .groupby(scalars_pandas_df_index.int64_col % 2)
+        .first(numeric_only=numeric_only, min_count=min_count)
+    )
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("numeric_only", "min_count"),
+    [
+        (True, 2),
+        (False, -1),
+    ],
+)
+def test_dataframe_groupby_last(
+    scalars_df_index, scalars_pandas_df_index, numeric_only, min_count
+):
+    bf_result = (
+        scalars_df_index.groupby(scalars_df_index.int64_col % 2).last(
+            numeric_only=numeric_only, min_count=min_count
+        )
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.groupby(
+        scalars_pandas_df_index.int64_col % 2
+    ).last(numeric_only=numeric_only, min_count=min_count)
+    pd.testing.assert_frame_equal(
+        pd_result,
+        bf_result,
     )
 
 
@@ -520,17 +695,72 @@ def test_series_groupby_agg_list(scalars_df_index, scalars_pandas_df_index):
     bf_result = (
         scalars_df_index["int64_col"]
         .groupby(scalars_df_index["string_col"])
-        .agg(["sum", "mean", "size"])
+        .agg(["sum", np.mean, "size"])
     )
     pd_result = (
         scalars_pandas_df_index["int64_col"]
         .groupby(scalars_pandas_df_index["string_col"])
-        .agg(["sum", "mean", "size"])
+        .agg(["sum", np.mean, "size"])
     )
     bf_result_computed = bf_result.to_pandas()
 
     pd.testing.assert_frame_equal(
         pd_result, bf_result_computed, check_dtype=False, check_names=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("na_option", "method", "ascending", "pct"),
+    [
+        ("keep", "average", True, False),
+        (
+            "top",
+            "min",
+            False,
+            True,
+        ),
+        (
+            "bottom",
+            "max",
+            False,
+            True,
+        ),
+        (
+            "top",
+            "first",
+            False,
+            True,
+        ),
+        (
+            "bottom",
+            "dense",
+            False,
+            False,
+        ),
+    ],
+)
+def test_series_groupby_rank(
+    scalars_df_index, scalars_pandas_df_index, na_option, method, ascending, pct
+):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
+    col_names = ["int64_col", "string_col"]
+    bf_result = (
+        scalars_df_index[col_names]
+        .groupby("string_col")["int64_col"]
+        .rank(na_option=na_option, method=method, ascending=ascending, pct=pct)
+    ).to_pandas()
+    pd_result = (
+        (
+            scalars_pandas_df_index[col_names]
+            .groupby("string_col")["int64_col"]
+            .rank(na_option=na_option, method=method, ascending=ascending, pct=pct)
+        )
+        .astype("float64")
+        .astype("Float64")
+    )
+    pd.testing.assert_series_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
     )
 
 
@@ -607,3 +837,83 @@ def test_series_groupby_quantile(scalars_df_index, scalars_pandas_df_index, q):
     pd.testing.assert_series_equal(
         pd_result, bf_result, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("normalize", "ascending", "dropna"),
+    [
+        (
+            True,
+            True,
+            True,
+        ),
+        (
+            False,
+            False,
+            False,
+        ),
+    ],
+)
+def test_series_groupby_value_counts(
+    scalars_df_index,
+    scalars_pandas_df_index,
+    normalize,
+    ascending,
+    dropna,
+):
+    if pd.__version__.startswith("1."):
+        pytest.skip("pandas 1.x produces different column labels.")
+    bf_result = (
+        scalars_df_index.groupby("bool_col")["string_col"]
+        .value_counts(normalize=normalize, ascending=ascending, dropna=dropna)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.groupby("bool_col")["string_col"].value_counts(
+        normalize=normalize, ascending=ascending, dropna=dropna
+    )
+    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("numeric_only", "min_count"),
+    [
+        (True, 2),
+        (False, -1),
+    ],
+)
+def test_series_groupby_first(
+    scalars_df_index, scalars_pandas_df_index, numeric_only, min_count
+):
+    bf_result = (
+        scalars_df_index.groupby("string_col")["int64_col"].first(
+            numeric_only=numeric_only, min_count=min_count
+        )
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.groupby("string_col")["int64_col"].first(
+        numeric_only=numeric_only, min_count=min_count
+    )
+    pd.testing.assert_series_equal(
+        pd_result,
+        bf_result,
+    )
+
+
+@pytest.mark.parametrize(
+    ("numeric_only", "min_count"),
+    [
+        (False, 4),
+        (True, 0),
+    ],
+)
+def test_series_groupby_last(
+    scalars_df_index, scalars_pandas_df_index, numeric_only, min_count
+):
+    bf_result = (
+        scalars_df_index.groupby("string_col")["int64_col"].last(
+            numeric_only=numeric_only, min_count=min_count
+        )
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.groupby("string_col")["int64_col"].last(
+        numeric_only=numeric_only, min_count=min_count
+    )
+    pd.testing.assert_series_equal(pd_result, bf_result)

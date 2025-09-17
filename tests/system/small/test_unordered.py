@@ -19,11 +19,7 @@ import pytest
 
 import bigframes.exceptions
 import bigframes.pandas as bpd
-from tests.system.utils import (
-    assert_pandas_df_equal,
-    assert_series_equal,
-    skip_legacy_pandas,
-)
+from bigframes.testing.utils import assert_pandas_df_equal, assert_series_equal
 
 
 def test_unordered_mode_sql_no_hash(unordered_session):
@@ -38,7 +34,7 @@ def test_unordered_mode_sql_no_hash(unordered_session):
 def test_unordered_mode_job_label(unordered_session):
     pd_df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, dtype=pd.Int64Dtype())
     df = bpd.DataFrame(pd_df, session=unordered_session)
-    df.to_pandas()
+    df.to_gbq()
     job_labels = df.query_job.labels  # type:ignore
     assert "bigframes-mode" in job_labels
     assert job_labels["bigframes-mode"] == "unordered"
@@ -77,8 +73,9 @@ def test_unordered_mode_print(unordered_session):
     print(df)
 
 
-@skip_legacy_pandas
 def test_unordered_mode_read_gbq(unordered_session):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     df = unordered_session.read_gbq(
         """SELECT
         [1, 3, 2] AS array_column,
@@ -106,7 +103,7 @@ def test_unordered_mode_read_gbq(unordered_session):
         }
     )
     # Don't need ignore_order as there is only 1 row
-    assert_pandas_df_equal(df.to_pandas(), expected)
+    assert_pandas_df_equal(df.to_pandas(), expected, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -221,7 +218,6 @@ def test_unordered_mode_no_ambiguity_warning(unordered_session):
         df.groupby("a").head(3)
 
 
-@skip_legacy_pandas
 @pytest.mark.parametrize(
     ("rule", "origin", "data"),
     [
@@ -255,6 +251,8 @@ def test_unordered_mode_no_ambiguity_warning(unordered_session):
     ],
 )
 def test__resample_with_index(unordered_session, rule, origin, data):
+    # TODO: supply a reason why this isn't compatible with pandas 1.x
+    pytest.importorskip("pandas", minversion="2.0.0")
     col = "timestamp_col"
     scalars_df_index = bpd.DataFrame(data, session=unordered_session).set_index(col)
     scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
@@ -267,3 +265,27 @@ def test__resample_with_index(unordered_session, rule, origin, data):
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("values", "index", "columns"),
+    [
+        ("int64_col", "int64_too", ["string_col"]),
+        (["int64_col"], "int64_too", ["string_col"]),
+        (["int64_col", "float64_col"], "int64_too", ["string_col"]),
+    ],
+)
+def test_unordered_df_pivot(
+    scalars_df_unordered, scalars_pandas_df_index, values, index, columns
+):
+    bf_result = scalars_df_unordered.pivot(
+        values=values, index=index, columns=columns
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.pivot(
+        values=values, index=index, columns=columns
+    )
+
+    # Pandas produces NaN, where bq dataframes produces pd.NA
+    bf_result = bf_result.fillna(float("nan"))
+    pd_result = pd_result.fillna(float("nan"))
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)

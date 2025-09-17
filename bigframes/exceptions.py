@@ -14,6 +14,8 @@
 
 """Public exceptions and warnings used across BigQuery DataFrames."""
 
+import textwrap
+
 # NOTE: This module should not depend on any others in the package.
 
 
@@ -40,7 +42,10 @@ class PreviewWarning(Warning):
 
 
 class NullIndexPreviewWarning(PreviewWarning):
-    """Null index feature is in preview."""
+    """Unused. Kept for backwards compatibility.
+
+    Was used when null index feature was in preview.
+    """
 
 
 class NullIndexError(ValueError):
@@ -48,7 +53,10 @@ class NullIndexError(ValueError):
 
 
 class OrderingModePartialPreviewWarning(PreviewWarning):
-    """Ordering mode 'partial' is in preview."""
+    """Unused. Kept for backwards compatibility.
+
+    Was used when ordering mode 'partial' was in preview.
+    """
 
 
 class OrderRequiredError(ValueError):
@@ -63,8 +71,16 @@ class OperationAbortedError(RuntimeError):
     """Operation is aborted."""
 
 
+class MaximumResultRowsExceeded(RuntimeError):
+    """Maximum number of rows in the result was exceeded."""
+
+
 class TimeTravelDisabledWarning(Warning):
     """A query was reattempted without time travel."""
+
+
+class TimeTravelCacheWarning(Warning):
+    """Reads from the same table twice in the same session pull time travel from cache."""
 
 
 class AmbiguousWindowWarning(Warning):
@@ -81,3 +97,40 @@ class ApiDeprecationWarning(FutureWarning):
 
 class BadIndexerKeyWarning(Warning):
     """The indexer key is not used correctly."""
+
+
+class ObsoleteVersionWarning(Warning):
+    """The BigFrames version is too old."""
+
+
+class FunctionAxisOnePreviewWarning(PreviewWarning):
+    """Remote Function and Managed UDF with axis=1 preview."""
+
+
+class FunctionConflictTypeHintWarning(UserWarning):
+    """Conflicting type hints in a BigFrames function."""
+
+
+class FunctionPackageVersionWarning(PreviewWarning):
+    """
+    Warns that package versions in remote function or managed function may not
+    match local or specified versions, which might cause unexpected behavior.
+    """
+
+
+def format_message(message: str, fill: bool = True):
+    """Formats a warning message with ANSI color codes for the warning color.
+
+    Args:
+        message: The warning message string.
+        fill: Whether to wrap the message text using `textwrap.fill`.
+            Defaults to True.  Set to False to prevent wrapping,
+            especially if the message already contains newlines.
+
+    Returns:
+        The formatted message string. If `fill` is True, the message will be wrapped
+        to fit the terminal width.
+    """
+    if fill:
+        message = textwrap.fill(message)
+    return message

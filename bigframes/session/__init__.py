@@ -16,6 +16,10 @@
 
 from __future__ import annotations
 
+from collections import abc
+import datetime
+import fnmatch
+import inspect
 import logging
 import os
 import secrets
@@ -29,6 +33,7 @@ from typing import (
     Literal,
     MutableSequence,
     Optional,
+    overload,
     Sequence,
     Tuple,
     Union,
@@ -37,13 +42,13 @@ import warnings
 import weakref
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.google_cloud_bigquery.retry as third_party_gcb_retry
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
-import google.cloud.storage as storage  # type: ignore
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -54,30 +59,27 @@ from pandas._typing import (
 )
 import pyarrow as pa
 
+from bigframes import exceptions as bfe
+from bigframes import version
+import bigframes._config
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
-import bigframes.core.blocks as blocks
-import bigframes.core.compile
-import bigframes.core.guid
-import bigframes.core.pruning
+import bigframes.constants
+import bigframes.core
+from bigframes.core import blocks, log_adapter, utils
+import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
 # to register new and replacement ops with the Ibis BigQuery backend.
-import bigframes.dataframe
-import bigframes.dtypes
-import bigframes.exceptions
-import bigframes.exceptions as bfe
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
+from bigframes.session import bigquery_session, bq_caching_executor, executor
 import bigframes.session._io.bigquery as bf_io_bigquery
+import bigframes.session.anonymous_dataset
 import bigframes.session.clients
-import bigframes.session.executor
 import bigframes.session.loader
 import bigframes.session.metrics
-import bigframes.session.planner
-import bigframes.session.temp_storage
 import bigframes.session.validation
-import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
@@ -107,23 +109,8 @@ MAX_INLINE_DF_BYTES = 5000
 
 logger = logging.getLogger(__name__)
 
-# Excludes geography and nested (array, struct) datatypes
-INLINABLE_DTYPES: Sequence[bigframes.dtypes.Dtype] = (
-    pandas.BooleanDtype(),
-    pandas.Float64Dtype(),
-    pandas.Int64Dtype(),
-    pandas.StringDtype(storage="pyarrow"),
-    pandas.ArrowDtype(pa.binary()),
-    pandas.ArrowDtype(pa.date32()),
-    pandas.ArrowDtype(pa.time64("us")),
-    pandas.ArrowDtype(pa.timestamp("us")),
-    pandas.ArrowDtype(pa.timestamp("us", tz="UTC")),
-    pandas.ArrowDtype(pa.decimal128(38, 9)),
-    pandas.ArrowDtype(pa.decimal256(76, 38)),
-    pandas.ArrowDtype(pa.duration("us")),
-)
 
-
+@log_adapter.class_logger
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
     third_party_pandas_parquet.ParquetIOMixin,
@@ -147,12 +134,20 @@ class Session(
         context: Optional[bigquery_options.BigQueryOptions] = None,
         clients_provider: Optional[bigframes.session.clients.ClientsProvider] = None,
     ):
+        # Address circular imports in doctest due to bigframes/session/__init__.py
+        # containing a lot of logic and samples.
+        from bigframes.session import anonymous_dataset, clients, loader, metrics
+
+        _warn_if_bf_version_is_obsolete()
+
         if context is None:
             context = bigquery_options.BigQueryOptions()
 
         if context.location is None:
             self._location = "US"
-            msg = f"No explicit location is set, so using location {self._location} for the session."
+            msg = bfe.format_message(
+                f"No explicit location is set, so using location {self._location} for the session."
+            )
             # User's code
             # -> get_global_session()
             # -> connect()
@@ -178,7 +173,7 @@ class Session(
         if clients_provider:
             self._clients_provider = clients_provider
         else:
-            self._clients_provider = bigframes.session.clients.ClientsProvider(
+            self._clients_provider = clients.ClientsProvider(
                 project=context.project,
                 location=self._location,
                 use_regional_endpoints=context.use_regional_endpoints,
@@ -186,6 +181,7 @@ class Session(
                 application_name=context.application_name,
                 bq_kms_key_name=self._bq_kms_key_name,
                 client_endpoints_override=context.client_endpoints_override,
+                requests_transport_adapters=context.requests_transport_adapters,
             )
 
         # TODO(shobs): Remove this logic after https://github.com/ibis-project/ibis/issues/8494
@@ -193,18 +189,6 @@ class Session(
         # so we are going to remember the current config and restore it after
         # the ibis client has been created
         original_default_query_job_config = self.bqclient.default_query_job_config
-
-        # Only used to fetch remote function metadata.
-        # TODO: Remove in favor of raw bq client
-
-        self.ibis_client = typing.cast(
-            ibis_bigquery.Backend,
-            ibis_bigquery.Backend().connect(
-                project_id=context.project,
-                client=self.bqclient,
-                storage_client=self.bqstoragereadclient,
-            ),
-        )
 
         self.bqclient.default_query_job_config = original_default_query_job_config
 
@@ -234,10 +218,6 @@ class Session(
         # Whether this session treats objects as totally ordered.
         # Will expose as feature later, only False for internal testing
         self._strictly_ordered: bool = context.ordering_mode != "partial"
-        if not self._strictly_ordered:
-            msg = "Partial ordering mode is a preview feature and is subject to change."
-            warnings.warn(msg, bfe.OrderingModePartialPreviewWarning)
-
         self._allow_ambiguity = not self._strictly_ordered
         self._default_index_type = (
             bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
@@ -245,33 +225,44 @@ class Session(
             else bigframes.enums.DefaultIndexKind.NULL
         )
 
-        self._metrics = bigframes.session.metrics.ExecutionMetrics()
+        self._metrics = metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
+        self._anon_dataset_manager = anonymous_dataset.AnonymousDatasetManager(
+            self._clients_provider.bqclient,
+            location=self._location,
+            session_id=self._session_id,
+            kms_key=self._bq_kms_key_name,
+        )
+        # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
+        self._session_resource_manager = (
+            bigquery_session.SessionResourceManager(
+                self.bqclient,
+                self._location,
+            )
+            if (self._bq_kms_key_name is None)
+            else None
+        )
         self._temp_storage_manager = (
-            bigframes.session.temp_storage.TemporaryGbqStorageManager(
-                self._clients_provider.bqclient,
-                location=self._location,
-                session_id=self._session_id,
-                kms_key=self._bq_kms_key_name,
-            )
+            self._session_resource_manager or self._anon_dataset_manager
         )
-        self._executor: bigframes.session.executor.Executor = (
-            bigframes.session.executor.BigQueryCachingExecutor(
-                bqclient=self._clients_provider.bqclient,
-                bqstoragereadclient=self._clients_provider.bqstoragereadclient,
-                storage_manager=self._temp_storage_manager,
-                strictly_ordered=self._strictly_ordered,
-                metrics=self._metrics,
-            )
-        )
-        self._loader = bigframes.session.loader.GbqDataLoader(
+        self._loader = loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
             storage_manager=self._temp_storage_manager,
+            write_client=self._clients_provider.bqstoragewriteclient,
             default_index_type=self._default_index_type,
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
             metrics=self._metrics,
+        )
+        self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
+            bqclient=self._clients_provider.bqclient,
+            bqstoragereadclient=self._clients_provider.bqstoragereadclient,
+            loader=self._loader,
+            storage_manager=self._temp_storage_manager,
+            strictly_ordered=self._strictly_ordered,
+            metrics=self._metrics,
+            enable_polars_execution=context.enable_polars_execution,
         )
 
     def __del__(self):
@@ -361,7 +352,7 @@ class Session(
 
     @property
     def _anonymous_dataset(self):
-        return self._temp_storage_manager.dataset
+        return self._anon_dataset_manager.dataset
 
     def __hash__(self):
         # Stable hash needed to use in expression tree
@@ -374,15 +365,51 @@ class Session(
 
         # Protect against failure when the Session is a fake for testing or
         # failed to initialize.
-        temp_storage_manager = getattr(self, "_temp_storage_manager", None)
-        if temp_storage_manager:
-            self._temp_storage_manager.clean_up_tables()
+        if anon_dataset_manager := getattr(self, "_anon_dataset_manager", None):
+            anon_dataset_manager.close()
+
+        if session_resource_manager := getattr(self, "_session_resource_manager", None):
+            session_resource_manager.close()
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
             self._function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
+
+    @overload
+    def read_gbq(  # type: ignore[overload-overlap]
+        self,
+        query_or_table: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq(
+        self,
+        query_or_table: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> pandas.Series:
+        ...
 
     def read_gbq(
         self,
@@ -395,8 +422,9 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
-        # Add a verify index argument that fails if the index is not unique.
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+        allow_large_results: Optional[bool] = None,
+    ) -> dataframe.DataFrame | pandas.Series:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if columns and col_order:
             raise ValueError(
@@ -405,16 +433,20 @@ class Session(
         elif col_order:
             columns = col_order
 
+        if allow_large_results is None:
+            allow_large_results = bigframes._config.options._allow_large_results
+
         if bf_io_bigquery.is_query(query_or_table):
-            return self._loader.read_gbq_query(
+            return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
                 configuration=configuration,
                 max_results=max_results,
-                api_name="read_gbq",
                 use_cache=use_cache,
                 filters=filters,
+                dry_run=dry_run,
+                allow_large_results=allow_large_results,
             )
         else:
             if configuration is not None:
@@ -424,14 +456,14 @@ class Session(
                     "'configuration' or use a query."
                 )
 
-            return self._loader.read_gbq_table(
+            return self._loader.read_gbq_table(  # type: ignore # for dry_run overload
                 query_or_table,
                 index_col=index_col,
                 columns=columns,
                 max_results=max_results,
-                api_name="read_gbq",
                 use_cache=use_cache if use_cache is not None else True,
                 filters=filters,
+                dry_run=dry_run,
             )
 
     def _register_object(
@@ -441,6 +473,105 @@ class Session(
         ],
     ):
         self._objects.append(weakref.ref(object))
+
+    @overload
+    def _read_gbq_colab(
+        self,
+        query: str,
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def _read_gbq_colab(
+        self,
+        query: str,
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
+
+    @log_adapter.log_name_override("read_gbq_colab")
+    def _read_gbq_colab(
+        self,
+        query: str,
+        # TODO: Add a callback parameter that takes some kind of Event object.
+        *,
+        pyformat_args: Optional[Dict[str, Any]] = None,
+        dry_run: bool = False,
+    ) -> Union[dataframe.DataFrame, pandas.Series]:
+        """A version of read_gbq that has the necessary default values for use in colab integrations.
+
+        This includes, no ordering, no index, no progress bar, always use string
+        formatting for embedding local variables / dataframes.
+
+        Args:
+            query (str):
+                A SQL query string to execute. Results (if any) are turned into
+                a DataFrame.
+            pyformat_args (dict):
+                A dictionary of potential variables to replace in ``query``.
+                Note: strings are _not_ escaped. Use query parameters for these,
+                instead. Note: unlike read_gbq / read_gbq_query, even if set to
+                None, this function always assumes {var} refers to a variable
+                that is supposed to be supplied in this dictionary.
+        """
+        if pyformat_args is None:
+            pyformat_args = {}
+
+        allow_large_results = bigframes._config.options._allow_large_results
+
+        query = bigframes.core.pyformat.pyformat(
+            query,
+            pyformat_args=pyformat_args,
+            session=self,
+            dry_run=dry_run,
+        )
+
+        return self._loader.read_gbq_query(
+            query=query,
+            index_col=bigframes.enums.DefaultIndexKind.NULL,
+            force_total_order=False,
+            dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
+            allow_large_results=allow_large_results,
+        )
+
+    @overload
+    def read_gbq_query(  # type: ignore[overload-overlap]
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq_query(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        configuration: Optional[Dict] = ...,
+        max_results: Optional[int] = ...,
+        use_cache: Optional[bool] = ...,
+        col_order: Iterable[str] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
+    ) -> pandas.Series:
+        ...
 
     def read_gbq_query(
         self,
@@ -453,7 +584,9 @@ class Session(
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
         filters: third_party_pandas_gbq.FiltersType = (),
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+        allow_large_results: Optional[bool] = None,
+    ) -> dataframe.DataFrame | pandas.Series:
         """Turn a SQL query into a DataFrame.
 
         Note: Because the results are written to a temporary table, ordering by
@@ -502,9 +635,48 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
 
+        Args:
+            query (str):
+                A SQL query to execute.
+            index_col (Iterable[str] or str, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used.
+            columns (Iterable[str], optional):
+                The columns to read from the query result. If not
+                specified, all columns will be read.
+            configuration (dict, optional):
+                A dictionary of query job configuration options. See the
+                BigQuery REST API documentation for a list of available options:
+                https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs#configuration.query
+            max_results (int, optional):
+                The maximum number of rows to retrieve from the query
+                result. If not specified, all rows will be loaded.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to ``True``.
+                Setting this to ``False`` will force a re-execution of the query.
+            col_order (Iterable[str], optional):
+                The desired order of columns in the resulting DataFrame. This
+                parameter is deprecated and will be removed in a future version.
+                Use ``columns`` instead.
+            filters (list[tuple], optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            dry_run (bool, optional):
+                If ``True``, the function will not actually execute the query but
+                will instead return statistics about the query. Defaults to
+                ``False``.
+            allow_large_results (bool, optional):
+                Whether to allow large query results. If ``True``, the query
+                results can be larger than the maximum response size.
+                Defaults to ``bpd.options.compute.allow_large_results``.
+
         Returns:
-            bigframes.pandas.DataFrame:
-                A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame or pandas.Series:
+                A DataFrame representing the result of the query. If ``dry_run``
+                is ``True``, a ``pandas.Series`` containing query statistics is
+                returned.
 
         Raises:
             ValueError:
@@ -519,16 +691,50 @@ class Session(
         elif col_order:
             columns = col_order
 
-        return self._loader.read_gbq_query(
+        if allow_large_results is None:
+            allow_large_results = bigframes._config.options._allow_large_results
+
+        return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
             query=query,
             index_col=index_col,
             columns=columns,
             configuration=configuration,
             max_results=max_results,
-            api_name="read_gbq_query",
             use_cache=use_cache,
             filters=filters,
+            dry_run=dry_run,
+            allow_large_results=allow_large_results,
         )
+
+    @overload
+    def read_gbq_table(  # type: ignore[overload-overlap]
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: bool = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[False] = ...,
+    ) -> dataframe.DataFrame:
+        ...
+
+    @overload
+    def read_gbq_table(
+        self,
+        query: str,
+        *,
+        index_col: Iterable[str] | str | bigframes.enums.DefaultIndexKind = ...,
+        columns: Iterable[str] = ...,
+        max_results: Optional[int] = ...,
+        filters: third_party_pandas_gbq.FiltersType = ...,
+        use_cache: bool = ...,
+        col_order: Iterable[str] = ...,
+        dry_run: Literal[True] = ...,
+    ) -> pandas.Series:
+        ...
 
     def read_gbq_table(
         self,
@@ -540,7 +746,8 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: bool = True,
         col_order: Iterable[str] = (),
-    ) -> dataframe.DataFrame:
+        dry_run: bool = False,
+    ) -> dataframe.DataFrame | pandas.Series:
         """Turn a BigQuery table into a DataFrame.
 
         **Examples:**
@@ -554,9 +761,40 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
 
+        Args:
+            table_id (str):
+                The identifier of the BigQuery table to read.
+            index_col (Iterable[str] or str, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used.
+            columns (Iterable[str], optional):
+                The columns to read from the table. If not specified, all
+                columns will be read.
+            max_results (int, optional):
+                The maximum number of rows to retrieve from the table. If not
+                specified, all rows will be loaded.
+            filters (list[tuple], optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to ``True``.
+                Setting this to ``False`` will force a re-execution of the query.
+            col_order (Iterable[str], optional):
+                The desired order of columns in the resulting DataFrame. This
+                parameter is deprecated and will be removed in a future version.
+                Use ``columns`` instead.
+            dry_run (bool, optional):
+                If ``True``, the function will not actually execute the query but
+                will instead return statistics about the table. Defaults to
+                ``False``.
+
         Returns:
-            bigframes.pandas.DataFrame:
-                A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame or pandas.Series:
+                A DataFrame representing the contents of the table. If
+                ``dry_run`` is ``True``, a ``pandas.Series`` containing table
+                statistics is returned.
 
         Raises:
             ValueError:
@@ -571,14 +809,14 @@ class Session(
         elif col_order:
             columns = col_order
 
-        return self._loader.read_gbq_table(
-            query=query,
+        return self._loader.read_gbq_table(  # type: ignore # for dry_run overload
+            table_id=query,
             index_col=index_col,
             columns=columns,
             max_results=max_results,
-            api_name="read_gbq_table",
             use_cache=use_cache,
             filters=filters,
+            dry_run=dry_run,
         )
 
     def read_gbq_table_streaming(
@@ -602,14 +840,15 @@ class Session(
             bigframes.streaming.dataframe.StreamingDataFrame:
                A StreamingDataFrame representing results of the table.
         """
-        msg = "The bigframes.streaming module is a preview feature, and subject to change."
+        msg = bfe.format_message(
+            "The bigframes.streaming module is a preview feature, and subject to change."
+        )
         warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
         import bigframes.streaming.dataframe as streaming_dataframe
 
         df = self._loader.read_gbq_table(
             table,
-            api_name="read_gbq_table_steaming",
             enable_snapshot=False,
             index_col=bigframes.enums.DefaultIndexKind.NULL,
         )
@@ -726,7 +965,9 @@ class Session(
                   workload is such that you exhaust the BigQuery load job
                   quota and your data cannot be embedded in SQL due to size or
                   data type limitations.
-
+                * "bigquery_write":
+                  [Preview] Use the BigQuery Storage Write API. This feature
+                  is in public preview.
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
 
@@ -740,7 +981,6 @@ class Session(
         if isinstance(pandas_dataframe, pandas.Series):
             bf_df = self._read_pandas(
                 pandas.DataFrame(pandas_dataframe),
-                "read_pandas",
                 write_engine=write_engine,
             )
             bf_series = series.Series(bf_df._block)
@@ -750,13 +990,10 @@ class Session(
         if isinstance(pandas_dataframe, pandas.Index):
             return self._read_pandas(
                 pandas.DataFrame(index=pandas_dataframe),
-                "read_pandas",
                 write_engine=write_engine,
             ).index
         if isinstance(pandas_dataframe, pandas.DataFrame):
-            return self._read_pandas(
-                pandas_dataframe, "read_pandas", write_engine=write_engine
-            )
+            return self._read_pandas(pandas_dataframe, write_engine=write_engine)
         else:
             raise ValueError(
                 f"read_pandas() expects a pandas.DataFrame, but got a {type(pandas_dataframe)}"
@@ -765,7 +1002,6 @@ class Session(
     def _read_pandas(
         self,
         pandas_dataframe: pandas.DataFrame,
-        api_name: str,
         *,
         write_engine: constants.WriteEngineType = "default",
     ) -> dataframe.DataFrame:
@@ -777,79 +1013,57 @@ class Session(
                 "bigframes.pandas.DataFrame."
             )
 
+        mem_usage = pandas_dataframe.memory_usage(deep=True).sum()
         if write_engine == "default":
-            inline_df = self._read_pandas_inline(pandas_dataframe, should_raise=False)
-            if inline_df is not None:
-                return inline_df
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
-        elif write_engine == "bigquery_inline":
-            # Regarding the type: ignore, with should_raise=True, this should never return None.
-            return self._read_pandas_inline(pandas_dataframe, should_raise=True)  # type: ignore
+            write_engine = (
+                "bigquery_load"
+                if mem_usage > bigframes.constants.MAX_INLINE_BYTES
+                else "bigquery_inline"
+            )
+
+        if write_engine == "bigquery_inline":
+            if mem_usage > bigframes.constants.MAX_INLINE_BYTES:
+                raise ValueError(
+                    f"DataFrame size ({mem_usage} bytes) exceeds the maximum allowed "
+                    f"for inline data ({bigframes.constants.MAX_INLINE_BYTES} bytes)."
+                )
+            return self._read_pandas_inline(pandas_dataframe)
         elif write_engine == "bigquery_load":
-            return self._read_pandas_load_job(pandas_dataframe, api_name)
+            return self._loader.read_pandas(pandas_dataframe, method="load")
         elif write_engine == "bigquery_streaming":
-            return self._read_pandas_streaming(pandas_dataframe)
+            return self._loader.read_pandas(pandas_dataframe, method="stream")
+        elif write_engine == "bigquery_write":
+            return self._loader.read_pandas(pandas_dataframe, method="write")
+        elif write_engine == "_deferred":
+            import bigframes.dataframe as dataframe
+
+            return dataframe.DataFrame(blocks.Block.from_local(pandas_dataframe, self))
         else:
             raise ValueError(f"Got unexpected write_engine '{write_engine}'")
 
     def _read_pandas_inline(
-        self, pandas_dataframe: pandas.DataFrame, should_raise=False
-    ) -> Optional[dataframe.DataFrame]:
+        self, pandas_dataframe: pandas.DataFrame
+    ) -> dataframe.DataFrame:
         import bigframes.dataframe as dataframe
 
-        if pandas_dataframe.memory_usage(deep=True).sum() > MAX_INLINE_DF_BYTES:
-            return None
+        local_block = blocks.Block.from_local(pandas_dataframe, self)
+        return dataframe.DataFrame(local_block)
 
-        try:
-            local_block = blocks.Block.from_local(pandas_dataframe, self)
-            inline_df = dataframe.DataFrame(local_block)
-        except (
-            pa.ArrowInvalid,  # Thrown by arrow for unsupported types, such as geo.
-            pa.ArrowTypeError,  # Thrown by arrow for types without mapping (geo).
-            ValueError,  # Thrown by ibis for some unhandled types
-            TypeError,  # Not all types handleable by local code path
-        ) as exc:
-            if should_raise:
-                raise ValueError(
-                    f"Could not convert with a BigQuery type: `{exc}`. "
-                ) from exc
-            else:
-                return None
+    def read_arrow(self, pa_table: pa.Table) -> bigframes.dataframe.DataFrame:
+        """Load a PyArrow Table to a BigQuery DataFrames DataFrame.
 
-        inline_types = inline_df._block.expr.schema.dtypes
+        Args:
+            pa_table (pyarrow.Table):
+                PyArrow table to load data from.
 
-        # Make sure all types are inlinable to avoid escaping errors.
-        noninlinable_types = [
-            dtype for dtype in inline_types if dtype not in INLINABLE_DTYPES
-        ]
-        if len(noninlinable_types) == 0:
-            return inline_df
+        Returns:
+            bigframes.dataframe.DataFrame:
+                A new DataFrame representing the data from the PyArrow table.
+        """
+        import bigframes.dataframe as dataframe
 
-        if should_raise:
-            raise ValueError(
-                f"Could not inline with a BigQuery type: `{noninlinable_types}`. "
-                f"{constants.FEEDBACK_LINK}"
-            )
-        else:
-            return None
-
-    def _read_pandas_load_job(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-        api_name: str,
-    ) -> dataframe.DataFrame:
-        try:
-            return self._loader.read_pandas_load_job(pandas_dataframe, api_name)
-        except (pa.ArrowInvalid, pa.ArrowTypeError) as exc:
-            raise ValueError(
-                f"Could not convert with a BigQuery type: `{exc}`."
-            ) from exc
-
-    def _read_pandas_streaming(
-        self,
-        pandas_dataframe: pandas.DataFrame,
-    ) -> dataframe.DataFrame:
-        return self._loader.read_pandas_streaming(pandas_dataframe)
+        local_block = blocks.Block.from_pyarrow(pa_table, self)
+        return dataframe.DataFrame(local_block)
 
     def read_csv(
         self,
@@ -892,105 +1106,11 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager._random_table()
 
-        if engine is not None and engine == "bigquery":
-            if any(param is not None for param in (dtype, names)):
-                not_supported = ("dtype", "names")
-                raise NotImplementedError(
-                    f"BigQuery engine does not support these arguments: {not_supported}. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-
-            # TODO(b/338089659): Looks like we can relax this 1 column
-            # restriction if we check the contents of an iterable are strings
-            # not integers.
-            if (
-                # Empty tuples, None, and False are allowed and falsey.
-                index_col
-                and not isinstance(index_col, bigframes.enums.DefaultIndexKind)
-                and not isinstance(index_col, str)
-            ):
-                raise NotImplementedError(
-                    "BigQuery engine only supports a single column name for `index_col`, "
-                    f"got: {repr(index_col)}. {constants.FEEDBACK_LINK}"
-                )
-
-            # None and False cannot be passed to read_gbq.
-            # TODO(b/338400133): When index_col is None, we should be using the
-            # first column of the CSV as the index to be compatible with the
-            # pandas engine. According to the pandas docs, only "False"
-            # indicates a default sequential index.
-            if not index_col:
-                index_col = ()
-
-            index_col = typing.cast(
-                Union[
-                    Sequence[str],  # Falsey values
-                    bigframes.enums.DefaultIndexKind,
-                    str,
-                ],
-                index_col,
-            )
-
-            # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
-            columns: Tuple[Any, ...] = tuple()
-            if usecols is not None:
-                if isinstance(usecols, Iterable) and all(
-                    isinstance(col, str) for col in usecols
-                ):
-                    columns = tuple(col for col in usecols)
-                else:
-                    raise NotImplementedError(
-                        "BigQuery engine only supports an iterable of strings for `usecols`. "
-                        f"{constants.FEEDBACK_LINK}"
-                    )
-
-            if encoding is not None and encoding not in _VALID_ENCODINGS:
-                raise NotImplementedError(
-                    f"BigQuery engine only supports the following encodings: {_VALID_ENCODINGS}. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-
-            job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
-            job_config.source_format = bigquery.SourceFormat.CSV
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-            job_config.autodetect = True
-            job_config.field_delimiter = sep
-            job_config.encoding = encoding
-            job_config.labels = {"bigframes-api": "read_csv"}
-
-            # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
-            # do not need to set `skip_leading_rows`. If header is None, then there is no header.
-            # Setting skip_leading_rows to 0 does that. If header=N and N>0, we want to skip N rows.
-            if header is None:
-                job_config.skip_leading_rows = 0
-            elif header > 0:
-                job_config.skip_leading_rows = header
-
-            return self._loader._read_bigquery_load_job(
-                filepath_or_buffer,
-                table,
-                job_config=job_config,
-                index_col=index_col,
-                columns=columns,
-            )
-        else:
-            if isinstance(index_col, bigframes.enums.DefaultIndexKind):
-                raise NotImplementedError(
-                    f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-            if any(arg in kwargs for arg in ("chunksize", "iterator")):
-                raise NotImplementedError(
-                    "'chunksize' and 'iterator' arguments are not supported. "
-                    f"{constants.FEEDBACK_LINK}"
-                )
-
-            if isinstance(filepath_or_buffer, str):
-                self._check_file_size(filepath_or_buffer)
-            pandas_df = pandas.read_csv(
+        if engine != "bigquery":
+            # Using pandas.read_csv by default and warning about potential issues with
+            # large files.
+            return self._read_csv_w_pandas_engines(
                 filepath_or_buffer,
                 sep=sep,
                 header=header,
@@ -1000,9 +1120,157 @@ class Session(
                 dtype=dtype,
                 engine=engine,
                 encoding=encoding,
+                write_engine=write_engine,
                 **kwargs,
             )
-            return self._read_pandas(pandas_df, api_name="read_csv", write_engine=write_engine)  # type: ignore
+        else:
+            return self._read_csv_w_bigquery_engine(
+                filepath_or_buffer,
+                sep=sep,
+                header=header,
+                names=names,
+                index_col=index_col,
+                usecols=usecols,  # type: ignore
+                dtype=dtype,
+                encoding=encoding,
+            )
+
+    def _read_csv_w_pandas_engines(
+        self,
+        filepath_or_buffer,
+        *,
+        sep,
+        header,
+        names,
+        index_col,
+        usecols,
+        dtype,
+        engine,
+        encoding,
+        write_engine,
+        **kwargs,
+    ) -> dataframe.DataFrame:
+        """Reads a CSV file using pandas engines into a BigQuery DataFrames.
+
+        This method serves as the implementation backend for read_csv when the
+        specified engine is one supported directly by pandas ('c', 'python',
+        'pyarrow').
+        """
+        if isinstance(index_col, bigframes.enums.DefaultIndexKind):
+            raise NotImplementedError(
+                f"With index_col={repr(index_col)}, only engine='bigquery' is supported. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+        if any(arg in kwargs for arg in ("chunksize", "iterator")):
+            raise NotImplementedError(
+                "'chunksize' and 'iterator' arguments are not supported. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+        if isinstance(filepath_or_buffer, str):
+            self._check_file_size(filepath_or_buffer)
+
+        pandas_df = pandas.read_csv(
+            filepath_or_buffer,
+            sep=sep,
+            header=header,
+            names=names,
+            index_col=index_col,
+            usecols=usecols,  # type: ignore
+            dtype=dtype,
+            engine=engine,
+            encoding=encoding,
+            **kwargs,
+        )
+        return self._read_pandas(pandas_df, write_engine=write_engine)  # type: ignore
+
+    def _read_csv_w_bigquery_engine(
+        self,
+        filepath_or_buffer,
+        *,
+        sep,
+        header,
+        names,
+        index_col,
+        usecols,
+        dtype,
+        encoding,
+    ) -> dataframe.DataFrame:
+        """Reads a CSV file using the BigQuery engine into a BigQuery DataFrames.
+
+        This method serves as the implementation backend for read_csv when the
+        'bigquery' engine is specified or inferred. It leverages BigQuery's
+        native CSV loading capabilities, making it suitable for large datasets
+        that may not fit into local memory.
+        """
+        if dtype is not None and not utils.is_dict_like(dtype):
+            raise ValueError("dtype should be a dict-like object.")
+
+        if names is not None:
+            if len(names) != len(set(names)):
+                raise ValueError("Duplicated names are not allowed.")
+            if not (
+                bigframes.core.utils.is_list_like(names, allow_sets=False)
+                or isinstance(names, abc.KeysView)
+            ):
+                raise ValueError("Names should be an ordered collection.")
+
+        if index_col is True:
+            raise ValueError("The value of index_col couldn't be 'True'")
+
+        # None and False cannot be passed to read_gbq.
+        if index_col is None or index_col is False:
+            index_col = ()
+
+        # usecols should only be an iterable of strings (column names) for use as columns in read_gbq.
+        columns: Tuple[Any, ...] = tuple()
+        if usecols is not None:
+            if isinstance(usecols, Iterable) and all(
+                isinstance(col, str) for col in usecols
+            ):
+                columns = tuple(col for col in usecols)
+            else:
+                raise NotImplementedError(
+                    "BigQuery engine only supports an iterable of strings for `usecols`. "
+                    f"{constants.FEEDBACK_LINK}"
+                )
+
+        if encoding is not None and encoding not in _VALID_ENCODINGS:
+            raise NotImplementedError(
+                f"BigQuery engine only supports the following encodings: {_VALID_ENCODINGS}. "
+                f"{constants.FEEDBACK_LINK}"
+            )
+
+        job_config = bigquery.LoadJobConfig()
+        job_config.source_format = bigquery.SourceFormat.CSV
+        job_config.autodetect = True
+        job_config.field_delimiter = sep
+        job_config.encoding = encoding
+        job_config.labels = {"bigframes-api": "read_csv"}
+
+        # b/409070192: When header > 0, pandas and BigFrames returns different column naming.
+
+        # We want to match pandas behavior. If header is 0, no rows should be skipped, so we
+        # do not need to set `skip_leading_rows`. If header is None, then there is no header.
+        # Setting skip_leading_rows to 0 does that. If header=N and N>0, we want to skip N rows.
+        if header is None:
+            job_config.skip_leading_rows = 0
+        elif header > 0:
+            job_config.skip_leading_rows = header + 1
+
+        table_id = self._loader.load_file(filepath_or_buffer, job_config=job_config)
+        df = self._loader.read_gbq_table(
+            table_id,
+            index_col=index_col,
+            columns=columns,
+            names=names,
+            index_col_in_columns=True,
+        )
+
+        if dtype is not None:
+            for column, dtype in dtype.items():
+                if column in df.columns:
+                    df[column] = df[column].astype(dtype)
+        return df
 
     def read_pickle(
         self,
@@ -1021,11 +1289,9 @@ class Session(
         if isinstance(pandas_obj, pandas.Series):
             if pandas_obj.name is None:
                 pandas_obj.name = 0
-            bigframes_df = self._read_pandas(pandas_obj.to_frame(), "read_pickle")
+            bigframes_df = self._read_pandas(pandas_obj.to_frame())
             return bigframes_df[bigframes_df.columns[0]]
-        return self._read_pandas(
-            pandas_obj, api_name="read_pickle", write_engine=write_engine
-        )
+        return self._read_pandas(pandas_obj, write_engine=write_engine)
 
     def read_parquet(
         self,
@@ -1038,18 +1304,19 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager._random_table()
-
         if engine == "bigquery":
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.PARQUET
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
-            job_config.labels = {"bigframes-api": "read_parquet"}
 
-            return self._loader._read_bigquery_load_job(
-                path, table, job_config=job_config
-            )
+            # Ensure we can load pyarrow.list_ / BQ ARRAY type.
+            # See internal issue 414374215.
+            parquet_options = bigquery.ParquetOptions()
+            parquet_options.enable_list_inference = True
+            job_config.parquet_options = parquet_options
+
+            job_config.labels = {"bigframes-api": "read_parquet"}
+            table_id = self._loader.load_file(path, job_config=job_config)
+            return self._loader.read_gbq_table(table_id)
         else:
             if "*" in path:
                 raise ValueError(
@@ -1070,9 +1337,7 @@ class Session(
                 engine=engine,  # type: ignore
                 **read_parquet_kwargs,
             )
-            return self._read_pandas(
-                pandas_obj, api_name="read_parquet", write_engine=write_engine
-            )
+            return self._read_pandas(pandas_obj, write_engine=write_engine)
 
     def read_json(
         self,
@@ -1092,8 +1357,6 @@ class Session(
             engine=engine,
             write_engine=write_engine,
         )
-        table = self._temp_storage_manager._random_table()
-
         if engine == "bigquery":
 
             if dtype is not None:
@@ -1117,18 +1380,13 @@ class Session(
                 )
 
             job_config = bigquery.LoadJobConfig()
-            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
             job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-            job_config.write_disposition = bigquery.WriteDisposition.WRITE_EMPTY
             job_config.autodetect = True
             job_config.encoding = encoding
             job_config.labels = {"bigframes-api": "read_json"}
 
-            return self._loader._read_bigquery_load_job(
-                path_or_buf,
-                table,
-                job_config=job_config,
-            )
+            table_id = self._loader.load_file(path_or_buf, job_config=job_config)
+            return self._loader.read_gbq_table(table_id)
         else:
             if any(arg in kwargs for arg in ("chunksize", "iterator")):
                 raise NotImplementedError(
@@ -1158,19 +1416,29 @@ class Session(
                     engine=engine,
                     **kwargs,
                 )
-            return self._read_pandas(
-                pandas_df, api_name="read_json", write_engine=write_engine
-            )
+            return self._read_pandas(pandas_df, write_engine=write_engine)
 
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes
         if filepath.startswith("gs://"):  # GCS file path
-            client = storage.Client()
-            bucket_name, blob_name = filepath.split("/", 3)[2:]
+            bucket_name, blob_path = filepath.split("/", 3)[2:]
+
+            client = self._clients_provider.storageclient
             bucket = client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            blob.reload()
-            file_size = blob.size
+
+            list_blobs_params = inspect.signature(bucket.list_blobs).parameters
+            if "match_glob" in list_blobs_params:
+                # Modern, efficient method for new library versions
+                matching_blobs = bucket.list_blobs(match_glob=blob_path)
+                file_size = sum(blob.size for blob in matching_blobs)
+            else:
+                # Fallback method for older library versions
+                prefix = blob_path.split("*", 1)[0]
+                all_blobs = bucket.list_blobs(prefix=prefix)
+                matching_blobs = [
+                    blob for blob in all_blobs if fnmatch.fnmatch(blob.name, blob_path)
+                ]
+                file_size = sum(blob.size for blob in matching_blobs)
         elif os.path.exists(filepath):  # local file path
             file_size = os.path.getsize(filepath)
         else:
@@ -1186,26 +1454,69 @@ class Session(
                 "for large files to avoid loading the file into local memory."
             )
 
+    def deploy_remote_function(
+        self,
+        func,
+        **kwargs,
+    ):
+        """Orchestrates the creation of a BigQuery remote function that deploys immediately.
+
+        This method ensures that the remote function is created and available for
+        use in BigQuery as soon as this call is made.
+
+        Args:
+            func:
+                Function to deploy.
+            kwargs:
+                All arguments are passed directly to
+                :meth:`~bigframes.session.Session.remote_function`.  Please see
+                its docstring for parameter details.
+
+        Returns:
+            A wrapped remote function, usable in
+            :meth:`~bigframes.series.Series.apply`.
+        """
+        return self._function_session.deploy_remote_function(
+            func,
+            # Session-provided arguments.
+            session=self,
+            bigquery_client=self._clients_provider.bqclient,
+            bigquery_connection_client=self._clients_provider.bqconnectionclient,
+            cloud_functions_client=self._clients_provider.cloudfunctionsclient,
+            resource_manager_client=self._clients_provider.resourcemanagerclient,
+            # User-provided arguments.
+            **kwargs,
+        )
+
     def remote_function(
         self,
+        # Make sure that the input/output types, and dataset can be used
+        # positionally. This avoids the worst of the breaking change from 1.x to
+        # 2.x while still preventing possible mixups between consecutive str
+        # parameters.
         input_types: Union[None, type, Sequence[type]] = None,
         output_type: Optional[type] = None,
         dataset: Optional[str] = None,
+        *,
         bigquery_connection: Optional[str] = None,
         reuse: bool = True,
         name: Optional[str] = None,
         packages: Optional[Sequence[str]] = None,
-        cloud_function_service_account: Optional[str] = None,
+        cloud_function_service_account: str,
         cloud_function_kms_key_name: Optional[str] = None,
         cloud_function_docker_repository: Optional[str] = None,
         max_batching_rows: Optional[int] = 1000,
         cloud_function_timeout: Optional[int] = 600,
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_vpc_connector_egress_settings: Optional[
+            Literal["all", "private-ranges-only", "unspecified"]
+        ] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
-        ] = "all",
+        ] = "internal-only",
+        cloud_build_service_account: Optional[str] = None,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1214,6 +1525,14 @@ class Session(
             ``input_types=Series`` scenario is in preview. It currently only
             supports dataframe with column types ``Int64``/``Float64``/``boolean``/
             ``string``/``binary[pyarrow]``.
+
+        .. warning::
+            To use remote functions with Bigframes 2.0 and onwards, please (preferred)
+            set an explicit user-managed ``cloud_function_service_account`` or (discouraged)
+            set ``cloud_function_service_account`` to use the Compute Engine service account
+            by setting it to `"default"`.
+
+            See, https://cloud.google.com/functions/docs/securing/function-identity.
 
         .. note::
             Please make sure following is setup before using this API:
@@ -1305,8 +1624,8 @@ class Session(
                 Explicit name of the external package dependencies. Each dependency
                 is added to the `requirements.txt` as is, and can be of the form
                 supported in https://pip.pypa.io/en/stable/reference/requirements-file-format/.
-            cloud_function_service_account (str, Optional):
-                Service account to use for the cloud functions. If not provided
+            cloud_function_service_account (str):
+                Service account to use for the cloud functions. If "default" provided
                 then the default service account would be used. See
                 https://cloud.google.com/functions/docs/securing/function-identity
                 for more details. Please make sure the service account has the
@@ -1358,6 +1677,13 @@ class Session(
                 function. This is useful if your code needs access to data or
                 service(s) that are on a VPC network. See for more details
                 https://cloud.google.com/functions/docs/networking/connecting-vpc.
+            cloud_function_vpc_connector_egress_settings (str, Optional):
+                Egress settings for the VPC connector, controlling what outbound
+                traffic is routed through the VPC connector.
+                Options are: `all`, `private-ranges-only`, or `unspecified`.
+                If not specified, `private-ranges-only` is used by default.
+                See for more details
+                https://cloud.google.com/run/docs/configuring/vpc-connectors#egress-job.
             cloud_function_memory_mib (int, Optional):
                 The amounts of memory (in mebibytes) to allocate for the cloud
                 function (2nd gen) created. This also dictates a corresponding
@@ -1369,9 +1695,20 @@ class Session(
                 https://cloud.google.com/functions/docs/configuring/memory.
             cloud_function_ingress_settings (str, Optional):
                 Ingress settings controls dictating what traffic can reach the
-                function. By default `all` will be used. It must be one of:
-                `all`, `internal-only`, `internal-and-gclb`. See for more details
+                function. Options are: `all`, `internal-only`, or `internal-and-gclb`.
+                If no setting is provided, `internal-only` will be used by default.
+                See for more details
                 https://cloud.google.com/functions/docs/networking/network-settings#ingress_settings.
+            cloud_build_service_account (str, Optional):
+                Service account in the fully qualified format
+                `projects/PROJECT_ID/serviceAccounts/SERVICE_ACCOUNT_EMAIL`, or
+                just the SERVICE_ACCOUNT_EMAIL. The latter would be interpreted
+                as belonging to the BigQuery DataFrames session project. This is
+                to be used by Cloud Build to build the function source code into
+                a deployable artifact. If not provided, the default Cloud Build
+                service account is used. See
+                https://cloud.google.com/build/docs/cloud-build-service-account
+                for more details.
         Returns:
             collections.abc.Callable:
                 A remote function object pointing to the cloud assets created
@@ -1383,9 +1720,15 @@ class Session(
                 `bigframes_remote_function` - The bigquery remote function capable of calling into `bigframes_cloud_function`.
         """
         return self._function_session.remote_function(
-            input_types,
-            output_type,
+            # Session-provided arguments.
             session=self,
+            bigquery_client=self._clients_provider.bqclient,
+            bigquery_connection_client=self._clients_provider.bqconnectionclient,
+            cloud_functions_client=self._clients_provider.cloudfunctionsclient,
+            resource_manager_client=self._clients_provider.resourcemanagerclient,
+            # User-provided arguments.
+            input_types=input_types,
+            output_type=output_type,
             dataset=dataset,
             bigquery_connection=bigquery_connection,
             reuse=reuse,
@@ -1398,8 +1741,215 @@ class Session(
             cloud_function_timeout=cloud_function_timeout,
             cloud_function_max_instances=cloud_function_max_instances,
             cloud_function_vpc_connector=cloud_function_vpc_connector,
+            cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
+            cloud_build_service_account=cloud_build_service_account,
+        )
+
+    def deploy_udf(
+        self,
+        func,
+        **kwargs,
+    ):
+        """Orchestrates the creation of a BigQuery UDF that deploys immediately.
+
+        This method ensures that the UDF is created and available for
+        use in BigQuery as soon as this call is made.
+
+        Args:
+            func:
+                Function to deploy.
+            kwargs:
+                All arguments are passed directly to
+                :meth:`~bigframes.session.Session.udf`.  Please see
+                its docstring for parameter details.
+
+        Returns:
+            A wrapped Python user defined function, usable in
+            :meth:`~bigframes.series.Series.apply`.
+        """
+        return self._function_session.deploy_udf(
+            func,
+            # Session-provided arguments.
+            session=self,
+            bigquery_client=self._clients_provider.bqclient,
+            # User-provided arguments.
+            **kwargs,
+        )
+
+    def udf(
+        self,
+        *,
+        input_types: Union[None, type, Sequence[type]] = None,
+        output_type: Optional[type] = None,
+        dataset: str,
+        bigquery_connection: Optional[str] = None,
+        name: str,
+        packages: Optional[Sequence[str]] = None,
+        max_batching_rows: Optional[int] = None,
+        container_cpu: Optional[float] = None,
+        container_memory: Optional[str] = None,
+    ):
+        """Decorator to turn a Python user defined function (udf) into a
+        [BigQuery managed user-defined function](https://cloud.google.com/bigquery/docs/user-defined-functions-python).
+
+        .. note::
+            This feature is in preview. The code in the udf must be
+            (1) self-contained, i.e. it must not contain any
+            references to an import or variable defined outside the function
+            body, and
+            (2) Python 3.11 compatible, as that is the environment
+            in which the code is executed in the cloud.
+
+        .. note::
+            Please have BigQuery Data Editor (roles/bigquery.dataEditor) IAM
+            role enabled for you.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import datetime
+            >>> bpd.options.display.progress_bar = None
+
+        Turning an arbitrary python function into a BigQuery managed python udf:
+
+            >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
+            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)
+            ... def minutes_to_hours(x: int) -> float:
+            ...     return x/60
+
+            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
+            >>> minutes
+            0      0
+            1     30
+            2     60
+            3     90
+            4    120
+            dtype: Int64
+
+            >>> hours = minutes.apply(minutes_to_hours)
+            >>> hours
+            0    0.0
+            1    0.5
+            2    1.0
+            3    1.5
+            4    2.0
+            dtype: Float64
+
+        To turn a user defined function with external package dependencies into
+        a BigQuery managed python udf, you would provide the names of the
+        packages (optionally with the package version) via `packages` param.
+
+            >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
+            >>> @bpd.udf(
+            ...     dataset="bigfranes_testing",
+            ...     name=bq_name,
+            ...     packages=["cryptography"]
+            ... )
+            ... def get_hash(input: str) -> str:
+            ...     from cryptography.fernet import Fernet
+            ...
+            ...     # handle missing value
+            ...     if input is None:
+            ...         input = ""
+            ...
+            ...     key = Fernet.generate_key()
+            ...     f = Fernet(key)
+            ...     return f.encrypt(input.encode()).decode()
+
+            >>> names = bpd.Series(["Alice", "Bob"])
+            >>> hashes = names.apply(get_hash)
+
+        You can clean-up the BigQuery functions created above using the BigQuery
+        client from the BigQuery DataFrames session:
+
+            >>> session = bpd.get_global_session()
+            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)
+            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)
+
+        Args:
+            input_types (type or sequence(type), Optional):
+                For scalar user defined function it should be the input type or
+                sequence of input types. The supported scalar input types are
+                `bool`, `bytes`, `float`, `int`, `str`.
+            output_type (type, Optional):
+                Data type of the output in the user defined function. If the
+                user defined function returns an array, then `list[type]` should
+                be specified. The supported output types are `bool`, `bytes`,
+                `float`, `int`, `str`, `list[bool]`, `list[float]`, `list[int]`
+                and `list[str]`.
+            dataset (str):
+                Dataset in which to create a BigQuery managed function. It
+                should be in `<project_id>.<dataset_name>` or `<dataset_name>`
+                format.
+            bigquery_connection (str, Optional):
+                Name of the BigQuery connection. It is used to provide an
+                identity to the serverless instances running the user code. It
+                helps BigQuery manage and track the resources used by the udf.
+                This connection is required for internet access and for
+                interacting with other GCP services. To access GCP services, the
+                appropriate IAM permissions must also be granted to the
+                connection's Service Account. When it defaults to None, the udf
+                will be created without any connection. A udf without a
+                connection has no internet access and no access to other GCP
+                services.
+            name (str):
+                Explicit name of the persisted BigQuery managed function. Use it
+                with caution, because more than one users working in the same
+                project and dataset could overwrite each other's managed
+                functions if they use the same persistent name. Please note that
+                any session specific clean up (
+                ``bigframes.session.Session.close``/
+                ``bigframes.pandas.close_session``/
+                ``bigframes.pandas.reset_session``/
+                ``bigframes.pandas.clean_up_by_session_id``) does not clean up
+                this function, and leaves it for the user to manage the function
+                directly.
+            packages (str[], Optional):
+                Explicit name of the external package dependencies. Each
+                dependency is added to the `requirements.txt` as is, and can be
+                of the form supported in
+                https://pip.pypa.io/en/stable/reference/requirements-file-format/.
+            max_batching_rows (int, Optional):
+                The maximum number of rows in each batch. If you specify
+                max_batching_rows, BigQuery determines the number of rows in a
+                batch, up to the max_batching_rows limit. If max_batching_rows
+                is not specified, the number of rows to batch is determined
+                automatically.
+            container_cpu (float, Optional):
+                The CPU limits for containers that run Python UDFs. By default,
+                the CPU allocated is 0.33 vCPU. See details at
+                https://cloud.google.com/bigquery/docs/user-defined-functions-python#configure-container-limits.
+            container_memory (str, Optional):
+                The memory limits for containers that run Python UDFs. By
+                default, the memory allocated to each container instance is
+                512 MiB. See details at
+                https://cloud.google.com/bigquery/docs/user-defined-functions-python#configure-container-limits.
+        Returns:
+            collections.abc.Callable:
+                A managed function object pointing to the cloud assets created
+                in the background to support the remote execution. The cloud
+                ssets can be located through the following properties set in the
+                object:
+
+                `bigframes_bigquery_function` - The bigquery managed function
+                deployed for the user defined code.
+        """
+        return self._function_session.udf(
+            # Session-provided arguments.
+            session=self,
+            bigquery_client=self._clients_provider.bqclient,
+            # User-provided arguments.
+            input_types=input_types,
+            output_type=output_type,
+            dataset=dataset,
+            bigquery_connection=bigquery_connection,
+            name=name,
+            packages=packages,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
         )
 
     def read_gbq_function(
@@ -1487,7 +2037,7 @@ class Session(
         Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def tenfold(num: int) -> float:
             ...     return num * 10
 
@@ -1514,7 +2064,7 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function()
+            >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def row_sum(s: bpd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
@@ -1593,14 +2143,22 @@ class Session(
         # so we must reset any encryption set in the job config
         # https://cloud.google.com/bigquery/docs/customer-managed-encryption#encrypt-model
         job_config.destination_encryption_configuration = None
-
-        return bf_io_bigquery.start_query_with_client(
-            self.bqclient, sql, job_config=job_config, metrics=self._metrics
+        iterator, query_job = bf_io_bigquery.start_query_with_client(
+            self.bqclient,
+            sql,
+            job_config=job_config,
+            metrics=self._metrics,
+            location=None,
+            project=None,
+            timeout=None,
+            query_with_job=True,
+            job_retry=third_party_gcb_retry.DEFAULT_ML_JOB_RETRY,
         )
+        return iterator, query_job
 
     def _create_object_table(self, path: str, connection: str) -> str:
         """Create a random id Object Table from the input path and connection."""
-        table = str(self._loader._storage_manager._random_table())
+        table = str(self._anon_dataset_manager.generate_unique_resource_id())
 
         import textwrap
 
@@ -1618,9 +2176,25 @@ class Session(
             sql,
             job_config=bigquery.QueryJobConfig(),
             metrics=self._metrics,
+            location=None,
+            project=None,
+            timeout=None,
+            query_with_job=True,
         )
 
         return table
+
+    def _create_temp_view(self, sql: str) -> bigquery.TableReference:
+        """Create a random id view from the sql string."""
+        return self._anon_dataset_manager.create_temp_view(sql)
+
+    def _create_temp_table(
+        self, schema: Sequence[bigquery.SchemaField], cluster_cols: Sequence[str] = []
+    ) -> bigquery.TableReference:
+        """Allocate a random temporary table with the desired schema."""
+        return self._temp_storage_manager.create_temp_table(
+            schema=schema, cluster_cols=cluster_cols
+        )
 
     def from_glob_path(
         self, path: str, *, connection: Optional[str] = None, name: Optional[str] = None
@@ -1630,7 +2204,10 @@ class Session(
         If you have an existing BQ Object Table, use read_gbq_object_table().
 
         .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+            BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
         Args:
             path (str):
@@ -1645,27 +2222,25 @@ class Session(
             bigframes.pandas.DataFrame:
                 Result BigFrames DataFrame.
         """
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
-        connection = self._create_bq_connection(
-            connection=connection, iam_role="storage.objectUser"
-        )
+        connection = self._create_bq_connection(connection=connection)
 
         table = self._create_object_table(path, connection)
 
-        s = self.read_gbq(table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
 
     def _create_bq_connection(
-        self, iam_role: str, *, connection: Optional[str] = None
+        self,
+        *,
+        connection: Optional[str] = None,
+        iam_role: Optional[str] = None,
     ) -> str:
         """Create the connection with the session settings and try to attach iam role to the connection SA.
         If any of project, location or connection isn't specified, use the session defaults. Returns fully-qualified connection name."""
         connection = self._bq_connection if not connection else connection
-        connection = bigframes.clients.resolve_full_bq_connection_name(
-            connection_name=connection,
+        connection = bigframes.clients.get_canonical_bq_connection_id(
+            connection_id=connection,
             default_project=self._project,
             default_location=self._location,
         )
@@ -1688,7 +2263,10 @@ class Session(
         This function dosen't retrieve the object table data. If you want to read the data, use read_gbq() instead.
 
         .. note::
-            BigFrames Blob is still under experiments. It may not work and subject to change in the future.
+            BigFrames Blob is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+            Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+            and might have limited support. For more information, see the launch stage descriptions
+            (https://cloud.google.com/products#product-launch-stages).
 
         Args:
             object_table (str): name of the object table of form <PROJECT_ID>.<DATASET_ID>.<TABLE_ID>.
@@ -1698,16 +2276,21 @@ class Session(
             bigframes.pandas.DataFrame:
                 Result BigFrames DataFrame.
         """
-        if not bigframes.options.experiments.blob:
-            raise NotImplementedError()
-
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
         table = self.bqclient.get_table(object_table)
         connection = table._properties["externalDataConfiguration"]["connectionId"]
 
-        s = self.read_gbq(object_table)["uri"].str.to_blob(connection)
+        s = self._loader.read_gbq_table(object_table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
     return Session(context)
+
+
+def _warn_if_bf_version_is_obsolete():
+    today = datetime.datetime.today()
+    release_date = datetime.datetime.strptime(version.__release_date__, "%Y-%m-%d")
+    if today - release_date > datetime.timedelta(days=365):
+        msg = f"Your BigFrames version {version.__version__} is more than 1 year old. Please update to the lastest version."
+        warnings.warn(msg, bfe.ObsoleteVersionWarning)

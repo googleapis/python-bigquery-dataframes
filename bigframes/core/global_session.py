@@ -39,7 +39,7 @@ def _try_close_session(session: bigframes.session.Session):
         session_id = session.session_id
         location = session._location
         project_id = session._project
-        msg = (
+        msg = bfe.format_message(
             f"Session cleanup failed for session with id: {session_id}, "
             f"location: {location}, project: {project_id}"
         )
@@ -110,5 +110,25 @@ def get_global_session():
 _T = TypeVar("_T")
 
 
-def with_default_session(func: Callable[..., _T], *args, **kwargs) -> _T:
-    return func(get_global_session(), *args, **kwargs)
+def with_default_session(func_: Callable[..., _T], *args, **kwargs) -> _T:
+    return func_(get_global_session(), *args, **kwargs)
+
+
+class _GlobalSessionContext:
+    """
+    Context manager for testing that sets global session.
+    """
+
+    def __init__(self, session: bigframes.session.Session):
+        self._session = session
+
+    def __enter__(self):
+        global _global_session, _global_session_lock
+        with _global_session_lock:
+            self._previous_session = _global_session
+            _global_session = self._session
+
+    def __exit__(self, *exc_details):
+        global _global_session, _global_session_lock
+        with _global_session_lock:
+            _global_session = self._previous_session

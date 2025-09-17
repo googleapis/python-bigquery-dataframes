@@ -16,19 +16,22 @@
 import hashlib
 import inspect
 import json
+import sys
 import typing
-from typing import cast, List, NamedTuple, Optional, Sequence, Set
+from typing import Any, cast, Optional, Sequence, Set
+import warnings
 
-import bigframes_vendored.ibis.expr.datatypes.core as ibis_dtypes
 import cloudpickle
 import google.api_core.exceptions
 from google.cloud import bigquery, functions_v2
 import numpy
+from packaging.requirements import Requirement
 import pandas
 import pyarrow
 
-import bigframes.core.compile.ibis_types
-import bigframes.dtypes
+import bigframes.exceptions as bfe
+import bigframes.formatting_helpers as bf_formatting
+from bigframes.functions import function_typing
 
 # Naming convention for the function artifacts
 _BIGFRAMES_FUNCTION_PREFIX = "bigframes"
@@ -61,27 +64,62 @@ def get_remote_function_locations(bq_location):
     return bq_location, cloud_function_region
 
 
-def _get_updated_package_requirements(
-    package_requirements=None, is_row_processor=False
+def _package_existed(package_requirements: list[str], package: str) -> bool:
+    """Checks if a package (regardless of version) exists in a given list."""
+    if not package_requirements:
+        return False
+
+    return Requirement(package).name in {
+        Requirement(req).name for req in package_requirements
+    }
+
+
+def get_updated_package_requirements(
+    package_requirements=None,
+    is_row_processor=False,
+    capture_references=True,
+    ignore_package_version=False,
 ):
-    requirements = [f"cloudpickle=={cloudpickle.__version__}"]
+    requirements = []
+    if capture_references:
+        requirements.append(f"cloudpickle=={cloudpickle.__version__}")
+
     if is_row_processor:
-        # bigframes function will send an entire row of data as json, which
-        # would be converted to a pandas series and processed Ensure numpy
-        # versions match to avoid unpickling problems. See internal issue
-        # b/347934471.
-        requirements.append(f"numpy=={numpy.__version__}")
-        requirements.append(f"pandas=={pandas.__version__}")
-        requirements.append(f"pyarrow=={pyarrow.__version__}")
+        if ignore_package_version:
+            # TODO(jialuo): Add back the version after b/410924784 is resolved.
+            # Due to current limitations on the packages version in Python UDFs,
+            # we use `ignore_package_version` to optionally omit the version for
+            # managed functions only.
+            msg = bfe.format_message(
+                "numpy, pandas, and pyarrow versions in the function execution"
+                " environment may not precisely match your local environment."
+            )
+            warnings.warn(msg, category=bfe.FunctionPackageVersionWarning)
+            requirements.append("pandas")
+            requirements.append("pyarrow")
+            requirements.append("numpy")
+        else:
+            # bigframes function will send an entire row of data as json, which
+            # would be converted to a pandas series and processed Ensure numpy
+            # versions match to avoid unpickling problems. See internal issue
+            # b/347934471.
+            requirements.append(f"pandas=={pandas.__version__}")
+            requirements.append(f"pyarrow=={pyarrow.__version__}")
+            requirements.append(f"numpy=={numpy.__version__}")
 
-    if package_requirements:
-        requirements.extend(package_requirements)
+    if not requirements:
+        return package_requirements
 
-    requirements = sorted(requirements)
-    return requirements
+    if not package_requirements:
+        package_requirements = []
+    for package in requirements:
+        if not _package_existed(package_requirements, package):
+            package_requirements.append(package)
+
+    return sorted(package_requirements)
 
 
-def _clean_up_by_session_id(
+def clean_up_by_session_id(
     bqclient: bigquery.Client,
     gcfclient: functions_v2.FunctionServiceClient,
     dataset: bigquery.DatasetReference,
@@ -145,7 +183,7 @@ def _clean_up_by_session_id(
             pass
 
 
-def _get_hash(def_, package_requirements=None):
+def get_hash(def_, package_requirements=None):
     "Get hash (32 digits alphanumeric) of a function."
     # There is a known cell-id sensitivity of the cloudpickle serialization in
     # notebooks https://github.com/cloudpipe/cloudpickle/issues/538. Because of
@@ -185,48 +223,12 @@ def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
     return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
 
 
-def get_remote_function_name(function_hash, session_id, uniq_suffix=None):
-    "Get a name for the remote function for the given user defined function."
+def get_bigframes_function_name(function_hash, session_id, uniq_suffix=None):
+    "Get a name for the bigframes function for the given user defined function."
     parts = [_BIGFRAMES_FUNCTION_PREFIX, session_id, function_hash]
     if uniq_suffix:
         parts.append(uniq_suffix)
     return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
-
-
-class IbisSignature(NamedTuple):
-    parameter_names: List[str]
-    input_types: List[Optional[ibis_dtypes.DataType]]
-    output_type: ibis_dtypes.DataType
-    output_type_override: Optional[ibis_dtypes.DataType] = None
-
-
-def ibis_signature_from_python_signature(
-    signature: inspect.Signature,
-    input_types: Sequence[type],
-    output_type: type,
-) -> IbisSignature:
-
-    ibis_input_types: List[Optional[ibis_dtypes.DataType]] = [
-        bigframes.core.compile.ibis_types.ibis_type_from_python_type(t)
-        for t in input_types
-    ]
-
-    if typing.get_origin(output_type) is list:
-        ibis_output_type = (
-            bigframes.core.compile.ibis_types.ibis_array_output_type_from_python_type(
-                output_type
-            )
-        )
-    else:
-        ibis_output_type = bigframes.core.compile.ibis_types.ibis_type_from_python_type(
-            output_type
-        )
-
-    return IbisSignature(
-        parameter_names=list(signature.parameters.keys()),
-        input_types=ibis_input_types,
-        output_type=ibis_output_type,
-    )
 
 
 def get_python_output_type_from_bigframes_metadata(
@@ -244,7 +246,7 @@ def get_python_output_type_from_bigframes_metadata(
 
     for (
         python_output_array_type
-    ) in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
+    ) in function_typing.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
         if python_output_array_type.__name__ == output_type:
             return list[python_output_array_type]  # type: ignore
 
@@ -261,7 +263,7 @@ def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
         python_output_array_type = typing.get_args(python_output_type)[0]
         if (
             python_output_array_type
-            in bigframes.dtypes.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES
+            in function_typing.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES
         ):
             inner_metadata[
                 "python_array_output_type"
@@ -275,8 +277,64 @@ def get_bigframes_metadata(*, python_output_type: Optional[type] = None) -> str:
         get_python_output_type_from_bigframes_metadata(metadata_ser)
         != python_output_type
     ):
-        raise ValueError(
-            f"python_output_type {python_output_type} is not serializable."
+        raise bf_formatting.create_exception_with_feedback_link(
+            ValueError, f"python_output_type {python_output_type} is not serializable."
         )
 
     return metadata_ser
+
+
+def get_python_version(is_compat: bool = False) -> str:
+    # Cloud Run functions use the 'compat' format (e.g., python311, see more
+    # from https://cloud.google.com/functions/docs/runtime-support#python),
+    # while managed functions use the standard format (e.g., python-3.11).
+    major = sys.version_info.major
+    minor = sys.version_info.minor
+    return f"python{major}{minor}" if is_compat else f"python-{major}.{minor}"
+
+
+def build_unnest_post_routine(py_list_type: type[list]):
+    sdk_type = function_typing.sdk_array_output_type_from_python_type(py_list_type)
+    assert sdk_type.array_element_type is not None
+    inner_sdk_type = sdk_type.array_element_type
+    result_dtype = function_typing.sdk_type_to_bf_type(inner_sdk_type)
+
+    def post_process(input):
+        import bigframes.bigquery as bbq
+
+        return bbq.json_extract_string_array(input, value_dtype=result_dtype)
+
+    return post_process
+
+
+def has_conflict_input_type(
+    signature: inspect.Signature,
+    input_types: Sequence[Any],
+) -> bool:
+    """Checks if the parameters have any conflict with the input_types."""
+    params = list(signature.parameters.values())
+
+    if len(params) != len(input_types):
+        return True
+
+    # Check for conflicts type hints.
+    for i, param in enumerate(params):
+        if param.annotation is not inspect.Parameter.empty:
+            if param.annotation != input_types[i]:
+                return True
+
+    # No conflicts were found after checking all parameters.
+    return False
+
+
+def has_conflict_output_type(
+    signature: inspect.Signature,
+    output_type: Any,
+) -> bool:
+    """Checks if the return type annotation conflicts with the output_type."""
+    return_annotation = signature.return_annotation
+
+    if return_annotation is inspect.Parameter.empty:
+        return False
+
+    return return_annotation != output_type

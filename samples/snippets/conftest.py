@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Iterator
+from typing import Generator, Iterator
 
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 import pytest
 import test_utils.prefixer
 
@@ -23,6 +23,8 @@ import bigframes.pandas as bpd
 prefixer = test_utils.prefixer.Prefixer(
     "python-bigquery-dataframes", "samples/snippets"
 )
+
+routine_prefixer = test_utils.prefixer.Prefixer("bigframes", "")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -41,8 +43,35 @@ def bigquery_client() -> bigquery.Client:
 
 
 @pytest.fixture(scope="session")
+def storage_client(project_id: str) -> storage.Client:
+    return storage.Client(project=project_id)
+
+
+@pytest.fixture(scope="session")
 def project_id(bigquery_client: bigquery.Client) -> str:
     return bigquery_client.project
+
+
+@pytest.fixture(scope="session")
+def gcs_bucket(storage_client: storage.Client) -> Generator[str, None, None]:
+    bucket_name = "bigframes_blob_test_with_data_wipeout"
+
+    yield bucket_name
+
+    bucket = storage_client.get_bucket(bucket_name)
+    for blob in bucket.list_blobs():
+        blob.delete()
+
+
+@pytest.fixture(scope="session")
+def gcs_bucket_snippets(storage_client: storage.Client) -> Generator[str, None, None]:
+    bucket_name = "bigframes_blob_test_snippet_with_data_wipeout"
+
+    yield bucket_name
+
+    bucket = storage_client.get_bucket(bucket_name)
+    for blob in bucket.list_blobs():
+        blob.delete()
 
 
 @pytest.fixture(autouse=True)
@@ -101,3 +130,12 @@ def random_model_id_eu(
     full_model_id = f"{project_id}.{dataset_id_eu}.{random_model_id_eu}"
     yield full_model_id
     bigquery_client.delete_model(full_model_id, not_found_ok=True)
+
+
+@pytest.fixture
+def routine_id() -> Iterator[str]:
+    """Create a new BQ routine ID each time, so random_routine_id can be used as
+    target for udf creation.
+    """
+    random_routine_id = routine_prefixer.create_prefix()
+    yield random_routine_id

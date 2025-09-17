@@ -38,6 +38,7 @@ import bigframes.exceptions
         ("skip_bq_connection_check", False, True),
         ("client_endpoints_override", {}, {"bqclient": "endpoint_address"}),
         ("ordering_mode", "strict", "partial"),
+        ("requests_transport_adapters", object(), object()),
     ],
 )
 def test_setter_raises_if_session_started(attribute, original_value, new_value):
@@ -55,6 +56,18 @@ def test_setter_raises_if_session_started(attribute, original_value, new_value):
 
     assert getattr(options, attribute) is original_value
     assert getattr(options, attribute) is not new_value
+
+
+def test_location_set_us_twice():
+    """This test ensures the fix for b/423220936 is working as expected."""
+    options = bigquery_options.BigQueryOptions()
+    setattr(options, "location", "us")
+    assert getattr(options, "location") == "US"
+
+    options._session_started = True
+
+    setattr(options, "location", "us")
+    assert getattr(options, "location") == "US"
 
 
 @pytest.mark.parametrize(
@@ -164,13 +177,18 @@ def test_location_set_to_invalid_warning(invalid_location, possibility):
         options.location = invalid_location
 
     for op in [set_location_in_constructor, set_location_property]:
-        with pytest.warns(
-            bigframes.exceptions.UnknownLocationWarning,
-            match=re.escape(
-                f"The location '{invalid_location}' is set to an unknown value. Did you mean '{possibility}'?"
-            ),
-        ):
+        with warnings.catch_warnings(record=True) as w:
             op()
+
+            assert issubclass(
+                w[0].category, bigframes.exceptions.UnknownLocationWarning
+            )
+            assert (
+                f"The location '{invalid_location}' is set to an unknown value. "
+                in str(w[0].message)
+            )
+            # The message might contain newlines added by textwrap.fill.
+            assert possibility in str(w[0].message).replace("\n", "")
 
 
 def test_client_endpoints_override_set_shows_warning():
@@ -178,3 +196,15 @@ def test_client_endpoints_override_set_shows_warning():
 
     with pytest.warns(UserWarning):
         options.client_endpoints_override = {"bqclient": "endpoint_address"}
+
+
+def test_default_options():
+    options = bigquery_options.BigQueryOptions()
+
+    assert options.allow_large_results is False
+    assert options.ordering_mode == "strict"
+
+    # We should default to None as an indicator that the user hasn't set these
+    # explicitly. See internal issue b/445731915.
+    assert options.credentials is None
+    assert options.project is None

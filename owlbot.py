@@ -42,6 +42,8 @@ templated_files = common.py_library(
 s.move(
     templated_files,
     excludes=[
+        # Need a combined LICENSE for all vendored packages.
+        "LICENSE",
         # Multi-processing note isn't relevant, as bigframes is responsible for
         # creating clients, not the end user.
         "docs/multiprocessing.rst",
@@ -50,6 +52,7 @@ s.move(
         "README.rst",
         "CONTRIBUTING.rst",
         ".github/release-trigger.yml",
+        ".github/release-please.yml",
         # BigQuery DataFrames manages its own Kokoro cluster for presubmit & continuous tests.
         ".kokoro/build.sh",
         ".kokoro/continuous/common.cfg",
@@ -97,31 +100,18 @@ assert 1 == s.replace(  # MANIFEST.in
     "recursive-include third_party/bigframes_vendored *\nrecursive-include bigframes",
 )
 
-# Even though BigQuery DataFrames isn't technically a client library, we are
-# opting into Cloud RAD for docs hosting.
-assert 1 == s.replace(  # common.cfg
-    [".kokoro/docs/common.cfg"],
-    re.escape('value: "docs-staging-v2-dev"'),
-    'value: "docs-staging-v2"',
+# Include JavaScript files for display widgets
+assert 1 == s.replace(  # MANIFEST.in
+    ["MANIFEST.in"],
+    re.escape("recursive-include bigframes *.json *.proto py.typed"),
+    "recursive-include bigframes *.json *.proto *.js py.typed",
 )
 
-# Use a custom table of contents since the default one isn't organized well
-# enough for the number of classes we have.
-assert 1 == s.replace(  # publish-docs.sh
-    [".kokoro/publish-docs.sh"],
-    (
-        re.escape("# upload docs")
-        + "\n"
-        + re.escape(
-            'python3.10 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
-        )
-    ),
-    (
-        "# Replace toc.yml template file\n"
-        + "mv docs/templates/toc.yml docs/_build/html/docfx_yaml/toc.yml\n\n"
-        + "# upload docs\n"
-        + 'python3.10 -m docuploader upload docs/_build/html/docfx_yaml --metadata-file docs.metadata --destination-prefix docfx --staging-bucket "${V2_STAGING_BUCKET}"'
-    ),
+# Include JavaScript and CSS files for display widgets
+assert 1 == s.replace(  # MANIFEST.in
+    ["MANIFEST.in"],
+    re.escape("recursive-include bigframes *.json *.proto *.js py.typed"),
+    "recursive-include bigframes *.json *.proto *.js *.css py.typed",
 )
 
 # Fixup the documentation.

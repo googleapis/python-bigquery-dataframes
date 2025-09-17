@@ -17,6 +17,7 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+import re
 import textwrap
 from typing import Tuple
 
@@ -194,7 +195,9 @@ def udf_http_row_processor(request):
         calls = request_json["calls"]
         replies = []
         for call in calls:
-            reply = convert_to_bq_json(output_type, udf(get_pd_series(call[0])))
+            reply = convert_to_bq_json(
+                output_type, udf(get_pd_series(call[0]), *call[1:])
+            )
             if type(reply) is list:
                 # Since the BQ remote function does not support array yet,
                 # return a json serialized version of the reply.
@@ -291,3 +294,77 @@ output_type = {repr(output_type)}
     logger.debug(f"Wrote {os.path.abspath(main_py)}:\n{open(main_py).read()}")
 
     return handler_func_name
+
+
+def generate_managed_function_code(
+    def_,
+    udf_name: str,
+    is_row_processor: bool,
+    capture_references: bool,
+) -> str:
+    """Generates the Python code block for managed Python UDF."""
+
+    if capture_references:
+        # This code path ensures that if the udf body contains any
+        # references to variables and/or imports outside the body, they are
+        # captured as well.
+        import cloudpickle
+
+        pickled = cloudpickle.dumps(def_)
+        func_code = textwrap.dedent(
+            f"""
+            import cloudpickle
+            {udf_name} = cloudpickle.loads({pickled})
+        """
+        )
+    else:
+        # This code path ensures that if the udf body is self contained,
+        # i.e. there are no references to variables or imports outside the
+        # body.
+        func_code = textwrap.dedent(inspect.getsource(def_))
+        match = re.search(r"^def ", func_code, flags=re.MULTILINE)
+        if match is None:
+            raise ValueError("The UDF is not defined correctly.")
+        func_code = func_code[match.start() :]
+
+    if is_row_processor:
+        udf_code = textwrap.dedent(inspect.getsource(get_pd_series))
+        udf_code = udf_code[udf_code.index("def") :]
+        bigframes_handler_code = textwrap.dedent(
+            f"""def bigframes_handler(str_arg):
+                return {udf_name}({get_pd_series.__name__}(str_arg))"""
+        )
+
+        sig = inspect.signature(def_)
+        params = list(sig.parameters.values())
+        additional_params = params[1:]
+
+        # Build the parameter list for the new handler function definition.
+        # e.g., "str_arg, y: bool, z"
+        handler_def_parts = ["str_arg"]
+        handler_def_parts.extend(str(p) for p in additional_params)
+        handler_def_str = ", ".join(handler_def_parts)
+
+        # Build the argument list for the call to the original UDF.
+        # e.g., "get_pd_series(str_arg), y, z"
+        udf_call_parts = [f"{get_pd_series.__name__}(str_arg)"]
+        udf_call_parts.extend(p.name for p in additional_params)
+        udf_call_str = ", ".join(udf_call_parts)
+
+        bigframes_handler_code = textwrap.dedent(
+            f"""def bigframes_handler({handler_def_str}):
+                return {udf_name}({udf_call_str})"""
+        )
+
+    else:
+        udf_code = ""
+        bigframes_handler_code = textwrap.dedent(
+            f"""def bigframes_handler(*args):
+                return {udf_name}(*args)"""
+        )
+
+    udf_code_block = textwrap.dedent(
+        f"{udf_code}\n{func_code}\n{bigframes_handler_code}"
+    )
+
+    return udf_code_block
