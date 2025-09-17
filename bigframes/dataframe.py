@@ -67,6 +67,7 @@ import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
+import bigframes.core.interchange
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -890,9 +891,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_block(df._get_block())
 
     def __setitem__(
-        self, key: str | list[str], value: SingleItemValue | MultiItemValue
+        self,
+        key: str | list[str] | pandas.Index,
+        value: SingleItemValue | MultiItemValue,
     ):
-        if isinstance(key, list):
+        if isinstance(key, (list, pandas.Index)):
             df = self._assign_multi_items(key, value)
         else:
             df = self._assign_single_item(key, value)
@@ -1645,6 +1648,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return bigframes.pandas.Series(block)
 
+    def __dataframe__(
+        self, nan_as_null: bool = False, allow_copy: bool = True
+    ) -> bigframes.core.interchange.InterchangeDataFrame:
+        return bigframes.core.interchange.InterchangeDataFrame._from_bigframes(self)
+
     def to_arrow(
         self,
         *,
@@ -2246,7 +2254,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def _assign_multi_items(
         self,
-        k: list[str],
+        k: list[str] | pandas.Index,
         v: SingleItemValue | MultiItemValue,
     ) -> DataFrame:
         value_sources: Sequence[Any] = []
@@ -3170,12 +3178,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.aggregate_all_and_stack(agg_ops.nunique_op)
         return bigframes.series.Series(block)
 
-    def agg(
-        self,
-        func: str
-        | typing.Sequence[str]
-        | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
-    ) -> DataFrame | bigframes.series.Series:
+    def agg(self, func) -> DataFrame | bigframes.series.Series:
         if utils.is_dict_like(func):
             # Must check dict-like first because dictionaries are list-like
             # according to Pandas.
@@ -3189,15 +3192,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if col_id is None:
                     raise KeyError(f"Column {col_label} does not exist")
                 for agg_func in agg_func_list:
-                    agg_op = agg_ops.lookup_agg_func(typing.cast(str, agg_func))
+                    op_and_label = agg_ops.lookup_agg_func(agg_func)
                     agg_expr = (
-                        agg_expressions.UnaryAggregation(agg_op, ex.deref(col_id))
-                        if isinstance(agg_op, agg_ops.UnaryAggregateOp)
-                        else agg_expressions.NullaryAggregation(agg_op)
+                        agg_expressions.UnaryAggregation(
+                            op_and_label[0], ex.deref(col_id)
+                        )
+                        if isinstance(op_and_label[0], agg_ops.UnaryAggregateOp)
+                        else agg_expressions.NullaryAggregation(op_and_label[0])
                     )
                     aggs.append(agg_expr)
                     labels.append(col_label)
-                    funcnames.append(agg_func)
+                    funcnames.append(op_and_label[1])
 
             # if any list in dict values, format output differently
             if any(utils.is_list_like(v) for v in func.values()):
@@ -3218,7 +3223,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     )
                 )
         elif utils.is_list_like(func):
-            aggregations = [agg_ops.lookup_agg_func(f) for f in func]
+            aggregations = [agg_ops.lookup_agg_func(f)[0] for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
                 agg.output_type(
@@ -3234,9 +3239,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         else:  # function name string
             return bigframes.series.Series(
-                self._block.aggregate_all_and_stack(
-                    agg_ops.lookup_agg_func(typing.cast(str, func))
-                )
+                self._block.aggregate_all_and_stack(agg_ops.lookup_agg_func(func)[0])
             )
 
     aggregate = agg
@@ -4987,9 +4990,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         numeric_only=False,
         na_option: str = "keep",
         ascending=True,
+        pct: bool = False,
     ) -> DataFrame:
         df = self._drop_non_numeric() if numeric_only else self
-        return DataFrame(block_ops.rank(df._block, method, na_option, ascending))
+        return DataFrame(
+            block_ops.rank(df._block, method, na_option, ascending, pct=pct)
+        )
 
     def first_valid_index(self):
         return

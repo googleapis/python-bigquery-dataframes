@@ -100,7 +100,11 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._aggregate(agg_ops.mean_op)
 
     def rank(
-        self, method="average", ascending: bool = True, na_option: str = "keep"
+        self,
+        method="average",
+        ascending: bool = True,
+        na_option: str = "keep",
+        pct: bool = False,
     ) -> series.Series:
         return series.Series(
             block_ops.rank(
@@ -110,6 +114,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
                 ascending,
                 grouping_cols=tuple(self._by_col_ids),
                 columns=(self._value_column,),
+                pct=pct,
             )
         )
 
@@ -216,18 +221,17 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     def agg(self, func=None) -> typing.Union[df.DataFrame, series.Series]:
         column_names: list[str] = []
-        if isinstance(func, str):
-            aggregations = [aggs.agg(self._value_column, agg_ops.lookup_agg_func(func))]
-            column_names = [func]
-        elif utils.is_list_like(func):
-            aggregations = [
-                aggs.agg(self._value_column, agg_ops.lookup_agg_func(f)) for f in func
-            ]
-            column_names = list(func)
-        else:
+        if utils.is_dict_like(func):
             raise NotImplementedError(
                 f"Aggregate with {func} not supported. {constants.FEEDBACK_LINK}"
             )
+        if not utils.is_list_like(func):
+            func = [func]
+
+        aggregations = [
+            aggs.agg(self._value_column, agg_ops.lookup_agg_func(f)[0]) for f in func
+        ]
+        column_names = [agg_ops.lookup_agg_func(f)[1] for f in func]
 
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,

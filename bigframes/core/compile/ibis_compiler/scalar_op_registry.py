@@ -17,8 +17,10 @@ from __future__ import annotations
 import functools
 import typing
 
+from bigframes_vendored import ibis
 import bigframes_vendored.ibis.expr.api as ibis_api
 import bigframes_vendored.ibis.expr.datatypes as ibis_dtypes
+import bigframes_vendored.ibis.expr.operations.ai_ops as ai_ops
 import bigframes_vendored.ibis.expr.operations.generic as ibis_generic
 import bigframes_vendored.ibis.expr.operations.udf as ibis_udf
 import bigframes_vendored.ibis.expr.types as ibis_types
@@ -1301,8 +1303,8 @@ def parse_json_op_impl(x: ibis_types.Value, op: ops.ParseJSON):
 
 
 @scalar_op_compiler.register_unary_op(ops.ToJSONString)
-def to_json_string_op_impl(json_obj: ibis_types.Value):
-    return to_json_string(json_obj=json_obj)
+def to_json_string_op_impl(x: ibis_types.Value):
+    return to_json_string(value=x)
 
 
 @scalar_op_compiler.register_unary_op(ops.JSONValue, pass_op=True)
@@ -1963,6 +1965,30 @@ def struct_op_impl(
     return ibis_types.struct(data)
 
 
+@scalar_op_compiler.register_nary_op(ops.AIGenerateBool, pass_op=True)
+def ai_generate_bool(
+    *values: ibis_types.Value, op: ops.AIGenerateBool
+) -> ibis_types.StructValue:
+
+    prompt: dict[str, ibis_types.Value | str] = {}
+    column_ref_idx = 0
+
+    for idx, elem in enumerate(op.prompt_context):
+        if elem is None:
+            prompt[f"_field_{idx + 1}"] = values[column_ref_idx]
+            column_ref_idx += 1
+        else:
+            prompt[f"_field_{idx + 1}"] = elem
+
+    return ai_ops.AIGenerateBool(
+        ibis.struct(prompt),  # type: ignore
+        op.connection_id,  # type: ignore
+        op.endpoint,  # type: ignore
+        op.request_type.upper(),  # type: ignore
+        op.model_params,  # type: ignore
+    ).to_expr()
+
+
 @scalar_op_compiler.register_nary_op(ops.RowKey, pass_op=True)
 def rowkey_op_impl(*values: ibis_types.Value, op: ops.RowKey) -> ibis_types.Value:
     return bigframes.core.compile.default_ordering.gen_row_key(values)
@@ -2068,10 +2094,8 @@ def json_extract_string_array(  # type: ignore[empty-body]
 
 
 @ibis_udf.scalar.builtin(name="to_json_string")
-def to_json_string(  # type: ignore[empty-body]
-    json_obj: ibis_dtypes.JSON,
-) -> ibis_dtypes.String:
-    """Convert JSON to STRING."""
+def to_json_string(value) -> ibis_dtypes.String:  # type: ignore[empty-body]
+    """Convert value to JSON-formatted string."""
 
 
 @ibis_udf.scalar.builtin(name="json_value")

@@ -641,6 +641,9 @@ def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
         return BIGFRAMES_STRING_TO_BIGFRAMES[
             typing.cast(DtypeString, str(dtype_string))
         ]
+    if isinstance(dtype_string, str) and dtype_string.lower() == "json":
+        return JSON_DTYPE
+
     raise TypeError(
         textwrap.dedent(
             f"""
@@ -652,9 +655,9 @@ def _dtype_from_string(dtype_string: str) -> typing.Optional[Dtype]:
                         The following pandas.ExtensionDtype are supported:
                         pandas.BooleanDtype(), pandas.Float64Dtype(),
                         pandas.Int64Dtype(), pandas.StringDtype(storage="pyarrow"),
-                        pd.ArrowDtype(pa.date32()), pd.ArrowDtype(pa.time64("us")),
-                        pd.ArrowDtype(pa.timestamp("us")),
-                        pd.ArrowDtype(pa.timestamp("us", tz="UTC")).
+                        pandas.ArrowDtype(pa.date32()), pandas.ArrowDtype(pa.time64("us")),
+                        pandas.ArrowDtype(pa.timestamp("us")),
+                        pandas.ArrowDtype(pa.timestamp("us", tz="UTC")).
                 {constants.FEEDBACK_LINK}
                 """
         )
@@ -668,8 +671,7 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
     if pd.api.types.is_list_like(literal):
         element_types = [infer_literal_type(i) for i in literal]
         common_type = lcd_type(*element_types)
-        as_arrow = bigframes_dtype_to_arrow_dtype(common_type)
-        return pd.ArrowDtype(as_arrow)
+        return list_type(common_type)
     if pd.api.types.is_dict_like(literal):
         fields = []
         for key in literal.keys():

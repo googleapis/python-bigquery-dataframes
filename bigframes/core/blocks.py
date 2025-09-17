@@ -27,7 +27,6 @@ import datetime
 import functools
 import itertools
 import random
-import textwrap
 import typing
 from typing import (
     Iterable,
@@ -38,6 +37,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TYPE_CHECKING,
     Union,
 )
 import warnings
@@ -54,7 +54,6 @@ import bigframes.constants
 from bigframes.core import agg_expressions, local_data
 import bigframes.core as core
 import bigframes.core.agg_expressions as ex_types
-import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.expression as ex
 import bigframes.core.expression as scalars
 import bigframes.core.guid as guid
@@ -62,8 +61,6 @@ import bigframes.core.identifiers
 import bigframes.core.join_def as join_defs
 import bigframes.core.ordering as ordering
 import bigframes.core.pyarrow_utils as pyarrow_utils
-import bigframes.core.schema as bf_schema
-import bigframes.core.sql as sql
 import bigframes.core.utils as utils
 import bigframes.core.window_spec as windows
 import bigframes.dtypes
@@ -72,6 +69,9 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 from bigframes.session import dry_runs, execution_spec
 from bigframes.session import executor as executors
+
+if TYPE_CHECKING:
+    from bigframes.session.executor import ExecuteResult
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -408,13 +408,15 @@ class Block:
         col_level: Union[str, int] = 0,
         col_fill: typing.Hashable = "",
         allow_duplicates: bool = False,
+        replacement: Optional[bigframes.enums.DefaultIndexKind] = None,
     ) -> Block:
         """Reset the index of the block, promoting the old index to a value column.
 
         Arguments:
             level: the label or index level of the index levels to remove.
             name: this is the column id for the new value id derived from the old index
-            allow_duplicates:
+            allow_duplicates: if false, duplicate col labels will result in error
+            replacement: if not null, will override default index replacement type
 
         Returns:
             A new Block because dropping index columns can break references
@@ -429,23 +431,19 @@ class Block:
             level_ids = self.index_columns
 
         expr = self._expr
+        replacement_idx_type = replacement or self.session._default_index_type
         if set(self.index_columns) > set(level_ids):
             new_index_cols = [col for col in self.index_columns if col not in level_ids]
             new_index_labels = [self.col_id_to_index_name[id] for id in new_index_cols]
-        elif (
-            self.session._default_index_type
-            == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64
-        ):
+        elif replacement_idx_type == bigframes.enums.DefaultIndexKind.SEQUENTIAL_INT64:
             expr, new_index_col_id = expr.promote_offsets()
             new_index_cols = [new_index_col_id]
             new_index_labels = [None]
-        elif self.session._default_index_type == bigframes.enums.DefaultIndexKind.NULL:
+        elif replacement_idx_type == bigframes.enums.DefaultIndexKind.NULL:
             new_index_cols = []
             new_index_labels = []
         else:
-            raise ValueError(
-                f"Unrecognized default index kind: {self.session._default_index_type}"
-            )
+            raise ValueError(f"Unrecognized default index kind: {replacement_idx_type}")
 
         if drop:
             # Even though the index might be part of the ordering, keep that
@@ -634,15 +632,17 @@ class Block:
             max_download_size, sampling_method, random_state
         )
 
-        df, query_job = self._materialize_local(
+        ex_result = self._materialize_local(
             materialize_options=MaterializationOptions(
                 downsampling=sampling,
                 allow_large_results=allow_large_results,
                 ordered=ordered,
             )
         )
+        df = ex_result.to_pandas()
+        df = self._copy_index_to_pandas(df)
         df.set_axis(self.column_labels, axis=1, copy=False)
-        return df, query_job
+        return df, ex_result.query_job
 
     def _get_sampling_option(
         self,
@@ -750,7 +750,7 @@ class Block:
 
     def _materialize_local(
         self, materialize_options: MaterializationOptions = MaterializationOptions()
-    ) -> Tuple[pd.DataFrame, Optional[bigquery.QueryJob]]:
+    ) -> ExecuteResult:
         """Run query and download results as a pandas DataFrame. Return the total number of results as well."""
         # TODO(swast): Allow for dry run and timeout.
         under_10gb = (
@@ -819,8 +819,7 @@ class Block:
                 MaterializationOptions(ordered=materialize_options.ordered)
             )
         else:
-            df = execute_result.to_pandas()
-            return self._copy_index_to_pandas(df), execute_result.query_job
+            return execute_result
 
     def _downsample(
         self, total_rows: int, sampling_method: str, fraction: float, random_state
@@ -1178,7 +1177,7 @@ class Block:
         block = self
         if skip_null_groups:
             for key in window.grouping_keys:
-                block = block.filter(ops.notnull_op.as_expr(key.id.name))
+                block = block.filter(ops.notnull_op.as_expr(key))
         expr, result_id = block._expr.project_window_expr(
             agg_expr,
             window,
@@ -2776,14 +2775,6 @@ class Block:
             )
 
     def _get_rows_as_json_values(self) -> Block:
-        # We want to preserve any ordering currently present before turning to
-        # direct SQL manipulation. We will restore the ordering when we rebuild
-        # expression.
-        # TODO(shobs): Replace direct SQL manipulation by structured expression
-        # manipulation
-        expr, ordering_column_name = self.expr.promote_offsets()
-        expr_sql = self.session._executor.to_sql(expr)
-
         # Names of the columns to serialize for the row.
         # We will use the repr-eval pattern to serialize a value here and
         # deserialize in the cloud function. Let's make sure that would work.
@@ -2799,93 +2790,44 @@ class Block:
                 )
 
             column_names.append(serialized_column_name)
-        column_names_csv = sql.csv(map(sql.simple_literal, column_names))
-
-        # index columns count
-        index_columns_count = len(self.index_columns)
 
         # column references to form the array of values for the row
         column_types = list(self.index.dtypes) + list(self.dtypes)
         column_references = []
         for type_, col in zip(column_types, self.expr.column_ids):
-            if isinstance(type_, pd.ArrowDtype) and pa.types.is_binary(
-                type_.pyarrow_dtype
-            ):
-                column_references.append(sql.to_json_string(col))
+            if type_ == bigframes.dtypes.BYTES_DTYPE:
+                column_references.append(ops.ToJSONString().as_expr(col))
+            elif type_ == bigframes.dtypes.BOOL_DTYPE:
+                # cast operator produces True/False, but function template expects lower case
+                column_references.append(
+                    ops.lower_op.as_expr(
+                        ops.AsTypeOp(bigframes.dtypes.STRING_DTYPE).as_expr(col)
+                    )
+                )
             else:
-                column_references.append(sql.cast_as_string(col))
-
-        column_references_csv = sql.csv(column_references)
-
-        # types of the columns to serialize for the row
-        column_types_csv = sql.csv(
-            [sql.simple_literal(str(typ)) for typ in column_types]
-        )
+                column_references.append(
+                    ops.AsTypeOp(bigframes.dtypes.STRING_DTYPE).as_expr(col)
+                )
 
         # row dtype to use for deserializing the row as pandas series
         pandas_row_dtype = bigframes.dtypes.lcd_type(*column_types)
         if pandas_row_dtype is None:
             pandas_row_dtype = "object"
-        pandas_row_dtype = sql.simple_literal(str(pandas_row_dtype))
+        pandas_row_dtype = str(pandas_row_dtype)
 
-        # create a json column representing row through SQL manipulation
-        row_json_column_name = guid.generate_guid()
-        select_columns = (
-            [ordering_column_name] + list(self.index_columns) + [row_json_column_name]
+        struct_op = ops.StructOp(
+            column_names=("names", "types", "values", "indexlength", "dtype")
         )
-        select_columns_csv = sql.csv(
-            [googlesql.identifier(col) for col in select_columns]
+        names_val = ex.const(tuple(column_names))
+        types_val = ex.const(tuple(map(str, column_types)))
+        values_val = ops.ToArrayOp().as_expr(*column_references)
+        indexlength_val = ex.const(len(self.index_columns))
+        dtype_val = ex.const(str(pandas_row_dtype))
+        struct_expr = struct_op.as_expr(
+            names_val, types_val, values_val, indexlength_val, dtype_val
         )
-        json_sql = f"""\
-With T0 AS (
-{textwrap.indent(expr_sql, "    ")}
-),
-T1 AS (
-    SELECT *,
-           TO_JSON_STRING(JSON_OBJECT(
-               "names", [{column_names_csv}],
-               "types", [{column_types_csv}],
-               "values", [{column_references_csv}],
-               "indexlength", {index_columns_count},
-               "dtype", {pandas_row_dtype}
-           )) AS {googlesql.identifier(row_json_column_name)} FROM T0
-)
-SELECT {select_columns_csv} FROM T1
-"""
-        # The only ways this code is used is through df.apply(axis=1) cope path
-        destination, query_job = self.session._loader._query_to_destination(
-            json_sql, cluster_candidates=[ordering_column_name]
-        )
-        if not destination:
-            raise ValueError(f"Query job {query_job} did not produce result table")
-
-        new_schema = (
-            self.expr.schema.select([*self.index_columns])
-            .append(
-                bf_schema.SchemaItem(
-                    row_json_column_name, bigframes.dtypes.STRING_DTYPE
-                )
-            )
-            .append(
-                bf_schema.SchemaItem(ordering_column_name, bigframes.dtypes.INT_DTYPE)
-            )
-        )
-
-        dest_table = self.session.bqclient.get_table(destination)
-        expr = core.ArrayValue.from_table(
-            dest_table,
-            schema=new_schema,
-            session=self.session,
-            offsets_col=ordering_column_name,
-            n_rows=dest_table.num_rows,
-        ).drop_columns([ordering_column_name])
-        block = Block(
-            expr,
-            index_columns=self.index_columns,
-            column_labels=[row_json_column_name],
-            index_labels=self._index_labels,
-        )
-        return block
+        block, col_id = self.project_expr(ops.ToJSONString().as_expr(struct_expr))
+        return block.select_column(col_id)
 
 
 class BlockIndexProperties:
