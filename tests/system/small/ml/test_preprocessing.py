@@ -63,7 +63,7 @@ def test_standard_scaler_normalizes(penguins_df_default_index, new_penguins_df):
     pd.testing.assert_frame_equal(result, expected, rtol=0.1)
 
 
-def test_standard_scaler_normalizeds_fit_transform(new_penguins_df):
+def test_standard_scaler_normalizes_fit_transform(new_penguins_df):
     # TODO(http://b/292431644): add a second test that compares output to sklearn.preprocessing.StandardScaler, when BQML's change is in prod.
     scaler = preprocessing.StandardScaler()
     result = scaler.fit_transform(
@@ -115,7 +115,7 @@ def test_standard_scaler_series_normalizes(penguins_df_default_index, new_pengui
     pd.testing.assert_frame_equal(result, expected, rtol=0.1)
 
 
-def test_standard_scaler_normalizeds_non_standard_column_names(
+def test_standard_scaler_normalizes_non_standard_column_names(
     new_penguins_df: bpd.DataFrame,
 ):
     new_penguins_df = new_penguins_df.rename(
