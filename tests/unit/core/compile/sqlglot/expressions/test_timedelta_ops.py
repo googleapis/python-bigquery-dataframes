@@ -16,7 +16,7 @@ import pytest
 
 from bigframes import operations as ops
 import bigframes.pandas as bpd
-from tests.unit.core.compile.sqlglot.expressions.utils import _apply_unary_ops
+from bigframes.testing import utils
 
 pytest.importorskip("pytest_snapshot")
 
@@ -33,7 +33,7 @@ def test_to_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
 def test_timedelta_floor(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
-    sql = _apply_unary_ops(
+    sql = utils._apply_unary_ops(
         bf_df, [ops.timedelta_floor_op.as_expr(col_name)], [col_name]
     )
 

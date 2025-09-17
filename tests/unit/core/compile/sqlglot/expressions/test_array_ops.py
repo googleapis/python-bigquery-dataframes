@@ -17,7 +17,7 @@ import pytest
 from bigframes import operations as ops
 from bigframes.operations._op_converters import convert_index, convert_slice
 import bigframes.pandas as bpd
-from tests.unit.core.compile.sqlglot.expressions.utils import _apply_unary_ops
+from bigframes.testing import utils
 
 pytest.importorskip("pytest_snapshot")
 
@@ -25,7 +25,7 @@ pytest.importorskip("pytest_snapshot")
 def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
     col_name = "string_list_col"
     bf_df = repeated_types_df[[col_name]]
-    sql = _apply_unary_ops(
+    sql = utils._apply_unary_ops(
         bf_df, [ops.ArrayToStringOp(delimiter=".").as_expr(col_name)], [col_name]
     )
 
@@ -35,7 +35,9 @@ def test_array_to_string(repeated_types_df: bpd.DataFrame, snapshot):
 def test_array_index(repeated_types_df: bpd.DataFrame, snapshot):
     col_name = "string_list_col"
     bf_df = repeated_types_df[[col_name]]
-    sql = _apply_unary_ops(bf_df, [convert_index(1).as_expr(col_name)], [col_name])
+    sql = utils._apply_unary_ops(
+        bf_df, [convert_index(1).as_expr(col_name)], [col_name]
+    )
 
     snapshot.assert_match(sql, "out.sql")
 
@@ -43,7 +45,7 @@ def test_array_index(repeated_types_df: bpd.DataFrame, snapshot):
 def test_array_slice_with_only_start(repeated_types_df: bpd.DataFrame, snapshot):
     col_name = "string_list_col"
     bf_df = repeated_types_df[[col_name]]
-    sql = _apply_unary_ops(
+    sql = utils._apply_unary_ops(
         bf_df, [convert_slice(slice(1, None)).as_expr(col_name)], [col_name]
     )
 
@@ -53,7 +55,7 @@ def test_array_slice_with_only_start(repeated_types_df: bpd.DataFrame, snapshot)
 def test_array_slice_with_start_and_stop(repeated_types_df: bpd.DataFrame, snapshot):
     col_name = "string_list_col"
     bf_df = repeated_types_df[[col_name]]
-    sql = _apply_unary_ops(
+    sql = utils._apply_unary_ops(
         bf_df, [convert_slice(slice(1, 5)).as_expr(col_name)], [col_name]
     )
 

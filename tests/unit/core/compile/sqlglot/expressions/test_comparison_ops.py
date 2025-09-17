@@ -16,7 +16,7 @@ import pytest
 
 from bigframes import operations as ops
 import bigframes.pandas as bpd
-from tests.unit.core.compile.sqlglot.expressions.utils import _apply_unary_ops
+from bigframes.testing import utils
 
 pytest.importorskip("pytest_snapshot")
 
@@ -40,5 +40,5 @@ def test_is_in(scalar_types_df: bpd.DataFrame, snapshot):
         "float_in_ints": ops.IsInOp(values=(1, 2, 3, None)).as_expr(float_col),
     }
 
-    sql = _apply_unary_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    sql = utils._apply_unary_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
     snapshot.assert_match(sql, "out.sql")
