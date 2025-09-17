@@ -215,8 +215,6 @@ def image_blur_func(
             timeout=30,
         )
 
-        result_dict["content"] = dst_obj_ref_rt_json["objectref"]["uri"]
-
     except Exception as e:
         result_dict["status"] = str(e)
 
@@ -235,7 +233,8 @@ def image_blur_to_bytes_func(
     import base64
     import json
 
-    result_dict = {"status": "", "content": ""}
+    status = ""
+    content = b""
 
     try:
         import cv2 as cv  # type: ignore
@@ -259,12 +258,11 @@ def image_blur_to_bytes_func(
         img_blurred = cv.blur(img, ksize=(ksize_x, ksize_y))
         content = cv.imencode(ext, img_blurred)[1].tobytes()
 
-        encoded_content = base64.b64encode(content).decode("utf-8")
-        result_dict["content"] = encoded_content
-
     except Exception as e:
-        result_dict["status"] = str(e)
+        status = str(e)
 
+    encoded_content = base64.b64encode(content).decode("utf-8")
+    result_dict = {"status": status, "content": encoded_content}
     if verbose:
         return json.dumps(result_dict)
     else:
@@ -330,8 +328,6 @@ def image_resize_func(
             timeout=30,
         )
 
-        result_dict["content"] = dst_obj_ref_rt_json["objectref"]["uri"]
-
     except Exception as e:
         result_dict["status"] = str(e)
 
@@ -358,7 +354,8 @@ def image_resize_to_bytes_func(
     import base64
     import json
 
-    result_dict = {"status": "", "content": ""}
+    status = ""
+    content = b""
 
     try:
         import cv2 as cv  # type: ignore
@@ -382,12 +379,11 @@ def image_resize_to_bytes_func(
         img_resized = cv.resize(img, dsize=(dsize_x, dsize_y), fx=fx, fy=fy)
         content = cv.imencode(".jpeg", img_resized)[1].tobytes()
 
-        encoded_content = base64.b64encode(content).decode("utf-8")
-        result_dict["content"] = encoded_content
-
     except Exception as e:
-        result_dict["status"] = str(e)
+        status = str(e)
 
+    encoded_content = base64.b64encode(content).decode("utf-8")
+    result_dict = {"status": status, "content": encoded_content}
     if verbose:
         return json.dumps(result_dict)
     else:
@@ -460,8 +456,6 @@ def image_normalize_func(
             },
             timeout=30,
         )
-
-        result_dict["content"] = dst_obj_ref_rt_json["objectref"]["uri"]
 
     except Exception as e:
         result_dict["status"] = str(e)
