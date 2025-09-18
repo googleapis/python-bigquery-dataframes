@@ -1242,7 +1242,7 @@ class GroupBy:
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __iter__(self):
-        """
+        r"""
         Groupby iterator.
 
         This method provides an iterator over the groups created by the ``resample``
@@ -1266,7 +1266,7 @@ class GroupBy:
             b    3
             dtype: Int64
             >>> for x, y in ser.groupby(level=0):
-            ...     print(f"{x}\\n{y}\\n")
+            ...     print(f"{x}\n{y}\n")
             a
             a    1
             a    2
@@ -1284,21 +1284,28 @@ class GroupBy:
             0  1  2  3
             1  1  5  6
             2  7  8  9
+            <BLANKLINE>
+            [3 rows x 3 columns]
             >>> for x, y in df.groupby(by=["a"]):
-            ...     print(f"{x}\\n{y}\\n")
+            ...     print(f'{x}\n{y}\n')
             (1,)
                a  b  c
             0  1  2  3
             1  1  5  6
+            <BLANKLINE>
+            [2 rows x 3 columns]
             (7,)
+            <BLANKLINE>
                a  b  c
             2  7  8  9
-
+            <BLANKLINE>
+            [1 rows x 3 columns]
+            <BLANKLINE>
 
         Returns:
-            Iterator of tuples:
-                Generator yielding a sequence of (``name``, downloaded
-                ``pandas.DataFrame`` or ``pandas.Series``) for each group.
+            Iterable[Label | Tuple, bigframes.pandas.Series | bigframes.pandas.DataFrame]:
+                Generator yielding sequence of (name, subsetted object)
+                for each group.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 

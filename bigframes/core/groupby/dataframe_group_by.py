@@ -15,8 +15,9 @@
 from __future__ import annotations
 
 import datetime
+import functools
 import typing
-from typing import Literal, Optional, Sequence, Tuple, Union
+from typing import Iterable, Literal, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -38,6 +39,8 @@ import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df
 import bigframes.dtypes as dtypes
+import bigframes.enums
+import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
@@ -54,6 +57,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         selected_cols: typing.Optional[typing.Sequence[str]] = None,
         dropna: bool = True,
         as_index: bool = True,
+        by_key_is_singular: bool = False,
     ):
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
@@ -64,6 +68,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         }
         self._by_col_ids = by_col_ids
+        self._by_key_is_singular = by_key_is_singular
+        if by_key_is_singular:
+            assert len(by_col_ids) == 1, "singular key should be exactly one group key"
 
         self._dropna = dropna
         self._as_index = as_index
@@ -148,6 +155,59 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 n=n,
             )
         )
+
+    def __iter__(self) -> Iterable[Tuple[blocks.Label, df.DataFrame]]:
+        original_index_columns = self._block._index_columns
+        original_index_labels = self._block._index_labels
+        by_col_ids = self._by_col_ids
+        block = self._block.reset_index(
+            level=None,
+            # Keep the original index columns so they can be recovered.
+            drop=False,
+            allow_duplicates=True,
+            replacement=bigframes.enums.DefaultIndexKind.NULL,
+        ).set_index(
+            by_col_ids,
+            # Keep by_col_ids in-place so the ordering doesn't change.
+            drop=False,
+            append=False,
+        )
+        block.cached(
+            force=True,
+            # All DataFrames will be filtered by by_col_ids, so
+            # force block.cached() to cluster by the new index by explicitly
+            # setting `session_aware=False`. This will ensure that the filters
+            # are more efficient.
+            session_aware=False,
+        )
+        keys_block, _ = block.aggregate(by_col_ids, dropna=self._dropna)
+        for chunk in keys_block.to_pandas_batches():
+            for by_keys in pd.MultiIndex.from_frame(chunk.index.to_frame()):
+                filtered_df = df.DataFrame(
+                    # To ensure the cache is used, filter first, then reset the
+                    # index before yielding the DataFrame.
+                    block.filter(
+                        functools.reduce(
+                            ops.and_op.as_expr,
+                            (
+                                ops.eq_op.as_expr(by_col, ex.const(by_key))
+                                for by_col, by_key in zip(by_col_ids, by_keys)
+                            ),
+                        ),
+                    ).set_index(
+                        original_index_columns,
+                        # We retained by_col_ids in the set_index call above,
+                        # so it's safe to drop the duplicates now.
+                        drop=True,
+                        append=False,
+                        index_labels=original_index_labels,
+                    )
+                )
+
+                if self._by_key_is_singular:
+                    yield by_keys[0], filtered_df
+                else:
+                    yield by_keys, filtered_df
 
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
         agg_block, _ = self._block.aggregate_size(

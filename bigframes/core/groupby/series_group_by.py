@@ -15,8 +15,9 @@
 from __future__ import annotations
 
 import datetime
+import functools
 import typing
-from typing import Literal, Sequence, Union
+from typing import Iterable, Literal, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -37,6 +38,8 @@ import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df
 import bigframes.dtypes
+import bigframes.enums
+import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
@@ -74,6 +77,58 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
                 by_column_ids=self._by_col_ids, value_columns=[self._value_column], n=n
             )
         )
+
+    def __iter__(self) -> Iterable[Tuple[blocks.Label, series.Series]]:
+        original_index_columns = self._block._index_columns
+        original_index_labels = self._block._index_labels
+        by_col_ids = self._by_col_ids
+        block = self._block.reset_index(
+            level=None,
+            # Keep the original index columns so they can be recovered.
+            drop=False,
+            allow_duplicates=True,
+            replacement=bigframes.enums.DefaultIndexKind.NULL,
+        ).set_index(
+            by_col_ids,
+            # Keep by_col_ids in-place so the ordering doesn't change.
+            drop=False,
+            append=False,
+        )
+        block.cached(
+            force=True,
+            # All DataFrames will be filtered by by_col_ids, so
+            # force block.cached() to cluster by the new index by explicitly
+            # setting `session_aware=False`. This will ensure that the filters
+            # are more efficient.
+            session_aware=False,
+        )
+        keys_block, _ = block.aggregate(by_col_ids, dropna=self._dropna)
+        for chunk in keys_block.to_pandas_batches():
+            for by_keys in chunk.index:
+                filtered_series = series.Series(
+                    # To ensure the cache is used, filter first, then reset the
+                    # index before yielding the DataFrame.
+                    block.filter(
+                        functools.reduce(
+                            ops.and_op.as_expr,
+                            (
+                                ops.eq_op.as_expr(by_col, ex.const(by_key))
+                                for by_col, by_key in zip(by_col_ids, by_keys)
+                            ),
+                        ),
+                    )
+                    .set_index(
+                        original_index_columns,
+                        # We retained by_col_ids in the set_index call above,
+                        # so it's safe to drop the duplicates now.
+                        drop=True,
+                        append=False,
+                        index_labels=original_index_labels,
+                    )
+                    .select_column(self._value_column),
+                )
+                filtered_series.name = self._value_name
+                yield by_keys, filtered_series
 
     def all(self) -> series.Series:
         return self._aggregate(agg_ops.all_op)
