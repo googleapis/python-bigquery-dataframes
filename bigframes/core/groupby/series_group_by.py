@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import datetime
-import functools
 import typing
 from typing import Iterable, Literal, Sequence, Tuple, Union
 
@@ -29,7 +28,7 @@ from bigframes.core import expression as ex
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
-from bigframes.core.groupby import aggs
+from bigframes.core.groupby import aggs, group_by
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -38,8 +37,6 @@ import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df
 import bigframes.dtypes
-import bigframes.enums
-import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
@@ -55,6 +52,8 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         by_col_ids: typing.Sequence[str],
         value_name: blocks.Label = None,
         dropna=True,
+        *,
+        by_key_is_singular: bool = False,
     ):
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
@@ -62,6 +61,10 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self._by_col_ids = by_col_ids
         self._value_name = value_name
         self._dropna = dropna  # Applies to aggregations but not windowing
+
+        self._by_key_is_singular = by_key_is_singular
+        if by_key_is_singular:
+            assert len(by_col_ids) == 1, "singular key should be exactly one group key"
 
     @property
     def _session(self) -> session.Session:
@@ -79,56 +82,17 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
 
     def __iter__(self) -> Iterable[Tuple[blocks.Label, series.Series]]:
-        original_index_columns = self._block._index_columns
-        original_index_labels = self._block._index_labels
-        by_col_ids = self._by_col_ids
-        block = self._block.reset_index(
-            level=None,
-            # Keep the original index columns so they can be recovered.
-            drop=False,
-            allow_duplicates=True,
-            replacement=bigframes.enums.DefaultIndexKind.NULL,
-        ).set_index(
-            by_col_ids,
-            # Keep by_col_ids in-place so the ordering doesn't change.
-            drop=False,
-            append=False,
-        )
-        block.cached(
-            force=True,
-            # All DataFrames will be filtered by by_col_ids, so
-            # force block.cached() to cluster by the new index by explicitly
-            # setting `session_aware=False`. This will ensure that the filters
-            # are more efficient.
-            session_aware=False,
-        )
-        keys_block, _ = block.aggregate(by_col_ids, dropna=self._dropna)
-        for chunk in keys_block.to_pandas_batches():
-            for by_keys in chunk.index:
-                filtered_series = series.Series(
-                    # To ensure the cache is used, filter first, then reset the
-                    # index before yielding the DataFrame.
-                    block.filter(
-                        functools.reduce(
-                            ops.and_op.as_expr,
-                            (
-                                ops.eq_op.as_expr(by_col, ex.const(by_key))
-                                for by_col, by_key in zip(by_col_ids, by_keys)
-                            ),
-                        ),
-                    )
-                    .set_index(
-                        original_index_columns,
-                        # We retained by_col_ids in the set_index call above,
-                        # so it's safe to drop the duplicates now.
-                        drop=True,
-                        append=False,
-                        index_labels=original_index_labels,
-                    )
-                    .select_column(self._value_column),
-                )
-                filtered_series.name = self._value_name
-                yield by_keys, filtered_series
+        for group_keys, filtered_block in group_by.block_groupby_iter(
+            self._block,
+            by_col_ids=self._by_col_ids,
+            by_key_is_singular=self._by_key_is_singular,
+            dropna=self._dropna,
+        ):
+            filtered_series = series.Series(
+                filtered_block.select_column(self._value_column)
+            )
+            filtered_series.name = self._value_name
+            yield group_keys, filtered_series
 
     def all(self) -> series.Series:
         return self._aggregate(agg_ops.all_op)
