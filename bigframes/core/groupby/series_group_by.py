@@ -81,6 +81,20 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             )
         )
 
+    def describe(self, include: None | Literal["all"] = None):
+        from bigframes.pandas.core.methods import describe
+
+        return df.DataFrame(
+            describe._describe(
+                self._block,
+                columns=[self._value_column],
+                include=include,
+                as_index=True,
+                by_col_ids=self._by_col_ids,
+                dropna=self._dropna,
+            )
+        ).droplevel(level=0, axis=1)
+
     def __iter__(self) -> Iterable[Tuple[blocks.Label, series.Series]]:
         for group_keys, filtered_block in group_by.block_groupby_iter(
             self._block,
