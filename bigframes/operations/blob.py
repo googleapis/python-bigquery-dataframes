@@ -472,15 +472,13 @@ class BlobAccessor(base.SeriesMethods):
             blurred_status_series = res._apply_unary_op(
                 ops.JSONValue(json_path="$.status")
             )
-            content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
-            dst_blobs = content_series.str.to_blob(connection=connection)
             results_df = bpd.DataFrame(
-                {"status": blurred_status_series, "content": dst_blobs}
+                {"status": blurred_status_series, "content": dst}
             )
             results_struct = bbq.struct(results_df).rename("blurred_results")
             return results_struct
         else:
-            return res.str.to_blob(connection=connection)
+            return dst
 
     def image_resize(
         self,
@@ -608,15 +606,13 @@ class BlobAccessor(base.SeriesMethods):
             resized_status_series = res._apply_unary_op(
                 ops.JSONValue(json_path="$.status")
             )
-            content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
-            dst_blobs = content_series.str.to_blob(connection=connection)
             results_df = bpd.DataFrame(
-                {"status": resized_status_series, "content": dst_blobs}
+                {"status": resized_status_series, "content": dst}
             )
             results_struct = bbq.struct(results_df).rename("resized_results")
             return results_struct
         else:
-            return res.str.to_blob(connection=connection)
+            return dst
 
     def image_normalize(
         self,
@@ -738,18 +734,16 @@ class BlobAccessor(base.SeriesMethods):
             normalized_status_series = res._apply_unary_op(
                 ops.JSONValue(json_path="$.status")
             )
-            content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
-            dst_blobs = content_series.str.to_blob(connection=connection)
             results_df = bpd.DataFrame(
                 {
                     "status": normalized_status_series,
-                    "content": dst_blobs,
+                    "content": dst,
                 }
             )
             results_struct = bbq.struct(results_df).rename("normalized_results")
             return results_struct
         else:
-            return res.str.to_blob(connection=connection)
+            return dst
 
     def pdf_extract(
         self,
