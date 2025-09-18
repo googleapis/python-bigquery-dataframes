@@ -234,7 +234,7 @@ def preview(*, name: str):
 
 
 def timedelta_to_micros(
-    timedelta: typing.Union[pd.Timedelta, datetime.timedelta, np.timedelta64, int]
+    timedelta: typing.Union[pd.Timedelta, datetime.timedelta, np.timedelta64]
 ) -> int:
     if isinstance(timedelta, pd.Timedelta):
         # pd.Timedelta.value returns total nanoseconds.
@@ -247,8 +247,5 @@ def timedelta_to_micros(
         return (
             (timedelta.days * 3600 * 24) + timedelta.seconds
         ) * 1_000_000 + timedelta.microseconds
-
-    if isinstance(timedelta, int):
-        return timedelta
 
     raise TypeError(f"Unrecognized input type: {type(timedelta)}")

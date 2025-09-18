@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import typing
 
+import pandas as pd
 import sqlglot.expressions as sge
 
 from bigframes import dtypes
@@ -82,6 +83,9 @@ def _(
     expr = column.expr
     if column.dtype == dtypes.BOOL_DTYPE:
         expr = sge.Cast(this=column.expr, to="INT64")
-    # Will be null if all inputs are null. Pandas defaults to zero sum though.
+
     expr = apply_window_if_present(sge.func("SUM", expr), window)
-    return sge.func("IFNULL", expr, ir._literal(0, column.dtype))
+
+    # Will be null if all inputs are null. Pandas defaults to zero sum though.
+    zero = pd.to_timedelta(0) if column.dtype == dtypes.TIMEDELTA_DTYPE else 0
+    return sge.func("IFNULL", expr, ir._literal(zero, column.dtype))
