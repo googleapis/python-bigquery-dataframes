@@ -1,37 +1,39 @@
-WITH `bfcte_1` AS (
-  SELECT
-    `int64_col` AS `bfcol_0`,
-    `rowindex` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_1` AS `bfcol_2`,
-    `bfcol_0` AS `bfcol_3`
-  FROM `bfcte_1`
-), `bfcte_0` AS (
-  SELECT
-    `int64_too` AS `bfcol_4`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_3` AS (
-  SELECT
-    `bfcte_2`.*,
-    EXISTS(
+SELECT
+  `t2`.`bfuid_col_1` AS `rowindex`,
+  EXISTS(
+    SELECT
+      1
+    FROM (
       SELECT
-        1
+        `t3`.`int64_too`
       FROM (
         SELECT
-          `bfcol_4`
-        FROM `bfcte_0`
-        GROUP BY
-          `bfcol_4`
-      ) AS `bft_0`
-      WHERE
-        COALESCE(`bfcte_2`.`bfcol_3`, 0) = COALESCE(`bft_0`.`bfcol_4`, 0)
-        AND COALESCE(`bfcte_2`.`bfcol_3`, 1) = COALESCE(`bft_0`.`bfcol_4`, 1)
-    ) AS `bfcol_5`
-  FROM `bfcte_2`
-)
-SELECT
-  `bfcol_2` AS `rowindex`,
-  `bfcol_5` AS `int64_col`
-FROM `bfcte_3`
+          `t1`.`int64_too`
+        FROM (
+          SELECT
+            `int64_too`
+          FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-18T23:31:46.736473')
+        ) AS `t1`
+      ) AS `t3`
+      GROUP BY
+        1
+    ) AS `t4`
+    WHERE
+      (
+        COALESCE(`t2`.`int64_col`, 0) = COALESCE(`t4`.`int64_too`, 0)
+      )
+      AND (
+        COALESCE(`t2`.`int64_col`, 1) = COALESCE(`t4`.`int64_too`, 1)
+      )
+  ) AS `int64_col`
+FROM (
+  SELECT
+    `t0`.`rowindex` AS `bfuid_col_1`,
+    `t0`.`int64_col`
+  FROM (
+    SELECT
+      `int64_col`,
+      `rowindex`
+    FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-18T23:31:46.736473')
+  ) AS `t0`
+) AS `t2`
