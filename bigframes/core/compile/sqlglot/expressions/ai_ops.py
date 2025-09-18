@@ -14,8 +14,6 @@
 
 from __future__ import annotations
 
-from typing import Sequence
-
 import sqlglot.expressions as sge
 
 from bigframes import operations as ops
