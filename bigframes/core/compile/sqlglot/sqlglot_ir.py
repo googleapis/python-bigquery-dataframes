@@ -633,8 +633,6 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
     elif dtype == dtypes.JSON_DTYPE:
         return sge.ParseJSON(this=sge.convert(str(value)))
     elif dtype == dtypes.TIMEDELTA_DTYPE:
-        if isinstance(value, int):
-            return sge.convert(value)
         return sge.convert(utils.timedelta_to_micros(value))
     elif dtypes.is_struct_like(dtype):
         items = [
