@@ -1,13 +1,7 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `geography_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    ST_ASTEXT(`bfcol_0`) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `geography_col`
-FROM `bfcte_1`
+  st_astext(`t0`.`geography_col`) AS `geography_col`
+FROM (
+  SELECT
+    `geography_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-18T23:31:46.736473')
+) AS `t0`
