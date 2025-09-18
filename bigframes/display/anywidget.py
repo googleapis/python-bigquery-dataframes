@@ -52,16 +52,10 @@ class TableWidget(WIDGET_BASE):
     large BigQuery DataFrames within a Jupyter environment.
     """
 
+    page = traitlets.Int(0).tag(sync=True)
     page_size = traitlets.Int(0).tag(sync=True)
-    # Use dynamic default
-    page_size = traitlets.Int().tag(sync=True)
     row_count = traitlets.Int(0).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
-
-    @traitlets.default("page_size")
-    def _page_size_default(self):
-        """Set the default page size from display options."""
-        return bigframes.options.display.max_rows
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """Initialize the TableWidget.
@@ -75,6 +69,7 @@ class TableWidget(WIDGET_BASE):
             )
 
         self._dataframe = dataframe
+        # This flag is used to prevent observers from firing during initialization.
         self._initializing = True
         super().__init__()
 
@@ -85,11 +80,11 @@ class TableWidget(WIDGET_BASE):
         self._cached_batches: List[pd.DataFrame] = []
 
         # Respect display options for initial page size
-        initial_page_size = bigframes.options.display.max_rows
+        self.page_size = bigframes.options.display.max_rows
 
         self._batches: bigframes.core.blocks.PandasBatches = cast(
             bigframes.core.blocks.PandasBatches,
-            dataframe.to_pandas_batches(page_size=initial_page_size),
+            dataframe.to_pandas_batches(page_size=self.page_size),
         )
 
         # The query issued by `to_pandas_batches()` already contains metadata
@@ -109,11 +104,6 @@ class TableWidget(WIDGET_BASE):
     def _css(self):
         """Load CSS code from external file."""
         return resources.read_text(bigframes.display, "table_widget.css")
-
-    page = traitlets.Int(0).tag(sync=True)
-    page_size = traitlets.Int().tag(sync=True)
-    row_count = traitlets.Int(0).tag(sync=True)
-    table_html = traitlets.Unicode().tag(sync=True)
 
     @traitlets.validate("page")
     def _validate_page(self, proposal: Dict[str, Any]) -> int:
