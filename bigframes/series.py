@@ -25,6 +25,7 @@ import textwrap
 import typing
 from typing import (
     Any,
+    Callable,
     cast,
     Iterable,
     List,
@@ -1854,12 +1855,18 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         level: int | str | typing.Sequence[int] | typing.Sequence[str],
         dropna: bool = True,
     ) -> bigframes.core.groupby.SeriesGroupBy:
+        if utils.is_list_like(level):
+            by_key_is_singular = False
+        else:
+            by_key_is_singular = True
+
         return groupby.SeriesGroupBy(
             self._block,
             self._value_column,
             by_col_ids=self._resolve_levels(level),
             value_name=self.name,
             dropna=dropna,
+            by_key_is_singular=by_key_is_singular,
         )
 
     def _groupby_values(
@@ -1871,8 +1878,10 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
     ) -> bigframes.core.groupby.SeriesGroupBy:
         if not isinstance(by, Series) and _is_list_like(by):
             by = list(by)
+            by_key_is_singular = False
         else:
             by = [typing.cast(typing.Union[blocks.Label, Series], by)]
+            by_key_is_singular = True
 
         block = self._block
         grouping_cols: typing.Sequence[str] = []
@@ -1904,6 +1913,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             by_col_ids=grouping_cols,
             value_name=self.name,
             dropna=dropna,
+            by_key_is_singular=by_key_is_singular,
         )
 
     def apply(
@@ -2330,7 +2340,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
     def map(
         self,
-        arg: typing.Union[Mapping, Series],
+        arg: typing.Union[Mapping, Series, Callable],
         na_action: Optional[str] = None,
         *,
         verify_integrity: bool = False,
@@ -2352,6 +2362,7 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
             )
             map_df = map_df.set_index("keys")
         elif callable(arg):
+            # This is for remote function and managed funtion.
             return self.apply(arg)
         else:
             # Mirroring pandas, call the uncallable object

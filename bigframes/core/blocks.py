@@ -253,6 +253,10 @@ class Block:
         return block
 
     @property
+    def has_index(self) -> bool:
+        return len(self._index_columns) > 0
+
+    @property
     def index(self) -> BlockIndexProperties:
         """Row identities for values in the Block."""
         return BlockIndexProperties(self)
@@ -1371,10 +1375,16 @@ class Block:
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
         """
         Apply aggregations to the block.
+
         Arguments:
             by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
             aggregations: input_column_id, operation tuples
             dropna: whether null keys should be dropped
+
+        Returns:
+            Tuple[Block, Sequence[str]]:
+                The first element is the grouped block. The second is the
+                column IDs corresponding to each applied aggregation.
         """
         if column_labels is None:
             column_labels = pd.Index(range(len(aggregations)))
@@ -1780,7 +1790,9 @@ class Block:
         else:
             return result_block.with_column_labels(columns_values)
 
-    def stack(self, how="left", levels: int = 1):
+    def stack(
+        self, how="left", levels: int = 1, *, override_labels: Optional[pd.Index] = None
+    ):
         """Unpivot last column axis level into row axis"""
         if levels == 0:
             return self
@@ -1788,7 +1800,9 @@ class Block:
         # These are the values that will be turned into rows
 
         col_labels, row_labels = utils.split_index(self.column_labels, levels=levels)
-        row_labels = row_labels.drop_duplicates()
+        row_labels = (
+            row_labels.drop_duplicates() if override_labels is None else override_labels
+        )
 
         if col_labels is None:
             result_index: pd.Index = pd.Index([None])
