@@ -8,8 +8,8 @@ WITH `bfcte_0` AS (
     AI.GENERATE_BOOL(
       prompt => (`bfcol_0`, ' is the same as ', `bfcol_0`),
       connection_id => 'test_connection_id',
-      endpoint => 'gemini-2.5-flash',
-      request_type => 'SHARED'
+      request_type => 'SHARED',
+      model_params => JSON '{}'
     ) AS `bfcol_1`
   FROM `bfcte_0`
 )
