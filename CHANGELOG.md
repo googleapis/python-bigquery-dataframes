@@ -4,6 +4,22 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.22.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.21.0...v2.22.0) (2025-09-19)
+
+
+### Features
+
+* Add `GroupBy.__iter__` ([#1394](https://github.com/googleapis/python-bigquery-dataframes/issues/1394)) ([c56a78c](https://github.com/googleapis/python-bigquery-dataframes/commit/c56a78cd509a535d4998d5b9a99ec3ecd334b883))
+* Add Groupby.describe() ([#2088](https://github.com/googleapis/python-bigquery-dataframes/issues/2088)) ([328a765](https://github.com/googleapis/python-bigquery-dataframes/commit/328a765e746138806a021bea22475e8c03512aeb))
+* Support callable for series map method ([#2100](https://github.com/googleapis/python-bigquery-dataframes/issues/2100)) ([ac25618](https://github.com/googleapis/python-bigquery-dataframes/commit/ac25618feed2da11fe4fb85058d498d262c085c0))
+* Support df.info() with null index ([#2094](https://github.com/googleapis/python-bigquery-dataframes/issues/2094)) ([fb81eea](https://github.com/googleapis/python-bigquery-dataframes/commit/fb81eeaf13af059f32cb38e7f117fb3504243d51))
+
+
+### Bug Fixes
+
+* Throw type error for incomparable join keys ([#2098](https://github.com/googleapis/python-bigquery-dataframes/issues/2098)) ([9dc9695](https://github.com/googleapis/python-bigquery-dataframes/commit/9dc96959a84b751d18b290129c2926df6e50b3f5))
+* Transformers with non-standard column names throw errors ([#2089](https://github.com/googleapis/python-bigquery-dataframes/issues/2089)) ([a2daa3f](https://github.com/googleapis/python-bigquery-dataframes/commit/a2daa3fffe6743327edb9f4c74db93198bd12f8e))
+
 ## [2.21.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.20.0...v2.21.0) (2025-09-17)
 
 
