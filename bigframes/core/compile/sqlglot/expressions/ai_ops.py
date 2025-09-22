@@ -56,6 +56,8 @@ def _(*exprs: TypedExpr, op: ops.AIGenerateBool) -> sge.Expression:
         args.append(
             sge.Kwarg(
                 this="model_params",
+                # sge.JSON requires a newer SQLGlot version than 23.6.3.
+                # PARSE_JSON won't work as the function requires a JSON literal.
                 expression=sge.JSON(this=sge.Literal.string(op.model_params)),
             )
         )
