@@ -129,6 +129,35 @@ def test_dataframe_rename_axis_inplace_returns_none(monkeypatch: pytest.MonkeyPa
     assert list(dataframe.index.names) == ["a", "b"]
 
 
+def test_dataframe_drop_columns_inplace_returns_none(monkeypatch: pytest.MonkeyPatch):
+    dataframe = mocks.create_dataframe(
+        monkeypatch, data={"col1": [1], "col2": [2], "col3": [3]}
+    )
+    assert dataframe.columns.to_list() == ["col1", "col2", "col3"]
+    assert dataframe.drop(columns=["col1", "col3"], inplace=True) is None
+    assert dataframe.columns.to_list() == ["col2"]
+
+
+def test_dataframe_drop_index_inplace_returns_none(monkeypatch: pytest.MonkeyPatch):
+    dataframe = mocks.create_dataframe(
+        monkeypatch, data={"col1": [1, 2, 3], "index_col": [0, 1, 2]}
+    ).set_index("index_col")
+    # TODO(swast): Support dataframe.index.to_list()
+    # assert dataframe.index.to_list() == [0, 1, 2]
+    assert dataframe.drop(index=[0, 2], inplace=True) is None
+    # assert dataframe.index.to_list() == [1]
+
+
+def test_dataframe_drop_columns_returns_new_dataframe(monkeypatch: pytest.MonkeyPatch):
+    dataframe = mocks.create_dataframe(
+        monkeypatch, data={"col1": [1], "col2": [2], "col3": [3]}
+    )
+    assert dataframe.columns.to_list() == ["col1", "col2", "col3"]
+    new_dataframe = dataframe.drop(columns=["col1", "col3"])
+    assert dataframe.columns.to_list() == ["col1", "col2", "col3"]
+    assert new_dataframe.columns.to_list() == ["col2"]
+
+
 def test_dataframe_semantics_property_future_warning(
     monkeypatch: pytest.MonkeyPatch,
 ):
