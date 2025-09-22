@@ -56,6 +56,15 @@ def test_max(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_median(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.MedianOp().as_expr(col_name)
+    sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_min(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
