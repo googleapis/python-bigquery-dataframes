@@ -45,7 +45,7 @@ def test_index_to_list(monkeypatch: pytest.MonkeyPatch):
     pd_index = pd.Index([1, 2, 3], name="my_index")
     df = mocks.create_dataframe(
         monkeypatch,
-        data=pd.DataFrame({"my_index": [1, 2, 3]}).set_index("my_index"),
-    )
+        data={"my_index": [1, 2, 3]},
+    ).set_index("my_index")
     bf_index = df.index
     assert bf_index.to_list() == pd_index.to_list()
