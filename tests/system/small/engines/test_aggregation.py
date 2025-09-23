@@ -85,17 +85,23 @@ def test_engines_unary_aggregates(
     assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
 
 
-@pytest.mark.parametrize(
-    "op",
-    [agg_ops.MedianOp],
-)
-def test_sql_engines_unary_aggregates(
+def test_sql_engines_median_op_aggregates(
     scalars_array_value: array_value.ArrayValue,
     bigquery_client: bigquery.Client,
-    op,
 ):
-    # TODO: this is not working??
-    node = apply_agg_to_all_valid(scalars_array_value, op).node
+    node = apply_agg_to_all_valid(
+        scalars_array_value,
+        agg_ops.MedianOp(),
+        # Exclude columns are not supported by Ibis.
+        excluded_cols=[
+            "bytes_col",
+            "date_col",
+            "datetime_col",
+            "time_col",
+            "timestamp_col",
+            "string_col",
+        ],
+    ).node
     left_engine = direct_gbq_execution.DirectGbqExecutor(bigquery_client)
     right_engine = direct_gbq_execution.DirectGbqExecutor(
         bigquery_client, compiler="sqlglot"
