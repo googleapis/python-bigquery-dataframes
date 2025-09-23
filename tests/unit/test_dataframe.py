@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import google.cloud.bigquery
+import pandas as pd
 import pytest
 
 import bigframes.dataframe
+import bigframes.session
 from bigframes.testing import mocks
 
 
@@ -138,14 +140,17 @@ def test_dataframe_drop_columns_inplace_returns_none(monkeypatch: pytest.MonkeyP
     assert dataframe.columns.to_list() == ["col2"]
 
 
-def test_dataframe_drop_index_inplace_returns_none(monkeypatch: pytest.MonkeyPatch):
-    dataframe = mocks.create_dataframe(
-        monkeypatch, data={"col1": [1, 2, 3], "index_col": [0, 1, 2]}
-    ).set_index("index_col")
-    # TODO(swast): Support dataframe.index.to_list()
-    # assert dataframe.index.to_list() == [0, 1, 2]
+def test_dataframe_drop_index_inplace_returns_none(
+    # Drop index depends on the actual data, not just metadata, so use the
+    # local engine for more robust testing.
+    polars_session: bigframes.session.Session,
+):
+    dataframe = polars_session.read_pandas(
+        pd.DataFrame({"col1": [1, 2, 3], "index_col": [0, 1, 2]}).set_index("index_col")
+    )
+    assert dataframe.index.to_list() == [0, 1, 2]
     assert dataframe.drop(index=[0, 2], inplace=True) is None
-    # assert dataframe.index.to_list() == [1]
+    assert dataframe.index.to_list() == [1]
 
 
 def test_dataframe_drop_columns_returns_new_dataframe(monkeypatch: pytest.MonkeyPatch):
