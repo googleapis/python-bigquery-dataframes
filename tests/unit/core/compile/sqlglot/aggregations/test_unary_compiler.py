@@ -63,6 +63,21 @@ def _apply_unary_window_op(
     return sql
 
 
+def test_approx_quartiles(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_ops_map = {
+        "q1": agg_ops.ApproxQuartilesOp(quartile=1).as_expr(col_name),
+        "q2": agg_ops.ApproxQuartilesOp(quartile=2).as_expr(col_name),
+        "q3": agg_ops.ApproxQuartilesOp(quartile=3).as_expr(col_name),
+    }
+    sql = _apply_unary_agg_ops(
+        bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
+    )
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_count(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]

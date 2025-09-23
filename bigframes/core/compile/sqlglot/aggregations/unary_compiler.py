@@ -38,6 +38,26 @@ def compile(
     return UNARY_OP_REGISTRATION[op](op, column, window=window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.ApproxQuartilesOp)
+def _(
+    op: agg_ops.ApproxQuartilesOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    if window is not None:
+        raise NotImplementedError("Approx Quartiles with windowing is not supported.")
+    # APPROX_QUANTILES returns an array of the quartiles, so we need to index it.
+    # The op.quartile is 1-based for the quartile, but array is 0-indexed.
+    # The quartiles are Q0, Q1, Q2, Q3, Q4. op.quartile is 1, 2, or 3.
+    # The array has 5 elements (for N=4 intervals).
+    # So we want the element at index `op.quartile`.
+    approx_quantiles_expr = sge.func("APPROX_QUANTILES", column.expr, sge.convert(4))
+    return sge.Bracket(
+        this=approx_quantiles_expr,
+        expressions=[sge.func("OFFSET", sge.convert(op.quartile))],
+    )
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.CountOp)
 def _(
     op: agg_ops.CountOp,

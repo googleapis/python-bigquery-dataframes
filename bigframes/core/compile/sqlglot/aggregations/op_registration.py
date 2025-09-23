@@ -41,12 +41,9 @@ class OpRegistration:
                     )
                 return item(*args, **kwargs)
 
-            if hasattr(op, "name"):
-                key = typing.cast(str, op.name)
-                if key in self._registered_ops:
-                    raise ValueError(f"{key} is already registered")
-            else:
-                raise ValueError(f"The operator must have a 'name' attribute. Got {op}")
+            key = op if isinstance(op, type) else type(op)
+            if key in self._registered_ops:
+                raise ValueError(f"{key} is already registered")
             self._registered_ops[key] = item
             return arg_checker
 
