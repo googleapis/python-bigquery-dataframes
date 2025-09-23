@@ -60,12 +60,7 @@ def test_median(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df
     ops_map = {
         "int64_col": agg_ops.MedianOp().as_expr("int64_col"),
-        # Includes columns are not supported by Ibis but supported by BigQuery.
-        "bytes_col": agg_ops.MedianOp().as_expr("bytes_col"),
         "date_col": agg_ops.MedianOp().as_expr("date_col"),
-        "datetime_col": agg_ops.MedianOp().as_expr("datetime_col"),
-        "time_col": agg_ops.MedianOp().as_expr("time_col"),
-        "timestamp_col": agg_ops.MedianOp().as_expr("timestamp_col"),
         "string_col": agg_ops.MedianOp().as_expr("string_col"),
     }
     sql = _apply_unary_agg_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))

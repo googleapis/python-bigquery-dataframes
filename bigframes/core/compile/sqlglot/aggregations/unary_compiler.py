@@ -62,9 +62,6 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    # TODO(swast): Allow switching between exact and approximate median.
-    # For now, the best we can do is an approximate median when we're doing
-    # an aggregation, as PERCENTILE_CONT is only an analytic function.
     approx_quantiles = sge.func("APPROX_QUANTILES", column.expr, sge.convert(2))
     return sge.Bracket(
         this=approx_quantiles, expressions=[sge.func("OFFSET", sge.convert(1))]

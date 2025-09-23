@@ -92,15 +92,6 @@ def test_sql_engines_median_op_aggregates(
     node = apply_agg_to_all_valid(
         scalars_array_value,
         agg_ops.MedianOp(),
-        # Exclude columns are not supported by Ibis.
-        excluded_cols=[
-            "bytes_col",
-            "date_col",
-            "datetime_col",
-            "time_col",
-            "timestamp_col",
-            "string_col",
-        ],
     ).node
     left_engine = direct_gbq_execution.DirectGbqExecutor(bigquery_client)
     right_engine = direct_gbq_execution.DirectGbqExecutor(
