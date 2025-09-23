@@ -58,6 +58,17 @@ def _(
     )
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.ApproxTopCountOp)
+def _(
+    op: agg_ops.ApproxTopCountOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    if window is not None:
+        raise NotImplementedError("Approx top count with windowing is not supported.")
+    return sge.func("APPROX_TOP_COUNT", column.expr, sge.convert(op.number))
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.CountOp)
 def _(
     op: agg_ops.CountOp,
