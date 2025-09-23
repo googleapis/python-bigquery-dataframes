@@ -1997,8 +1997,9 @@ def ai_generate_int(
         op.model_params,  # type: ignore
     ).to_expr()
 
+
 @scalar_op_compiler.register_nary_op(ops.AIGenerateDouble, pass_op=True)
-def ai_generate_int(
+def ai_generate_double(
     *values: ibis_types.Value, op: ops.AIGenerateDouble
 ) -> ibis_types.StructValue:
 
