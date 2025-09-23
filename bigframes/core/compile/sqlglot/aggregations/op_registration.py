@@ -58,5 +58,7 @@ class OpRegistration:
                 raise ValueError(f"The operator must have a 'name' attribute. Got {op}")
             else:
                 key = typing.cast(str, op.name)
-                return self._registered_ops[key]
+                if key in self._registered_ops:
+                    return self._registered_ops[key]
+                return self._registered_ops[type(op)]
         return self._registered_ops[op]

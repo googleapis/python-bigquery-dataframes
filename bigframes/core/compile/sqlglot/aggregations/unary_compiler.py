@@ -109,13 +109,23 @@ def _(
     return apply_window_if_present(sge.func("MIN", column.expr), window)
 
 
-@UNARY_OP_REGISTRATION.register(agg_ops.SizeUnaryOp)
+@UNARY_OP_REGISTRATION.register(agg_ops.QuantileOp)
 def _(
-    op: agg_ops.SizeUnaryOp,
-    _,
+    op: agg_ops.QuantileOp,
+    column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
+    # TODO: Support interpolation argument
+    # TODO: Support percentile_disc
+    result = sge.func("PERCENTILE_CONT", column.expr, sge.convert(op.q))
+    if window is None:
+        # PERCENTILE_CONT is a navigation function, not an aggregate function, so it always needs an OVER clause.
+        result = sge.Window(this=result)
+    else:
+        result = apply_window_if_present(result, window)
+    if op.should_floor_result:
+        result = sge.Cast(this=sge.func("FLOOR", result), to="INT64")
+    return result
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.RankOp)
@@ -128,6 +138,15 @@ def _(
     return apply_window_if_present(
         sge.func("RANK"), window, include_framing_clauses=False
     )
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.SizeUnaryOp)
+def _(
+    op: agg_ops.SizeUnaryOp,
+    _,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.SumOp)

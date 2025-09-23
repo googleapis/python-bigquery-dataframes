@@ -141,6 +141,22 @@ def test_min(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_ops_map = {
+        "quantile": agg_ops.QuantileOp(q=0.5).as_expr(col_name),
+        "quantile_floor": agg_ops.QuantileOp(q=0.5, should_floor_result=True).as_expr(
+            col_name
+        ),
+    }
+    sql = _apply_unary_agg_ops(
+        bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
+    )
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_rank(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
