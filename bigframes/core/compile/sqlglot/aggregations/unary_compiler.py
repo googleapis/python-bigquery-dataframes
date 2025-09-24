@@ -47,6 +47,15 @@ def _(
     return apply_window_if_present(sge.func("COUNT", column.expr), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.DenseRankOp)
+def _(
+    op: agg_ops.DenseRankOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("DENSE_RANK"), window)
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.MaxOp)
 def _(
     op: agg_ops.MaxOp,
