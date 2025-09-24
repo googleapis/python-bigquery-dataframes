@@ -41,21 +41,16 @@ class OpRegistration:
                     )
                 return item(*args, **kwargs)
 
-            key = op if isinstance(op, type) else type(op)
+            key = str(op)
             if key in self._registered_ops:
                 raise ValueError(f"{key} is already registered")
-            self._registered_ops[str(key)] = item
+            self._registered_ops[key] = item
             return arg_checker
 
         return decorator
 
     def __getitem__(self, op: str | agg_ops.WindowOp) -> CompilationFunc:
-        if isinstance(op, agg_ops.WindowOp):
-            if not hasattr(op, "name"):
-                raise ValueError(f"The operator must have a 'name' attribute. Got {op}")
-            else:
-                key = typing.cast(str, op.name)
-                if key in self._registered_ops:
-                    return self._registered_ops[key]
-                return self._registered_ops[str(type(op))]
-        return self._registered_ops[op]
+        key = op if isinstance(op, type) else type(op)
+        if str(key) not in self._registered_ops:
+            raise ValueError(f"{key} is already not registered")
+        return self._registered_ops[str(key)]
