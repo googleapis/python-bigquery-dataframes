@@ -64,6 +64,25 @@ def apply_window_if_present(
     if not window.bounds and not order:
         return sge.Window(this=value, partition_by=group_by)
 
+    # Ranking and navigation functions do not support window framing clauses.
+    # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/analytic-function-concepts#window-frame-clause
+    no_frame_functions = {
+        "RANK",
+        "DENSE_RANK",
+        "NTILE",
+        "PERCENT_RANK",
+        "CUME_DIST",
+        "ROW_NUMBER",
+        "LAG",
+        "LEAD",
+        "FIRST_VALUE",
+        "LAST_VALUE",
+        "NTH_VALUE",
+    }
+    func_name = value.sql_name().upper() if isinstance(value, sge.Func) else ""
+    if not window.bounds and func_name in no_frame_functions:
+        return sge.Window(this=value, partition_by=group_by, order=order)
+
     kind = (
         "ROWS" if isinstance(window.bounds, window_spec.RowsWindowBounds) else "RANGE"
     )

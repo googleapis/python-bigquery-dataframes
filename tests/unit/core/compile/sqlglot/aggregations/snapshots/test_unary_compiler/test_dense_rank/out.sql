@@ -6,10 +6,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    DENSE_RANK() OVER (
-      ORDER BY `bfcol_0` IS NULL ASC NULLS LAST, `bfcol_0` ASC NULLS LAST
-      RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-    ) AS `bfcol_4`
+    DENSE_RANK() OVER (ORDER BY `bfcol_0` IS NULL ASC NULLS LAST, `bfcol_0` ASC NULLS LAST) AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
