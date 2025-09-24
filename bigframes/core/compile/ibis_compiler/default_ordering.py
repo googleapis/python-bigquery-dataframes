@@ -50,7 +50,7 @@ def _convert_to_nonnull_string(column: ibis_types.Value) -> ibis_types.StringVal
         ibis_types.StringColumn,
         result.fill_null(ibis_types.literal(""))
         if hasattr(result, "fill_null")
-        else result.fillna(""),
+        else result.fill_null(""),
     ).replace(
         "\\",  # type: ignore
         "\\\\",  # type: ignore
