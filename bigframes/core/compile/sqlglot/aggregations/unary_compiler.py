@@ -53,7 +53,10 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    return apply_window_if_present(sge.func("DENSE_RANK"), window)
+    # Ranking functions do not support window framing clauses.
+    return apply_window_if_present(
+        sge.func("DENSE_RANK"), window, include_framing_clauses=False
+    )
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.MaxOp)
@@ -121,7 +124,10 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    return apply_window_if_present(sge.func("RANK"), window)
+    # Ranking functions do not support window framing clauses.
+    return apply_window_if_present(
+        sge.func("RANK"), window, include_framing_clauses=False
+    )
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.SumOp)

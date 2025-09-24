@@ -25,6 +25,7 @@ import bigframes.core.ordering as ordering_spec
 def apply_window_if_present(
     value: sge.Expression,
     window: typing.Optional[window_spec.WindowSpec] = None,
+    include_framing_clauses: bool = True,
 ) -> sge.Expression:
     if window is None:
         return value
@@ -64,23 +65,7 @@ def apply_window_if_present(
     if not window.bounds and not order:
         return sge.Window(this=value, partition_by=group_by)
 
-    # Ranking and navigation functions do not support window framing clauses.
-    # See: https://cloud.google.com/bigquery/docs/reference/standard-sql/analytic-function-concepts#window-frame-clause
-    no_frame_functions = {
-        "RANK",
-        "DENSE_RANK",
-        "NTILE",
-        "PERCENT_RANK",
-        "CUME_DIST",
-        "ROW_NUMBER",
-        "LAG",
-        "LEAD",
-        "FIRST_VALUE",
-        "LAST_VALUE",
-        "NTH_VALUE",
-    }
-    func_name = value.sql_name().upper() if isinstance(value, sge.Func) else ""
-    if not window.bounds and func_name in no_frame_functions:
+    if not window.bounds and not include_framing_clauses:
         return sge.Window(this=value, partition_by=group_by, order=order)
 
     kind = (

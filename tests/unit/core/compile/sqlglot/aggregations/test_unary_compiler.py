@@ -57,7 +57,7 @@ def _apply_unary_window_op(
         window_spec=window_spec,
         output_name=identifiers.ColumnId(new_name),
     )
-    result = array_value.ArrayValue(win_node)
+    result = array_value.ArrayValue(win_node).select_columns([new_name])
 
     sql = result.session._executor.to_sql(result, enable_cache=False)
     return sql
