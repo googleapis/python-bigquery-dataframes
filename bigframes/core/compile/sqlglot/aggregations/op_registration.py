@@ -44,7 +44,7 @@ class OpRegistration:
             key = op if isinstance(op, type) else type(op)
             if key in self._registered_ops:
                 raise ValueError(f"{key} is already registered")
-            self._registered_ops[key] = item
+            self._registered_ops[str(key)] = item
             return arg_checker
 
         return decorator
@@ -57,5 +57,5 @@ class OpRegistration:
                 key = typing.cast(str, op.name)
                 if key in self._registered_ops:
                     return self._registered_ops[key]
-                return self._registered_ops[type(op)]
+                return self._registered_ops[str(type(op))]
         return self._registered_ops[op]

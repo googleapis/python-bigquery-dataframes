@@ -148,7 +148,7 @@ def _(
 ) -> sge.Expression:
     # TODO: Support interpolation argument
     # TODO: Support percentile_disc
-    result = sge.func("PERCENTILE_CONT", column.expr, sge.convert(op.q))
+    result: sge.Expression = sge.func("PERCENTILE_CONT", column.expr, sge.convert(op.q))
     if window is None:
         # PERCENTILE_CONT is a navigation function, not an aggregate function, so it always needs an OVER clause.
         result = sge.Window(this=result)

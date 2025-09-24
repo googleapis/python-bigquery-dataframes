@@ -223,9 +223,12 @@ class MedianOp(UnaryAggregateOp):
 
 @dataclasses.dataclass(frozen=True)
 class QuantileOp(UnaryAggregateOp):
-    name: typing.ClassVar[str] = "quantile"
     q: float
     should_floor_result: bool = False
+
+    @property
+    def name(self):
+        return f"{int(self.q * 100)}%"
 
     @property
     def order_independent(self) -> bool:
