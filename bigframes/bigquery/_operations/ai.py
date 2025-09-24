@@ -206,13 +206,13 @@ def generate_double(
         >>> import bigframes.bigquery as bbq
         >>> bpd.options.display.progress_bar = None
         >>> animal = bpd.Series(["Kangaroo", "Rabbit", "Spider"])
-        >>> bbq.ai.generate_int(("How many legs does a ", animal, " have?"))
+        >>> bbq.ai.generate_double(("How many legs does a ", animal, " have?"))
         0    {'result': 2.0, 'full_response': '{"candidates...
         1    {'result': 4.0, 'full_response': '{"candidates...
         2    {'result': 8.0, 'full_response': '{"candidates...
         dtype: struct<result: double, full_response: extension<dbjson<JSONArrowType>>, status: string>[pyarrow]
 
-        >>> bbq.ai.generate_int(("How many legs does a ", animal, " have?")).struct.field("result")
+        >>> bbq.ai.generate_double(("How many legs does a ", animal, " have?")).struct.field("result")
         0    2.0
         1    4.0
         2    8.0
