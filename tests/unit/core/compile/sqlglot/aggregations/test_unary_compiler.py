@@ -76,7 +76,7 @@ def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(
-        agg_ops.DenseRankOp(), expression.deref("int64_col")
+        agg_ops.DenseRankOp(), expression.deref(col_name)
     )
     window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
     sql = _apply_unary_window_op(bf_df, agg_expr, window, "agg_int64")
@@ -137,6 +137,17 @@ def test_min(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_ops.MinOp().as_expr(col_name)
     sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_rank(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_exprs.UnaryAggregation(agg_ops.RankOp(), expression.deref(col_name))
+
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    sql = _apply_unary_window_op(bf_df, agg_expr, window, "agg_int64")
 
     snapshot.assert_match(sql, "out.sql")
 

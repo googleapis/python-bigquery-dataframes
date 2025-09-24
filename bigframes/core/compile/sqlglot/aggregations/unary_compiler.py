@@ -115,6 +115,15 @@ def _(
     return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.RankOp)
+def _(
+    op: agg_ops.RankOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("RANK"), window)
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.SumOp)
 def _(
     op: agg_ops.SumOp,
