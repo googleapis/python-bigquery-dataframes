@@ -13,11 +13,12 @@
 # limitations under the License.
 
 """Shared helper functions for formatting jobs related info."""
-# TODO(orrbradford): cleanup up typings and documenttion in this file
+
+from __future__ import annotations
 
 import datetime
 import random
-from typing import Any, Optional, Type, Union
+from typing import Any, Optional, Type, TYPE_CHECKING, Union
 
 import bigframes_vendored.constants as constants
 import google.api_core.exceptions as api_core_exceptions
@@ -26,6 +27,9 @@ import humanize
 import IPython
 import IPython.display as display
 import ipywidgets as widgets
+
+if TYPE_CHECKING:
+    import bigframes.core.events
 
 GenericJob = Union[
     bigquery.LoadJob, bigquery.ExtractJob, bigquery.QueryJob, bigquery.CopyJob
@@ -119,71 +123,51 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
     return res
 
 
-def wait_for_query_job(
-    query_job: bigquery.QueryJob,
-    max_results: Optional[int] = None,
-    page_size: Optional[int] = None,
-    progress_bar: Optional[str] = None,
-) -> bigquery.table.RowIterator:
-    """Return query results. Displays a progress bar while the query is running
-    Args:
-        query_job (bigquery.QueryJob, Optional):
-            The job representing the execution of the query on the server.
-        max_results (int, Optional):
-            The maximum number of rows the row iterator should return.
-        page_size (int, Optional):
-            The number of results to return on each results page.
-        progress_bar (str, Optional):
-            Which progress bar to show.
-    Returns:
-        A row iterator over the query results.
-    """
+current_display: Optional[display.HTML] = None
+current_display_id: Optional[str] = None
+
+
+def progress_callback(
+    event: bigframes.core.events.Event,
+):
+    """Displays a progress bar while the query is running"""
+    global current_display, current_display_id
+
+    import bigframes._config
+    import bigframes.core.events
+
+    progress_bar = bigframes._config.options.display.progress_bar
+
     if progress_bar == "auto":
         progress_bar = "notebook" if in_ipython() else "terminal"
 
-    try:
-        if progress_bar == "notebook":
-            display_id = str(random.random())
-            loading_bar = display.HTML(get_query_job_loading_html(query_job))
-            display.display(loading_bar, display_id=display_id)
-            query_result = query_job.result(
-                max_results=max_results, page_size=page_size
-            )
-            query_job.reload()
+    if progress_bar == "notebook":
+        if (
+            isinstance(event, bigframes.core.events.ExecutionStarted)
+            or current_display is None
+            or current_display_id is None
+        ):
+            current_display_id = str(random.random())
+            current_display = display.HTML("Starting execution.")
+            display.display(current_display)
+
+        if isinstance(event, bigframes.core.events.ExecutionRunning):
             display.update_display(
-                display.HTML(get_query_job_loading_html(query_job)),
-                display_id=display_id,
+                display.HTML("Execution happening."),
+                display_id=current_display_id,
             )
-        elif progress_bar == "terminal":
-            initial_loading_bar = get_query_job_loading_string(query_job)
-            print(initial_loading_bar)
-            query_result = query_job.result(
-                max_results=max_results, page_size=page_size
+        elif isinstance(event, bigframes.core.events.ExecutionStopped):
+            display.update_display(
+                display.HTML("Execution done."),
+                display_id=current_display_id,
             )
-            query_job.reload()
-            if initial_loading_bar != get_query_job_loading_string(query_job):
-                print(get_query_job_loading_string(query_job))
-        else:
-            # No progress bar.
-            query_result = query_job.result(
-                max_results=max_results, page_size=page_size
-            )
-            query_job.reload()
-        return query_result
-    except api_core_exceptions.RetryError as exc:
-        add_feedback_link(exc)
-        raise
-    except api_core_exceptions.GoogleAPICallError as exc:
-        add_feedback_link(exc)
-        raise
-    except KeyboardInterrupt:
-        query_job.cancel()
-        print(
-            f"Requested cancellation for {query_job.job_type.capitalize()}"
-            f" job {query_job.job_id} in location {query_job.location}..."
-        )
-        # begin the cancel request before immediately rethrowing
-        raise
+    elif progress_bar == "terminal":
+        if isinstance(event, bigframes.core.events.ExecutionStarted):
+            print("Starting execution.")
+        elif isinstance(event, bigframes.core.events.ExecutionRunning):
+            print("Execution happening.")
+        elif isinstance(event, bigframes.core.events.ExecutionStopped):
+            print("Execution done.")
 
 
 def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):

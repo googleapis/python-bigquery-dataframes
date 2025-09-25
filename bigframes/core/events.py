@@ -24,6 +24,8 @@ import google.cloud.bigquery._job_helpers
 import google.cloud.bigquery.job.query
 import google.cloud.bigquery.table
 
+import bigframes.formatting_helpers
+
 
 @dataclasses.dataclass(frozen=True)
 class Subscriber:
@@ -66,6 +68,7 @@ class Publisher:
 
 
 publisher = Publisher()
+publisher.subscribe(bigframes.formatting_helpers.progress_callback)
 
 
 class Event:
@@ -85,7 +88,7 @@ class ExecutionStopped(Event):
 
 
 @dataclasses.dataclass(frozen=True)
-class BigQuerySentEvent(ExecutionStarted):
+class BigQuerySentEvent(ExecutionRunning):
     """Query sent to BigQuery."""
 
     query: str
@@ -158,7 +161,7 @@ class BigQueryReceivedEvent(ExecutionRunning):
 
 
 @dataclasses.dataclass(frozen=True)
-class BigQueryFinishedEvent(ExecutionStopped):
+class BigQueryFinishedEvent(ExecutionRunning):
     """Query finished successfully."""
 
     billing_project: Optional[str] = None

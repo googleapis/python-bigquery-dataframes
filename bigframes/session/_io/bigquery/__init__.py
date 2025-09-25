@@ -29,11 +29,13 @@ import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import google.api_core.exceptions
 import google.api_core.retry
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery._job_helpers
+import google.cloud.bigquery.table
 
 from bigframes.core import log_adapter
 import bigframes.core.compile.googlesql as googlesql
+import bigframes.core.events
 import bigframes.core.sql
-import bigframes.formatting_helpers as formatting_helpers
 import bigframes.session.metrics
 
 CHECK_DRIVE_PERMISSIONS = "\nCheck https://cloud.google.com/bigquery/docs/query-drive-data#Google_Drive_permissions."
@@ -238,6 +240,15 @@ def add_and_trim_labels(job_config):
     )
 
 
+def publish_bq_event(event):
+    if isinstance(event, google.cloud.bigquery._job_helpers.QuerySentEvent):
+        bf_event = bigframes.core.events.BigQuerySentEvent.from_bqclient(event)
+    else:
+        bf_event = bigframes.core.events.BigQueryUnknownEvent(event)
+
+    bigframes.core.events.publisher.send(bf_event)
+
+
 @overload
 def start_query_with_client(
     bq_client: bigquery.Client,
@@ -249,7 +260,7 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
-) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
     ...
 
 
@@ -264,7 +275,7 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[False],
-) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     ...
 
 
@@ -280,7 +291,7 @@ def start_query_with_client(
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
     job_retry: google.api_core.retry.Retry,
-) -> Tuple[bigquery.table.RowIterator, bigquery.QueryJob]:
+) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
     ...
 
 
@@ -296,7 +307,7 @@ def start_query_with_client(
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[False],
     job_retry: google.api_core.retry.Retry,
-) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     ...
 
 
@@ -315,23 +326,25 @@ def start_query_with_client(
     # https://github.com/googleapis/python-bigquery/pull/2256 merged, likely
     # version 3.36.0 or later.
     job_retry: google.api_core.retry.Retry = third_party_gcb_retry.DEFAULT_JOB_RETRY,
-) -> Tuple[bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
+) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
     """
+    # Note: Ensure no additional labels are added to job_config after this
+    # point, as `add_and_trim_labels` ensures the label count does not
+    # exceed MAX_LABELS_COUNT.
+    add_and_trim_labels(job_config)
+
     try:
-        # Note: Ensure no additional labels are added to job_config after this
-        # point, as `add_and_trim_labels` ensures the label count does not
-        # exceed MAX_LABELS_COUNT.
-        add_and_trim_labels(job_config)
         if not query_with_job:
-            results_iterator = bq_client.query_and_wait(
+            results_iterator = bq_client._query_and_wait_bigframes(
                 sql,
                 job_config=job_config,
                 location=location,
                 project=project,
                 api_timeout=timeout,
                 job_retry=job_retry,
+                callback=publish_bq_event,
             )
             if metrics is not None:
                 metrics.count_job_stats(row_iterator=results_iterator)
@@ -350,14 +363,32 @@ def start_query_with_client(
             ex.message += CHECK_DRIVE_PERMISSIONS
         raise
 
-    opts = bigframes.options.display
-    if opts.progress_bar is not None and not query_job.configuration.dry_run:
-        results_iterator = formatting_helpers.wait_for_query_job(
-            query_job,
-            progress_bar=opts.progress_bar,
+    if not query_job.configuration.dry_run:
+        bigframes.core.events.publisher.send(
+            bigframes.core.events.BigQuerySentEvent(
+                sql,
+                billing_project=query_job.project,
+                location=query_job.location,
+                job_id=query_job.job_id,
+                request_id=None,
+            )
         )
-    else:
-        results_iterator = query_job.result()
+    results_iterator = query_job.result()
+    if not query_job.configuration.dry_run:
+        bigframes.core.events.publisher.send(
+            bigframes.core.events.BigQueryFinishedEvent(
+                billing_project=query_job.project,
+                location=query_job.location,
+                job_id=query_job.job_id,
+                destination=query_job.destination,
+                total_rows=results_iterator.total_rows,
+                total_bytes_processed=query_job.total_bytes_processed,
+                slot_millis=query_job.slot_millis,
+                created=query_job.created,
+                started=query_job.started,
+                ended=query_job.ended,
+            )
+        )
 
     if metrics is not None:
         metrics.count_job_stats(query_job=query_job)
