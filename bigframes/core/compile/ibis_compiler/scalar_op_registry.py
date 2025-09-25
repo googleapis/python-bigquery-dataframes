@@ -1064,7 +1064,7 @@ def isin_op_impl(x: ibis_types.Value, op: ops.IsInOp):
     if op.match_nulls and contains_nulls:
         return x.isnull() | x.isin(matchable_ibis_values)
     else:
-        return x.isin(matchable_ibis_values).fill_null(False)
+        return x.isin(matchable_ibis_values).fill_null(ibis.literal(False))
 
 
 @scalar_op_compiler.register_unary_op(ops.ToDatetimeOp, pass_op=True)
