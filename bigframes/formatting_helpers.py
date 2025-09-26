@@ -151,12 +151,6 @@ def progress_callback(
                 display.HTML(previous_display_html),
                 display_id=current_display_id,
             )
-        elif isinstance(event, bigframes.core.events.BigQueryUnknownEvent):
-            previous_display_html = render_bqquery_unknown_event_html(event)
-            display.update_display(
-                display.HTML(previous_display_html),
-                display_id=current_display_id,
-            )
         elif isinstance(event, bigframes.core.events.ExecutionFinished):
             display.update_display(
                 display.HTML(f"{previous_display_html} Execution done."),
@@ -176,9 +170,6 @@ def progress_callback(
             print(message)
         elif isinstance(event, bigframes.core.events.BigQueryFinishedEvent):
             message = render_bqquery_finished_event_plaintext(event)
-            print(message)
-        elif isinstance(event, bigframes.core.events.BigQueryUnknownEvent):
-            message = render_bqquery_unknown_event_plaintext(event)
             print(message)
         elif isinstance(event, bigframes.core.events.ExecutionFinished):
             print("Execution done.")
@@ -232,6 +223,57 @@ def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
         raise
 
 
+def render_query_references(
+    *,
+    project_id: Optional[str],
+    location: Optional[str],
+    job_id: Optional[str],
+    request_id: Optional[str],
+) -> str:
+    query_id = ""
+    if job_id:
+        query_id = f" with job ID {project_id}:{location}.{job_id}"
+    elif request_id:
+        query_id = f" with request ID {project_id}:{location}.{request_id}"
+    return query_id
+
+
+def render_job_link_html(
+    *,
+    project_id: Optional[str],
+    location: Optional[str],
+    job_id: Optional[str],
+) -> str:
+    job_url = get_job_url(
+        project_id=project_id,
+        location=location,
+        job_id=job_id,
+    )
+    if job_url:
+        job_link = f' <a target="_blank" href="{job_url}">Open Job</a>'
+    else:
+        job_link = ""
+    return job_link
+
+
+def render_job_link_plaintext(
+    *,
+    project_id: Optional[str],
+    location: Optional[str],
+    job_id: Optional[str],
+) -> str:
+    job_url = get_job_url(
+        project_id=project_id,
+        location=location,
+        job_id=job_id,
+    )
+    if job_url:
+        job_link = f" Open Job: {job_url}"
+    else:
+        job_link = ""
+    return job_link
+
+
 def get_job_url(
     *,
     project_id: Optional[str],
@@ -259,22 +301,17 @@ def render_bqquery_sent_event_html(
         Html string.
     """
 
-    job_url = get_job_url(
+    job_link = render_job_link_html(
         project_id=event.billing_project,
         location=event.location,
         job_id=event.job_id,
     )
-    if job_url:
-        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
-    else:
-        job_link = ""
-
-    query_id = ""
-    if event.job_id:
-        query_id = f" with job ID {event.job_id}:{event.billing_project}.{event.job_id}"
-    elif event.request_id:
-        query_id = f" with request ID {event.job_id}:{event.billing_project}.{event.request_id}"
-
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=event.request_id,
+    )
     query_text_details = f"<details><summary>SQL</summary><pre>{html.escape(event.query)}</pre></details>"
 
     return f"""
@@ -293,21 +330,17 @@ def render_bqquery_sent_event_plaintext(
         Html string.
     """
 
-    job_url = get_job_url(
+    job_link = render_job_link_plaintext(
         project_id=event.billing_project,
         location=event.location,
         job_id=event.job_id,
     )
-    if job_url:
-        job_link = f" Open job: {job_url}"
-    else:
-        job_link = ""
-
-    query_id = ""
-    if event.job_id:
-        query_id = f" with job ID {event.job_id}:{event.billing_project}.{event.job_id}"
-    elif event.request_id:
-        query_id = f" with request ID {event.job_id}:{event.billing_project}.{event.request_id}"
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=event.request_id,
+    )
 
     return f"Query started{query_id}.{job_link}"
 
@@ -317,25 +350,18 @@ def render_bqquery_retry_event_html(
 ) -> str:
     """Return progress bar html string for retry event."""
 
-    job_url = get_job_url(
+    job_link = render_job_link_html(
         project_id=event.billing_project,
         location=event.location,
         job_id=event.job_id,
     )
-    if job_url:
-        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
-    else:
-        job_link = ""
-
-    query_id = ""
-    if event.job_id:
-        query_id = f" with job ID {event.billing_project}.{event.job_id}"
-    elif event.request_id:
-        query_id = f" with request ID {event.billing_project}.{event.request_id}"
-
-    query_text_details = (
-        f"<details><summary>SQL</summary><pre>{html.escape(event.query)}</pre></details>"
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=event.request_id,
     )
+    query_text_details = f"<details><summary>SQL</summary><pre>{html.escape(event.query)}</pre></details>"
 
     return f"""
     Retrying query{query_id}.{job_link}{query_text_details}
@@ -347,22 +373,17 @@ def render_bqquery_retry_event_plaintext(
 ) -> str:
     """Return progress bar plaintext string for retry event."""
 
-    job_url = get_job_url(
+    job_link = render_job_link_plaintext(
         project_id=event.billing_project,
         location=event.location,
         job_id=event.job_id,
     )
-    if job_url:
-        job_link = f" Open job: {job_url}"
-    else:
-        job_link = ""
-
-    query_id = ""
-    if event.job_id:
-        query_id = f" with job ID {event.billing_project}.{event.job_id}"
-    elif event.request_id:
-        query_id = f" with request ID {event.billing_project}.{event.request_id}"
-
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=event.request_id,
+    )
     return f"Retrying query{query_id}.{job_link}"
 
 
@@ -371,21 +392,17 @@ def render_bqquery_received_event_html(
 ) -> str:
     """Return progress bar html string for received event."""
 
-    job_url = get_job_url(
+    job_link = render_job_link_html(
         project_id=event.billing_project,
         location=event.location,
         job_id=event.job_id,
     )
-    if job_url:
-        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
-    else:
-        job_link = ""
-
-    # Don't have billing project and job ID in the same string, as that's
-    # redundant with the job link.
-    job_id_str = ""
-    if event.job_id:
-        job_id_str = f" {event.job_id}"
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=None,
+    )
 
     query_plan_details = ""
     if event.query_plan:
@@ -393,7 +410,7 @@ def render_bqquery_received_event_html(
         query_plan_details = f"<details><summary>Query Plan</summary><pre>{html.escape(plan_str)}</pre></details>"
 
     return f"""
-    Query job{job_id_str} is {event.state}.{job_link}{query_plan_details}
+    Query{query_id} is {event.state}.{job_link}{query_plan_details}
     """
 
 
@@ -402,43 +419,24 @@ def render_bqquery_received_event_plaintext(
 ) -> str:
     """Return progress bar plaintext string for received event."""
 
-    job_url = get_job_url(
+    job_link = render_job_link_plaintext(
         project_id=event.billing_project,
         location=event.location,
         job_id=event.job_id,
     )
-    if job_url:
-        job_link = f" Open job: {job_url}"
-    else:
-        job_link = ""
-
-    job_id_str = ""
-    if event.job_id:
-        job_id_str = f" {event.job_id}"
-
-    return f"Query job{job_id_str} is {event.state}.{job_link}"
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=None,
+    )
+    return f"Query{query_id} is {event.state}.{job_link}"
 
 
 def render_bqquery_finished_event_html(
     event: bigframes.core.events.BigQueryFinishedEvent,
 ) -> str:
     """Return progress bar html string for finished event."""
-
-    job_url = get_job_url(
-        project_id=event.billing_project,
-        location=event.location,
-        job_id=event.job_id,
-    )
-    if job_url:
-        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
-    else:
-        job_link = ""
-
-    # Don't have billing project and job ID in the same string, as that's
-    # redundant with the job link.
-    job_id_str = ""
-    if event.job_id:
-        job_id_str = f" {event.job_id}"
 
     bytes_str = ""
     if event.total_bytes_processed is not None:
@@ -449,8 +447,19 @@ def render_bqquery_finished_event_html(
         slot_time = datetime.timedelta(milliseconds=event.slot_millis)
         slot_time_str = f" Slot time: {humanize.naturaldelta(slot_time)}."
 
+    job_link = render_job_link_html(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=None,
+    )
     return f"""
-    Query job{job_id_str} finished.{bytes_str}{slot_time_str}{job_link}
+    Query{query_id} finished.{bytes_str}{slot_time_str}{job_link}
     """
 
 
@@ -459,20 +468,6 @@ def render_bqquery_finished_event_plaintext(
 ) -> str:
     """Return progress bar plaintext string for finished event."""
 
-    job_url = get_job_url(
-        project_id=event.billing_project,
-        location=event.location,
-        job_id=event.job_id,
-    )
-    if job_url:
-        job_link = f" Open job: {job_url}"
-    else:
-        job_link = ""
-
-    job_id_str = ""
-    if event.job_id:
-        job_id_str = f" {event.job_id}"
-
     bytes_str = ""
     if event.total_bytes_processed is not None:
         bytes_str = f" {humanize.naturalsize(event.total_bytes_processed)} processed."
@@ -482,21 +477,18 @@ def render_bqquery_finished_event_plaintext(
         slot_time = datetime.timedelta(milliseconds=event.slot_millis)
         slot_time_str = f" Slot time: {humanize.naturaldelta(slot_time)}."
 
-    return f"Query job{job_id_str} finished.{bytes_str}{slot_time_str}{job_link}"
-
-
-def render_bqquery_unknown_event_html(
-    event: bigframes.core.events.BigQueryUnknownEvent,
-) -> str:
-    """Return progress bar html string for unknown event."""
-    return "Received unknown event."
-
-
-def render_bqquery_unknown_event_plaintext(
-    event: bigframes.core.events.BigQueryUnknownEvent,
-) -> str:
-    """Return progress bar plaintext string for unknown event."""
-    return "Received unknown event."
+    job_link = render_job_link_plaintext(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    query_id = render_query_references(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+        request_id=None,
+    )
+    return f"Query{query_id} finished.{bytes_str}{slot_time_str}{job_link}"
 
 
 def get_base_job_loading_html(job: GenericJob):
