@@ -4,6 +4,13 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.23.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.22.0...v2.23.0) (2025-09-26)
+
+
+### Features
+
+* Add ai.generate_double to bigframes.bigquery package ([#2111](https://github.com/googleapis/python-bigquery-dataframes/issues/2111)) ([6b8154c](https://github.com/googleapis/python-bigquery-dataframes/commit/6b8154c578bb1a276e9cf8fe494d91f8cd6260f2))
+
 ## [2.22.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.21.0...v2.22.0) (2025-09-25)
 
 
