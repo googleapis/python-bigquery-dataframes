@@ -133,6 +133,30 @@ def progress_callback(
                 display.HTML(previous_display_html),
                 display_id=current_display_id,
             )
+        elif isinstance(event, bigframes.core.events.BigQueryRetryEvent):
+            previous_display_html = render_bqquery_retry_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.BigQueryReceivedEvent):
+            previous_display_html = render_bqquery_received_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.BigQueryFinishedEvent):
+            previous_display_html = render_bqquery_finished_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.BigQueryUnknownEvent):
+            previous_display_html = render_bqquery_unknown_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
         elif isinstance(event, bigframes.core.events.ExecutionFinished):
             display.update_display(
                 display.HTML(f"{previous_display_html} Execution done."),
@@ -143,6 +167,18 @@ def progress_callback(
             print("Starting execution.")
         elif isinstance(event, bigframes.core.events.BigQuerySentEvent):
             message = render_bqquery_sent_event_plaintext(event)
+            print(message)
+        elif isinstance(event, bigframes.core.events.BigQueryRetryEvent):
+            message = render_bqquery_retry_event_plaintext(event)
+            print(message)
+        elif isinstance(event, bigframes.core.events.BigQueryReceivedEvent):
+            message = render_bqquery_received_event_plaintext(event)
+            print(message)
+        elif isinstance(event, bigframes.core.events.BigQueryFinishedEvent):
+            message = render_bqquery_finished_event_plaintext(event)
+            print(message)
+        elif isinstance(event, bigframes.core.events.BigQueryUnknownEvent):
+            message = render_bqquery_unknown_event_plaintext(event)
             print(message)
         elif isinstance(event, bigframes.core.events.ExecutionFinished):
             print("Execution done.")
@@ -274,6 +310,193 @@ def render_bqquery_sent_event_plaintext(
         query_id = f" with request ID {event.job_id}:{event.billing_project}.{event.request_id}"
 
     return f"Query started{query_id}.{job_link}"
+
+
+def render_bqquery_retry_event_html(
+    event: bigframes.core.events.BigQueryRetryEvent,
+) -> str:
+    """Return progress bar html string for retry event."""
+
+    job_url = get_job_url(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    if job_url:
+        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
+    else:
+        job_link = ""
+
+    query_id = ""
+    if event.job_id:
+        query_id = f" with job ID {event.billing_project}.{event.job_id}"
+    elif event.request_id:
+        query_id = f" with request ID {event.billing_project}.{event.request_id}"
+
+    query_text_details = (
+        f"<details><summary>SQL</summary><pre>{html.escape(event.query)}</pre></details>"
+    )
+
+    return f"""
+    Retrying query{query_id}.{job_link}{query_text_details}
+    """
+
+
+def render_bqquery_retry_event_plaintext(
+    event: bigframes.core.events.BigQueryRetryEvent,
+) -> str:
+    """Return progress bar plaintext string for retry event."""
+
+    job_url = get_job_url(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    if job_url:
+        job_link = f" Open job: {job_url}"
+    else:
+        job_link = ""
+
+    query_id = ""
+    if event.job_id:
+        query_id = f" with job ID {event.billing_project}.{event.job_id}"
+    elif event.request_id:
+        query_id = f" with request ID {event.billing_project}.{event.request_id}"
+
+    return f"Retrying query{query_id}.{job_link}"
+
+
+def render_bqquery_received_event_html(
+    event: bigframes.core.events.BigQueryReceivedEvent,
+) -> str:
+    """Return progress bar html string for received event."""
+
+    job_url = get_job_url(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    if job_url:
+        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
+    else:
+        job_link = ""
+
+    # Don't have billing project and job ID in the same string, as that's
+    # redundant with the job link.
+    job_id_str = ""
+    if event.job_id:
+        job_id_str = f" {event.job_id}"
+
+    query_plan_details = ""
+    if event.query_plan:
+        plan_str = "\n".join([entry.to_api_repr() for entry in event.query_plan])
+        query_plan_details = f"<details><summary>Query Plan</summary><pre>{html.escape(plan_str)}</pre></details>"
+
+    return f"""
+    Query job{job_id_str} is {event.state}.{job_link}{query_plan_details}
+    """
+
+
+def render_bqquery_received_event_plaintext(
+    event: bigframes.core.events.BigQueryReceivedEvent,
+) -> str:
+    """Return progress bar plaintext string for received event."""
+
+    job_url = get_job_url(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    if job_url:
+        job_link = f" Open job: {job_url}"
+    else:
+        job_link = ""
+
+    job_id_str = ""
+    if event.job_id:
+        job_id_str = f" {event.job_id}"
+
+    return f"Query job{job_id_str} is {event.state}.{job_link}"
+
+
+def render_bqquery_finished_event_html(
+    event: bigframes.core.events.BigQueryFinishedEvent,
+) -> str:
+    """Return progress bar html string for finished event."""
+
+    job_url = get_job_url(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    if job_url:
+        job_link = f'<a target="_blank" href="{job_url}">Open Job</a>'
+    else:
+        job_link = ""
+
+    # Don't have billing project and job ID in the same string, as that's
+    # redundant with the job link.
+    job_id_str = ""
+    if event.job_id:
+        job_id_str = f" {event.job_id}"
+
+    bytes_str = ""
+    if event.total_bytes_processed is not None:
+        bytes_str = f" {humanize.naturalsize(event.total_bytes_processed)} processed."
+
+    slot_time_str = ""
+    if event.slot_millis is not None:
+        slot_time = datetime.timedelta(milliseconds=event.slot_millis)
+        slot_time_str = f" Slot time: {humanize.naturaldelta(slot_time)}."
+
+    return f"""
+    Query job{job_id_str} finished.{bytes_str}{slot_time_str}{job_link}
+    """
+
+
+def render_bqquery_finished_event_plaintext(
+    event: bigframes.core.events.BigQueryFinishedEvent,
+) -> str:
+    """Return progress bar plaintext string for finished event."""
+
+    job_url = get_job_url(
+        project_id=event.billing_project,
+        location=event.location,
+        job_id=event.job_id,
+    )
+    if job_url:
+        job_link = f" Open job: {job_url}"
+    else:
+        job_link = ""
+
+    job_id_str = ""
+    if event.job_id:
+        job_id_str = f" {event.job_id}"
+
+    bytes_str = ""
+    if event.total_bytes_processed is not None:
+        bytes_str = f" {humanize.naturalsize(event.total_bytes_processed)} processed."
+
+    slot_time_str = ""
+    if event.slot_millis is not None:
+        slot_time = datetime.timedelta(milliseconds=event.slot_millis)
+        slot_time_str = f" Slot time: {humanize.naturaldelta(slot_time)}."
+
+    return f"Query job{job_id_str} finished.{bytes_str}{slot_time_str}{job_link}"
+
+
+def render_bqquery_unknown_event_html(
+    event: bigframes.core.events.BigQueryUnknownEvent,
+) -> str:
+    """Return progress bar html string for unknown event."""
+    return "Received unknown event."
+
+
+def render_bqquery_unknown_event_plaintext(
+    event: bigframes.core.events.BigQueryUnknownEvent,
+) -> str:
+    """Return progress bar plaintext string for unknown event."""
+    return "Received unknown event."
 
 
 def get_base_job_loading_html(job: GenericJob):
