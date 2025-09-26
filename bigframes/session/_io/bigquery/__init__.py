@@ -241,7 +241,13 @@ def add_and_trim_labels(job_config):
 
 
 def publish_bq_event(event):
-    if isinstance(event, google.cloud.bigquery._job_helpers.QuerySentEvent):
+    if isinstance(event, google.cloud.bigquery._job_helpers.QueryFinishedEvent):
+        bf_event = bigframes.core.events.BigQueryFinishedEvent.from_bqclient(event)
+    elif isinstance(event, google.cloud.bigquery._job_helpers.QueryReceivedEvent):
+        bf_event = bigframes.core.events.BigQueryReceivedEvent.from_bqclient(event)
+    elif isinstance(event, google.cloud.bigquery._job_helpers.QueryRetryEvent):
+        bf_event = bigframes.core.events.BigQueryRetryEvent.from_bqclient(event)
+    elif isinstance(event, google.cloud.bigquery._job_helpers.QuerySentEvent):
         bf_event = bigframes.core.events.BigQuerySentEvent.from_bqclient(event)
     else:
         bf_event = bigframes.core.events.BigQueryUnknownEvent(event)
