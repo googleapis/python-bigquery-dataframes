@@ -389,7 +389,7 @@ def render_bqquery_received_event_html(
 
     query_plan_details = ""
     if event.query_plan:
-        plan_str = "\n".join([entry.to_api_repr() for entry in event.query_plan])
+        plan_str = "\n".join([str(entry) for entry in event.query_plan])
         query_plan_details = f"<details><summary>Query Plan</summary><pre>{html.escape(plan_str)}</pre></details>"
 
     return f"""
