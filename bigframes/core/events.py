@@ -25,6 +25,7 @@ import google.cloud.bigquery.job.query
 import google.cloud.bigquery.table
 
 import bigframes.formatting_helpers
+import bigframes.session.executor
 
 
 @dataclasses.dataclass(frozen=True)
@@ -83,8 +84,9 @@ class ExecutionRunning(Event):
     pass
 
 
-class ExecutionStopped(Event):
-    pass
+@dataclasses.dataclass(frozen=True)
+class ExecutionFinished(Event):
+    result: Optional[bigframes.session.executor.ExecuteResult] = None
 
 
 @dataclasses.dataclass(frozen=True)

@@ -125,6 +125,7 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
 
 current_display: Optional[display.HTML] = None
 current_display_id: Optional[str] = None
+previous_message: str = ""
 
 
 def progress_callback(
@@ -149,16 +150,19 @@ def progress_callback(
         ):
             current_display_id = str(random.random())
             current_display = display.HTML("Starting execution.")
-            display.display(current_display)
+            display.display(
+                current_display,
+                display_id=current_display_id,
+            )
 
         if isinstance(event, bigframes.core.events.ExecutionRunning):
             display.update_display(
                 display.HTML("Execution happening."),
                 display_id=current_display_id,
             )
-        elif isinstance(event, bigframes.core.events.ExecutionStopped):
+        elif isinstance(event, bigframes.core.events.ExecutionFinished):
             display.update_display(
-                display.HTML("Execution done."),
+                display.HTML(f"{previous_message} Execution done."),
                 display_id=current_display_id,
             )
     elif progress_bar == "terminal":
@@ -166,7 +170,7 @@ def progress_callback(
             print("Starting execution.")
         elif isinstance(event, bigframes.core.events.ExecutionRunning):
             print("Execution happening.")
-        elif isinstance(event, bigframes.core.events.ExecutionStopped):
+        elif isinstance(event, bigframes.core.events.ExecutionFinished):
             print("Execution done.")
 
 
