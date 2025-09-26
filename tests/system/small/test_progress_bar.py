@@ -115,24 +115,6 @@ def assert_loading_msg_exist(capystOut: str, pattern=job_load_message_regex):
     assert numLoadingMsg > 0
 
 
-def test_query_job_repr_html(penguins_df_default_index: bf.dataframe.DataFrame):
-    with bf.option_context("display.progress_bar", "terminal"):
-        penguins_df_default_index.to_pandas(allow_large_results=True)
-        query_job_repr = formatting_helpers.repr_query_job_html(
-            penguins_df_default_index.query_job
-        ).value
-
-    string_checks = [
-        "Job Id",
-        "Destination Table",
-        "Slot Time",
-        "Bytes Processed",
-        "Cache hit",
-    ]
-    for string in string_checks:
-        assert string in query_job_repr
-
-
 def test_query_job_repr(penguins_df_default_index: bf.dataframe.DataFrame):
     penguins_df_default_index.to_pandas(allow_large_results=True)
     query_job_repr = formatting_helpers.repr_query_job(
