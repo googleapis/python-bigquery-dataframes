@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
-
-REPO_ROOT = pathlib.Path(__file__).parent.parent.parent
+import pytest
 
 
-def test_template_notebook_exists():
-    # This notebook is meant for being used as a BigFrames usage template and
-    # could be dynamically linked in places such as BQ Studio and IDE extensions.
-    # Let's make sure it exists in the well known path.
-    assert (
-        REPO_ROOT / "notebooks" / "getting_started" / "bq_dataframes_template.ipynb"
-    ).exists()
+@pytest.fixture(scope="session")
+def polars_session():
+    pytest.importorskip("polars")
+
+    from bigframes.testing import polars_session
+
+    return polars_session.TestSession()

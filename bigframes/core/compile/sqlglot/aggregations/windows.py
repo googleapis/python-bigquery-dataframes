@@ -64,6 +64,9 @@ def apply_window_if_present(
     if not window.bounds and not order:
         return sge.Window(this=value, partition_by=group_by)
 
+    if not window.bounds:
+        return sge.Window(this=value, partition_by=group_by, order=order)
+
     kind = (
         "ROWS" if isinstance(window.bounds, window_spec.RowsWindowBounds) else "RANGE"
     )
