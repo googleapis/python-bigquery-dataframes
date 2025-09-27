@@ -28,8 +28,15 @@ def first_page(*, project_id, dataset_id, table_id):
     )
 
     # Get number of rows (to calculate number of pages) and the first page.
-    df.shape
-    next(iter(df.to_pandas_batches(page_size=PAGE_SIZE)))
+    execute_result = df._block.session._executor.execute(
+        df._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
+    )
+    assert execute_result.total_rows is not None and execute_result.total_rows >= 0
+    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
+    first_page = next(iter(batches))
+    assert first_page is not None
 
 
 if __name__ == "__main__":

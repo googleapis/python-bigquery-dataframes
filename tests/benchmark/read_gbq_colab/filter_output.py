@@ -31,16 +31,32 @@ def filter_output(
     df = bpd._read_gbq_colab(f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}")
 
     # Simulate getting the first page, since we'll always do that first in the UI.
-    df.shape
-    next(iter(df.to_pandas_batches(page_size=PAGE_SIZE)))
+    # Force BigQuery execution to get total_rows metadata
+    execute_result = df._block.session._executor.execute(
+        df._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
+    )
+    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
+    next(iter(batches))
 
     # Simulate the user filtering by a column and visualizing those results
     df_filtered = df[df["col_bool_0"]]
-    rows, _ = df_filtered.shape
+    # Force BigQuery execution for filtered DataFrame to get total_rows metadata
+    execute_result_filtered = df_filtered._block.session._executor.execute(
+        df_filtered._block.expr,
+        ordered=True,
+        use_explicit_destination=True,
+    )
+
+    rows = execute_result_filtered.total_rows or 0
+    assert rows >= 0
+
+    batches_filtered = execute_result_filtered.to_pandas_batches(page_size=PAGE_SIZE)
 
     # It's possible we don't have any pages at all, since we filtered out all
     # matching rows.
-    first_page = next(iter(df_filtered.to_pandas_batches(page_size=PAGE_SIZE)))
+    first_page = next(iter(batches_filtered))
     assert len(first_page.index) <= rows
 
 
