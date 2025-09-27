@@ -50,6 +50,7 @@ import pyarrow as pa
 from bigframes.core import guid, identifiers, local_data, nodes, ordering, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
+import bigframes.core.events
 import bigframes.core.schema as schemata
 import bigframes.dtypes
 import bigframes.formatting_helpers as formatting_helpers
@@ -499,6 +500,7 @@ class GbqDataLoader:
         force_total_order: Optional[bool] = ...,
         n_rows: Optional[int] = None,
         index_col_in_columns: bool = False,
+        publish_execution: bool = True,
     ) -> dataframe.DataFrame:
         ...
 
@@ -522,6 +524,7 @@ class GbqDataLoader:
         force_total_order: Optional[bool] = ...,
         n_rows: Optional[int] = None,
         index_col_in_columns: bool = False,
+        publish_execution: bool = True,
     ) -> pandas.Series:
         ...
 
@@ -544,6 +547,7 @@ class GbqDataLoader:
         force_total_order: Optional[bool] = None,
         n_rows: Optional[int] = None,
         index_col_in_columns: bool = False,
+        publish_execution: bool = True,
     ) -> dataframe.DataFrame | pandas.Series:
         """Read a BigQuery table into a BigQuery DataFrames DataFrame.
 
@@ -603,8 +607,12 @@ class GbqDataLoader:
                     when the index is selected from the data columns (e.g., in a
                     ``read_csv`` scenario). The column will be used as the
                     DataFrame's index and removed from the list of value columns.
+            publish_execution (bool, optional):
+                If True, sends an execution started and stopped event if this
+                causes a query. Set to False if using read_gbq_table from
+                another function that is reporting execution.
         """
-        import bigframes._tools.strings
+        import bigframes.core.events
         import bigframes.dataframe as dataframe
 
         # ---------------------------------
@@ -768,12 +776,26 @@ class GbqDataLoader:
         # TODO(b/338065601): Provide a way to assume uniqueness and avoid this
         # check.
         primary_key = bf_read_gbq_table.infer_unique_columns(
-            bqclient=self._bqclient,
             table=table,
             index_cols=index_cols,
-            # If non in strict ordering mode, don't go through overhead of scanning index column(s) to determine if unique
-            metadata_only=not self._scan_index_uniqueness,
         )
+
+        # If non in strict ordering mode, don't go through overhead of scanning index column(s) to determine if unique
+        if not primary_key and self._scan_index_uniqueness and index_cols:
+            if publish_execution:
+                bigframes.core.events.publisher.send(
+                    bigframes.core.events.ExecutionStarted(),
+                )
+            primary_key = bf_read_gbq_table.check_if_index_columns_are_unique(
+                self._bqclient,
+                table=table,
+                index_cols=index_cols,
+            )
+            if publish_execution:
+                bigframes.core.events.publisher.send(
+                    bigframes.core.events.ExecutionFinished(),
+                )
+
         schema = schemata.ArraySchema.from_bq_table(table)
         if not include_all_columns:
             schema = schema.select(index_cols + columns)
@@ -991,6 +1013,12 @@ class GbqDataLoader:
                 query_job, list(columns), index_cols
             )
 
+        # We want to make sure we show progress when we actually do execute a
+        # query. Since we have got this far, we know it's not a dry run.
+        bigframes.core.events.publisher.send(
+            bigframes.core.events.ExecutionStarted(),
+        )
+
         query_job_for_metrics: Optional[bigquery.QueryJob] = None
         destination: Optional[bigquery.TableReference] = None
 
@@ -1046,20 +1074,28 @@ class GbqDataLoader:
         # makes sense to download the results beyond the first page, even if
         # there is a job and destination table available.
         if query_job_for_metrics is None and rows is not None:
-            return bf_read_gbq_query.create_dataframe_from_row_iterator(
+            df = bf_read_gbq_query.create_dataframe_from_row_iterator(
                 rows,
                 session=self._session,
                 index_col=index_col,
                 columns=columns,
             )
+            bigframes.core.events.publisher.send(
+                bigframes.core.events.ExecutionFinished(),
+            )
+            return df
 
         # We already checked rows, so if there's no destination table, then
         # there are no results to return.
         if destination is None:
-            return bf_read_gbq_query.create_dataframe_from_query_job_stats(
+            df = bf_read_gbq_query.create_dataframe_from_query_job_stats(
                 query_job_for_metrics,
                 session=self._session,
             )
+            bigframes.core.events.publisher.send(
+                bigframes.core.events.ExecutionFinished(),
+            )
+            return df
 
         # If the query was DDL or DML, return some job metadata. See
         # https://cloud.google.com/bigquery/docs/reference/rest/v2/Job#JobStatistics2.FIELDS.statement_type
@@ -1070,10 +1106,14 @@ class GbqDataLoader:
             query_job_for_metrics is not None
             and not bf_read_gbq_query.should_return_query_results(query_job_for_metrics)
         ):
-            return bf_read_gbq_query.create_dataframe_from_query_job_stats(
+            df = bf_read_gbq_query.create_dataframe_from_query_job_stats(
                 query_job_for_metrics,
                 session=self._session,
             )
+            bigframes.core.events.publisher.send(
+                bigframes.core.events.ExecutionFinished(),
+            )
+            return df
 
         # Speed up counts by getting counts from result metadata.
         if rows is not None:
@@ -1083,16 +1123,21 @@ class GbqDataLoader:
         else:
             n_rows = None
 
-        return self.read_gbq_table(
+        df = self.read_gbq_table(
             f"{destination.project}.{destination.dataset_id}.{destination.table_id}",
             index_col=index_col,
             columns=columns,
             use_cache=configuration["query"]["useQueryCache"],
             force_total_order=force_total_order,
             n_rows=n_rows,
+            publish_execution=False,
             # max_results and filters are omitted because they are already
             # handled by to_query(), above.
         )
+        bigframes.core.events.publisher.send(
+            bigframes.core.events.ExecutionFinished(),
+        )
+        return df
 
     def _query_to_destination(
         self,

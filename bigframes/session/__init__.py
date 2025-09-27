@@ -75,10 +75,7 @@ import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session, bq_caching_executor, executor
 import bigframes.session._io.bigquery as bf_io_bigquery
-import bigframes.session.anonymous_dataset
 import bigframes.session.clients
-import bigframes.session.loader
-import bigframes.session.metrics
 import bigframes.session.validation
 
 # Avoid circular imports.
