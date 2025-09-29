@@ -72,6 +72,11 @@ class Event:
     pass
 
 
+@dataclasses.dataclass(frozen=True)
+class SessionClosed(Event):
+    session_id: str
+
+
 class ExecutionStarted(Event):
     pass
 

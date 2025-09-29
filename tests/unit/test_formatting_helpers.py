@@ -146,7 +146,7 @@ def test_render_bqquery_received_event_html():
         query_plan=[mock_plan_entry],
     )
     html = formatting_helpers.render_bqquery_received_event_html(event)
-    assert "Query with job" in html
+    assert "Query" in html
     assert "my-job-id" in html
     assert "is RUNNING" in html
     assert "<details>" in html
@@ -162,7 +162,7 @@ def test_render_bqquery_received_event_plaintext():
         query_plan=[],
     )
     text = formatting_helpers.render_bqquery_received_event_plaintext(event)
-    assert "Query with job" in text
+    assert "Query" in text
     assert "my-job-id" in text
     assert "is RUNNING" in text
     assert "Query Plan" not in text
@@ -177,11 +177,10 @@ def test_render_bqquery_finished_event_html():
         slot_millis=2000,
     )
     html = formatting_helpers.render_bqquery_finished_event_html(event)
-    assert "Query with job" in html
+    assert "Query" in html
     assert "my-job-id" in html
-    assert "finished" in html
-    assert "1.0 kB processed" in html
-    assert "Slot time: 2 seconds" in html
+    assert "processed 1.0 kB" in html
+    assert "2 seconds of slot time" in html
 
 
 def test_render_bqquery_finished_event_plaintext():
@@ -193,7 +192,7 @@ def test_render_bqquery_finished_event_plaintext():
         slot_millis=2000,
     )
     text = formatting_helpers.render_bqquery_finished_event_plaintext(event)
-    assert "Query with job" in text
+    assert "Query" in text
     assert "my-job-id" in text
     assert "finished" in text
     assert "1.0 kB processed" in text

@@ -121,7 +121,7 @@ def progress_callback(
         ):
             previous_display_html = ""
             current_display_id = str(random.random())
-            current_display = display.HTML("Starting execution.")
+            current_display = display.HTML("Starting.")
             display.display(
                 current_display,
                 display_id=current_display_id,
@@ -153,7 +153,12 @@ def progress_callback(
             )
         elif isinstance(event, bigframes.core.events.ExecutionFinished):
             display.update_display(
-                display.HTML(f"{previous_display_html} Execution done."),
+                display.HTML(f"✅ Completed. {previous_display_html}"),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.SessionClosed):
+            display.update_display(
+                display.HTML(f"Session {event.session_id} closed."),
                 display_id=current_display_id,
             )
     elif progress_bar == "terminal":
@@ -231,9 +236,7 @@ def render_query_references(
     request_id: Optional[str],
 ) -> str:
     query_id = ""
-    if job_id:
-        query_id = f" with job ID {project_id}:{location}.{job_id}"
-    elif request_id:
+    if request_id and not job_id:
         query_id = f" with request ID {project_id}:{location}.{request_id}"
     return query_id
 
@@ -250,7 +253,7 @@ def render_job_link_html(
         job_id=job_id,
     )
     if job_url:
-        job_link = f' <a target="_blank" href="{job_url}">Open Job</a>'
+        job_link = f' [<a target="_blank" href="{job_url}">Job {project_id}:{location}.{job_id} details</a>]'
     else:
         job_link = ""
     return job_link
@@ -268,7 +271,7 @@ def render_job_link_plaintext(
         job_id=job_id,
     )
     if job_url:
-        job_link = f" Open Job: {job_url}"
+        job_link = f" Job {project_id}:{location}.{job_id} details: {job_url}"
     else:
         job_link = ""
     return job_link
@@ -440,12 +443,12 @@ def render_bqquery_finished_event_html(
 
     bytes_str = ""
     if event.total_bytes_processed is not None:
-        bytes_str = f" {humanize.naturalsize(event.total_bytes_processed)} processed."
+        bytes_str = f" {humanize.naturalsize(event.total_bytes_processed)}"
 
     slot_time_str = ""
     if event.slot_millis is not None:
         slot_time = datetime.timedelta(milliseconds=event.slot_millis)
-        slot_time_str = f" Slot time: {humanize.naturaldelta(slot_time)}."
+        slot_time_str = f" in {humanize.naturaldelta(slot_time)} of slot time"
 
     job_link = render_job_link_html(
         project_id=event.billing_project,
@@ -459,7 +462,7 @@ def render_bqquery_finished_event_html(
         request_id=None,
     )
     return f"""
-    Query{query_id} finished.{bytes_str}{slot_time_str}{job_link}
+    Query processed{bytes_str}{slot_time_str}{query_id}.{job_link}
     """
 
 

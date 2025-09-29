@@ -377,9 +377,13 @@ class Session(
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
-            self._function_session.clean_up(
+            remote_function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
             )
+
+        publisher_session = getattr(self, "_publisher", None)
+        if publisher_session:
+            publisher_session.send(self.session_id)
 
     @overload
     def read_gbq(  # type: ignore[overload-overlap]
