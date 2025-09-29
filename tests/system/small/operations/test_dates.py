@@ -71,3 +71,14 @@ def test_date_series_diff_agg(scalars_dfs):
     pandas.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
+
+
+def test_date_can_cast_after_accessor(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+
+    actual_result = bf_df.date_col.dt.isocalendar().week.astype("Int64").to_pandas()
+    expected_result = pd_df.date_col.dt.isocalendar().week.astype("Int64")
+
+    pandas.testing.assert_series_equal(
+        actual_result, expected_result, check_dtype=False, check_index_type=False
+    )
