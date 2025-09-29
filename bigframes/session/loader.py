@@ -647,6 +647,7 @@ class GbqDataLoader:
             bq_time=self._clock.get_time(),
             cache=self._df_snapshot,
             use_cache=use_cache,
+            publisher=self._publisher,
         )
 
         if table.location.casefold() != self._storage_manager.location.casefold():
@@ -767,6 +768,7 @@ class GbqDataLoader:
             filter_str,
             should_warn=True,
             should_dry_run=True,
+            publisher=self._publisher,
         )
 
         # ----------------------------
@@ -793,6 +795,7 @@ class GbqDataLoader:
                 self._bqclient,
                 table=table,
                 index_cols=index_cols,
+                publisher=self._publisher,
             )
             if publish_execution:
                 self._publisher.send(

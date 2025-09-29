@@ -233,6 +233,7 @@ class Session(
             location=self._location,
             session_id=self._session_id,
             kms_key=self._bq_kms_key_name,
+            publisher=self._publisher,
         )
         # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
         self._session_resource_manager = (

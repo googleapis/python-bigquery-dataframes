@@ -139,6 +139,7 @@ def test_check_if_index_columns_are_unique(index_cols, values_distinct, expected
         bqclient=bqclient,
         table=table,
         index_cols=index_cols,
+        publisher=session._publisher,
     )
 
     assert result == expected
