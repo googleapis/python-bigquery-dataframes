@@ -27,6 +27,7 @@ import test_utils.prefixer
 
 import bigframes
 import bigframes.clients
+import bigframes.core.events
 import bigframes.dtypes
 import bigframes.exceptions
 from bigframes.functions import _utils as bff_utils
@@ -769,6 +770,7 @@ def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_un
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=bigframes.core.events.Publisher(),
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -807,6 +809,7 @@ def test_read_gbq_function_runs_existing_udf_2_params_array_output(
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=bigframes.core.events.Publisher(),
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -847,6 +850,7 @@ def test_read_gbq_function_runs_existing_udf_4_params_array_output(
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=bigframes.core.events.Publisher(),
     )
     func = session.read_gbq_function(routine_id_unique)
 

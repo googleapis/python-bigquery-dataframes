@@ -240,19 +240,22 @@ def add_and_trim_labels(job_config):
     )
 
 
-def publish_bq_event(event):
-    if isinstance(event, google.cloud.bigquery._job_helpers.QueryFinishedEvent):
-        bf_event = bigframes.core.events.BigQueryFinishedEvent.from_bqclient(event)
-    elif isinstance(event, google.cloud.bigquery._job_helpers.QueryReceivedEvent):
-        bf_event = bigframes.core.events.BigQueryReceivedEvent.from_bqclient(event)
-    elif isinstance(event, google.cloud.bigquery._job_helpers.QueryRetryEvent):
-        bf_event = bigframes.core.events.BigQueryRetryEvent.from_bqclient(event)
-    elif isinstance(event, google.cloud.bigquery._job_helpers.QuerySentEvent):
-        bf_event = bigframes.core.events.BigQuerySentEvent.from_bqclient(event)
-    else:
-        bf_event = bigframes.core.events.BigQueryUnknownEvent(event)
+def create_bq_event_callback(publisher):
+    def publish_bq_event(event):
+        if isinstance(event, google.cloud.bigquery._job_helpers.QueryFinishedEvent):
+            bf_event = bigframes.core.events.BigQueryFinishedEvent.from_bqclient(event)
+        elif isinstance(event, google.cloud.bigquery._job_helpers.QueryReceivedEvent):
+            bf_event = bigframes.core.events.BigQueryReceivedEvent.from_bqclient(event)
+        elif isinstance(event, google.cloud.bigquery._job_helpers.QueryRetryEvent):
+            bf_event = bigframes.core.events.BigQueryRetryEvent.from_bqclient(event)
+        elif isinstance(event, google.cloud.bigquery._job_helpers.QuerySentEvent):
+            bf_event = bigframes.core.events.BigQuerySentEvent.from_bqclient(event)
+        else:
+            bf_event = bigframes.core.events.BigQueryUnknownEvent(event)
 
-    bigframes.core.events.publisher.send(bf_event)
+        publisher.send(bf_event)
+
+    return publish_bq_event
 
 
 @overload
@@ -266,6 +269,7 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
     ...
 
@@ -281,6 +285,7 @@ def start_query_with_client(
     timeout: Optional[float],
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[False],
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     ...
 
@@ -297,6 +302,7 @@ def start_query_with_client(
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[True],
     job_retry: google.api_core.retry.Retry,
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[google.cloud.bigquery.table.RowIterator, bigquery.QueryJob]:
     ...
 
@@ -313,6 +319,7 @@ def start_query_with_client(
     metrics: Optional[bigframes.session.metrics.ExecutionMetrics],
     query_with_job: Literal[False],
     job_retry: google.api_core.retry.Retry,
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     ...
 
@@ -332,6 +339,7 @@ def start_query_with_client(
     # https://github.com/googleapis/python-bigquery/pull/2256 merged, likely
     # version 3.36.0 or later.
     job_retry: google.api_core.retry.Retry = third_party_gcb_retry.DEFAULT_JOB_RETRY,
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[google.cloud.bigquery.table.RowIterator, Optional[bigquery.QueryJob]]:
     """
     Starts query job and waits for results.
@@ -350,7 +358,7 @@ def start_query_with_client(
                 project=project,
                 api_timeout=timeout,
                 job_retry=job_retry,
-                callback=publish_bq_event,
+                callback=create_bq_event_callback(publisher),
             )
             if metrics is not None:
                 metrics.count_job_stats(row_iterator=results_iterator)
@@ -370,7 +378,7 @@ def start_query_with_client(
         raise
 
     if not query_job.configuration.dry_run:
-        bigframes.core.events.publisher.send(
+        publisher.send(
             bigframes.core.events.BigQuerySentEvent(
                 sql,
                 billing_project=query_job.project,
@@ -381,7 +389,7 @@ def start_query_with_client(
         )
     results_iterator = query_job.result()
     if not query_job.configuration.dry_run:
-        bigframes.core.events.publisher.send(
+        publisher.send(
             bigframes.core.events.BigQueryFinishedEvent(
                 billing_project=query_job.project,
                 location=query_job.location,
@@ -436,6 +444,8 @@ def create_bq_dataset_reference(
     bq_client: bigquery.Client,
     location: Optional[str] = None,
     project: Optional[str] = None,
+    *,
+    publisher: bigframes.core.events.Publisher,
 ) -> bigquery.DatasetReference:
     """Create and identify dataset(s) for temporary BQ resources.
 
@@ -467,6 +477,7 @@ def create_bq_dataset_reference(
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=publisher,
     )
 
     # The anonymous dataset is used by BigQuery to write query results and

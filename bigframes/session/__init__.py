@@ -67,10 +67,9 @@ import bigframes.clients
 import bigframes.constants
 import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
+import bigframes.core.events
 import bigframes.core.pyformat
-
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
+import bigframes.formatting_helpers
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session, bq_caching_executor, executor
@@ -136,6 +135,11 @@ class Session(
         from bigframes.session import anonymous_dataset, clients, loader, metrics
 
         _warn_if_bf_version_is_obsolete()
+
+        # Publisher needs to be created before the other objects, especially
+        # the executors, because they access it.
+        self._publisher = bigframes.core.events.Publisher()
+        self._publisher.subscribe(bigframes.formatting_helpers.progress_callback)
 
         if context is None:
             context = bigquery_options.BigQueryOptions()
@@ -251,6 +255,7 @@ class Session(
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
             metrics=self._metrics,
+            publisher=self._publisher,
         )
         self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
             bqclient=self._clients_provider.bqclient,
@@ -260,6 +265,7 @@ class Session(
             strictly_ordered=self._strictly_ordered,
             metrics=self._metrics,
             enable_polars_execution=context.enable_polars_execution,
+            publisher=self._publisher,
         )
 
     def __del__(self):
@@ -2150,6 +2156,7 @@ class Session(
             timeout=None,
             query_with_job=True,
             job_retry=third_party_gcb_retry.DEFAULT_ML_JOB_RETRY,
+            publisher=self._publisher,
         )
         return iterator, query_job
 
@@ -2177,6 +2184,7 @@ class Session(
             project=None,
             timeout=None,
             query_with_job=True,
+            publisher=self._publisher,
         )
 
         return table

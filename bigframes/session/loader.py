@@ -263,6 +263,8 @@ class GbqDataLoader:
         scan_index_uniqueness: bool,
         force_total_order: bool,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
+        *,
+        publisher: bigframes.core.events.Publisher,
     ):
         self._bqclient = bqclient
         self._write_client = write_client
@@ -274,6 +276,7 @@ class GbqDataLoader:
             bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]
         ] = {}
         self._metrics = metrics
+        self._publisher = publisher
         # Unfortunate circular reference, but need to pass reference when constructing objects
         self._session = session
         self._clock = session_time.BigQuerySyncedClock(bqclient)
@@ -783,7 +786,7 @@ class GbqDataLoader:
         # If non in strict ordering mode, don't go through overhead of scanning index column(s) to determine if unique
         if not primary_key and self._scan_index_uniqueness and index_cols:
             if publish_execution:
-                bigframes.core.events.publisher.send(
+                self._publisher.send(
                     bigframes.core.events.ExecutionStarted(),
                 )
             primary_key = bf_read_gbq_table.check_if_index_columns_are_unique(
@@ -792,7 +795,7 @@ class GbqDataLoader:
                 index_cols=index_cols,
             )
             if publish_execution:
-                bigframes.core.events.publisher.send(
+                self._publisher.send(
                     bigframes.core.events.ExecutionFinished(),
                 )
 
@@ -1015,7 +1018,7 @@ class GbqDataLoader:
 
         # We want to make sure we show progress when we actually do execute a
         # query. Since we have got this far, we know it's not a dry run.
-        bigframes.core.events.publisher.send(
+        self._publisher.send(
             bigframes.core.events.ExecutionStarted(),
         )
 
@@ -1080,7 +1083,7 @@ class GbqDataLoader:
                 index_col=index_col,
                 columns=columns,
             )
-            bigframes.core.events.publisher.send(
+            self._publisher.send(
                 bigframes.core.events.ExecutionFinished(),
             )
             return df
@@ -1092,7 +1095,7 @@ class GbqDataLoader:
                 query_job_for_metrics,
                 session=self._session,
             )
-            bigframes.core.events.publisher.send(
+            self._publisher.send(
                 bigframes.core.events.ExecutionFinished(),
             )
             return df
@@ -1110,7 +1113,7 @@ class GbqDataLoader:
                 query_job_for_metrics,
                 session=self._session,
             )
-            bigframes.core.events.publisher.send(
+            self._publisher.send(
                 bigframes.core.events.ExecutionFinished(),
             )
             return df
@@ -1134,7 +1137,7 @@ class GbqDataLoader:
             # max_results and filters are omitted because they are already
             # handled by to_query(), above.
         )
-        bigframes.core.events.publisher.send(
+        self._publisher.send(
             bigframes.core.events.ExecutionFinished(),
         )
         return df
@@ -1239,6 +1242,7 @@ class GbqDataLoader:
             project=None,
             metrics=None,
             query_with_job=False,
+            publisher=self._publisher,
         )
         return rows
 
@@ -1264,6 +1268,7 @@ class GbqDataLoader:
             project=None,
             metrics=None,
             query_with_job=True,
+            publisher=self._publisher,
         )
         return query_job
 

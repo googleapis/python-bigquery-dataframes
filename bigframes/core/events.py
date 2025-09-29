@@ -68,10 +68,6 @@ class Publisher:
             callback(event)
 
 
-publisher = Publisher()
-publisher.subscribe(bigframes.formatting_helpers.progress_callback)
-
-
 class Event:
     pass
 

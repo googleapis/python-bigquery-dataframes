@@ -28,6 +28,7 @@ import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
 import google.cloud.bigquery.table
 
+import bigframes.core.events
 import bigframes.exceptions as bfe
 import bigframes.session._io.bigquery
 
@@ -43,6 +44,7 @@ def get_table_metadata(
     *,
     cache: Dict[bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]],
     use_cache: bool = True,
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[datetime.datetime, google.cloud.bigquery.table.Table]:
     """Get the table metadata, either from cache or via REST API."""
 
@@ -59,6 +61,7 @@ def get_table_metadata(
             # Don't warn, because that will already have been taken care of.
             should_warn=False,
             should_dry_run=False,
+            publisher=publisher,
         ):
             # This warning should only happen if the cached snapshot_time will
             # have any effect on bigframes (b/437090788). For example, with
@@ -108,6 +111,7 @@ def is_time_travel_eligible(
     *,
     should_warn: bool,
     should_dry_run: bool,
+    publisher: bigframes.core.events.Publisher,
 ):
     """Check if a table is eligible to use time-travel.
 
@@ -184,6 +188,7 @@ def is_time_travel_eligible(
                 timeout=None,
                 metrics=None,
                 query_with_job=False,
+                publisher=publisher,
             )
             return True
 
@@ -235,6 +240,8 @@ def check_if_index_columns_are_unique(
     bqclient: bigquery.Client,
     table: google.cloud.bigquery.table.Table,
     index_cols: List[str],
+    *,
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[str, ...]:
     import bigframes.core.sql
     import bigframes.session._io.bigquery
@@ -252,6 +259,7 @@ def check_if_index_columns_are_unique(
         project=None,
         metrics=None,
         query_with_job=False,
+        publisher=publisher,
     )
     row = next(iter(results))
 

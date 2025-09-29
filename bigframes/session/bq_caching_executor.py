@@ -140,6 +140,7 @@ class BigQueryCachingExecutor(executor.Executor):
         strictly_ordered: bool = True,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
         enable_polars_execution: bool = False,
+        publisher: bigframes.core.events.Publisher,
     ):
         self.bqclient = bqclient
         self.storage_manager = storage_manager
@@ -149,6 +150,9 @@ class BigQueryCachingExecutor(executor.Executor):
         self.loader = loader
         self.bqstoragereadclient = bqstoragereadclient
         self._enable_polars_execution = enable_polars_execution
+        self._publisher = publisher
+
+        # TODO(tswast): Send events from semi-executors, too.
         self._semi_executors: Sequence[semi_executor.SemiExecutor] = (
             read_api_execution.ReadApiSemiExecutor(
                 bqstoragereadclient=bqstoragereadclient,
@@ -188,7 +192,7 @@ class BigQueryCachingExecutor(executor.Executor):
         array_value: bigframes.core.ArrayValue,
         execution_spec: ex_spec.ExecutionSpec,
     ) -> executor.ExecuteResult:
-        bigframes.core.events.publisher.send(bigframes.core.events.ExecutionStarted())
+        self._publisher.send(bigframes.core.events.ExecutionStarted())
 
         # TODO: Support export jobs in combination with semi executors
         if execution_spec.destination_spec is None:
@@ -198,7 +202,7 @@ class BigQueryCachingExecutor(executor.Executor):
                     plan, ordered=execution_spec.ordered, peek=execution_spec.peek
                 )
                 if maybe_result:
-                    bigframes.core.events.publisher.send(
+                    self._publisher.send(
                         bigframes.core.events.ExecutionFinished(
                             result=maybe_result,
                         )
@@ -212,7 +216,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 )
             # separate path for export_gbq, as it has all sorts of annoying logic, such as possibly running as dml
             result = self._export_gbq(array_value, execution_spec.destination_spec)
-            bigframes.core.events.publisher.send(
+            self._publisher.send(
                 bigframes.core.events.ExecutionFinished(
                     result=result,
                 )
@@ -232,7 +236,7 @@ class BigQueryCachingExecutor(executor.Executor):
         if isinstance(execution_spec.destination_spec, ex_spec.GcsOutputSpec):
             self._export_result_gcs(result, execution_spec.destination_spec)
 
-        bigframes.core.events.publisher.send(
+        self._publisher.send(
             bigframes.core.events.ExecutionFinished(
                 result=result,
             )
@@ -261,6 +265,7 @@ class BigQueryCachingExecutor(executor.Executor):
             location=None,
             timeout=None,
             query_with_job=True,
+            publisher=self._publisher,
         )
 
     def _maybe_find_existing_table(
@@ -419,6 +424,7 @@ class BigQueryCachingExecutor(executor.Executor):
                     location=None,
                     timeout=None,
                     query_with_job=True,
+                    publisher=self._publisher,
                 )
             else:
                 return bq_io.start_query_with_client(
@@ -430,6 +436,7 @@ class BigQueryCachingExecutor(executor.Executor):
                     location=None,
                     timeout=None,
                     query_with_job=False,
+                    publisher=self._publisher,
                 )
 
         except google.api_core.exceptions.BadRequest as e:
