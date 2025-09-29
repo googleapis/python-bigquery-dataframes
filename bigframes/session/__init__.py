@@ -2065,7 +2065,7 @@ class Session(
         parameter.
 
             >>> @bpd.remote_function(cloud_function_service_account="default")
-            ... def row_sum(s: bpd.Series) -> float:
+            ... def row_sum(s: pd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
             >>> row_sum_ref = bpd.read_gbq_function(
