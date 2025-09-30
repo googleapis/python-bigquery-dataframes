@@ -53,21 +53,16 @@ def generate(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> bpd.options.display.progress_bar = None
-        >>> df = bpd.DataFrame({
-        ...     "col_1": ["apple", "bear", "pear"],
-        ...     "col_2": ["fruit", "animal", "animal"]
-        ... })
-        >>> bbq.ai.generate_bool((df["col_1"], " is a ", df["col_2"]))
-        0    {'result': True, 'full_response': '{"candidate...
-        1    {'result': True, 'full_response': '{"candidate...
-        2    {'result': False, 'full_response': '{"candidat...
-        dtype: struct<result: bool, full_response: extension<dbjson<JSONArrowType>>, status: string>[pyarrow]
+        >>> country = bpd.Series(["Japan", "Canada"])
+        >>> bbq.ai.generate(("What's the capital city of ", country, " one word only"))
+        0    {'result': 'Tokyo\n', 'full_response': '{"cand...
+        1    {'result': 'Ottawa\n', 'full_response': '{"can...
+        dtype: struct<result: string, full_response: extension<dbjson<JSONArrowType>>, status: string>[pyarrow]
 
-        >>> bbq.ai.generate_bool((df["col_1"], " is a ", df["col_2"])).struct.field("result")
-        0     True
-        1     True
-        2    False
-        Name: result, dtype: boolean
+        >>> bbq.ai.generate(("What's the capital city of ", country, " one word only")).struct.field("result")
+        0     Tokyo\n
+        1    Ottawa\n
+        Name: result, dtype: string
 
     Args:
         prompt (Series | List[str|Series] | Tuple[str|Series, ...]):
@@ -94,7 +89,7 @@ def generate(
 
     Returns:
         bigframes.series.Series: A new struct Series with the result data. The struct contains these fields:
-        * "result": a BOOL value containing the model's response to the prompt. The result is None if the request fails or is filtered by responsible AI.
+        * "result": a STRING value containing the model's response to the prompt. The result is None if the request fails or is filtered by responsible AI.
         * "full_response": a JSON value containing the response from the projects.locations.endpoints.generateContent call to the model.
         The generated text is in the text element.
         * "status": a STRING value that contains the API response status for the corresponding row. This value is empty if the operation was successful.
