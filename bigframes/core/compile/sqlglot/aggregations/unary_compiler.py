@@ -69,6 +69,15 @@ def _(
     return sge.func("APPROX_TOP_COUNT", column.expr, sge.convert(op.number))
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.AnyValueOp)
+def _(
+    op: agg_ops.AnyValueOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(sge.func("ANY_VALUE", column.expr), window)
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.CountOp)
 def _(
     op: agg_ops.CountOp,
