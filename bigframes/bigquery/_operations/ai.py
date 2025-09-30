@@ -55,13 +55,13 @@ def generate(
         >>> bpd.options.display.progress_bar = None
         >>> country = bpd.Series(["Japan", "Canada"])
         >>> bbq.ai.generate(("What's the capital city of ", country, " one word only"))
-        0    {'result': 'Tokyo\n', 'full_response': '{"cand...
-        1    {'result': 'Ottawa\n', 'full_response': '{"can...
+        0    {'result': 'Tokyo\\n', 'full_response': '{"cand...
+        1    {'result': 'Ottawa\\n', 'full_response': '{"can...
         dtype: struct<result: string, full_response: extension<dbjson<JSONArrowType>>, status: string>[pyarrow]
 
         >>> bbq.ai.generate(("What's the capital city of ", country, " one word only")).struct.field("result")
-        0     Tokyo\n
-        1    Ottawa\n
+        0     Tokyo\\n
+        1    Ottawa\\n
         Name: result, dtype: string
 
     Args:
