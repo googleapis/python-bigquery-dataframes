@@ -1,19 +1,10 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    CAST(TIMESTAMP_MICROS(`bfcol_0`) AS DATETIME) AS `bfcol_1`,
-    CAST(TIMESTAMP_MICROS(`bfcol_0`) AS TIME) AS `bfcol_2`,
-    CAST(TIMESTAMP_MICROS(`bfcol_0`) AS TIMESTAMP) AS `bfcol_3`,
-    SAFE_CAST(TIMESTAMP_MICROS(`bfcol_0`) AS TIME) AS `bfcol_4`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `int64_to_datetime`,
-  `bfcol_2` AS `int64_to_time`,
-  `bfcol_3` AS `int64_to_timestamp`,
-  `bfcol_4` AS `int64_to_time_safe`
-FROM `bfcte_1`
+  CAST(CAST(timestamp_micros(`t0`.`int64_col` * 1) AS TIMESTAMP) AS DATETIME) AS `int64_to_datetime`,
+  TIME(CAST(timestamp_micros(`t0`.`int64_col` * 1) AS TIMESTAMP)) AS `int64_to_time`,
+  CAST(timestamp_micros(`t0`.`int64_col` * 1) AS TIMESTAMP) AS `int64_to_timestamp`,
+  TIME(CAST(timestamp_micros(`t0`.`int64_col` * 1) AS TIMESTAMP)) AS `int64_to_time_safe`
+FROM (
+  SELECT
+    `int64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+) AS `t0`

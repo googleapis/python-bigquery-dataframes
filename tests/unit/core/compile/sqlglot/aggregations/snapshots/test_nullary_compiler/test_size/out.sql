@@ -1,12 +1,15 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    COUNT(1) AS `bfcol_2`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_2` AS `size`
-FROM `bfcte_1`
+  *
+FROM (
+  SELECT
+    COUNT(1) AS `size`
+  FROM (
+    SELECT
+      `t0`.`rowindex` AS `bfuid_col_1`
+    FROM (
+      SELECT
+        `rowindex`
+      FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+    ) AS `t0`
+  ) AS `t1`
+) AS `t2`

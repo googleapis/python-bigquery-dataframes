@@ -1,12 +1,15 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    MAX(`bfcol_0`) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `int64_col`
-FROM `bfcte_1`
+  *
+FROM (
+  SELECT
+    MAX(`t1`.`int64_col`) AS `int64_col`
+  FROM (
+    SELECT
+      `t0`.`int64_col`
+    FROM (
+      SELECT
+        `int64_col`
+      FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+    ) AS `t0`
+  ) AS `t1`
+) AS `t2`

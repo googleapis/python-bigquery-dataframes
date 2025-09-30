@@ -1,25 +1,26 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col` AS `bfcol_0`,
-    `int64_too` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    `bfcol_1` AS `bfcol_2`,
-    `bfcol_0` AS `bfcol_3`
-  FROM `bfcte_0`
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_3`,
-    COALESCE(SUM(`bfcol_2`), 0) AS `bfcol_6`
-  FROM `bfcte_1`
-  GROUP BY
-    `bfcol_3`
-)
 SELECT
-  `bfcol_3` AS `bool_col`,
-  `bfcol_6` AS `int64_too`
-FROM `bfcte_2`
-ORDER BY
-  `bfcol_3` ASC NULLS LAST
+`bool_col` AS `bool_col`,
+`int64_too` AS `int64_too`
+FROM
+(SELECT
+  `t2`.`bfuid_col_848` AS `bool_col`,
+  `t2`.`bfuid_col_849` AS `int64_too`
+FROM (
+  SELECT
+    `t1`.`bfuid_col_848`,
+    COALESCE(SUM(`t1`.`bfuid_col_847`), 0) AS `bfuid_col_849`
+  FROM (
+    SELECT
+      `t0`.`int64_too` AS `bfuid_col_847`,
+      `t0`.`bool_col` AS `bfuid_col_848`
+    FROM (
+      SELECT
+        `bool_col`,
+        `int64_too`
+      FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+    ) AS `t0`
+  ) AS `t1`
+  GROUP BY
+    1
+) AS `t2`)
+ORDER BY `bool_col` ASC NULLS LAST

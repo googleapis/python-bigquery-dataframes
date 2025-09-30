@@ -1,13 +1,17 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col` AS `bfcol_0`,
-    `float64_col` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    CORR(`bfcol_0`, `bfcol_1`) AS `bfcol_2`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_2` AS `corr_col`
-FROM `bfcte_1`
+  *
+FROM (
+  SELECT
+    CORR(`t1`.`int64_col`, `t1`.`float64_col`) AS `corr_col`
+  FROM (
+    SELECT
+      `t0`.`int64_col`,
+      `t0`.`float64_col`
+    FROM (
+      SELECT
+        `int64_col`,
+        `float64_col`
+      FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+    ) AS `t0`
+  ) AS `t1`
+) AS `t2`

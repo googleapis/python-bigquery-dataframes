@@ -1,18 +1,10 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col` AS `bfcol_0`,
-    `float64_col` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    `bfcol_0` AS `bfcol_2`,
-    `bfcol_1` <> 0 AS `bfcol_3`,
-    `bfcol_1` <> 0 AS `bfcol_4`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_2` AS `bool_col`,
-  `bfcol_3` AS `float64_col`,
-  `bfcol_4` AS `float64_w_safe`
-FROM `bfcte_1`
+  `t0`.`bool_col`,
+  `t0`.`float64_col` <> 0 AS `float64_col`,
+  `t0`.`float64_col` <> 0 AS `float64_w_safe`
+FROM (
+  SELECT
+    `bool_col`,
+    `float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+) AS `t0`

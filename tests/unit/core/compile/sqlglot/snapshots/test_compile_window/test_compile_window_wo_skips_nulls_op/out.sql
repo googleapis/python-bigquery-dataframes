@@ -1,27 +1,28 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col` AS `bfcol_0`,
-    `rowindex` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    CASE
-      WHEN COUNT(CAST(NOT `bfcol_0` IS NULL AS INT64)) OVER (
-        ORDER BY `bfcol_1` IS NULL ASC NULLS LAST, `bfcol_1` ASC NULLS LAST
-        ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
-      ) < 5
-      THEN NULL
-      ELSE COUNT(`bfcol_0`) OVER (
-        ORDER BY `bfcol_1` IS NULL ASC NULLS LAST, `bfcol_1` ASC NULLS LAST
-        ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
-      )
-    END AS `bfcol_4`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `rowindex`,
-  `bfcol_4` AS `int64_col`
-FROM `bfcte_1`
-ORDER BY
-  `bfcol_1` ASC NULLS LAST
+`rowindex` AS `rowindex`,
+`int64_col` AS `int64_col`
+FROM
+(SELECT
+  `t0`.`rowindex`,
+  CASE
+    WHEN COUNT((
+      `t0`.`int64_col`
+    ) IS NOT NULL) OVER (
+      ORDER BY `t0`.`rowindex` IS NULL ASC, `t0`.`rowindex` ASC
+      ROWS BETWEEN 4 preceding AND CURRENT ROW
+    ) < 5
+    THEN NULL
+    WHEN TRUE
+    THEN COUNT(`t0`.`int64_col`) OVER (
+      ORDER BY `t0`.`rowindex` IS NULL ASC, `t0`.`rowindex` ASC
+      ROWS BETWEEN 4 preceding AND CURRENT ROW
+    )
+    ELSE CAST(NULL AS INT64)
+  END AS `int64_col`
+FROM (
+  SELECT
+    `int64_col`,
+    `rowindex`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+) AS `t0`)
+ORDER BY `rowindex` ASC NULLS LAST
