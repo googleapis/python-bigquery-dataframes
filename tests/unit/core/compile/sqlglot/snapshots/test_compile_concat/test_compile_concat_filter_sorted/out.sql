@@ -134,8 +134,8 @@ WITH `bfcte_3` AS (
   )
 )
 SELECT
-  `bfcol_42` AS `bfuid_col_12`,
-  `bfcol_43` AS `bfuid_col_13`
+  `bfcol_42` AS `float64_col`,
+  `bfcol_43` AS `int64_col`
 FROM `bfcte_18`
 ORDER BY
   `bfcol_44` ASC NULLS LAST,

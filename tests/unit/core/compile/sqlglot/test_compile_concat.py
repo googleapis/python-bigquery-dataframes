@@ -28,6 +28,7 @@ def test_compile_concat(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_compile_concat_filter_sorted(scalar_types_df: bpd.DataFrame, snapshot):
+
     scalars_array_value = scalar_types_df._block.expr
     input_1 = scalars_array_value.select_columns(["float64_col", "int64_col"]).order_by(
         [ordering.ascending_over("int64_col")]
@@ -37,5 +38,12 @@ def test_compile_concat_filter_sorted(scalar_types_df: bpd.DataFrame, snapshot):
     )
 
     result = input_1.concat([input_2, input_1, input_2])
+
+    new_names = ["float64_col", "int64_col"]
+    col_ids = {
+        old_name: new_name for old_name, new_name in zip(result.column_ids, new_names)
+    }
+    result = result.rename_columns(col_ids).select_columns(new_names)
+
     sql = result.session._executor.to_sql(result, enable_cache=False)
     snapshot.assert_match(sql, "out.sql")
