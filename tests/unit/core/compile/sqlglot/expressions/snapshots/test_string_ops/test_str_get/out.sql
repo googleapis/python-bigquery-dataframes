@@ -1,13 +1,12 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `string_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    SUBSTRING(`bfcol_0`, 2, 1) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `string_col`
-FROM `bfcte_1`
+  NULLIF(
+    SUBSTRING(`t0`.`string_col`, IF((
+      1 + 1
+    ) >= 1, 1 + 1, 1 + 1 + LENGTH(`t0`.`string_col`)), 1),
+    ''
+  ) AS `string_col`
+FROM (
+  SELECT
+    `string_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+) AS `t0`

@@ -1,18 +1,21 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `date_col` AS `bfcol_0`,
-    `int64_col` AS `bfcol_1`,
-    `string_col` AS `bfcol_2`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    APPROX_QUANTILES(`bfcol_1`, 2)[OFFSET(1)] AS `bfcol_3`,
-    APPROX_QUANTILES(`bfcol_0`, 2)[OFFSET(1)] AS `bfcol_4`,
-    APPROX_QUANTILES(`bfcol_2`, 2)[OFFSET(1)] AS `bfcol_5`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_3` AS `int64_col`,
-  `bfcol_4` AS `date_col`,
-  `bfcol_5` AS `string_col`
-FROM `bfcte_1`
+  *
+FROM (
+  SELECT
+    approx_quantiles(`t1`.`int64_col`, 2)[offset(1)] AS `int64_col`,
+    approx_quantiles(`t1`.`date_col`, 2)[offset(1)] AS `date_col`,
+    approx_quantiles(`t1`.`string_col`, 2)[offset(1)] AS `string_col`
+  FROM (
+    SELECT
+      `t0`.`date_col`,
+      `t0`.`int64_col`,
+      `t0`.`string_col`
+    FROM (
+      SELECT
+        `date_col`,
+        `int64_col`,
+        `string_col`
+      FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+    ) AS `t0`
+  ) AS `t1`
+) AS `t2`

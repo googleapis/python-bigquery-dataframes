@@ -1,17 +1,9 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `string_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    ENDS_WITH(`bfcol_0`, 'ab') AS `bfcol_1`,
-    ENDS_WITH(`bfcol_0`, 'ab') OR ENDS_WITH(`bfcol_0`, 'cd') AS `bfcol_2`,
-    FALSE AS `bfcol_3`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `single`,
-  `bfcol_2` AS `double`,
-  `bfcol_3` AS `empty`
-FROM `bfcte_1`
+  ENDS_WITH(`t0`.`string_col`, 'ab') AS `single`,
+  ENDS_WITH(`t0`.`string_col`, 'ab') OR ENDS_WITH(`t0`.`string_col`, 'cd') AS `double`,
+  FALSE AS `empty`
+FROM (
+  SELECT
+    `string_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+) AS `t0`

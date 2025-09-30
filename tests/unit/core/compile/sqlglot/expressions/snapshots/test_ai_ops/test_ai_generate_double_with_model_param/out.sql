@@ -1,18 +1,16 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `string_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    AI.GENERATE_DOUBLE(
-      prompt => (`bfcol_0`, ' is the same as ', `bfcol_0`),
-      connection_id => 'test_connection_id',
-      request_type => 'SHARED',
-      model_params => JSON '{}'
-    ) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `result`
-FROM `bfcte_1`
+  AI.GENERATE_DOUBLE(
+    prompt => STRUCT(
+      `t0`.`string_col` AS `_field_1`,
+      ' is the same as ' AS `_field_2`,
+      `t0`.`string_col` AS `_field_3`
+    ),
+    connection_id => 'test_connection_id',
+    request_type => 'SHARED',
+    model_params => JSON '{}'
+  ) AS `result`
+FROM (
+  SELECT
+    `string_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+) AS `t0`

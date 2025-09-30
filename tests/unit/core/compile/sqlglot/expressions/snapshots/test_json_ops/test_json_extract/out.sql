@@ -1,13 +1,7 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `json_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`json_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    JSON_EXTRACT(`bfcol_0`, '$') AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `json_col`
-FROM `bfcte_1`
+  JSON_EXTRACT(`t0`.`json_col`, '$') AS `json_col`
+FROM (
+  SELECT
+    `json_col`
+  FROM `bigframes-dev.sqlglot_test.json_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:50.715543')
+) AS `t0`

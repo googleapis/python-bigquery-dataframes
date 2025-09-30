@@ -1,30 +1,32 @@
-WITH `bfcte_1` AS (
-  SELECT
-    `rowindex` AS `bfcol_0`,
-    `rowindex_2` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_0` AS `bfcol_2`,
-    `bfcol_1` AS `bfcol_3`
-  FROM `bfcte_1`
-), `bfcte_0` AS (
-  SELECT
-    `rowindex_2` AS `bfcol_4`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_3` AS (
-  SELECT
-    `bfcte_2`.*,
-    `bfcte_2`.`bfcol_3` IN ((
-        SELECT
-          `bfcol_4`
-        FROM `bfcte_0`
-        GROUP BY
-          `bfcol_4`
-    )) AS `bfcol_5`
-  FROM `bfcte_2`
-)
 SELECT
-  `bfcol_2` AS `rowindex`,
-  `bfcol_5` AS `rowindex_2`
-FROM `bfcte_3`
+  `t2`.`bfuid_col_1` AS `rowindex`,
+  `t2`.`rowindex_2` IN (
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t3`.`rowindex_2`
+      FROM (
+        SELECT
+          `t1`.`rowindex_2`
+        FROM (
+          SELECT
+            `rowindex_2`
+          FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+        ) AS `t1`
+      ) AS `t3`
+      GROUP BY
+        1
+    ) AS `t4`
+  ) AS `rowindex_2`
+FROM (
+  SELECT
+    `t0`.`rowindex` AS `bfuid_col_1`,
+    `t0`.`rowindex_2`
+  FROM (
+    SELECT
+      `rowindex`,
+      `rowindex_2`
+    FROM `bigframes-dev.sqlglot_test.scalar_types` FOR SYSTEM_TIME AS OF DATETIME('2025-09-30T20:19:48.854671')
+  ) AS `t0`
+) AS `t2`
