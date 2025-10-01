@@ -74,6 +74,36 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
             f"GeoSeries.is_closed is not supported. Use bigframes.bigquery.st_isclosed(series), instead. {constants.FEEDBACK_LINK}"
         )
 
+    @property
+    def is_empty(self) -> bigframes.series.Series:
+        series = self._apply_unary_op(ops.geo_st_isempty_op)
+        series.name = "is_empty"
+        return series
+
+    @property
+    def geom_type(self) -> bigframes.series.Series:
+        series = self._apply_unary_op(ops.geo_st_geometrytype_op)
+        series.name = "geom_type"
+        return series
+
+    @property
+    def is_ring(self) -> bigframes.series.Series:
+        series = self._apply_unary_op(ops.geo_st_isring_op)
+        series.name = "is_ring"
+        return series
+
+    @property
+    def is_simple(self) -> bigframes.series.Series:
+        series = self._apply_unary_op(ops.geo_st_issimple_op)
+        series.name = "is_simple"
+        return series
+
+    @property
+    def is_valid(self) -> bigframes.series.Series:
+        series = self._apply_unary_op(ops.geo_st_isvalid_op)
+        series.name = "is_valid"
+        return series
+
     @classmethod
     def from_wkt(
         cls,
@@ -123,3 +153,6 @@ class GeoSeries(vendored_geoseries.GeoSeries, bigframes.series.Series):
 
     def intersection(self: GeoSeries, other: GeoSeries) -> bigframes.series.Series:  # type: ignore
         return self._apply_binary_op(other, ops.geo_st_intersection_op)
+
+    def union(self: GeoSeries, other: GeoSeries) -> bigframes.series.Series:  # type: ignore
+        return self._apply_binary_op(other, ops.geo_st_union_op)

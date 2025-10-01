@@ -490,6 +490,35 @@ def test_geo_is_closed_not_supported(session: bigframes.session.Session):
         bf_series.is_closed
 
 
+def test_geo_is_empty(session: bigframes.session.Session):
+    bf_s = bigframes.geopandas.GeoSeries(
+        [
+            Polygon([]),
+            Point(0, 0),
+            LineString([]),
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            GeometryCollection([]),
+            None,
+        ],
+        session=session,
+    )
+    pd_s = geopandas.GeoSeries(
+        [
+            Polygon([]),
+            Point(0, 0),
+            LineString([]),
+            Polygon([(0, 0), (1, 1), (0, 1)]),
+            GeometryCollection([]),
+            None,
+        ]
+    )
+
+    bf_result = bf_s.is_empty.to_pandas()
+    pd_result = pd_s.is_empty.astype("boolean")
+
+    assert_series_equal(bf_result, pd_result, check_index=False)
+
+
 def test_geo_buffer_raises_notimplemented(session: bigframes.session.Session):
     """GeoPandas takes distance in units of the coordinate system, but BigQuery
     uses meters.
