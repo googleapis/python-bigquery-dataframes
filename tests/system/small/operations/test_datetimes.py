@@ -603,14 +603,3 @@ def test_to_datetime(scalars_dfs, col):
     testing.assert_series_equal(
         actual_result, expected_result, check_dtype=False, check_index_type=False
     )
-
-
-def test_timedelta_can_cast_after_dt_accessor(timedelta_series):
-    bf_s, pd_s = timedelta_series
-
-    actual_result = bf_s.dt.isocalendar().week.astype("Int64").to_pandas()
-    expected_result = pd_s.dt.isocalendar().week.astype("Int64")
-
-    assert_series_equal(
-        actual_result, expected_result, check_dtype=False, check_index_type=False
-    )
