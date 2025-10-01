@@ -15,8 +15,10 @@
 
 import datetime
 
+from packaging import version
 import pandas as pd
 import pandas.testing
+import pytest
 
 from bigframes import dtypes
 
@@ -74,6 +76,8 @@ def test_date_series_diff_agg(scalars_dfs):
 
 
 def test_date_can_cast_after_accessor(scalars_dfs):
+    if version.Version(pd.__version__) <= version.Version("2.1.0"):
+        pytest.skip("pd timezone conversion bug")
     bf_df, pd_df = scalars_dfs
 
     actual_result = bf_df["date_col"].dt.isocalendar().week.astype("Int64").to_pandas()
