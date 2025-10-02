@@ -27,12 +27,13 @@ def first_page(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    # Get number of rows (to calculate number of pages) and the first page.
+    # Call the executor directly to isolate the query execution time
+    # from other DataFrame overhead for this benchmark.
     execute_result = df._block.session._executor.execute(
         df._block.expr,
         ordered=True,
         use_explicit_destination=True,
-    )
+    )  # type: ignore[call-arg]
     assert execute_result.total_rows is not None and execute_result.total_rows >= 0
     batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     first_page = next(iter(batches))
