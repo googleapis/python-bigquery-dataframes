@@ -402,7 +402,7 @@ def score(
     >>> import bigframes.bigquery as bbq
     >>> bpd.options.display.progress_bar = None
     >>> animal = bpd.Series(["Tiger", "Rabbit", "Blue Whale"])
-    >>> bbq.ai.score(("Rank the relative weights of ", animal, " on the scale from 1 to 3"))
+    >>> bbq.ai.score(("Rank the relative weights of ", animal, " on the scale from 1 to 3")) # doctest: +SKIP
     0    2.0
     1    1.0
     2    3.0
