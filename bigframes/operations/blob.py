@@ -22,7 +22,7 @@ import IPython.display as ipy_display
 import pandas as pd
 import requests
 
-from bigframes import clients
+from bigframes import clients, dtypes
 from bigframes.core import log_adapter
 import bigframes.dataframe
 import bigframes.exceptions as bfe
@@ -80,9 +80,17 @@ class BlobAccessor(base.SeriesMethods):
 
         Returns:
             bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
-        details_json = self._apply_unary_op(ops.obj_fetch_metadata_op).struct.field(
-            "details"
-        )
+        series_to_check = bigframes.series.Series(self._block)
+        # Check if it's a struct series from a verbose operation
+        if (
+            dtypes.is_struct_like(series_to_check.dtype)
+            and "content" in series_to_check.dtype.names
+            and dtypes.is_blob_like(series_to_check.dtype.field("content").dtype)
+        ):
+            series_to_check = series_to_check.struct.field("content")
+        details_json = series_to_check._apply_unary_op(
+            ops.obj_fetch_metadata_op
+        ).struct.field("details")
         import bigframes.bigquery as bbq
 
         return bbq.json_extract(details_json, "$.gcs_metadata").rename("metadata")
