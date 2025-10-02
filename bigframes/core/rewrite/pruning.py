@@ -62,12 +62,6 @@ def prune_columns(node: nodes.BigFrameNode):
         )
     else:
         result = node
-
-    if len(set(result.ids)) == 0:
-        raise ValueError()
-    for child in result.child_nodes:
-        if len(set(child.ids)) == 0:
-            raise ValueError()
     return result
 
 
