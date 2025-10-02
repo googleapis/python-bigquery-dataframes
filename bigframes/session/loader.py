@@ -788,7 +788,7 @@ class GbqDataLoader:
         # If non in strict ordering mode, don't go through overhead of scanning index column(s) to determine if unique
         if not primary_key and self._scan_index_uniqueness and index_cols:
             if publish_execution:
-                self._publisher.send(
+                self._publisher.publish(
                     bigframes.core.events.ExecutionStarted(),
                 )
             primary_key = bf_read_gbq_table.check_if_index_columns_are_unique(
@@ -798,7 +798,7 @@ class GbqDataLoader:
                 publisher=self._publisher,
             )
             if publish_execution:
-                self._publisher.send(
+                self._publisher.publish(
                     bigframes.core.events.ExecutionFinished(),
                 )
 
@@ -1021,7 +1021,7 @@ class GbqDataLoader:
 
         # We want to make sure we show progress when we actually do execute a
         # query. Since we have got this far, we know it's not a dry run.
-        self._publisher.send(
+        self._publisher.publish(
             bigframes.core.events.ExecutionStarted(),
         )
 
@@ -1086,7 +1086,7 @@ class GbqDataLoader:
                 index_col=index_col,
                 columns=columns,
             )
-            self._publisher.send(
+            self._publisher.publish(
                 bigframes.core.events.ExecutionFinished(),
             )
             return df
@@ -1098,7 +1098,7 @@ class GbqDataLoader:
                 query_job_for_metrics,
                 session=self._session,
             )
-            self._publisher.send(
+            self._publisher.publish(
                 bigframes.core.events.ExecutionFinished(),
             )
             return df
@@ -1116,7 +1116,7 @@ class GbqDataLoader:
                 query_job_for_metrics,
                 session=self._session,
             )
-            self._publisher.send(
+            self._publisher.publish(
                 bigframes.core.events.ExecutionFinished(),
             )
             return df
@@ -1140,7 +1140,7 @@ class GbqDataLoader:
             # max_results and filters are omitted because they are already
             # handled by to_query(), above.
         )
-        self._publisher.send(
+        self._publisher.publish(
             bigframes.core.events.ExecutionFinished(),
         )
         return df

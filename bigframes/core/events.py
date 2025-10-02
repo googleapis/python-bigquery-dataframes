@@ -16,56 +16,70 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
-import threading
-from typing import List, Optional
-import weakref
+from typing import Any, Callable, Optional, Set
+import uuid
 
 import google.cloud.bigquery._job_helpers
 import google.cloud.bigquery.job.query
 import google.cloud.bigquery.table
 
-import bigframes.formatting_helpers
 import bigframes.session.executor
 
 
-@dataclasses.dataclass(frozen=True)
 class Subscriber:
-    callback_ref: weakref.ref
-    # TODO(tswast): Add block_id to allow filter in context managers.
+    def __init__(self, callback: Callable[[Event], None], *, publisher: Publisher):
+        self._publisher = publisher
+        self._callback = callback
+        self._subscriber_id = str(uuid.uuid4())
+
+    def __call__(self, *args, **kwargs):
+        return self._callback(*args, **kwargs)
+
+    def __hash__(self) -> int:
+        return hash(self._subscriber_id)
+
+    def __eq__(self, value: object):
+        if not isinstance(value, Subscriber):
+            return NotImplemented
+        return value._subscriber_id == self._subscriber_id
+
+    def close(self):
+        self._publisher.unsubscribe(self)
+        del self._publisher
+        del self._callback
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_value is not None:
+            self(
+                UnknownErrorEvent(
+                    exc_type=exc_type,
+                    exc_value=exc_value,
+                    traceback=traceback,
+                )
+            )
+        self.close()
 
 
 class Publisher:
     def __init__(self):
-        self._subscribers: List[Subscriber] = []
-        self._subscribers_lock = threading.Lock()
+        self._subscribers: Set[Subscriber] = set()
 
-    def subscribe(self, callback):
-        subscriber = Subscriber(callback_ref=weakref.ref(callback))
+    def subscribe(self, callback: Callable[[Event], None]) -> Subscriber:
+        # TODO(b/448176657): figure out how to handle subscribers/publishers in
+        # a background thread. Maybe subscribers should be thread-local?
+        subscriber = Subscriber(callback, publisher=self)
+        self._subscribers.add(subscriber)
+        return subscriber
 
-        with self._subscribers_lock:
-            # TODO(tswast): Add block_id to allow filter in context managers.
-            self._subscribers.append(subscriber)
+    def unsubscribe(self, subscriber: Subscriber):
+        self._subscribers.remove(subscriber)
 
-    def send(self, event: Event):
-        to_delete = []
-        to_call = []
-
-        with self._subscribers_lock:
-            for sid, subscriber in enumerate(self._subscribers):
-                callback = subscriber.callback_ref()
-
-                if callback is None:
-                    to_delete.append(sid)
-                else:
-                    # TODO(tswast): Add if statement for block_id to allow filter
-                    # in context managers.
-                    to_call.append(callback)
-
-            for sid in reversed(to_delete):
-                del self._subscribers[sid]
-
-        for callback in to_call:
-            callback(event)
+    def publish(self, event: Event):
+        for subscriber in self._subscribers:
+            subscriber(event)
 
 
 class Event:
@@ -88,6 +102,13 @@ class ExecutionRunning(Event):
 @dataclasses.dataclass(frozen=True)
 class ExecutionFinished(Event):
     result: Optional[bigframes.session.executor.ExecuteResult] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class UnknownErrorEvent(Event):
+    exc_type: Any
+    exc_value: Any
+    traceback: Any
 
 
 @dataclasses.dataclass(frozen=True)

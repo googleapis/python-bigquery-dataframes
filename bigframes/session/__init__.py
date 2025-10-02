@@ -383,7 +383,9 @@ class Session(
 
         publisher_session = getattr(self, "_publisher", None)
         if publisher_session:
-            publisher_session.send(self.session_id)
+            publisher_session.publish(
+                bigframes.core.events.SessionClosed(self.session_id)
+            )
 
     @overload
     def read_gbq(  # type: ignore[overload-overlap]

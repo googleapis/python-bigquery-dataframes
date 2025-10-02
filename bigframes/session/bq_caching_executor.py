@@ -192,7 +192,7 @@ class BigQueryCachingExecutor(executor.Executor):
         array_value: bigframes.core.ArrayValue,
         execution_spec: ex_spec.ExecutionSpec,
     ) -> executor.ExecuteResult:
-        self._publisher.send(bigframes.core.events.ExecutionStarted())
+        self._publisher.publish(bigframes.core.events.ExecutionStarted())
 
         # TODO: Support export jobs in combination with semi executors
         if execution_spec.destination_spec is None:
@@ -202,7 +202,7 @@ class BigQueryCachingExecutor(executor.Executor):
                     plan, ordered=execution_spec.ordered, peek=execution_spec.peek
                 )
                 if maybe_result:
-                    self._publisher.send(
+                    self._publisher.publish(
                         bigframes.core.events.ExecutionFinished(
                             result=maybe_result,
                         )
@@ -216,7 +216,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 )
             # separate path for export_gbq, as it has all sorts of annoying logic, such as possibly running as dml
             result = self._export_gbq(array_value, execution_spec.destination_spec)
-            self._publisher.send(
+            self._publisher.publish(
                 bigframes.core.events.ExecutionFinished(
                     result=result,
                 )
@@ -236,7 +236,7 @@ class BigQueryCachingExecutor(executor.Executor):
         if isinstance(execution_spec.destination_spec, ex_spec.GcsOutputSpec):
             self._export_result_gcs(result, execution_spec.destination_spec)
 
-        self._publisher.send(
+        self._publisher.publish(
             bigframes.core.events.ExecutionFinished(
                 result=result,
             )

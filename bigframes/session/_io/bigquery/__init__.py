@@ -253,7 +253,7 @@ def create_bq_event_callback(publisher):
         else:
             bf_event = bigframes.core.events.BigQueryUnknownEvent(event)
 
-        publisher.send(bf_event)
+        publisher.publish(bf_event)
 
     return publish_bq_event
 
@@ -378,7 +378,7 @@ def start_query_with_client(
         raise
 
     if not query_job.configuration.dry_run:
-        publisher.send(
+        publisher.publish(
             bigframes.core.events.BigQuerySentEvent(
                 sql,
                 billing_project=query_job.project,
@@ -389,7 +389,7 @@ def start_query_with_client(
         )
     results_iterator = query_job.result()
     if not query_job.configuration.dry_run:
-        publisher.send(
+        publisher.publish(
             bigframes.core.events.BigQueryFinishedEvent(
                 billing_project=query_job.project,
                 location=query_job.location,
