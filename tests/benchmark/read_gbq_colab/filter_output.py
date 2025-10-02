@@ -30,13 +30,13 @@ def filter_output(
     # e.g. "{local_inline}" or "{local_large}"
     df = bpd._read_gbq_colab(f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}")
 
-    # Simulate getting the first page, since we'll always do that first in the UI.
-    # Force BigQuery execution to get total_rows metadata
+    # Call the executor directly to isolate the query execution time
+    # from other DataFrame overhead for this benchmark.
     execute_result = df._block.session._executor.execute(
         df._block.expr,
         ordered=True,
         use_explicit_destination=True,
-    )
+    )  # type: ignore[call-arg]
     batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches))
 

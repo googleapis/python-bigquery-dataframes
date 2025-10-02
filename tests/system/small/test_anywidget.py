@@ -484,7 +484,7 @@ class FaultyIterator:
         raise ValueError("Simulated read error")
 
 
-def test_widget_should_fallback_to_zero_rows_with_invlid_total_rows(
+def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
     paginated_bf_df: bf.dataframe.DataFrame,
     monkeypatch: pytest.MonkeyPatch,
 ):

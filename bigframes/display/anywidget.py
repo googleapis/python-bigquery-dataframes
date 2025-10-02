@@ -69,9 +69,14 @@ class TableWidget(WIDGET_BASE):
             )
 
         self._dataframe = dataframe
-        # This flag is used to prevent observers from firing during initialization.
-        self._initializing = True
+
         super().__init__()
+
+        # This flag prevents observers from firing during initialization.
+        # When traitlets like `page` and `page_size` are set in `__init__`, we
+        # don't want their corresponding `_..._changed` methods to execute
+        # until the widget is fully constructed.
+        self._initializing = True
 
         # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
@@ -170,7 +175,8 @@ class TableWidget(WIDGET_BASE):
     @property
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
-        self._batch_iter = iter(self._batches)
+        if self._batch_iter is None:
+            self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
