@@ -1173,6 +1173,10 @@ def nary_remote_function_op_impl(
 
 @scalar_op_compiler.register_unary_op(ops.MapOp, pass_op=True)
 def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
+    # this should probably be handled by a rewriter
+    if len(op.mappings) == 0:
+        return x
+
     case = ibis_api.case()
     for mapping in op.mappings:
         case = case.when(x == mapping[0], mapping[1])
@@ -1968,6 +1972,20 @@ def struct_op_impl(
         data[op.column_names[i]] = value
 
     return ibis_types.struct(data)
+
+
+@scalar_op_compiler.register_nary_op(ops.AIGenerate, pass_op=True)
+def ai_generate(
+    *values: ibis_types.Value, op: ops.AIGenerate
+) -> ibis_types.StructValue:
+
+    return ai_ops.AIGenerate(
+        _construct_prompt(values, op.prompt_context),  # type: ignore
+        op.connection_id,  # type: ignore
+        op.endpoint,  # type: ignore
+        op.request_type.upper(),  # type: ignore
+        op.model_params,  # type: ignore
+    ).to_expr()
 
 
 @scalar_op_compiler.register_nary_op(ops.AIGenerateBool, pass_op=True)
