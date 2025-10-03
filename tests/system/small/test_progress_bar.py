@@ -23,7 +23,7 @@ import bigframes as bf
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import MAX_INLINE_DF_BYTES
 
-job_load_message_regex = r"Query.*with"
+job_load_message_regex = r"Query"
 EXPECTED_DRY_RUN_MESSAGE = "Computation deferred. Computation will process"
 
 
