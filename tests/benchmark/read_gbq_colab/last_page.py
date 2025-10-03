@@ -13,9 +13,8 @@
 # limitations under the License.
 import pathlib
 
-import benchmark.utils as utils
-
 import bigframes.pandas
+import tests.benchmark.utils as utils
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
 
@@ -27,8 +26,16 @@ def last_page(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    # Get number of rows (to calculate number of pages) and then all pages.
-    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    # Call the executor directly to isolate the query execution time
+    # from other DataFrame overhead for this benchmark.
+    execute_result = df._block.session._executor.execute(
+        df._block.expr,
+        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
+            ordered=True, promise_under_10gb=False
+        ),
+    )
+    assert execute_result.total_rows is not None and execute_result.total_rows >= 0
+    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     for _ in batches:
         pass
 
