@@ -57,6 +57,7 @@ class TableWidget(WIDGET_BASE):
     page_size = traitlets.Int(0).tag(sync=True)
     row_count = traitlets.Int(0).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
+    _initial_load_complete = traitlets.Bool(False).tag(sync=True)
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """Initialize the TableWidget.
@@ -106,6 +107,7 @@ class TableWidget(WIDGET_BASE):
         )
 
         self._set_table_html()
+        self._initial_load_complete = True
         self._initializing = False
 
     @functools.cached_property
