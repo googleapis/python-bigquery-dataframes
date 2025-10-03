@@ -16,6 +16,7 @@ import pathlib
 import benchmark.utils as utils
 
 import bigframes.pandas
+import bigframes.session.execution_spec
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
 
@@ -31,9 +32,10 @@ def sort_output(*, project_id, dataset_id, table_id):
     # from other DataFrame overhead for this benchmark.
     execute_result = df._block.session._executor.execute(
         df._block.expr,
-        ordered=True,
-        use_explicit_destination=True,
-    )  # type: ignore[call-arg]
+        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
+            ordered=True, promise_under_10gb=False
+        ),
+    )
     assert execute_result.total_rows is not None and execute_result.total_rows >= 0
     batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches))
@@ -46,9 +48,10 @@ def sort_output(*, project_id, dataset_id, table_id):
     df_sorted = df.sort_values(sort_column)
     execute_result_sorted = df_sorted._block.session._executor.execute(
         df_sorted._block.expr,
-        ordered=True,
-        use_explicit_destination=True,
-    )  # type: ignore[call-arg]
+        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
+            ordered=True, promise_under_10gb=False
+        ),
+    )
     assert (
         execute_result_sorted.total_rows is not None
         and execute_result_sorted.total_rows >= 0

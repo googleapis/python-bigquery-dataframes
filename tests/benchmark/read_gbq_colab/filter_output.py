@@ -16,6 +16,7 @@ import pathlib
 import benchmark.utils as utils
 
 import bigframes.pandas as bpd
+import bigframes.session.execution_spec
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
 
@@ -34,9 +35,10 @@ def filter_output(
     # from other DataFrame overhead for this benchmark.
     execute_result = df._block.session._executor.execute(
         df._block.expr,
-        ordered=True,
-        use_explicit_destination=True,
-    )  # type: ignore[call-arg]
+        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
+            ordered=True, promise_under_10gb=False
+        ),
+    )
     batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches))
 
@@ -45,8 +47,9 @@ def filter_output(
     # Force BigQuery execution for filtered DataFrame to get total_rows metadata
     execute_result_filtered = df_filtered._block.session._executor.execute(
         df_filtered._block.expr,
-        ordered=True,
-        use_explicit_destination=True,
+        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
+            ordered=True, promise_under_10gb=False
+        ),
     )
 
     rows = execute_result_filtered.total_rows or 0
