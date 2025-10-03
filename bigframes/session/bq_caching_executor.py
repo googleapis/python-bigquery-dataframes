@@ -188,7 +188,10 @@ class BigQueryCachingExecutor(executor.Executor):
         execution_spec: ex_spec.ExecutionSpec,
     ) -> executor.ExecuteResult:
         # TODO: Support export jobs in combination with semi executors
-        if execution_spec.destination_spec is None:
+        if (
+            execution_spec.destination_spec is None
+            and execution_spec.promise_under_10gb
+        ):
             plan = self.prepare_plan(array_value.node, target="simplify")
             for exec in self._semi_executors:
                 maybe_result = exec.execute(
