@@ -54,6 +54,7 @@ from bigframes.core import agg_expressions, groupby, log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.expression as ex
+import bigframes.core.guid as guid
 import bigframes.core.indexers
 import bigframes.core.indexes as indexes
 import bigframes.core.ordering as order
@@ -1245,7 +1246,40 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         return (self.rfloordiv(other), self.rmod(other))
 
     def dot(self, other):
-        return (self * other).sum()
+        if isinstance(other, Series):
+            return (self * other).sum()
+
+        # At this point other must be a DataFrame
+        if len(other.columns.names) == 1:
+            # Process single level columns in other
+            # Let's leverage the DataFrame.dot
+            self_named = self
+            if self_named.name is None:
+                self_named = self.copy()
+                self_named.name = guid.generate_guid()
+
+            self_as_row = self_named.to_frame().T
+            frame_dot_result_as_row = self_as_row.dot(other)
+            frame_dot_result_as_col = frame_dot_result_as_row.T
+            series_dot_result = frame_dot_result_as_col[self_named.name]
+
+            # take care of the NA values
+            na_mask = other.isna().any()
+            result = series_dot_result.mask(na_mask)
+            result.name = self.name
+        else:
+            # TODO: Remove this special code path after DataFrame.dot supports
+            # multi-level columns.
+            result = Series(
+                [
+                    pandas.NA if other[col].isna().any() else (self * other[col]).sum()
+                    for col in other.columns
+                ],
+                index=other.columns,
+                name=self.name,
+            )
+
+        return result
 
     def __matmul__(self, other):
         return self.dot(other)
