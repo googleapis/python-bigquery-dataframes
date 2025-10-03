@@ -677,11 +677,14 @@ class BigQueryCachingExecutor(executor.Executor):
         )
 
         table_info: Optional[bigquery.Table] = None
+        total_rows = None
         if query_job and query_job.destination:
             table_info = self.bqclient.get_table(query_job.destination)
             size_bytes = table_info.num_bytes
+            total_rows = table_info.num_rows
         else:
             size_bytes = None
+            total_rows = iterator.total_rows
 
         # we could actually cache even when caching is not explicitly requested, but being conservative for now
         if cache_spec is not None:
@@ -708,7 +711,7 @@ class BigQueryCachingExecutor(executor.Executor):
             schema=og_schema,
             query_job=query_job,
             total_bytes=size_bytes,
-            total_rows=iterator.total_rows,
+            total_rows=total_rows,
             total_bytes_processed=iterator.total_bytes_processed,
         )
 
