@@ -4,6 +4,20 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.24.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.23.0...v2.24.0) (2025-10-03)
+
+
+### Features
+
+* Add ai.generate() to bigframes.bigquery module ([#2128](https://github.com/googleapis/python-bigquery-dataframes/issues/2128)) ([3810452](https://github.com/googleapis/python-bigquery-dataframes/commit/3810452f16d8d6c9d3eb9075f1537177d98b4725))
+* Add ai.if_() and ai.score() to bigframes.bigquery package ([#2132](https://github.com/googleapis/python-bigquery-dataframes/issues/2132)) ([32502f4](https://github.com/googleapis/python-bigquery-dataframes/commit/32502f4195306d262788f39d1ab4206fc84ae50e))
+
+
+### Bug Fixes
+
+* Fix internal type errors with temporal accessors ([#2125](https://github.com/googleapis/python-bigquery-dataframes/issues/2125)) ([c390da1](https://github.com/googleapis/python-bigquery-dataframes/commit/c390da11b7c2aa710bc2fbc692efb9f06059e4c4))
+* Remove noisy AmbiguousWindowWarning from partial ordering mode ([#2129](https://github.com/googleapis/python-bigquery-dataframes/issues/2129)) ([4607f86](https://github.com/googleapis/python-bigquery-dataframes/commit/4607f86ebd77b916aafc37f69725b676e203b332))
+
 ## [2.23.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.22.0...v2.23.0) (2025-09-29)
 
 
