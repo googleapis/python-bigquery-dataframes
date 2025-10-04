@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+from unittest import mock
+
 import pandas as pd
 import pytest
 
 import bigframes as bf
-
-pytest.importorskip("anywidget")
 
 # Test constants to avoid change detector tests
 EXPECTED_ROW_COUNT = 6
@@ -418,22 +420,26 @@ def test_setting_page_size_above_max_should_be_clamped(table_widget):
     # The page size is clamped to the maximum.
     assert table_widget.page_size == expected_clamped_size
 
-
-def test_widget_creation_should_load_css_for_rendering(table_widget):
     """
-    Given a TableWidget is created, when its resources are accessed,
-    it should contain the CSS content required for styling.
+    Test that the widget's CSS is loaded correctly.
     """
-    # The table_widget fixture creates the widget.
-    # No additional setup is needed.
-
-    # Access the CSS content.
     css_content = table_widget._css
-
-    # The content is a non-empty string containing a known selector.
-    assert isinstance(css_content, str)
-    assert len(css_content) > 0
     assert ".bigframes-widget .footer" in css_content
+
+
+@mock.patch("bigframes.display.TableWidget")
+def test_sql_anywidget_mode(mock_table_widget, session: bf.Session):
+    """
+    Test that a SQL query runs in anywidget mode.
+    """
+    sql = "SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current` LIMIT 5"
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        df = session.read_gbq(sql)
+        # In a real environment, this would display a widget.
+        # For testing, we just want to make sure we're in the anywidget code path.
+        df._repr_html_()
+        mock_table_widget.assert_called_once()
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
