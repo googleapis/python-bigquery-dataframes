@@ -436,6 +436,21 @@ def test_widget_creation_should_load_css_for_rendering(table_widget):
     assert ".bigframes-widget .footer" in css_content
 
 
+def test_sql_anywidget_mode(session: bf.Session):
+    """
+    Test that a SQL query runs in anywidget mode.
+    """
+    sql = "SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current` LIMIT 5"
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        df = session.read_gbq(sql)
+        # In a real environment, this would display a widget.
+        # For testing, we just want to make sure we're in the anywidget code path.
+        # The `_repr_html_` method in anywidget mode will return an empty string
+        # and display the widget via IPython's display mechanism.
+        assert df._repr_html_() == ""
+
+
 # TODO(shuowei): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
