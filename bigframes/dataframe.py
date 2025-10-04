@@ -792,13 +792,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "anywidget":
             # Try to display with anywidget, fall back to deferred if not in IPython
             try:
-                from IPython.display import display as ipython_display
-
                 from bigframes import display
 
                 widget = display.TableWidget(self.copy())
-                ipython_display(widget)
-                return ""  # Return empty string since we used display()
+                return widget._repr_html_()  # Return widget's HTML representation
             except (AttributeError, ValueError, ImportError):
                 # Not in IPython environment, fall back to deferred mode
                 return formatter.repr_query_job(self._compute_dry_run())
