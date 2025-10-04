@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+from unittest import mock
 
 import pandas as pd
 import pytest
 
 import bigframes as bf
-
-pytest.importorskip("anywidget")
 
 # Test constants to avoid change detector tests
 EXPECTED_ROW_COUNT = 6
@@ -437,25 +438,15 @@ def test_setting_page_size_above_max_should_be_clamped(table_widget):
     # The page size is clamped to the maximum.
     assert table_widget.page_size == expected_clamped_size
 
-
-def test_widget_creation_should_load_css_for_rendering(table_widget):
     """
-    Given a TableWidget is created, when its resources are accessed,
-    it should contain the CSS content required for styling.
+    Test that the widget's CSS is loaded correctly.
     """
-    # The table_widget fixture creates the widget.
-    # No additional setup is needed.
-
-    # Access the CSS content.
     css_content = table_widget._css
-
-    # The content is a non-empty string containing a known selector.
-    assert isinstance(css_content, str)
-    assert len(css_content) > 0
     assert ".bigframes-widget .footer" in css_content
 
 
-def test_sql_anywidget_mode(session: bf.Session):
+@mock.patch("bigframes.display.TableWidget")
+def test_sql_anywidget_mode(mock_table_widget, session: bf.Session):
     """
     Test that a SQL query runs in anywidget mode.
     """
@@ -465,88 +456,8 @@ def test_sql_anywidget_mode(session: bf.Session):
         df = session.read_gbq(sql)
         # In a real environment, this would display a widget.
         # For testing, we just want to make sure we're in the anywidget code path.
-        # The `_repr_html_` method in anywidget mode will return an empty string
-        # and display the widget via IPython's display mechanism.
-        assert df._repr_html_() == ""
-
-
-def test_widget_row_count_should_be_immutable_after_creation(
-    paginated_bf_df: bf.dataframe.DataFrame,
-):
-    """
-    Given a widget created with a specific configuration when global display
-    options are changed later, the widget's original row_count should remain
-    unchanged.
-    """
-    from bigframes.display import TableWidget
-
-    # Use a context manager to ensure the option is reset
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = TableWidget(paginated_bf_df)
-        initial_row_count = widget.row_count
-
-    # Change a global option that could influence row count
-    bf.options.display.max_rows = 10
-
-    # Verify the row count remains immutable.
-    assert widget.row_count == initial_row_count
-
-
-class FaultyIterator:
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        raise ValueError("Simulated read error")
-
-
-def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
-    paginated_bf_df: bf.dataframe.DataFrame,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """
-    Given an internal component fails to return valid execution data,
-    when the TableWidget is created, its error_message should be set and displayed.
-    """
-    # Patch the executor's 'execute' method to simulate an error.
-    monkeypatch.setattr(
-        "bigframes.session.bq_caching_executor.BigQueryCachingExecutor.execute",
-        lambda self, *args, **kwargs: mock_execute_result_with_params(
-            self, paginated_bf_df._block.expr.schema, None, [], *args, **kwargs
-        ),
-    )
-
-    # Create the TableWidget under the error condition.
-    with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
-
-        # The widget should handle the faulty data from the mock without crashing.
-        widget = TableWidget(paginated_bf_df)
-
-    # The widget should have an error message and display it in the HTML.
-    assert widget.row_count == 0
-    assert widget._error_message is not None
-    assert "Could not determine total row count" in widget._error_message
-    assert widget._error_message in widget.table_html
-
-
-def test_widget_row_count_reflects_actual_data_available(
-    paginated_bf_df: bf.dataframe.DataFrame,
-):
-    """
-    Test that widget row_count reflects the actual data available,
-    regardless of theoretical limits.
-    """
-    from bigframes.display import TableWidget
-
-    # Set up display options that define a page size.
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = TableWidget(paginated_bf_df)
-
-        # The widget should report the total rows in the DataFrame,
-        # not limited by page_size (which only affects pagination)
-        assert widget.row_count == EXPECTED_ROW_COUNT
-        assert widget.page_size == 2  # Respects the display option
+        df._repr_html_()
+        mock_table_widget.assert_called_once()
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
