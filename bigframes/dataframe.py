@@ -783,10 +783,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
-        # for faster execution
-        if opts.repr_mode in ("deferred", "anywidget"):
+
+        # Only deferred mode shows dry run
+        if opts.repr_mode in ("deferred"):
             return formatter.repr_query_job(self._compute_dry_run())
+
+        # Anywidget mode uses interative display
+        if opts.repr_mode == "anywidget":
+            # Try to display with anywidget, fall back to deferred if not in IPython
+            try:
+                from IPython.display import display as ipython_display
+
+                from bigframes import display
+
+                widget = display.TableWidget(self.copy())
+                ipython_display(widget)
+                return ""  # Return empty string since we used display()
+            except (AttributeError, ValueError, ImportError):
+                # Not in IPython environment, fall back to deferred mode
+                return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
