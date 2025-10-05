@@ -55,7 +55,7 @@ def test_ai_generate_with_output_schema(scalar_types_df: dataframe.DataFrame, sn
         endpoint="gemini-2.5-flash",
         request_type="shared",
         model_params=None,
-        output_schema='x INT64, y FLOAT64',
+        output_schema="x INT64, y FLOAT64",
     )
 
     sql = utils._apply_unary_ops(
