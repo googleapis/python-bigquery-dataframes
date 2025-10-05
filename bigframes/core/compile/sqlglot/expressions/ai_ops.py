@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-import typing
 
 import sqlglot.expressions as sge
 
