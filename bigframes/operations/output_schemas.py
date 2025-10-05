@@ -49,7 +49,7 @@ def parse_sql_type(sql: str) -> pa.DataType:
 
     if sql.startswith("STRUCT<") and sql.endswith(">"):
         inner_fields = parse_sql_fields(sql[len("STRUCT<") : -1])
-        return pa.struct(sorted(inner_fields, key=lambda f: f.name))
+        return pa.struct(inner_fields)
 
     raise ValueError(f"Unsupported SQL type: {sql}")
 
@@ -76,7 +76,7 @@ def parse_sql_fields(sql: str) -> tuple[pa.Field]:
     # Append the last field
     fields.append(parse_sql_field(sql[start_idx:]))
 
-    return tuple(fields)
+    return tuple(sorted(fields, key=lambda f: f.name))
 
 
 def parse_sql_field(sql: str) -> pa.Field:

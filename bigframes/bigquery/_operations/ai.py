@@ -113,9 +113,8 @@ def generate(
     if output_schema is None:
         output_schema_str = None
     else:
-        sorted_fields = sorted(tuple(output_schema.items()), key=lambda t: t[0])
         output_schema_str = ", ".join(
-            [f"{name} {sql_type}" for name, sql_type in sorted_fields]
+            [f"{name} {sql_type}" for name, sql_type in output_schema.items()]
         )
         # Validate user input
         output_schemas.parse_sql_fields(output_schema_str)

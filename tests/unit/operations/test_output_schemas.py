@@ -36,7 +36,11 @@ from bigframes.operations import output_schemas
             pa.struct((pa.field("x", pa.int64()), pa.field("y", pa.float64()))),
         ),
         (
-            "ARRAY<STRUCT<x INT64, y INT64>>",
+            "STRUCT<y INT64,  x  FLOAT64>",
+            pa.struct((pa.field("x", pa.float64()), pa.field("y", pa.int64()))),
+        ),
+        (
+            "ARRAY<STRUCT<y INT64, x INT64>>",
             pa.list_(pa.struct((pa.field("x", pa.int64()), pa.field("y", pa.int64())))),
         ),
         (
