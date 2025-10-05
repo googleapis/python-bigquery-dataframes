@@ -37,7 +37,7 @@ class AIGenerate(base_ops.NaryOp):
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         if self.output_schema is None:
-            output_fields = [pa.field("result", pa.string())]
+            output_fields = (pa.field("result", pa.string()),)
         else:
             output_fields = output_schemas.parse_sql_fields(self.output_schema)
 
