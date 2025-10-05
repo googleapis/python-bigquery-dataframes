@@ -80,10 +80,11 @@ def test_parse_sql_to_pyarrow_dtype_invalid_input_raies_error(sql):
 @pytest.mark.parametrize(
     ("sql", "expected"),
     [
-        ("x INT64", (pa.field("x", pa.int64()),))(
+        ("x INT64", (pa.field("x", pa.int64()),)),
+        (
             "x INT64, y FLOAT64",
             (pa.field("x", pa.int64()), pa.field("y", pa.float64())),
-        )
+        ),
     ],
 )
 def test_parse_sql_fields(sql, expected):
