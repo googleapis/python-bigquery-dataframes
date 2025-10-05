@@ -49,8 +49,7 @@ def parse_sql_type(sql: str) -> pa.DataType:
 
     if sql.startswith("STRUCT<") and sql.endswith(">"):
         inner_fields = parse_sql_fields(sql[len("STRUCT<") : -1])
-
-        return pa.struct(sorted(inner_fields, key=lambda f:f.name))
+        return pa.struct(sorted(inner_fields, key=lambda f: f.name))
 
     raise ValueError(f"Unsupported SQL type: {sql}")
 
