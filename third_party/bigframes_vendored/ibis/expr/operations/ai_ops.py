@@ -32,7 +32,7 @@ class AIGenerate(Value):
     @attribute
     def dtype(self) -> dt.Struct:
         if self.output_schema is None:
-            output_pa_fields = pa.field("result", pa.string())
+            output_pa_fields = (pa.field("result", pa.string()),)
         else:
             output_pa_fields = output_schemas.parse_sql_fields(self.output_schema.value)
 
