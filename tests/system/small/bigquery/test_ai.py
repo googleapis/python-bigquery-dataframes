@@ -118,7 +118,7 @@ def test_ai_generate_with_invalid_output_schema_raise_error(session):
         bbq.ai.generate(
             prompt,
             endpoint="gemini-2.5-flash",
-            output_schema={"population": "INT64", "is_in_north_america": "bool"},
+            output_schema={"population": "INT64", "is_in_north_america": "JSON"},
         )
 
 
