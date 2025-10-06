@@ -31,23 +31,23 @@ def parse_sql_type(sql: str) -> pa.DataType:
     """
     sql = sql.strip()
 
-    if sql == "STRING":
+    if sql.upper() == "STRING":
         return pa.string()
 
-    if sql == "INT64":
+    if sql.upper() == "INT64":
         return pa.int64()
 
-    if sql == "FLOAT64":
+    if sql.upper() == "FLOAT64":
         return pa.float64()
 
-    if sql == "BOOL":
+    if sql.upper() == "BOOL":
         return pa.bool_()
 
-    if sql.startswith("ARRAY<") and sql.endswith(">"):
+    if sql.upper().startswith("ARRAY<") and sql.endswith(">"):
         inner_type = sql[len("ARRAY<") : -1]
         return pa.list_(parse_sql_type(inner_type))
 
-    if sql.startswith("STRUCT<") and sql.endswith(">"):
+    if sql.upper().startswith("STRUCT<") and sql.endswith(">"):
         inner_fields = parse_sql_fields(sql[len("STRUCT<") : -1])
         return pa.struct(inner_fields)
 

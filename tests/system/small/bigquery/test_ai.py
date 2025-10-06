@@ -94,7 +94,7 @@ def test_ai_generate_with_output_schema(session):
     result = bbq.ai.generate(
         prompt,
         endpoint="gemini-2.5-flash",
-        output_schema={"population": "INT64", "is_in_north_america": "BOOL"},
+        output_schema={"population": "INT64", "is_in_north_america": "bool"},
     )
 
     assert _contains_no_nulls(result)

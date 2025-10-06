@@ -23,6 +23,7 @@ from bigframes.operations import output_schemas
     [
         ("INT64", pa.int64()),
         (" INT64  ", pa.int64()),
+        ("int64", pa.int64()),
         ("FLOAT64", pa.float64()),
         ("STRING", pa.string()),
         ("BOOL", pa.bool_()),
@@ -44,7 +45,7 @@ from bigframes.operations import output_schemas
             pa.list_(pa.struct((pa.field("x", pa.int64()), pa.field("y", pa.int64())))),
         ),
         (
-            "STRUCT<x ARRAY<FLOAT64>, y STRUCT<a BOOL, b STRING>>",
+            "STRUCT<y STRUCT<b STRING, a BOOL>, x ARRAY<FLOAT64>>",
             pa.struct(
                 (
                     pa.field("x", pa.list_(pa.float64())),
@@ -66,14 +67,13 @@ def test_parse_sql_to_pyarrow_dtype(sql, expected):
 @pytest.mark.parametrize(
     "sql",
     [
-        "int64",
         "a INT64",
         "ARRAY<>",
         "ARRAY<INT64",
         "ARRAY<x INT64>" "ARRAY<int64>" "STRUCT<>",
         "DATE",
         "STRUCT<INT64, FLOAT64>",
-        "STRUCT<x int64>",
+        "ARRAY<ARRAY<>>",
     ],
 )
 def test_parse_sql_to_pyarrow_dtype_invalid_input_raies_error(sql):
@@ -87,6 +87,10 @@ def test_parse_sql_to_pyarrow_dtype_invalid_input_raies_error(sql):
         ("x INT64", (pa.field("x", pa.int64()),)),
         (
             "x INT64, y FLOAT64",
+            (pa.field("x", pa.int64()), pa.field("y", pa.float64())),
+        ),
+        (
+            "y FLOAT64, x INT64",
             (pa.field("x", pa.int64()), pa.field("y", pa.float64())),
         ),
     ],
