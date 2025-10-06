@@ -46,3 +46,14 @@ class MultiIndex(Index, vendored_pandas_multindex.MultiIndex):
         pd_index = pandas.MultiIndex.from_arrays(arrays, sortorder, names)
         # Index.__new__ should detect multiple levels and properly create a multiindex
         return cast(MultiIndex, Index(pd_index))
+
+    def __eg__(self, other) -> Index:
+        import bigframes.operations as ops
+        import bigframes.operations.aggregations as agg_ops
+
+        eq_result = self._apply_binop(other, ops.eq_op)
+        return Index(
+            eq_result._block.aggregate_all_and_stack(
+                agg_ops.all_op, axis=1, dropna=False
+            )
+        )
