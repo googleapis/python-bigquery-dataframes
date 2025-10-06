@@ -31,6 +31,7 @@ import pandas as pd
 import pyarrow as pa
 import shapely.geometry  # type: ignore
 
+import bigframes.core.backports
 import bigframes.exceptions
 
 # Type hints for Pandas dtypes supported by BigQuery DataFrame
@@ -372,8 +373,7 @@ def get_struct_fields(type_: ExpressionType) -> dict[str, Dtype]:
     assert isinstance(type_.pyarrow_dtype, pa.StructType)
     struct_type = type_.pyarrow_dtype
     result: dict[str, Dtype] = {}
-    for field_no in range(struct_type.num_fields):
-        field = struct_type.field(field_no)
+    for field in bigframes.core.backports.pyarrow_struct_type_fields(struct_type):
         result[field.name] = arrow_dtype_to_bigframes_dtype(field.type)
     return result
 
@@ -551,7 +551,8 @@ def arrow_type_to_literal(
         return [arrow_type_to_literal(arrow_type.value_type)]
     if pa.types.is_struct(arrow_type):
         return {
-            field.name: arrow_type_to_literal(field.type) for field in arrow_type.fields
+            field.name: arrow_type_to_literal(field.type)
+            for field in bigframes.core.backports.pyarrow_struct_type_fields(arrow_type)
         }
     if pa.types.is_string(arrow_type):
         return "string"
@@ -930,7 +931,8 @@ def contains_db_dtypes_json_arrow_type(type_):
 
     if isinstance(type_, pa.StructType):
         return any(
-            contains_db_dtypes_json_arrow_type(field.type) for field in type_.fields
+            contains_db_dtypes_json_arrow_type(field.type)
+            for field in bigframes.core.backports.pyarrow_struct_type_fields(type_)
         )
     return False
 
