@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import threading
 from typing import Any, Callable, Optional, Set
 import uuid
 
@@ -30,7 +31,7 @@ class Subscriber:
     def __init__(self, callback: Callable[[Event], None], *, publisher: Publisher):
         self._publisher = publisher
         self._callback = callback
-        self._subscriber_id = str(uuid.uuid4())
+        self._subscriber_id = uuid.uuid4()
 
     def __call__(self, *args, **kwargs):
         return self._callback(*args, **kwargs)
@@ -65,21 +66,25 @@ class Subscriber:
 
 class Publisher:
     def __init__(self):
+        self._subscribers_lock = threading.Lock()
         self._subscribers: Set[Subscriber] = set()
 
     def subscribe(self, callback: Callable[[Event], None]) -> Subscriber:
         # TODO(b/448176657): figure out how to handle subscribers/publishers in
         # a background thread. Maybe subscribers should be thread-local?
         subscriber = Subscriber(callback, publisher=self)
-        self._subscribers.add(subscriber)
+        with self._subscribers_lock:
+            self._subscribers.add(subscriber)
         return subscriber
 
     def unsubscribe(self, subscriber: Subscriber):
-        self._subscribers.remove(subscriber)
+        with self._subscribers_lock:
+            self._subscribers.remove(subscriber)
 
     def publish(self, event: Event):
-        for subscriber in self._subscribers:
-            subscriber(event)
+        with self._subscribers_lock:
+            for subscriber in self._subscribers:
+                subscriber(event)
 
 
 class Event:

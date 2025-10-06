@@ -240,6 +240,7 @@ class Session(
             bigquery_session.SessionResourceManager(
                 self.bqclient,
                 self._location,
+                publisher=self._publisher,
             )
             if (self._bq_kms_key_name is None)
             else None
