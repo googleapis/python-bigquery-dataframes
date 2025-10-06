@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import db_dtypes
+import db_dtypes  # type: ignore
 import pyarrow as pa  # type: ignore
 import pytest
 import shapely.geometry  # type: ignore
