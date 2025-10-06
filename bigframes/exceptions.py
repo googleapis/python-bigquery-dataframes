@@ -84,7 +84,11 @@ class TimeTravelCacheWarning(Warning):
 
 
 class AmbiguousWindowWarning(Warning):
-    """A query may produce nondeterministic results as the window may be ambiguously ordered."""
+    """A query may produce nondeterministic results as the window may be ambiguously ordered.
+
+    Deprecated. Kept for backwards compatibility for code that filters warnings
+    from this category.
+    """
 
 
 class UnknownDataTypeWarning(Warning):
@@ -105,6 +109,10 @@ class ObsoleteVersionWarning(Warning):
 
 class FunctionAxisOnePreviewWarning(PreviewWarning):
     """Remote Function and Managed UDF with axis=1 preview."""
+
+
+class JSONDtypeWarning(PreviewWarning):
+    """JSON dtype will be pd.ArrowDtype(pa.json_()) in the future."""
 
 
 class FunctionConflictTypeHintWarning(UserWarning):

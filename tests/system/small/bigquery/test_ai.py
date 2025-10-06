@@ -69,6 +69,24 @@ def test_ai_function_compile_model_params(session):
     )
 
 
+def test_ai_generate(session):
+    country = bpd.Series(["Japan", "Canada"], session=session)
+    prompt = ("What's the capital city of ", country, "? one word only")
+
+    result = bbq.ai.generate(prompt, endpoint="gemini-2.5-flash")
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == pd.ArrowDtype(
+        pa.struct(
+            (
+                pa.field("result", pa.string()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
+                pa.field("status", pa.string()),
+            )
+        )
+    )
+
+
 def test_ai_generate_bool(session):
     s1 = bpd.Series(["apple", "bear"], session=session)
     s2 = bpd.Series(["fruit", "tree"], session=session)
@@ -144,6 +162,110 @@ def test_ai_generate_int_multi_model(session):
             )
         )
     )
+
+
+def test_ai_generate_double(session):
+    s = bpd.Series(["Cat"], session=session)
+    prompt = ("How many legs does a ", s, " have?")
+
+    result = bbq.ai.generate_double(prompt, endpoint="gemini-2.5-flash")
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == pd.ArrowDtype(
+        pa.struct(
+            (
+                pa.field("result", pa.float64()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
+                pa.field("status", pa.string()),
+            )
+        )
+    )
+
+
+def test_ai_generate_double_multi_model(session):
+    df = session.from_glob_path(
+        "gs://bigframes-dev-testing/a_multimodel/images/*", name="image"
+    )
+
+    result = bbq.ai.generate_double(
+        ("How many animals are there in the picture ", df["image"])
+    )
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == pd.ArrowDtype(
+        pa.struct(
+            (
+                pa.field("result", pa.float64()),
+                pa.field("full_response", dtypes.JSON_ARROW_TYPE),
+                pa.field("status", pa.string()),
+            )
+        )
+    )
+
+
+def test_ai_if(session):
+    s1 = bpd.Series(["apple", "bear"], session=session)
+    s2 = bpd.Series(["fruit", "tree"], session=session)
+    prompt = (s1, " is a ", s2)
+
+    result = bbq.ai.if_(prompt)
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == dtypes.BOOL_DTYPE
+
+
+def test_ai_if_multi_model(session):
+    df = session.from_glob_path(
+        "gs://bigframes-dev-testing/a_multimodel/images/*", name="image"
+    )
+
+    result = bbq.ai.if_((df["image"], " contains an animal"))
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == dtypes.BOOL_DTYPE
+
+
+def test_ai_classify(session):
+    s = bpd.Series(["cat", "orchid"], session=session)
+    bpd.options.display.repr_mode = "deferred"
+
+    result = bbq.ai.classify(s, ["animal", "plant"])
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == dtypes.STRING_DTYPE
+
+
+def test_ai_classify_multi_model(session):
+    df = session.from_glob_path(
+        "gs://bigframes-dev-testing/a_multimodel/images/*", name="image"
+    )
+
+    result = bbq.ai.classify(df["image"], ["photo", "cartoon"])
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == dtypes.STRING_DTYPE
+
+
+def test_ai_score(session):
+    s = bpd.Series(["Tiger", "Rabbit"], session=session)
+    prompt = ("Rank the relative weights of ", s, " on the scale from 1 to 3")
+
+    result = bbq.ai.score(prompt)
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == dtypes.FLOAT_DTYPE
+
+
+def test_ai_score_multi_model(session):
+    df = session.from_glob_path(
+        "gs://bigframes-dev-testing/a_multimodel/images/*", name="image"
+    )
+    prompt = ("Rank the liveliness of ", df["image"], "on the scale from 1 to 3")
+
+    result = bbq.ai.score(prompt)
+
+    assert _contains_no_nulls(result)
+    assert result.dtype == dtypes.FLOAT_DTYPE
 
 
 def _contains_no_nulls(s: series.Series) -> bool:

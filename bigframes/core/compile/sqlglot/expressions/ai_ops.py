@@ -26,6 +26,13 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
 
 
+@register_nary_op(ops.AIGenerate, pass_op=True)
+def _(*exprs: TypedExpr, op: ops.AIGenerate) -> sge.Expression:
+    args = [_construct_prompt(exprs, op.prompt_context)] + _construct_named_args(op)
+
+    return sge.func("AI.GENERATE", *args)
+
+
 @register_nary_op(ops.AIGenerateBool, pass_op=True)
 def _(*exprs: TypedExpr, op: ops.AIGenerateBool) -> sge.Expression:
     args = [_construct_prompt(exprs, op.prompt_context)] + _construct_named_args(op)
@@ -40,8 +47,46 @@ def _(*exprs: TypedExpr, op: ops.AIGenerateInt) -> sge.Expression:
     return sge.func("AI.GENERATE_INT", *args)
 
 
+@register_nary_op(ops.AIGenerateDouble, pass_op=True)
+def _(*exprs: TypedExpr, op: ops.AIGenerateDouble) -> sge.Expression:
+    args = [_construct_prompt(exprs, op.prompt_context)] + _construct_named_args(op)
+
+    return sge.func("AI.GENERATE_DOUBLE", *args)
+
+
+@register_nary_op(ops.AIIf, pass_op=True)
+def _(*exprs: TypedExpr, op: ops.AIIf) -> sge.Expression:
+    args = [_construct_prompt(exprs, op.prompt_context)] + _construct_named_args(op)
+
+    return sge.func("AI.IF", *args)
+
+
+@register_nary_op(ops.AIClassify, pass_op=True)
+def _(*exprs: TypedExpr, op: ops.AIClassify) -> sge.Expression:
+    category_literals = [sge.Literal.string(cat) for cat in op.categories]
+    categories_arg = sge.Kwarg(
+        this="categories", expression=sge.array(*category_literals)
+    )
+
+    args = [
+        _construct_prompt(exprs, op.prompt_context, param_name="input"),
+        categories_arg,
+    ] + _construct_named_args(op)
+
+    return sge.func("AI.CLASSIFY", *args)
+
+
+@register_nary_op(ops.AIScore, pass_op=True)
+def _(*exprs: TypedExpr, op: ops.AIScore) -> sge.Expression:
+    args = [_construct_prompt(exprs, op.prompt_context)] + _construct_named_args(op)
+
+    return sge.func("AI.SCORE", *args)
+
+
 def _construct_prompt(
-    exprs: tuple[TypedExpr, ...], prompt_context: tuple[str | None, ...]
+    exprs: tuple[TypedExpr, ...],
+    prompt_context: tuple[str | None, ...],
+    param_name: str = "prompt",
 ) -> sge.Kwarg:
     prompt: list[str | sge.Expression] = []
     column_ref_idx = 0
@@ -52,7 +97,7 @@ def _construct_prompt(
         else:
             prompt.append(sge.Literal.string(elem))
 
-    return sge.Kwarg(this="prompt", expression=sge.Tuple(expressions=prompt))
+    return sge.Kwarg(this=param_name, expression=sge.Tuple(expressions=prompt))
 
 
 def _construct_named_args(op: ops.NaryOp) -> list[sge.Kwarg]:
@@ -69,10 +114,13 @@ def _construct_named_args(op: ops.NaryOp) -> list[sge.Kwarg]:
     if endpoit is not None:
         args.append(sge.Kwarg(this="endpoint", expression=sge.Literal.string(endpoit)))
 
-    request_type = typing.cast(str, op_args["request_type"]).upper()
-    args.append(
-        sge.Kwarg(this="request_type", expression=sge.Literal.string(request_type))
-    )
+    request_type = typing.cast(str, op_args.get("request_type", None))
+    if request_type is not None:
+        args.append(
+            sge.Kwarg(
+                this="request_type", expression=sge.Literal.string(request_type.upper())
+            )
+        )
 
     model_params = typing.cast(str, op_args.get("model_params", None))
     if model_params is not None:

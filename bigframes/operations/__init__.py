@@ -14,7 +14,15 @@
 
 from __future__ import annotations
 
-from bigframes.operations.ai_ops import AIGenerateBool, AIGenerateInt
+from bigframes.operations.ai_ops import (
+    AIClassify,
+    AIGenerate,
+    AIGenerateBool,
+    AIGenerateDouble,
+    AIGenerateInt,
+    AIIf,
+    AIScore,
+)
 from bigframes.operations.array_ops import (
     ArrayIndexOp,
     ArrayReduceOp,
@@ -412,8 +420,13 @@ __all__ = [
     "geo_y_op",
     "GeoStDistanceOp",
     # AI ops
+    "AIClassify",
+    "AIGenerate",
     "AIGenerateBool",
+    "AIGenerateDouble",
     "AIGenerateInt",
+    "AIIf",
+    "AIScore",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",
