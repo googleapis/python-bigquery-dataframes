@@ -1173,6 +1173,10 @@ def nary_remote_function_op_impl(
 
 @scalar_op_compiler.register_unary_op(ops.MapOp, pass_op=True)
 def map_op_impl(x: ibis_types.Value, op: ops.MapOp):
+    # this should probably be handled by a rewriter
+    if len(op.mappings) == 0:
+        return x
+
     case = ibis_api.case()
     for mapping in op.mappings:
         case = case.when(x == mapping[0], mapping[1])
@@ -1970,6 +1974,20 @@ def struct_op_impl(
     return ibis_types.struct(data)
 
 
+@scalar_op_compiler.register_nary_op(ops.AIGenerate, pass_op=True)
+def ai_generate(
+    *values: ibis_types.Value, op: ops.AIGenerate
+) -> ibis_types.StructValue:
+
+    return ai_ops.AIGenerate(
+        _construct_prompt(values, op.prompt_context),  # type: ignore
+        op.connection_id,  # type: ignore
+        op.endpoint,  # type: ignore
+        op.request_type.upper(),  # type: ignore
+        op.model_params,  # type: ignore
+    ).to_expr()
+
+
 @scalar_op_compiler.register_nary_op(ops.AIGenerateBool, pass_op=True)
 def ai_generate_bool(
     *values: ibis_types.Value, op: ops.AIGenerateBool
@@ -1986,7 +2004,7 @@ def ai_generate_bool(
 
 @scalar_op_compiler.register_nary_op(ops.AIGenerateInt, pass_op=True)
 def ai_generate_int(
-    *values: ibis_types.Value, op: ops.AIGenerateBool
+    *values: ibis_types.Value, op: ops.AIGenerateInt
 ) -> ibis_types.StructValue:
 
     return ai_ops.AIGenerateInt(
@@ -1995,6 +2013,50 @@ def ai_generate_int(
         op.endpoint,  # type: ignore
         op.request_type.upper(),  # type: ignore
         op.model_params,  # type: ignore
+    ).to_expr()
+
+
+@scalar_op_compiler.register_nary_op(ops.AIGenerateDouble, pass_op=True)
+def ai_generate_double(
+    *values: ibis_types.Value, op: ops.AIGenerateDouble
+) -> ibis_types.StructValue:
+
+    return ai_ops.AIGenerateDouble(
+        _construct_prompt(values, op.prompt_context),  # type: ignore
+        op.connection_id,  # type: ignore
+        op.endpoint,  # type: ignore
+        op.request_type.upper(),  # type: ignore
+        op.model_params,  # type: ignore
+    ).to_expr()
+
+
+@scalar_op_compiler.register_nary_op(ops.AIIf, pass_op=True)
+def ai_if(*values: ibis_types.Value, op: ops.AIIf) -> ibis_types.StructValue:
+
+    return ai_ops.AIIf(
+        _construct_prompt(values, op.prompt_context),  # type: ignore
+        op.connection_id,  # type: ignore
+    ).to_expr()
+
+
+@scalar_op_compiler.register_nary_op(ops.AIClassify, pass_op=True)
+def ai_classify(
+    *values: ibis_types.Value, op: ops.AIClassify
+) -> ibis_types.StructValue:
+
+    return ai_ops.AIClassify(
+        _construct_prompt(values, op.prompt_context),  # type: ignore
+        op.categories,  # type: ignore
+        op.connection_id,  # type: ignore
+    ).to_expr()
+
+
+@scalar_op_compiler.register_nary_op(ops.AIScore, pass_op=True)
+def ai_score(*values: ibis_types.Value, op: ops.AIScore) -> ibis_types.StructValue:
+
+    return ai_ops.AIScore(
+        _construct_prompt(values, op.prompt_context),  # type: ignore
+        op.connection_id,  # type: ignore
     ).to_expr()
 
 
