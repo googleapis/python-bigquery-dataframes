@@ -25,7 +25,6 @@ import pandas.core.groupby
 import pandas.core.indexes.accessors
 import pandas.core.strings.accessor
 import pandas.core.window.rolling
-import sklearn  # noqa
 
 import bigframes
 import bigframes.core.groupby
@@ -205,6 +204,9 @@ def generate_pandas_api_coverage():
 def generate_sklearn_api_coverage():
     """Explore all SKLearn modules, and for each item contained generate a
     regex to detect it being imported, and record whether we implement it"""
+
+    import sklearn  # noqa
+
     sklearn_modules = [
         "sklearn",
         "sklearn.model_selection",
