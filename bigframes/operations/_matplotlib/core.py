@@ -112,6 +112,36 @@ class BarPlot(SamplingPlot):
         )
 
 
+class BarhPlot(SamplingPlot):
+    @property
+    def _kind(self) -> typing.Literal["barh"]:
+        return "barh"
+
+    @property
+    def _sampling_warning_msg(self) -> typing.Optional[str]:
+        return (
+            "To optimize plotting performance, your data has been downsampled to {sampling_n} "
+            "rows from the original {total_n} rows. This may result in some data points "
+            "not being displayed. For a more comprehensive view, consider pre-processing "
+            "your data by aggregating it or selecting the top categories."
+        )
+
+
+class PiePlot(SamplingPlot):
+    @property
+    def _kind(self) -> typing.Literal["pie"]:
+        return "pie"
+
+    @property
+    def _sampling_warning_msg(self) -> typing.Optional[str]:
+        return (
+            "To optimize plotting performance, your data has been downsampled to {sampling_n} "
+            "rows from the original {total_n} rows. This may result in some data points "
+            "not being displayed. For a more comprehensive view, consider pre-processing "
+            "your data by aggregating it or selecting the top categories."
+        )
+
+
 class LinePlot(SamplingPlot):
     @property
     def _kind(self) -> typing.Literal["line"]:

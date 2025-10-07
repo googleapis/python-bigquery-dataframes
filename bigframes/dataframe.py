@@ -5279,6 +5279,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     bar.__doc__ = inspect.getdoc(plotting.PlotAccessor.bar)
 
+    def barh(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.barh(x=x, y=y, **kwargs)
+
+    barh.__doc__ = inspect.getdoc(plotting.PlotAccessor.barh)
+
+    def pie(
+        self,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        return self.plot.pie(y=y, **kwargs)
+
+    pie.__doc__ = inspect.getdoc(plotting.PlotAccessor.pie)
+
     def scatter(
         self,
         x: typing.Optional[typing.Hashable] = None,

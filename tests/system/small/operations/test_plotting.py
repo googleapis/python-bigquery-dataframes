@@ -267,6 +267,52 @@ def test_bar(scalars_dfs, col_names, alias):
 @pytest.mark.parametrize(
     ("col_names", "alias"),
     [
+        pytest.param(["int64_col", "float64_col", "int64_too"], True, id="df_alias"),
+        pytest.param(["int64_col", "float64_col", "int64_too"], False, id="df"),
+        pytest.param(["int64_col"], True, id="series_alias"),
+        pytest.param(["int64_col"], False, id="series"),
+    ],
+)
+def test_barh(scalars_dfs, col_names, alias):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    if alias:
+        ax = scalars_df[col_names].barh()
+    else:
+        ax = scalars_df[col_names].plot.barh()
+    pd_ax = scalars_pandas_df[col_names].plot.barh()
+    tm.assert_almost_equal(ax.get_xticks(), pd_ax.get_xticks())
+    tm.assert_almost_equal(ax.get_yticks(), pd_ax.get_yticks())
+    for line, pd_line in zip(ax.lines, pd_ax.lines):
+        # Compare y coordinates between the lines
+        tm.assert_almost_equal(line.get_data()[1], pd_line.get_data()[1])
+
+
+@pytest.mark.parametrize(
+    ("col_names", "alias"),
+    [
+        pytest.param(["int64_col", "float64_col", "int64_too"], True, id="df_alias"),
+        pytest.param(["int64_col", "float64_col", "int64_too"], False, id="df"),
+        pytest.param(["int64_col"], True, id="series_alias"),
+        pytest.param(["int64_col"], False, id="series"),
+    ],
+)
+def test_pie(scalars_dfs, col_names, alias):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    if alias:
+        ax = scalars_df[col_names].abs().pie(y="int64_col")
+    else:
+        ax = scalars_df[col_names].abs().plot.pie(y="int64_col")
+    pd_ax = scalars_pandas_df[col_names].abs().plot.pie(y="int64_col")
+    tm.assert_almost_equal(ax.get_xticks(), pd_ax.get_xticks())
+    tm.assert_almost_equal(ax.get_yticks(), pd_ax.get_yticks())
+    for line, pd_line in zip(ax.lines, pd_ax.lines):
+        # Compare y coordinates between the lines
+        tm.assert_almost_equal(line.get_data()[1], pd_line.get_data()[1])
+
+
+@pytest.mark.parametrize(
+    ("col_names", "alias"),
+    [
         pytest.param(
             ["int64_col", "float64_col", "int64_too", "bool_col"], True, id="df_alias"
         ),
