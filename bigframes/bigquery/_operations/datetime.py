@@ -69,7 +69,7 @@ def unix_micros(input: series.Series) -> series.Series:
 
     **Examples:**
 
-                >>> import bigframes.pandas as bpd
+        >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
 
         >>> s = bpd.Series([pd.Timestamp("1970-01-02", tz="UTC"), pd.Timestamp("1970-01-03", tz="UTC")])
