@@ -991,8 +991,7 @@ def _convert_row_processor_sig(
         if param_type == bf_series.Series:
             raise bf_formatting.create_exception_with_feedback_link(
                 TypeError,
-                "Due to current UDF serialization requirements, argument type "
-                "hint must be Pandas Series, not BigFrames Series.",
+                "Argument type hint must be Pandas Series, not BigFrames Series.",
             )
         if param_type == pandas.Series:
             msg = bfe.format_message("input_types=Series is in preview.")

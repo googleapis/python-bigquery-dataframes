@@ -703,7 +703,7 @@ def test_managed_function_df_apply_axis_1(session, dataset_id, scalars_dfs):
 
         with pytest.raises(
             TypeError,
-            match="Due to current UDF serialization requirements, argument type hint must be Pandas Series, not BigFrames Series.",
+            match="Argument type hint must be Pandas Series, not BigFrames Series.",
         ):
             serialize_row_mf = session.udf(
                 input_types=bigframes.series.Series,

@@ -3091,7 +3091,7 @@ def test_remote_function_df_where_mask_series(session, dataset_id, scalars_dfs):
 
         with pytest.raises(
             TypeError,
-            match="Due to current UDF serialization requirements, argument type hint must be Pandas Series, not BigFrames Series.",
+            match="Argument type hint must be Pandas Series, not BigFrames Series.",
         ):
             session.remote_function(
                 input_types=bigframes.series.Series,
