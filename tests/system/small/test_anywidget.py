@@ -460,6 +460,47 @@ def test_sql_anywidget_mode(mock_table_widget, session: bf.Session):
         mock_table_widget.assert_called_once()
 
 
+@mock.patch("IPython.display.display")
+def test_struct_column_anywidget_mode(mock_display, session: bf.Session):
+    """
+    Test that a DataFrame with a STRUCT column is displayed in anywidget mode
+    and does not fall back to the deferred representation. This confirms that
+    anywidget can handle complex types without raising an exception that would
+    trigger the fallback mechanism.
+    """
+    pandas_df = pd.DataFrame(
+        {
+            "a": [1],
+            "b": [{"c": 2, "d": 3}],
+        }
+    )
+    bf_df = session.read_pandas(pandas_df)
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        with mock.patch(
+            "bigframes.dataframe.formatter.repr_query_job"
+        ) as mock_repr_query_job:
+            # Trigger the display logic.
+            result = bf_df._repr_html_()
+
+            # Assert that we did NOT fall back to the deferred representation.
+            mock_repr_query_job.assert_not_called()
+
+            # Assert that display was called with a TableWidget
+            mock_display.assert_called_once()
+            widget = mock_display.call_args[0][0]
+            from bigframes.display import TableWidget
+
+            assert isinstance(widget, TableWidget)
+
+            # Assert that the widget's html contains the struct
+            html = widget.table_html
+            assert "{&#x27;c&#x27;: 2, &#x27;d&#x27;: 3}" in html
+
+            # Assert that _repr_html_ returns an empty string
+            assert result == ""
+
+
 # TODO(shuowei): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
