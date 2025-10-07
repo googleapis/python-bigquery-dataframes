@@ -115,8 +115,6 @@ class SeriesMethods:
                 idx_cols = idx_block.index_columns
                 block, _ = idx_block.join(block, how="left")
                 block = block.with_index_labels(bf_index.names)
-            if name:
-                block = block.with_column_labels([name])
             if dtype:
                 bf_dtype = bigframes.dtypes.bigframes_type(dtype)
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
@@ -132,6 +130,13 @@ class SeriesMethods:
             block = read_pandas_func(pd_series)._get_block()  # type:ignore
 
         assert block is not None
+
+        # If we didn't get a block make sure the name is what the user
+        # explicitly chose even if it is None. This is important for the
+        # polars backend where the implicit column labels are integers.
+        if not isinstance(data, blocks.Block):
+            block = block.with_column_labels([name])
+
         self._block: blocks.Block = block
 
     @property
@@ -160,7 +165,9 @@ class SeriesMethods:
         block, result_id = self._block.apply_unary_op(
             self._value_column, op, result_label=self._name
         )
-        return series.Series(block.select_column(result_id))
+        result = series.Series(block.select_column(result_id))
+        result.name = getattr(self, "name", None)
+        return result
 
     def _apply_binary_op(
         self,

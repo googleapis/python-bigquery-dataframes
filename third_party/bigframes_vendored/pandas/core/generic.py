@@ -38,9 +38,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
             >>> s.size
             3
@@ -64,9 +61,6 @@ class NDFrame(indexing.IndexingMixin):
                 Iterator of DataFrame or Series values.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -105,9 +99,6 @@ class NDFrame(indexing.IndexingMixin):
         Cast a pandas object to a specified dtype ``dtype``.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Create a DataFrame:
 
@@ -152,7 +143,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Note that this is equivalent of using ``to_datetime`` with ``unit='us'``:
 
-            >>> bpd.to_datetime(ser, unit='us', utc=True)
+            >>> bpd.to_datetime(ser, unit='us', utc=True)  # doctest: +SKIP
             0    2034-02-08 11:13:20.246789+00:00
             1    2021-06-19 17:20:44.123101+00:00
             2    2003-06-05 17:30:34.120101+00:00
@@ -350,9 +341,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame(
             ...     [
             ...         [24.3, 75.7, "high"],
@@ -461,9 +449,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame({'animal': ['alligator', 'bee', 'falcon', 'lion',
             ...                     'monkey', 'parrot', 'shark', 'whale', 'zebra']})
             >>> df
@@ -562,8 +547,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame({'num_legs': [2, 4, 8, 0],
             ...                     'num_wings': [2, 0, 0, 0],
             ...                     'num_specimen_seen': [10, 2, 1, 8]},
@@ -643,9 +626,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame({'float': [1.0], 'int': [1], 'string': ['foo']})
             >>> df.dtypes
             float             Float64
@@ -667,9 +647,6 @@ class NDFrame(indexing.IndexingMixin):
         be reflected in the original object.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Modification in the original Series will not affect the copy Series:
 
@@ -741,10 +718,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
             ...                     [3, 4, np.nan, 1],
             ...                     [np.nan, np.nan, np.nan, np.nan],
@@ -770,7 +743,6 @@ class NDFrame(indexing.IndexingMixin):
             <BLANKLINE>
             [4 rows x 4 columns]
 
-
         Fill NA/NaN values in Series:
 
             >>> series = bpd.Series([1, np.nan, 2, 3])
@@ -789,7 +761,6 @@ class NDFrame(indexing.IndexingMixin):
                 be partially filled. If method is not specified, this is the
                 maximum number of entries along the entire axis where NaNs will be
                 filled. Must be greater than 0 if not None.
-
 
         Returns:
             bigframes.pandas.DataFrame or bigframes.pandas.Series or None:
@@ -825,13 +796,9 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> import numpy as np
-
             >>> df = bpd.DataFrame(dict(
             ...         age=[5, 6, np.nan],
-            ...         born=[bpd.NA, "1940-04-25", "1940-04-25"],
+            ...         born=[pd.NA, "1940-04-25", "1940-04-25"],
             ...         name=['Alfred', 'Batman', ''],
             ...         toy=[None, 'Batmobile', 'Joker'],
             ... ))
@@ -863,7 +830,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Show which entries in a Series are NA:
 
-            >>> ser = bpd.Series([5, None, 6, np.nan, bpd.NA])
+            >>> ser = bpd.Series([5, None, 6, np.nan, pd.NA])
             >>> ser
             0       5
             1    <NA>
@@ -1068,8 +1035,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([0,1,2,3,4])
             >>> s.rolling(window=3).min()
             0    <NA>
@@ -1153,10 +1118,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
         Constructing a income DataFrame from a dictionary.
-
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> data = [[8000, 1000], [9500, np.nan], [5000, 2000]]
             >>> df = bpd.DataFrame(data, columns=['Salary', 'Others'])

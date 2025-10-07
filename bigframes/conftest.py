@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pyarrow as pa
 import pytest
+
+import bigframes._config
 
 
 @pytest.fixture(scope="session")
@@ -22,3 +29,17 @@ def polars_session():
     from bigframes.testing import polars_session
 
     return polars_session.TestSession()
+
+
+@pytest.fixture(autouse=True)
+def default_doctest_imports(doctest_namespace, polars_session):
+    """
+    Avoid some boilerplate in pandas-inspired tests.
+
+    See: https://docs.pytest.org/en/stable/how-to/doctest.html#doctest-namespace-fixture
+    """
+    doctest_namespace["np"] = np
+    doctest_namespace["pd"] = pd
+    doctest_namespace["pa"] = pa
+    doctest_namespace["bpd"] = polars_session
+    bigframes._config.options.display.progress_bar = None

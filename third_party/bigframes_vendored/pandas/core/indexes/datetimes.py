@@ -15,10 +15,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
-
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.year
             Index([2025], dtype='Int64')
@@ -30,10 +26,6 @@ class DatetimeIndex(base.Index):
         """The month as January=1, December=12.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.month
@@ -47,10 +39,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
-
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.day
             Index([15], dtype='Int64')
@@ -62,10 +50,6 @@ class DatetimeIndex(base.Index):
         """The day of the week with Monday=0, Sunday=6.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.day_of_week
@@ -79,10 +63,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
-
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.dayofweek
             Index([5], dtype='Int64')
@@ -94,10 +74,6 @@ class DatetimeIndex(base.Index):
         """The day of the week with Monday=0, Sunday=6.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.weekday

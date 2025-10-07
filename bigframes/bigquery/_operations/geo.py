@@ -53,8 +53,6 @@ def st_area(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> from shapely.geometry import Polygon, LineString, Point
-        >>> bpd.options.display.progress_bar = None
-
         >>> series = bigframes.geopandas.GeoSeries(
         ...         [
         ...             Polygon([(0.0, 0.0), (0.1, 0.1), (0.0, 0.1)]),
@@ -125,8 +123,6 @@ def st_buffer(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> from shapely.geometry import Point
-        >>> bpd.options.display.progress_bar = None
-
         >>> series = bigframes.geopandas.GeoSeries(
         ...         [
         ...             Point(0, 0),
@@ -195,8 +191,6 @@ def st_centroid(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> from shapely.geometry import Polygon, LineString, Point
-        >>> bpd.options.display.progress_bar = None
-
         >>> series = bigframes.geopandas.GeoSeries(
         ...         [
         ...             Polygon([(0.0, 0.0), (0.1, 0.1), (0.0, 0.1)]),
@@ -250,8 +244,6 @@ def st_convexhull(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> from shapely.geometry import Polygon, LineString, Point
-        >>> bpd.options.display.progress_bar = None
-
         >>> series = bigframes.geopandas.GeoSeries(
         ...         [
         ...             Polygon([(0.0, 0.0), (0.1, 0.1), (0.0, 0.1)]),
@@ -312,7 +304,6 @@ def st_difference(
         >>> import bigframes.bigquery as bbq
         >>> import bigframes.geopandas
         >>> from shapely.geometry import Polygon, LineString, Point
-        >>> bpd.options.display.progress_bar = None
 
     We can check two GeoSeries against each other, row by row:
 
@@ -407,7 +398,6 @@ def st_distance(
         >>> import bigframes.bigquery as bbq
         >>> import bigframes.geopandas
         >>> from shapely.geometry import Polygon, LineString, Point
-        >>> bpd.options.display.progress_bar = None
 
     We can check two GeoSeries against each other, row by row.
 
@@ -489,7 +479,6 @@ def st_intersection(
         >>> import bigframes.bigquery as bbq
         >>> import bigframes.geopandas
         >>> from shapely.geometry import Polygon, LineString, Point
-        >>> bpd.options.display.progress_bar = None
 
     We can check two GeoSeries against each other, row by row.
 
@@ -583,7 +572,6 @@ def st_isclosed(
         >>> import bigframes.bigquery as bbq
 
         >>> from shapely.geometry import Point, LineString, Polygon
-        >>> bpd.options.display.progress_bar = None
 
         >>> series = bigframes.geopandas.GeoSeries(
         ...     [
@@ -650,7 +638,6 @@ def st_length(
         >>> import bigframes.bigquery as bbq
 
         >>> from shapely.geometry import Polygon, LineString, Point, GeometryCollection
-        >>> bpd.options.display.progress_bar = None
 
         >>> series = bigframes.geopandas.GeoSeries(
         ...         [

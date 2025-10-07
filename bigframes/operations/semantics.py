@@ -52,7 +52,6 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
@@ -247,8 +246,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
+                        >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -321,8 +319,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
+                        >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -435,8 +432,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
+                        >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -558,8 +554,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
+                        >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -697,7 +692,6 @@ class Semantics:
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> import bigframes
             >>> bigframes.options.experiments.semantic_operators = True
@@ -800,8 +794,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
+                        >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -1001,8 +994,7 @@ class Semantics:
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> bpd.options.experiments.semantic_operators = True
+                        >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm

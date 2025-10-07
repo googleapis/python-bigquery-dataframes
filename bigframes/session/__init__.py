@@ -67,6 +67,7 @@ import bigframes.clients
 import bigframes.constants
 import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
+import bigframes.core.indexes
 import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
@@ -83,7 +84,6 @@ import bigframes.session.validation
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
-    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
     import bigframes.series
     import bigframes.streaming.dataframe as streaming_dataframe
@@ -314,6 +314,15 @@ class Session(
                 self.bqconnectionclient, self.resourcemanagerclient
             )
         return self._bq_connection_manager
+
+    @property
+    def options(self) -> bigframes._config.Options:
+        """Options for configuring BigQuery DataFrames.
+
+        Included for compatibility between bpd and Session.
+        """
+        # TODO(tswast): Consider making a separate session-level options object.
+        return bigframes._config.options
 
     @property
     def session_id(self):
@@ -597,7 +606,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Simple query input:
 
@@ -753,7 +761,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Read a whole table, with arbitrary ordering or ordering corresponding to the primary key(s).
 
@@ -832,7 +839,6 @@ class Session(
 
             >>> import bigframes.streaming as bst
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
@@ -861,7 +867,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Read an existing BigQuery ML model.
 
@@ -931,8 +936,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> d = {'col1': [1, 2], 'col2': [3, 4]}
             >>> pandas_df = pd.DataFrame(data=d)
@@ -1810,7 +1813,6 @@ class Session(
 
             >>> import bigframes.pandas as bpd
             >>> import datetime
-            >>> bpd.options.display.progress_bar = None
 
         Turning an arbitrary python function into a BigQuery managed python udf:
 
@@ -1973,7 +1975,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Use the [cw_lower_case_ascii_only](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string)
         function from Community UDFs.
@@ -2282,6 +2283,89 @@ class Session(
 
         s = self._loader.read_gbq_table(object_table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
+
+    # =========================================================================
+    # bigframes.pandas attributes
+    #
+    # These are included so that Session and bigframes.pandas can be used
+    # interchangeably.
+    # =========================================================================
+    def cut(self, *args, **kwargs) -> bigframes.series.Series:
+        import bigframes.core.reshape.tile
+
+        return bigframes.core.reshape.tile.cut(
+            *args,
+            session=self,
+            **kwargs,
+        )
+
+    def DataFrame(self, *args, **kwargs) -> bigframes.dataframe.DataFrame:
+        """Constructs a DataFrame.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.DataFrame` for full documentation.
+        """
+        import bigframes.dataframe
+
+        return bigframes.dataframe.DataFrame(*args, session=self, **kwargs)
+
+    def MultiIndex(self, *args, **kwargs) -> bigframes.core.indexes.MultiIndex:
+        """Constructs a MultiIndex.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.MulitIndex` for full documentation.
+        """
+        import bigframes.core.indexes
+
+        return bigframes.core.indexes.MultiIndex(*args, session=self, **kwargs)
+
+    MultiIndex.from_tuples = bigframes.core.indexes.MultiIndex.from_tuples  # type: ignore
+    MultiIndex.from_frame = bigframes.core.indexes.MultiIndex.from_frame  # type: ignore
+    MultiIndex.from_arrays = bigframes.core.indexes.MultiIndex.from_arrays  # type: ignore
+
+    def Index(self, *args, **kwargs) -> bigframes.core.indexes.Index:
+        """Constructs a Index.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.Index` for full documentation.
+        """
+        import bigframes.core.indexes
+
+        return bigframes.core.indexes.Index(*args, session=self, **kwargs)
+
+    def Series(self, *args, **kwargs) -> bigframes.series.Series:
+        """Constructs a Series.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.Series` for full documentation.
+        """
+        import bigframes.series
+
+        return bigframes.series.Series(*args, session=self, **kwargs)
+
+    def to_datetime(
+        self, *args, **kwargs
+    ) -> Union[pandas.Timestamp, datetime.datetime, bigframes.series.Series]:
+        import bigframes.core.tools
+
+        return bigframes.core.tools.to_datetime(
+            *args,
+            session=self,
+            **kwargs,
+        )
+
+    def to_timedelta(self, *args, **kwargs):
+        import bigframes.pandas.core.tools.timedeltas
+
+        return bigframes.pandas.core.tools.timedeltas.to_timedelta(
+            *args,
+            session=self,
+            **kwargs,
+        )
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:
