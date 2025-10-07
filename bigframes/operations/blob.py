@@ -974,21 +974,23 @@ class BlobAccessor:
 
         prompt_text = "**Task:** Transcribe the provided audio. **Instructions:** - Your response must contain only the verbatim transcription of the audio. - Do not include any introductory text, summaries, or conversational filler in your response. The output should begin directly with the first word of the audio."
 
-        # Convert the audio series to the runtime representation required by the model.
-        audio_runtime = audio_series.blob._get_runtime("R", with_metadata=True)
-
+        # Use bbq.ai.generate() to transcribe audio
         transcribed_results = bbq.ai.generate(
-            prompt=(prompt_text, audio_runtime),
+            prompt=(prompt_text, audio_series),
             connection_id=connection,
             endpoint=model_name,
-            model_params={"generationConfig": {"temperature": 0.0}},
+            request_type="unspecified",
         )
 
         transcribed_content_series = transcribed_results.struct.field("result").rename(
             "transcribed_content"
         )
+        transcribed_content_series = transcribed_results.struct.field("result").rename(
+            "transcribed_content"
+        )
 
         if verbose:
+            transcribed_status_series = transcribed_results.struct.field("status")
             transcribed_status_series = transcribed_results.struct.field("status")
             results_df = bpd.DataFrame(
                 {
