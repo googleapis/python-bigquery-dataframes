@@ -21,6 +21,7 @@ def to_datetime(
     utc=False,
     format=None,
     unit=None,
+    session=None,
 ) -> Union[pd.Timestamp, datetime, series.Series]:
     """
     This function converts a scalar, array-like or Series to a datetime object.

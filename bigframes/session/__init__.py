@@ -2291,6 +2291,12 @@ class Session(
     # interchangeably.
     # =========================================================================
     def cut(self, *args, **kwargs) -> bigframes.series.Series:
+        """Cuts a BigQuery DataFrames object.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.cut` for full documentation.
+        """
         import bigframes.core.reshape.tile
 
         return bigframes.core.reshape.tile.cut(
@@ -2299,7 +2305,7 @@ class Session(
             **kwargs,
         )
 
-    def DataFrame(self, *args, **kwargs) -> bigframes.dataframe.DataFrame:
+    def DataFrame(self, *args, **kwargs):
         """Constructs a DataFrame.
 
         Included for compatibility between bpd and Session.
@@ -2310,7 +2316,7 @@ class Session(
 
         return bigframes.dataframe.DataFrame(*args, session=self, **kwargs)
 
-    def MultiIndex(self, *args, **kwargs) -> bigframes.core.indexes.MultiIndex:
+    def MultiIndex(self, *args, **kwargs):
         """Constructs a MultiIndex.
 
         Included for compatibility between bpd and Session.
@@ -2325,7 +2331,7 @@ class Session(
     MultiIndex.from_frame = bigframes.core.indexes.MultiIndex.from_frame  # type: ignore
     MultiIndex.from_arrays = bigframes.core.indexes.MultiIndex.from_arrays  # type: ignore
 
-    def Index(self, *args, **kwargs) -> bigframes.core.indexes.Index:
+    def Index(self, *args, **kwargs):
         """Constructs a Index.
 
         Included for compatibility between bpd and Session.
@@ -2336,7 +2342,7 @@ class Session(
 
         return bigframes.core.indexes.Index(*args, session=self, **kwargs)
 
-    def Series(self, *args, **kwargs) -> bigframes.series.Series:
+    def Series(self, *args, **kwargs):
         """Constructs a Series.
 
         Included for compatibility between bpd and Session.
@@ -2350,6 +2356,12 @@ class Session(
     def to_datetime(
         self, *args, **kwargs
     ) -> Union[pandas.Timestamp, datetime.datetime, bigframes.series.Series]:
+        """Converts a BigQuery DataFrames object to datetime dtype.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.to_datetime` for full documentation.
+        """
         import bigframes.core.tools
 
         return bigframes.core.tools.to_datetime(
@@ -2359,6 +2371,12 @@ class Session(
         )
 
     def to_timedelta(self, *args, **kwargs):
+        """Converts a BigQuery DataFrames object to timedelta/duration dtype.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.to_timedelta` for full documentation.
+        """
         import bigframes.pandas.core.tools.timedeltas
 
         return bigframes.pandas.core.tools.timedeltas.to_timedelta(

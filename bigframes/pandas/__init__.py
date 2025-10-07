@@ -226,7 +226,6 @@ def to_datetime(
         format=format,
         unit=unit,
     )
-    return bigframes.core.tools.to_datetime()
 
 
 to_datetime.__doc__ = vendored_pandas_datetimes.to_datetime.__doc__

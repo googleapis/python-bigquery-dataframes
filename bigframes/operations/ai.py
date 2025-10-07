@@ -114,7 +114,7 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.ai_operators = True
+                >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -132,7 +132,7 @@ class AIAccessor:
 
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.ai_operators = True
+                >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -263,7 +263,7 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.ai_operators = True
+                >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -352,7 +352,7 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.ai_operators = True
+                >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -602,7 +602,7 @@ class AIAccessor:
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.ai_operators = True
+                >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm

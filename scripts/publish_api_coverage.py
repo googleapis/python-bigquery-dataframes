@@ -25,6 +25,7 @@ import pandas.core.groupby
 import pandas.core.indexes.accessors
 import pandas.core.strings.accessor
 import pandas.core.window.rolling
+import sklearn  # noqa
 
 import bigframes
 import bigframes.core.groupby

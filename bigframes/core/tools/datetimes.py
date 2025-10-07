@@ -42,7 +42,7 @@ def to_datetime(
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-    session: Optional[bigframes.session.Session],
+    session: Optional[bigframes.session.Session] = None,
 ) -> Union[pd.Timestamp, datetime, bigframes.series.Series]:
     if isinstance(arg, (int, float, str, datetime, date)):
         return pd.to_datetime(

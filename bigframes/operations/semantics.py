@@ -246,7 +246,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.semantic_operators = True
+                >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -319,7 +319,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.semantic_operators = True
+                >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -432,7 +432,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.semantic_operators = True
+                >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -554,7 +554,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.semantic_operators = True
+                >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -794,7 +794,7 @@ class Semantics:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.semantic_operators = True
+                >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm
@@ -994,7 +994,7 @@ class Semantics:
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
-                        >>> bpd.options.experiments.semantic_operators = True
+                >>> bpd.options.experiments.semantic_operators = True
             >>> bpd.options.compute.semantic_ops_confirmation_threshold = 25
 
             >>> import bigframes.ml.llm as llm

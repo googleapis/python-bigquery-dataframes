@@ -201,7 +201,7 @@ def generate_int(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-                >>> animal = bpd.Series(["Kangaroo", "Rabbit", "Spider"])
+        >>> animal = bpd.Series(["Kangaroo", "Rabbit", "Spider"])
         >>> bbq.ai.generate_int(("How many legs does a ", animal, " have?"))
         0    {'result': 2, 'full_response': '{"candidates":...
         1    {'result': 4, 'full_response': '{"candidates":...
@@ -275,7 +275,7 @@ def generate_double(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-                >>> animal = bpd.Series(["Kangaroo", "Rabbit", "Spider"])
+        >>> animal = bpd.Series(["Kangaroo", "Rabbit", "Spider"])
         >>> bbq.ai.generate_double(("How many legs does a ", animal, " have?"))
         0    {'result': 2.0, 'full_response': '{"candidates...
         1    {'result': 4.0, 'full_response': '{"candidates...
@@ -346,7 +346,7 @@ def if_(
     **Examples:**
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-                >>> us_state = bpd.Series(["Massachusetts", "Illinois", "Hawaii"])
+        >>> us_state = bpd.Series(["Massachusetts", "Illinois", "Hawaii"])
         >>> bbq.ai.if_((us_state, " has a city called Springfield"))
         0     True
         1     True
@@ -395,7 +395,7 @@ def classify(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-                >>> df = bpd.DataFrame({'creature': ['Cat', 'Salmon']})
+        >>> df = bpd.DataFrame({'creature': ['Cat', 'Salmon']})
         >>> df['type'] = bbq.ai.classify(df['creature'], ['Mammal', 'Fish'])
         >>> df
           creature    type
@@ -445,7 +445,7 @@ def score(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-                >>> animal = bpd.Series(["Tiger", "Rabbit", "Blue Whale"])
+        >>> animal = bpd.Series(["Tiger", "Rabbit", "Blue Whale"])
         >>> bbq.ai.score(("Rank the relative weights of ", animal, " on the scale from 1 to 3")) # doctest: +SKIP
         0    2.0
         1    1.0

@@ -135,7 +135,7 @@ class SeriesMethods:
         # explicitly chose even if it is None. This is important for the
         # polars backend where the implicit column labels are integers.
         if not isinstance(data, blocks.Block):
-            block = block.with_column_labels([name])
+            block = block.with_column_labels([name or getattr(data, "name", None)])
 
         self._block: blocks.Block = block
 
