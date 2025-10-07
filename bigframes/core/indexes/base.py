@@ -754,7 +754,7 @@ class Index(vendored_pandas_index.Index):
         # Docstring is in third_party/bigframes_vendored/pandas/core/indexes/base.py
         return self.to_series().peek(2).item()
 
-    def __eq__(self, other) -> Index:
+    def __eq__(self, other) -> Index:  # type: ignore
         return self._apply_binop(other, ops.eq_op)
 
     def _apply_binop(self, other, op: ops.BinaryOp) -> Index:
@@ -802,7 +802,7 @@ class Index(vendored_pandas_index.Index):
                 labels=[None] * self.nlevels,
                 drop=True,
             )
-            return Index(block)
+            return Index(block.set_index(block.value_columns))
         else:
             return NotImplemented
 
