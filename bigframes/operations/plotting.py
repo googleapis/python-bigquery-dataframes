@@ -92,11 +92,10 @@ class PlotAccessor(vendordt.PlotAccessor):
 
     def pie(
         self,
-        x: typing.Optional[typing.Hashable] = None,
         y: typing.Optional[typing.Hashable] = None,
         **kwargs,
     ):
-        return self(kind="pie", x=x, y=y, **kwargs)
+        return self(kind="pie", y=y, **kwargs)
 
     def scatter(
         self,
