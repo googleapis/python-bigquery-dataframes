@@ -104,7 +104,28 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    return apply_window_if_present(sge.func("DENSE_RANK"), window)
+    return apply_window_if_present(sge.func("DENSE_RANK"), window, include_framing_clauses=False)
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.FirstOp)
+def _(
+    op: agg_ops.FirstOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    # FIRST_VALUE in BQ respects nulls by default.
+    return apply_window_if_present(sge.FirstValue(this=column.expr), window)
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.FirstNonNullOp)
+def _(
+    op: agg_ops.FirstNonNullOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(
+        sge.IgnoreNulls(this=sge.FirstValue(this=column.expr)), window
+    )
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.MaxOp)
@@ -182,7 +203,7 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    return apply_window_if_present(sge.func("RANK"), window)
+    return apply_window_if_present(sge.func("RANK"), window, include_framing_clauses=False)
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.SizeUnaryOp)
