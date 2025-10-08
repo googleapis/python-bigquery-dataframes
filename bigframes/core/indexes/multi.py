@@ -100,6 +100,13 @@ class MultiIndexAccessor:
         """
         return MultiIndex.from_arrays(*args, session=self._session, **kwargs)
 
+    def from_frame(self, *args, **kwargs) -> MultiIndex:
+        """Construct a MultiIndex using the associated Session.
+
+        See :func:`bigframes.pandas.MultiIndex.from_frame`.
+        """
+        return cast(MultiIndex, MultiIndex.from_frame(*args, **kwargs))
+
     def from_tuples(self, *args, **kwargs) -> MultiIndex:
         """Construct a MultiIndex using the associated Session.
 
