@@ -172,6 +172,9 @@ def eval(
 
     **Examples:**
 
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
+
         >>> df = bpd.DataFrame({"animal": ["dog", "pig"], "age": [10, 20]})
         >>> df
         animal  age

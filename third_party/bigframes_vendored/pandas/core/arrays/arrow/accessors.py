@@ -19,12 +19,14 @@ class ListAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         [1, 2, 3],
             ...         [3],
             ...     ],
-            ...     dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+            ...     dtype=bpd.ArrowDtype(pa.list_(pa.int64())),
             ... )
             >>> s.list.len()
             0    3
@@ -43,12 +45,14 @@ class ListAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         [1, 2, 3],
             ...         [3],
             ...     ],
-            ...     dtype=pd.ArrowDtype(pa.list_(pa.int64())),
+            ...     dtype=bpd.ArrowDtype(pa.list_(pa.int64())),
             ... )
             >>> s.list[0]
             0    1
@@ -79,13 +83,15 @@ class StructAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
             ...         {"version": 2, "project": "pandas"},
             ...         {"version": 1, "project": "numpy"},
             ...     ],
-            ...     dtype=pd.ArrowDtype(pa.struct(
+            ...     dtype=bpd.ArrowDtype(pa.struct(
             ...         [("version", pa.int64()), ("project", pa.string())]
             ...     ))
             ... )
@@ -123,13 +129,15 @@ class StructAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
             ...         {"version": 2, "project": "pandas"},
             ...         {"version": 1, "project": "numpy"},
             ...     ],
-            ...     dtype=pd.ArrowDtype(pa.struct(
+            ...     dtype=bpd.ArrowDtype(pa.struct(
             ...         [("version", pa.int64()), ("project", pa.string())]
             ...     ))
             ... )
@@ -157,13 +165,15 @@ class StructAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
             ...         {"version": 2, "project": "pandas"},
             ...         {"version": 1, "project": "numpy"},
             ...     ],
-            ...     dtype=pd.ArrowDtype(pa.struct(
+            ...     dtype=bpd.ArrowDtype(pa.struct(
             ...         [("version", pa.int64()), ("project", pa.string())]
             ...     ))
             ... )
@@ -190,6 +200,8 @@ class StructFrameAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import pyarrow as pa
+            >>> bpd.options.display.progress_bar = None
             >>> countries = bpd.Series(["cn", "es", "us"])
             >>> files = bpd.Series(
             ...     [
@@ -197,7 +209,7 @@ class StructFrameAccessor:
             ...         {"version": 2, "project": "pandas"},
             ...         {"version": 1, "project": "numpy"},
             ...     ],
-            ...     dtype=pd.ArrowDtype(pa.struct(
+            ...     dtype=bpd.ArrowDtype(pa.struct(
             ...         [("version", pa.int64()), ("project", pa.string())]
             ...     ))
             ... )
@@ -220,6 +232,7 @@ class StructFrameAccessor:
             separator:
                 Separator/delimiter to use to separate the original column name
                 from the sub-field column name.
+
 
         Returns:
             DataFrame:

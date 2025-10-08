@@ -21,7 +21,6 @@ def to_datetime(
     utc=False,
     format=None,
     unit=None,
-    session=None,
 ) -> Union[pd.Timestamp, datetime, series.Series]:
     """
     This function converts a scalar, array-like or Series to a datetime object.
@@ -38,9 +37,11 @@ def to_datetime(
 
     **Examples:**
 
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
+
     Converting a Scalar to datetime:
 
-        >>> import bigframes.pandas as bpd
         >>> scalar = 123456.789
         >>> bpd.to_datetime(scalar, unit = 's')
         Timestamp('1970-01-02 10:17:36.789000')

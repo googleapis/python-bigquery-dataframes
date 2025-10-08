@@ -45,6 +45,8 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> df = bpd.DataFrame({"A": [1, 1, 1, 2, 2], "B": [0, 2, 8, 2, 7], "C": ["cat", "cat", "dog", "mouse", "cat"]})
             >>> df
                A  B      C
@@ -84,6 +86,8 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, 0], index=lst)
             >>> ser.groupby(level=0).any()
@@ -121,6 +125,8 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, 0], index=lst)
             >>> ser.groupby(level=0).all()
@@ -157,6 +163,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, np.nan], index=lst)
             >>> ser.groupby(level=0).count()
@@ -192,6 +202,9 @@ class GroupBy:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'A': [1, 1, 2, 1, 2],
             ...                    'B': [np.nan, 2, 3, 4, 5],
             ...                    'C': [1, 2, 1, 1, 2]}, columns=['A', 'B', 'C'])
@@ -250,6 +263,9 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
             >>> ser.groupby(level=0).median()
@@ -288,6 +304,7 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame([
             ...     ['a', 1], ['a', 2], ['a', 3],
             ...     ['b', 1], ['b', 3], ['b', 5]
@@ -325,6 +342,10 @@ class GroupBy:
         **Examples:**
 
         For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -369,6 +390,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
             >>> ser.groupby(level=0).var()
@@ -410,6 +435,9 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> df = bpd.DataFrame(
             ...     {
             ...         "group": ["a", "a", "a", "a", "a", "b", "b", "b", "b", "b"],
@@ -482,6 +510,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> ser = bpd.Series([390., 350., 357., np.nan, 22., 20., 30.],
             ...                  index=['Falcon', 'Falcon', 'Falcon', 'Falcon',
             ...                         'Parrot', 'Parrot', 'Parrot'],
@@ -514,6 +546,9 @@ class GroupBy:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b']
             >>> ser = bpd.Series([0, 1, 1, 0, 0, 1, 2, 4, 5], index=lst)
             >>> ser.groupby(level=0).kurt()
@@ -544,6 +579,9 @@ class GroupBy:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b']
             >>> ser = bpd.Series([0, 1, 1, 0, 0, 1, 2, 4, 5], index=lst)
             >>> ser.groupby(level=0).kurtosis()
@@ -568,8 +606,9 @@ class GroupBy:
         Defaults to skipping NA elements.
 
         **Examples:**
-
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[None, 5, 6], C=[1, 2, 3]))
             >>> df.groupby("A").first()
                 B  C
@@ -608,6 +647,8 @@ class GroupBy:
         Defaults to skipping NA elements.
 
         **Examples:**
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[5, None, 6], C=[1, 2, 3]))
             >>> df.groupby("A").last()
@@ -643,6 +684,9 @@ class GroupBy:
         **Examples:**
 
         For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -686,6 +730,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
             >>> ser.groupby(level=0).prod()
@@ -717,6 +765,10 @@ class GroupBy:
         **Examples:**
 
         For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -763,6 +815,9 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
             >>> ser.groupby(level=0).max()
@@ -804,6 +859,9 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b', 'b', 'c']
             >>> ser = bpd.Series([5, 1, 2, 3, 4], index=lst)
             >>> ser.groupby(level=0).cumcount()
@@ -838,6 +896,10 @@ class GroupBy:
         **Examples:**
 
         For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -874,6 +936,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
             >>> ser.groupby(level=0).cumsum()
@@ -909,6 +975,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
             >>> ser.groupby(level=0).cummin()
@@ -943,6 +1013,10 @@ class GroupBy:
         **Examples:**
 
         For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -980,6 +1054,10 @@ class GroupBy:
         **Examples:**
 
         For SeriesGroupBy:
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -1023,6 +1101,10 @@ class GroupBy:
 
         For SeriesGroupBy:
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
             >>> ser.groupby(level=0).shift(1)
@@ -1063,6 +1145,9 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'a', 'a', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
             >>> ser.groupby(level=0).rolling(2).min()
@@ -1119,6 +1204,9 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> lst = ['a', 'a', 'c', 'c', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
             >>> ser.groupby(level=0).expanding().min()
@@ -1141,6 +1229,9 @@ class GroupBy:
         Return last first n rows of each group
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[1, 2], [1, 4], [5, 6]],
             ...                   columns=['A', 'B'])
@@ -1167,6 +1258,9 @@ class GroupBy:
         Compute group sizes.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
         For SeriesGroupBy:
 
@@ -1218,6 +1312,9 @@ class GroupBy:
         within that group or bin.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
 
         For SeriesGroupBy:
 
@@ -1280,6 +1377,10 @@ class SeriesGroupBy(GroupBy):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
             >>> s.groupby(level=0).agg(['min', 'max'])
                min  max
@@ -1309,6 +1410,10 @@ class SeriesGroupBy(GroupBy):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
             >>> s.groupby(level=0).aggregate(['min', 'max'])
                min  max
@@ -1337,6 +1442,10 @@ class SeriesGroupBy(GroupBy):
         Return number of unique elements in the group.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 3], index=lst)
@@ -1384,6 +1493,10 @@ class DataFrameGroupBy(GroupBy):
         Aggregate using one or more operations.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> data = {"A": [1, 1, 2, 2],
             ...         "B": [1, 2, 3, 4],
@@ -1441,6 +1554,10 @@ class DataFrameGroupBy(GroupBy):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> data = {"A": [1, 1, 2, 2],
             ...         "B": [1, 2, 3, 4],
             ...         "C": [0.362838, 0.227877, 1.267767, -0.562860]}
@@ -1497,6 +1614,10 @@ class DataFrameGroupBy(GroupBy):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
+
             >>> df = bpd.DataFrame({'id': ['spam', 'egg', 'egg', 'spam',
             ...                           'ham', 'ham'],
             ...                    'value1': [1, 5, 5, 2, 5, 5],
@@ -1528,6 +1649,10 @@ class DataFrameGroupBy(GroupBy):
         Return a Series or DataFrame containing counts of unique rows.
 
         **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> import numpy as np
+            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'gender': ['male', 'male', 'female', 'male', 'female', 'male'],

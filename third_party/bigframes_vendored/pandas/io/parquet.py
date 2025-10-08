@@ -27,6 +27,8 @@ class ParquetIOMixin:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> gcs_path = "gs://cloud-samples-data/bigquery/us-states/us-states.parquet"
             >>> df = bpd.read_parquet(path=gcs_path, engine="bigquery")
 

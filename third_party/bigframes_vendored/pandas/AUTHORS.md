@@ -47,6 +47,7 @@ file to indicate the copyright and license terms:
 
 Other licenses can be found in the LICENSES directory.
 
+License
 =======
 
 pandas is distributed under a 3-clause ("Simplified" or "New") BSD

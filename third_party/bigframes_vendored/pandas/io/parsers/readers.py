@@ -71,6 +71,8 @@ class ReaderIOMixin:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> gcs_path = "gs://cloud-samples-data/bigquery/us-states/us-states.csv"
             >>> df = bpd.read_csv(filepath_or_buffer=gcs_path)
             >>> df.head(2)
@@ -190,6 +192,8 @@ class ReaderIOMixin:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> gcs_path = "gs://bigframes-dev-testing/sample1.json"
             >>> df = bpd.read_json(path_or_buf=gcs_path, lines=True, orient="records")
             >>> df.head(2)

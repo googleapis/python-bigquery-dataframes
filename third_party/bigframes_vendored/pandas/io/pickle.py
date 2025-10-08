@@ -35,6 +35,8 @@ class PickleIOMixin:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
+
             >>> gcs_path = "gs://bigframes-dev-testing/test_pickle.pkl"
             >>> df = bpd.read_pickle(filepath_or_buffer=gcs_path)
 

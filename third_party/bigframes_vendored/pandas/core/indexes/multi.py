@@ -25,6 +25,8 @@ class MultiIndex(bigframes_vendored.pandas.core.indexes.base.Index):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> tuples = [(1, 'red'), (1, 'blue'),
             ...           (2, 'red'), (2, 'blue')]
             >>> bpd.MultiIndex.from_tuples(tuples, names=('number', 'color'))
@@ -60,6 +62,8 @@ class MultiIndex(bigframes_vendored.pandas.core.indexes.base.Index):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.display.progress_bar = None
             >>> arrays = [[1, 1, 2, 2], ['red', 'blue', 'red', 'blue']]
             >>> bpd.MultiIndex.from_arrays(arrays, names=('number', 'color'))
             MultiIndex([(1,  'red'),

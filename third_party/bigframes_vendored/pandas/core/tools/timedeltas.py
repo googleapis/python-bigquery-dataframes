@@ -55,6 +55,7 @@ def to_timedelta(
     **Examples:**
 
         >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = None
 
     Converting a Scalar to timedelta
 

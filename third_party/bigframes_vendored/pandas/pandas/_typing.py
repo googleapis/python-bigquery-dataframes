@@ -100,6 +100,7 @@ PandasScalar = Union["Period", "Timestamp", "Timedelta", "Interval"]
 Scalar = Union[PythonScalar, PandasScalar, np.datetime64, np.timedelta64, datetime]
 IntStrT = TypeVar("IntStrT", int, str)
 
+
 # timestamp and timedelta convertible types
 
 TimestampConvertibleTypes = Union[
@@ -265,6 +266,7 @@ FilePath = Union[str, "PathLike[str]"]
 
 # for arbitrary kwargs passed during reading/writing files
 StorageOptions = Optional[Dict[str, Any]]
+
 
 # compression keywords and compression
 CompressionDict = Dict[str, Any]

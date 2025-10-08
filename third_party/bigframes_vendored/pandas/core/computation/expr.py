@@ -165,6 +165,7 @@ def _is_type(t):
 _is_list = _is_type(list)
 _is_str = _is_type(str)
 
+
 # partition all AST nodes
 _all_nodes = frozenset(
     node
@@ -196,8 +197,10 @@ _arguments_nodes = _filter_nodes(ast.arguments)
 _keyword_nodes = _filter_nodes(ast.keyword)
 _alias_nodes = _filter_nodes(ast.alias)
 
+
 # nodes that we don't support directly but are needed for parsing
 _hacked_nodes = frozenset(["Assign", "Module", "Expr"])
+
 
 _unsupported_expr_nodes = frozenset(
     [
