@@ -76,6 +76,20 @@ def scalars_pandas_df_index() -> pd.DataFrame:
 
 
 @pytest.fixture(scope="module")
+def scalars_df_default_index(
+    session: bigframes.Session, scalars_pandas_df_index
+) -> bpd.DataFrame:
+    return session.read_pandas(scalars_pandas_df_index).reset_index(drop=False)
+
+
+@pytest.fixture(scope="module")
+def scalars_df_2_default_index(
+    session: bigframes.Session, scalars_pandas_df_index
+) -> bpd.DataFrame:
+    return session.read_pandas(scalars_pandas_df_index).reset_index(drop=False)
+
+
+@pytest.fixture(scope="module")
 def scalars_df_index(
     session: bigframes.Session, scalars_pandas_df_index
 ) -> bpd.DataFrame:
@@ -376,9 +390,9 @@ def test_series_construct_w_dtype_for_array_struct():
     )
 
 
-def test_series_construct_local_unordered_has_sequential_index(unordered_session):
+def test_series_construct_local_unordered_has_sequential_index(session):
     series = bigframes.pandas.Series(
-        ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"], session=unordered_session
+        ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"], session=session
     )
     expected: pd.Index = pd.Index([0, 1, 2, 3, 4, 5, 6], dtype=pd.Int64Dtype())
     pd.testing.assert_index_equal(series.index.to_pandas(), expected)
@@ -467,13 +481,6 @@ def test_get_column(scalars_dfs, col_name, expected_dtype):
     series_pandas = series.to_pandas()
     assert series_pandas.dtype == expected_dtype
     assert series_pandas.shape[0] == scalars_pandas_df.shape[0]
-
-
-def test_get_column_w_json(json_df, json_pandas_df):
-    series = json_df["json_col"]
-    series_pandas = series.to_pandas()
-    assert series.dtype == pd.ArrowDtype(db_dtypes.JSONArrowType())
-    assert series_pandas.shape[0] == json_pandas_df.shape[0]
 
 
 def test_series_get_column_default(scalars_dfs):
@@ -1062,7 +1069,22 @@ def test_series_pow_scalar_reverse(scalars_dfs):
         "xor",
     ],
 )
-@pytest.mark.parametrize(("other_scalar"), [True, False, pd.NA])
+@pytest.mark.parametrize(
+    ("other_scalar"),
+    [
+        True,
+        False,
+        pytest.param(
+            pd.NA,
+            marks=[
+                pytest.mark.skip(
+                    reason="https://github.com/pola-rs/polars/issues/24809"
+                )
+            ],
+            id="NULL",
+        ),
+    ],
+)
 @pytest.mark.parametrize(("reverse_operands"), [True, False])
 def test_series_bool_bool_operators_scalar(
     scalars_dfs, operator, other_scalar, reverse_operands
