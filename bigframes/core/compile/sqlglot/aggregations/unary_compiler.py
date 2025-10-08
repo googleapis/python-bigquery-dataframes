@@ -240,6 +240,23 @@ def _(
     return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.ShiftOp)
+def _(
+    op: agg_ops.ShiftOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    if op.periods == 0:  # No-op
+        return column.expr
+    if op.periods > 0:
+        return apply_window_if_present(
+            sge.func("LAG", column.expr, sge.convert(op.periods)), window
+        )
+    return apply_window_if_present(
+        sge.func("LEAD", column.expr, sge.convert(-op.periods)), window
+    )
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.SumOp)
 def _(
     op: agg_ops.SumOp,
