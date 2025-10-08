@@ -148,6 +148,28 @@ def test_first_non_null(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_last(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_exprs.UnaryAggregation(agg_ops.LastOp(), expression.deref(col_name))
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    sql = _apply_unary_window_op(bf_df, agg_expr, window, "agg_int64")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_last_non_null(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_exprs.UnaryAggregation(
+        agg_ops.LastNonNullOp(), expression.deref(col_name)
+    )
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    sql = _apply_unary_window_op(bf_df, agg_expr, window, "agg_int64")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_max(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
