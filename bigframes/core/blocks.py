@@ -2471,7 +2471,7 @@ class Block:
     def _align_pd_series_axis_1(
         self, other: pd.Series, how: str
     ) -> Tuple[Block, pd.Index, Sequence[Tuple[ex.RefOrConstant, ex.RefOrConstant]]]:
-        if self.column_labels.equals(other.index):
+        if self.column_labels.astype("object").equals(other.index.astype("object")):
             columns, lcol_indexer, rcol_indexer = self.column_labels, None, None
         else:
             if not (self.column_labels.is_unique and other.index.is_unique):

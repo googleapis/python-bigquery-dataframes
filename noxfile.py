@@ -46,9 +46,7 @@ COLAB_AND_BQ_STUDIO_PYTHON_VERSIONS = [
     "3.11",
 ]
 
-# pytest-retry is not yet compatible with pytest 8.x.
-# https://github.com/str0zzapreti/pytest-retry/issues/32
-PYTEST_VERSION = "pytest<8.0.0dev"
+PYTEST_VERSION = "pytest==8.4.2"
 SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = [
     "docs",

@@ -21,5 +21,5 @@ WITH `bfcte_0` AS (
 )
 SELECT
   `bfcol_0` AS `rowindex`,
-  `bfcol_10` AS `0`
+  `bfcol_10` AS `string_col`
 FROM `bfcte_3`
