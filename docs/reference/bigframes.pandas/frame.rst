@@ -38,7 +38,4 @@ Struct handling
 AI operators
 ^^^^^^^^^^^^
 
-.. autoclass:: bigframes.operations.ai.AIAccessor
-    :members:
-    :inherited-members:
-    :undoc-members:
+.. automethod:: bigframes.operations.ai.AIAccessor.forecast

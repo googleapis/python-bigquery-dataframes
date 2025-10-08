@@ -48,6 +48,13 @@ def generate(
     """
     Returns the AI analysis based on the prompt, which can be any combination of text and unstructured data.
 
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
+
     **Examples:**
 
         >>> import bigframes.pandas as bpd
@@ -143,6 +150,13 @@ def generate_bool(
     """
     Returns the AI analysis based on the prompt, which can be any combination of text and unstructured data.
 
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
+
     **Examples:**
 
         >>> import bigframes.pandas as bpd
@@ -221,6 +235,13 @@ def generate_int(
     """
     Returns the AI analysis based on the prompt, which can be any combination of text and unstructured data.
 
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
+
     **Examples:**
 
         >>> import bigframes.pandas as bpd
@@ -296,6 +317,13 @@ def generate_double(
     """
     Returns the AI analysis based on the prompt, which can be any combination of text and unstructured data.
 
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
+
     **Examples:**
 
         >>> import bigframes.pandas as bpd
@@ -369,6 +397,13 @@ def if_(
     Evaluates the prompt to True or False. Compared to `ai.generate_bool()`, this function
     provides optimization such that not all rows are evaluated with the LLM.
 
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
+
     **Examples:**
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
@@ -417,6 +452,13 @@ def classify(
 ) -> series.Series:
     """
     Classifies a given input into one of the specified categories. It will always return one of the provided categories best fit the prompt input.
+
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     **Examples:**
 
@@ -468,6 +510,13 @@ def score(
     Computes a score based on rubrics described in natural language. It will return a double value.
     There is no fixed range for the score returned. To get high quality results, provide a scoring
     rubric with examples in the prompt.
+
+    .. note::
+
+        This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
+        Service Specific Terms(https://cloud.google.com/terms/service-terms#1). Pre-GA products and features are available "as is"
+        and might have limited support. For more information, see the launch stage descriptions
+        (https://cloud.google.com/products#product-launch-stages).
 
     **Examples:**
 
