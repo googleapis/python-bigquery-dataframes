@@ -84,16 +84,6 @@ class SeriesMethods:
                 f"Series constructor only supports copy=True. {constants.FEEDBACK_LINK}"
             )
 
-        if name is DEFAULT:
-            if isinstance(data, blocks.Block):
-                name = data.column_labels[0]
-            elif hasattr(data, "name"):
-                name = getattr(data, "name")
-            elif hasattr(data, "_name"):
-                name = getattr(data, "_name")
-            else:
-                name = None
-
         if isinstance(data, blocks.Block):
             block = data
         elif isinstance(data, SeriesMethods):
@@ -139,6 +129,8 @@ class SeriesMethods:
                 idx_cols = idx_block.index_columns
                 block, _ = idx_block.join(block, how="left")
                 block = block.with_index_labels(bf_index.names)
+            if name is not DEFAULT:
+                block = block.with_column_labels([name])
             if dtype:
                 bf_dtype = bigframes.dtypes.bigframes_type(dtype)
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
@@ -150,14 +142,14 @@ class SeriesMethods:
                 data=data,
                 index=index,  # type:ignore
                 dtype=dtype,  # type:ignore
-                name=name,
+                name=name if name is not DEFAULT else None,
             )
             name = pd_series.name  # type: ignore
             block = read_pandas_func(pd_series)._get_block()  # type:ignore
+            block = block.with_column_labels([name])
 
         assert block is not None
 
-        block = block.with_column_labels([name])
         self._block: blocks.Block = block
 
     @property

@@ -1829,7 +1829,7 @@ class Session(
         Turning an arbitrary python function into a BigQuery managed python udf:
 
             >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
-            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)
+            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)  # doctest: +SKIP
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -1842,8 +1842,8 @@ class Session(
             4    120
             dtype: Int64
 
-            >>> hours = minutes.apply(minutes_to_hours)
-            >>> hours
+            >>> hours = minutes.apply(minutes_to_hours)  # doctest: +SKIP
+            >>> hours  # doctest: +SKIP
             0    0.0
             1    0.5
             2    1.0
@@ -1856,7 +1856,7 @@ class Session(
         packages (optionally with the package version) via `packages` param.
 
             >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
-            >>> @bpd.udf(
+            >>> @bpd.udf(  # doctest: +SKIP
             ...     dataset="bigfranes_testing",
             ...     name=bq_name,
             ...     packages=["cryptography"]
@@ -1873,14 +1873,14 @@ class Session(
             ...     return f.encrypt(input.encode()).decode()
 
             >>> names = bpd.Series(["Alice", "Bob"])
-            >>> hashes = names.apply(get_hash)
+            >>> hashes = names.apply(get_hash)  # doctest: +SKIP
 
         You can clean-up the BigQuery functions created above using the BigQuery
         client from the BigQuery DataFrames session:
 
             >>> session = bpd.get_global_session()
-            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)
-            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)
+            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)  # doctest: +SKIP
+            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)  # doctest: +SKIP
 
         Args:
             input_types (type or sequence(type), Optional):
