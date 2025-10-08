@@ -24,7 +24,7 @@ from typing import Any, List, Literal, Mapping, Tuple, Union
 import pandas as pd
 
 from bigframes import clients, dtypes, series, session
-from bigframes.core import convert, global_session, log_adapter
+from bigframes.core import convert, log_adapter
 from bigframes.operations import ai_ops, output_schemas
 
 PROMPT_TYPE = Union[
@@ -519,9 +519,7 @@ def _separate_context_and_series(
         raise ValueError(f"Unsupported prompt type: {type(prompt)}")
 
     if isinstance(prompt, str):
-        return [None], [
-            series.Series([prompt], session=global_session.get_global_session())
-        ]
+        return [None], [series.Series([prompt])]
 
     if isinstance(prompt, series.Series):
         if prompt.dtype == dtypes.OBJ_REF_DTYPE:
