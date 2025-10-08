@@ -424,7 +424,6 @@ def test_blob_transcribe(
         )
         .to_pandas()
     )
-    print(actual)
 
     # check relative length
     expected_text = "Now, as all books not primarily intended as picture-books consist principally of types composed to form letterpress"
