@@ -68,6 +68,7 @@ import bigframes.constants
 import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
 import bigframes.core.indexes
+import bigframes.core.indexes.multi
 import bigframes.core.pyformat
 
 # Even though the ibis.backends.bigquery import is unused, it's needed
@@ -2316,20 +2317,17 @@ class Session(
 
         return bigframes.dataframe.DataFrame(*args, session=self, **kwargs)
 
-    def MultiIndex(self, *args, **kwargs):
+    @property
+    def MultiIndex(self) -> bigframes.core.indexes.multi.MultiIndexAccessor:
         """Constructs a MultiIndex.
 
         Included for compatibility between bpd and Session.
 
         See :class:`bigframes.pandas.MulitIndex` for full documentation.
         """
-        import bigframes.core.indexes
+        import bigframes.core.indexes.multi
 
-        return bigframes.core.indexes.MultiIndex(*args, session=self, **kwargs)
-
-    MultiIndex.from_tuples = bigframes.core.indexes.MultiIndex.from_tuples  # type: ignore
-    MultiIndex.from_frame = bigframes.core.indexes.MultiIndex.from_frame  # type: ignore
-    MultiIndex.from_arrays = bigframes.core.indexes.MultiIndex.from_arrays  # type: ignore
+        return bigframes.core.indexes.multi.MultiIndexAccessor(self)
 
     def Index(self, *args, **kwargs):
         """Constructs a Index.
