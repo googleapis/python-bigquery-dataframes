@@ -14,8 +14,9 @@
 
 from __future__ import annotations
 
+import enum
 import typing
-from typing import Any, List, Sequence, Union
+from typing import List, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -34,7 +35,17 @@ import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
 
-_NO_NAME_SENTINEL = object()
+
+class Default(enum.Enum):
+    """Sentinel that can disambiguate explicit None from missing.
+
+    See https://stackoverflow.com/a/76606310/101923
+    """
+
+    token = 0
+
+
+DEFAULT = Default.token
 
 
 class SeriesMethods:
@@ -45,7 +56,7 @@ class SeriesMethods:
         dtype: typing.Optional[
             bigframes.dtypes.DtypeString | bigframes.dtypes.Dtype
         ] = None,
-        name: str | None = None,
+        name: str | None | Default = DEFAULT,
         copy: typing.Optional[bool] = None,
         *,
         session: typing.Optional[bigframes.session.Session] = None,
@@ -72,6 +83,16 @@ class SeriesMethods:
             raise ValueError(
                 f"Series constructor only supports copy=True. {constants.FEEDBACK_LINK}"
             )
+
+        if name is DEFAULT:
+            if isinstance(data, blocks.Block):
+                name = data.column_labels[0]
+            elif hasattr(data, "name"):
+                name = getattr(data, "name")
+            elif hasattr(data, "_name"):
+                name = getattr(data, "_name")
+            else:
+                name = None
 
         if isinstance(data, blocks.Block):
             block = data
@@ -109,6 +130,7 @@ class SeriesMethods:
             block = data_block
 
         if block:
+            # Data was a bigframes object.
             assert len(block.value_columns) == 1
             assert len(block.column_labels) == 1
             if index is not None:  # reindexing operation
@@ -121,6 +143,7 @@ class SeriesMethods:
                 bf_dtype = bigframes.dtypes.bigframes_type(dtype)
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
         else:
+            # Data was local.
             if isinstance(dtype, str) and dtype.lower() == "json":
                 dtype = bigframes.dtypes.JSON_DTYPE
             pd_series = pd.Series(
@@ -129,25 +152,12 @@ class SeriesMethods:
                 dtype=dtype,  # type:ignore
                 name=name,
             )
+            name = pd_series.name  # type: ignore
             block = read_pandas_func(pd_series)._get_block()  # type:ignore
 
         assert block is not None
 
-        # If we didn't get a block make sure the name is what the user
-        # explicitly chose even if it is None. This is important for the
-        # polars backend where the implicit column labels are integers.
-        if name:
-            default_name: Any = name
-        elif hasattr(data, "name"):
-            default_name = getattr(data, "name", None)
-        elif hasattr(data, "_name"):
-            default_name = getattr(data, "_name", None)
-        else:
-            default_name = _NO_NAME_SENTINEL
-
-        if default_name is not _NO_NAME_SENTINEL:
-            block = block.with_column_labels([default_name])
-
+        block = block.with_column_labels([name])
         self._block: blocks.Block = block
 
     @property
