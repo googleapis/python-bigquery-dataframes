@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import typing
-from typing import List, Sequence, Union
+from typing import Any, List, Sequence, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.pandas._typing as vendored_pandas_typing
@@ -33,6 +33,8 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 import bigframes.session
+
+_NO_NAME_SENTINEL = object()
 
 
 class SeriesMethods:
@@ -134,8 +136,17 @@ class SeriesMethods:
         # If we didn't get a block make sure the name is what the user
         # explicitly chose even if it is None. This is important for the
         # polars backend where the implicit column labels are integers.
-        if not isinstance(data, blocks.Block):
-            block = block.with_column_labels([name or getattr(data, "name", None)])
+        if name:
+            default_name: Any = name
+        elif hasattr(data, "name"):
+            default_name = getattr(data, "name", None)
+        elif hasattr(data, "_name"):
+            default_name = getattr(data, "_name", None)
+        else:
+            default_name = _NO_NAME_SENTINEL
+
+        if default_name is not _NO_NAME_SENTINEL:
+            block = block.with_column_labels([default_name])
 
         self._block: blocks.Block = block
 
@@ -165,8 +176,7 @@ class SeriesMethods:
         block, result_id = self._block.apply_unary_op(
             self._value_column, op, result_label=self._name
         )
-        result = series.Series(block.select_column(result_id))
-        result.name = getattr(self, "name", None)
+        result = series.Series(block.select_column(result_id), name=self._name)
         return result
 
     def _apply_binary_op(
