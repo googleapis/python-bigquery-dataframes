@@ -376,9 +376,9 @@ def test_series_construct_w_dtype_for_array_struct():
     )
 
 
-def test_series_construct_local_unordered_has_sequential_index(unordered_session):
+def test_series_construct_local_unordered_has_sequential_index(session):
     series = bigframes.pandas.Series(
-        ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"], session=unordered_session
+        ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"], session=session
     )
     expected: pd.Index = pd.Index([0, 1, 2, 3, 4, 5, 6], dtype=pd.Int64Dtype())
     pd.testing.assert_index_equal(series.index.to_pandas(), expected)
