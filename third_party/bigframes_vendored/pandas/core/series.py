@@ -1783,7 +1783,7 @@ class Series(NDFrame):  # type: ignore[misc]
             dtype: Int64
 
             >>> hours = minutes.apply(minutes_to_hours)  # doctest: +SKIP
-            >>> hours
+            >>> hours  # doctest: +SKIP
             0    0.0
             1    0.5
             2    1.0
