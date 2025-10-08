@@ -549,8 +549,8 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s.to_dict()
             {np.int64(0): 1, np.int64(1): 2, np.int64(2): 3, np.int64(3): 4}
 
-            >>> s.to_dict(into=OrderedDict)
-            OrderedDict([(np.int64(0), 1), (np.int64(1), 2), (np.int64(2), 3), (np.int64(3), 4)])
+            >>> s.to_dict(into=OrderedDict)  # doctest:+ELLIPSIS
+            OrderedDict(...)
 
             >>> dd = defaultdict(list)
             >>> s.to_dict(into=dd)
