@@ -24,10 +24,11 @@ from typing import Any, List, Literal, Mapping, Tuple, Union
 import pandas as pd
 
 from bigframes import clients, dtypes, series, session
-from bigframes.core import convert, log_adapter
+from bigframes.core import convert, global_session, log_adapter
 from bigframes.operations import ai_ops, output_schemas
 
 PROMPT_TYPE = Union[
+    str,
     series.Series,
     pd.Series,
     List[Union[str, series.Series, pd.Series]],
@@ -514,8 +515,13 @@ def _separate_context_and_series(
     Input: ("str1", series1, "str2", "str3", series2)
     Output: ["str1", None, "str2", "str3", None], [series1, series2]
     """
-    if not isinstance(prompt, (list, tuple, series.Series)):
+    if not isinstance(prompt, (str, list, tuple, series.Series)):
         raise ValueError(f"Unsupported prompt type: {type(prompt)}")
+
+    if isinstance(prompt, str):
+        return [None], [
+            series.Series([prompt], session=global_session.get_global_session())
+        ]
 
     if isinstance(prompt, series.Series):
         if prompt.dtype == dtypes.OBJ_REF_DTYPE:
