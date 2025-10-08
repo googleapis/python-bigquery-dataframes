@@ -115,7 +115,7 @@ SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
     "3.10": ["tests", "scikit-learn", "anywidget"],
-    "3.11": ["tests", "scikit-learn", "polars", "anywidget"],
+    LATEST_FULLY_SUPPORTED_PYTHON: ["tests", "scikit-learn", "polars", "anywidget"],
     "3.13": ["tests", "polars", "anywidget"],
 }
 
