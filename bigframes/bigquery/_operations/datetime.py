@@ -21,8 +21,11 @@ def unix_seconds(input: series.Series) -> series.Series:
 
     **Examples:**
 
+        >>> import pandas as pd
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> bpd.options.display.progress_bar = None
+
         >>> s = bpd.Series([pd.Timestamp("1970-01-02", tz="UTC"), pd.Timestamp("1970-01-03", tz="UTC")])
         >>> bbq.unix_seconds(s)
         0     86400
@@ -45,8 +48,11 @@ def unix_millis(input: series.Series) -> series.Series:
 
     **Examples:**
 
+        >>> import pandas as pd
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> bpd.options.display.progress_bar = None
+
         >>> s = bpd.Series([pd.Timestamp("1970-01-02", tz="UTC"), pd.Timestamp("1970-01-03", tz="UTC")])
         >>> bbq.unix_millis(s)
         0     86400000
@@ -69,8 +75,10 @@ def unix_micros(input: series.Series) -> series.Series:
 
     **Examples:**
 
+        >>> import pandas as pd
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series([pd.Timestamp("1970-01-02", tz="UTC"), pd.Timestamp("1970-01-03", tz="UTC")])
         >>> bbq.unix_micros(s)

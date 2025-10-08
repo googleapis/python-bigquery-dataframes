@@ -40,6 +40,8 @@ def array_length(series: series.Series) -> series.Series:
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> bpd.options.display.progress_bar = None
+
         >>> s = bpd.Series([[1, 2, 8, 3], [], [3, 4]])
         >>> bbq.array_length(s)
         0    4
@@ -76,6 +78,8 @@ def array_agg(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> import numpy as np
+        >>> bpd.options.display.progress_bar = None
 
     For a SeriesGroupBy object:
 
@@ -124,6 +128,8 @@ def array_to_string(series: series.Series, delimiter: str) -> series.Series:
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> import numpy as np
+        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series([["H", "i", "!"], ["Hello", "World"], np.nan, [], ["Hi"]])
         >>> bbq.array_to_string(s, delimiter=", ")
