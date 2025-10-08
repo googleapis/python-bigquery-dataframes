@@ -127,6 +127,28 @@ def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_diff(scalar_types_df: bpd.DataFrame, snapshot):
+    # Test integer
+    int_col = "int64_col"
+    bf_df_int = scalar_types_df[[int_col]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(int_col),))
+    int_op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(int_col)
+    )
+    int_sql = _apply_unary_window_op(bf_df_int, int_op, window, "diff_int")
+    snapshot.assert_match(int_sql, "diff_int.sql")
+
+    # Test boolean
+    bool_col = "bool_col"
+    bf_df_bool = scalar_types_df[[bool_col]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(bool_col),))
+    bool_op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(bool_col)
+    )
+    bool_sql = _apply_unary_window_op(bf_df_bool, bool_op, window, "diff_bool")
+    snapshot.assert_match(bool_sql, "diff_bool.sql")
+
+
 def test_first(scalar_types_df: bpd.DataFrame, snapshot):
     if sys.version_info < (3, 12):
         pytest.skip(
