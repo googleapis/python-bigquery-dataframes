@@ -118,7 +118,6 @@ def test_blob_image_blur_to_series(
         status_series = actual_exploded["status"]
         assert status_series.dtype == dtypes.STRING_DTYPE
 
-        content_series = actual_exploded["content"]
         # Content should be blob objects for GCS destination
     else:
         expected_df = pd.DataFrame(
