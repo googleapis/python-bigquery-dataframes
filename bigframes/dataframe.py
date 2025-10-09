@@ -95,8 +95,12 @@ if typing.TYPE_CHECKING:
 
     import bigframes.session
 
-    SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
-    MultiItemValue = Union["DataFrame", Sequence[int | float | str | Callable]]
+    SingleItemValue = Union[
+        bigframes.series.Series, int, float, str, pandas.Timedelta, Callable
+    ]
+    MultiItemValue = Union[
+        "DataFrame", Sequence[int | float | str | pandas.Timedelta | Callable]
+    ]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
