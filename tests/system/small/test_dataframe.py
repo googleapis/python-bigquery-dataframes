@@ -5540,7 +5540,7 @@ def test_df_cached(scalars_df_index):
 def test_df_cached_many_index_cols(scalars_df_index):
     index_cols = [
         "int64_too",
-        "geography_col",
+        "time_col",
         "int64_col",
         "bool_col",
         "date_col",
