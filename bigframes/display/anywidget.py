@@ -76,9 +76,6 @@ class TableWidget(WIDGET_BASE):
         # Initialize data fetching attributes.
         self._batches = dataframe._to_pandas_batches(page_size=initial_page_size)
 
-        # set traitlets properties that trigger observers
-        self.page_size = initial_page_size
-
         # len(dataframe) is expensive, since it will trigger a
         # SELECT COUNT(*) query. It is a must have however.
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
@@ -86,6 +83,10 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/452747934): Allow row_count to be None and check to see if
         # there are multiple pages and show "page 1 of many" in this case.
         self.row_count = self._batches.total_rows or 0
+
+        # set traitlets properties that trigger observers
+        self.page_size = initial_page_size
+        self._reset_batches_for_new_page_size()
 
         # get the initial page
         self._set_table_html()
@@ -190,19 +191,21 @@ class TableWidget(WIDGET_BASE):
 
     def _set_table_html(self):
         """Sets the current html data based on the current page and page size."""
-        start = self.page * self.page_size
-        end = start + self.page_size
+        # For empty dataframe, render empty table with headers.
+        if self.row_count == 0:
+            page_data = self._cached_data
+        else:
+            start = self.page * self.page_size
+            end = start + self.page_size
 
-        # fetch more data if the requested page is outside our cache
-        cached_data = self._cached_data
-        while len(cached_data) < end and not self._all_data_loaded:
-            if self._get_next_batch():
-                cached_data = self._cached_data
-            else:
-                break
-
-        # Get the data for the current page
-        page_data = cached_data.iloc[start:end]
+            # fetch more data if the requested page is outside our cache
+            cached_data = self._cached_data
+            while len(cached_data) < end and not self._all_data_loaded:
+                if self._get_next_batch():
+                    cached_data = self._cached_data
+                else:
+                    break
+            page_data = cached_data.iloc[start:end]
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(
@@ -220,9 +223,6 @@ class TableWidget(WIDGET_BASE):
         """Handler for when the page size is changed from the frontend."""
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
-
-        # Reset batches to use new page size for future data fetching
-        self._reset_batches_for_new_page_size()
 
         # Update the table display
         self._set_table_html()
