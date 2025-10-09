@@ -94,17 +94,23 @@ class TestSession(bigframes.session.Session):
         self._loader = None  # type: ignore
 
     def read_pandas(self, pandas_dataframe, write_engine="default"):
+        original_input = pandas_dataframe
+
         # override read_pandas to always keep data local-only
         if isinstance(pandas_dataframe, (pandas.Series, pandas.Index)):
             pandas_dataframe = pandas_dataframe.to_frame()
+
         local_block = bigframes.core.blocks.Block.from_local(pandas_dataframe, self)
         bf_df = bigframes.dataframe.DataFrame(local_block)
-        if isinstance(pandas_dataframe, pandas.Series):
+
+        if isinstance(original_input, pandas.Series):
             series = bf_df[bf_df.columns[0]]
-            series.name = pandas_dataframe.name
+            series.name = original_input.name
             return series
-        if isinstance(pandas_dataframe, pandas.Index):
+
+        if isinstance(original_input, pandas.Index):
             return bf_df.index
+
         return bf_df
 
     @property

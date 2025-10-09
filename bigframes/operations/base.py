@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import enum
 import typing
 from typing import List, Sequence, Union
 
@@ -36,18 +35,6 @@ import bigframes.series as series
 import bigframes.session
 
 
-class Default(enum.Enum):
-    """Sentinel that can disambiguate explicit None from missing.
-
-    See https://stackoverflow.com/a/76606310/101923
-    """
-
-    token = 0
-
-
-DEFAULT = Default.token
-
-
 class SeriesMethods:
     def __init__(
         self,
@@ -56,7 +43,7 @@ class SeriesMethods:
         dtype: typing.Optional[
             bigframes.dtypes.DtypeString | bigframes.dtypes.Dtype
         ] = None,
-        name: str | None | Default = DEFAULT,
+        name: str | None = None,
         copy: typing.Optional[bool] = None,
         *,
         session: typing.Optional[bigframes.session.Session] = None,
@@ -120,7 +107,6 @@ class SeriesMethods:
             block = data_block
 
         if block:
-            # Data was a bigframes object.
             assert len(block.value_columns) == 1
             assert len(block.column_labels) == 1
             if index is not None:  # reindexing operation
@@ -129,27 +115,23 @@ class SeriesMethods:
                 idx_cols = idx_block.index_columns
                 block, _ = idx_block.join(block, how="left")
                 block = block.with_index_labels(bf_index.names)
-            if name is not DEFAULT:
+            if name:
                 block = block.with_column_labels([name])
             if dtype:
                 bf_dtype = bigframes.dtypes.bigframes_type(dtype)
                 block = block.multi_apply_unary_op(ops.AsTypeOp(to_type=bf_dtype))
         else:
-            # Data was local.
             if isinstance(dtype, str) and dtype.lower() == "json":
                 dtype = bigframes.dtypes.JSON_DTYPE
             pd_series = pd.Series(
                 data=data,
                 index=index,  # type:ignore
                 dtype=dtype,  # type:ignore
-                name=name if name is not DEFAULT else None,
+                name=name,
             )
-            name = pd_series.name  # type: ignore
             block = read_pandas_func(pd_series)._get_block()  # type:ignore
-            block = block.with_column_labels([name])
 
         assert block is not None
-
         self._block: blocks.Block = block
 
     @property
@@ -178,8 +160,7 @@ class SeriesMethods:
         block, result_id = self._block.apply_unary_op(
             self._value_column, op, result_label=self._name
         )
-        result = series.Series(block.select_column(result_id), name=self._name)
-        return result
+        return series.Series(block.select_column(result_id))
 
     def _apply_binary_op(
         self,
