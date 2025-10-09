@@ -124,6 +124,7 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
 nox.options.sessions = [
+    "unit_noextras",
     "system-3.9",  # No extras.
     "system-3.11",
     "cover",
