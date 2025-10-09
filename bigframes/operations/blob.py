@@ -818,7 +818,6 @@ class BlobAccessor(base.SeriesMethods):
             prompt=(prompt_text, audio_runtime),
             connection_id=connection,
             endpoint=model_name,
-            request_type="unspecified",
             model_params={"generationConfig": {"temperature": 0.0}},
         )
 
