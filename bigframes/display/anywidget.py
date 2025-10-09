@@ -218,16 +218,14 @@ class TableWidget(WIDGET_BASE):
         start = self.page * self.page_size
         end = start + self.page_size
 
-        # fetch more data if the requested page is outside our cache
-        cached_data = self._cached_data
-        while len(cached_data) < end and not self._all_data_loaded:
-            if self._get_next_batch():
-                cached_data = self._cached_data
-            else:
-                break
-
-        # Get the data for the current page
-        page_data = cached_data.iloc[start:end]
+            # fetch more data if the requested page is outside our cache
+            cached_data = self._cached_data
+            while len(cached_data) < end and not self._all_data_loaded:
+                if self._get_next_batch():
+                    cached_data = self._cached_data
+                else:
+                    break
+            page_data = cached_data.iloc[start:end]
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(
@@ -249,9 +247,6 @@ class TableWidget(WIDGET_BASE):
             return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
-
-        # Reset batches to use new page size for future data fetching
-        self._reset_batches_for_new_page_size()
 
         # Update the table display
         self._set_table_html()
