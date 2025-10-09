@@ -383,16 +383,9 @@ class Index(vendored_pandas_index.Index):
 
         name = self.name if name is None else name
         if index is None:
-            return bigframes.series.Series(
-                data=self, index=self, name=name, session=self._session
-            )
+            return bigframes.series.Series(data=self, index=self, name=name)
         else:
-            return bigframes.series.Series(
-                data=self,
-                index=Index(index, session=self._session),
-                name=name,
-                session=self._session,
-            )
+            return bigframes.series.Series(data=self, index=Index(index), name=name)
 
     def get_level_values(self, level) -> Index:
         level_n = level if isinstance(level, int) else self.names.index(level)

@@ -155,9 +155,7 @@ def method_logger(method=None, /, *, custom_base_name: Optional[str] = None):
     def outer_wrapper(method):
         @functools.wraps(method)
         def wrapper(*args, **kwargs):
-            api_method_name = getattr(
-                method, LOG_OVERRIDE_NAME, method.__name__
-            ).lower()
+            api_method_name = getattr(method, LOG_OVERRIDE_NAME, method.__name__)
             if custom_base_name is None:
                 qualname_parts = getattr(method, "__qualname__", method.__name__).split(
                     "."
