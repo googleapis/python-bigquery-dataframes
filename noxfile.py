@@ -89,7 +89,7 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
