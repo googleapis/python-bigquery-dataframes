@@ -84,7 +84,7 @@ class BlobAccessor(base.SeriesMethods):
         # Check if it's a struct series from a verbose operation
         if dtypes.is_struct_like(series_to_check.dtype):
             pyarrow_dtype = series_to_check.dtype.pyarrow_dtype
-            if "content" in pyarrow_dtype.names:
+            if "content" in [field.name for field in pyarrow_dtype]:
                 content_field_type = pyarrow_dtype.field("content").type
                 content_bf_type = dtypes.arrow_dtype_to_bigframes_dtype(
                     content_field_type
