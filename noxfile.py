@@ -46,7 +46,9 @@ COLAB_AND_BQ_STUDIO_PYTHON_VERSIONS = [
     "3.11",
 ]
 
-PYTEST_VERSION = "pytest==8.4.2"
+# pytest-retry is not yet compatible with pytest 8.x.
+# https://github.com/str0zzapreti/pytest-retry/issues/32
+PYTEST_VERSION = "pytest<8.0.0dev"
 SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = [
     "docs",
@@ -113,7 +115,7 @@ SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
     "3.10": ["tests", "scikit-learn", "anywidget"],
-    LATEST_FULLY_SUPPORTED_PYTHON: ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.11": ["tests", "scikit-learn", "polars", "anywidget"],
     "3.13": ["tests", "polars", "anywidget"],
 }
 

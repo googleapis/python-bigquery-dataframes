@@ -97,7 +97,7 @@ class TestSession(bigframes.session.Session):
         original_input = pandas_dataframe
 
         # override read_pandas to always keep data local-only
-        if isinstance(pandas_dataframe, (pandas.Series, pandas.Index)):
+        if isinstance(pandas_dataframe, pandas.Series):
             pandas_dataframe = pandas_dataframe.to_frame()
 
         local_block = bigframes.core.blocks.Block.from_local(pandas_dataframe, self)
