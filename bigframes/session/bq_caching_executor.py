@@ -18,7 +18,6 @@ import math
 import os
 import threading
 from typing import Literal, Mapping, Optional, Sequence, Tuple
-import warnings
 import weakref
 
 import google.api_core.exceptions
@@ -26,6 +25,7 @@ from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
+import pyarrow as pa
 
 import bigframes
 from bigframes import exceptions as bfe
@@ -157,6 +157,7 @@ class BigQueryCachingExecutor(executor.Executor):
         self._semi_executors: Sequence[semi_executor.SemiExecutor] = (
             read_api_execution.ReadApiSemiExecutor(
                 bqstoragereadclient=bqstoragereadclient,
+                bqclient=self.bqclient,
                 project=self.bqclient.project,
             ),
             local_scan_executor.LocalScanExecutor(),
@@ -347,14 +348,9 @@ class BigQueryCachingExecutor(executor.Executor):
             table.schema = array_value.schema.to_bigquery()
             self.bqclient.update_table(table, ["schema"])
 
-        return executor.ExecuteResult(
-            row_iter.to_arrow_iterable(
-                bqstorage_client=self.bqstoragereadclient,
-                max_stream_count=_MAX_READ_STREAMS,
-            ),
-            array_value.schema,
-            query_job,
-            total_bytes_processed=row_iter.total_bytes_processed,
+        return executor.EmptyExecuteResult(
+            bf_schema=array_value.schema,
+            query_job=query_job,
         )
 
     def dry_run(
@@ -672,41 +668,28 @@ class BigQueryCachingExecutor(executor.Executor):
             query_with_job=(destination_table is not None),
         )
 
-        table_info: Optional[bigquery.Table] = None
-        if query_job and query_job.destination:
-            table_info = self.bqclient.get_table(query_job.destination)
-            size_bytes = table_info.num_bytes
-        else:
-            size_bytes = None
-
         # we could actually cache even when caching is not explicitly requested, but being conservative for now
         if cache_spec is not None:
-            assert table_info is not None
+            assert query_job and query_job.destination
             assert compiled.row_order is not None
+            table_info = self.bqclient.get_table(query_job.destination)
             self.cache.cache_results_table(
                 og_plan, table_info, compiled.row_order, num_rows=table_info.num_rows
             )
 
-        if size_bytes is not None and size_bytes >= MAX_SMALL_RESULT_BYTES:
-            msg = bfe.format_message(
-                "The query result size has exceeded 10 GB. In BigFrames 2.0 and "
-                "later, you might need to manually set `allow_large_results=True` in "
-                "the IO method or adjust the BigFrames option: "
-                "`bigframes.options.compute.allow_large_results=True`."
+        if query_job and query_job.destination:
+            return executor.BQTableExecuteResult(
+                data=query_job.destination,
+                bf_schema=og_schema,
+                bq_client=self.bqclient,
+                storage_client=self.bqstoragereadclient,
+                query_job=query_job,
             )
-            warnings.warn(msg, FutureWarning)
-
-        return executor.ExecuteResult(
-            _arrow_batches=iterator.to_arrow_iterable(
-                bqstorage_client=self.bqstoragereadclient,
-                max_stream_count=_MAX_READ_STREAMS,
-            ),
-            schema=og_schema,
-            query_job=query_job,
-            total_bytes=size_bytes,
-            total_rows=iterator.total_rows,
-            total_bytes_processed=iterator.total_bytes_processed,
-        )
+        else:
+            return executor.LocalExecuteResult(
+                data=pa.Table.from_batches(iterator.to_arrow_iterable()),
+                bf_schema=plan.schema,
+            )
 
 
 def _if_schema_match(

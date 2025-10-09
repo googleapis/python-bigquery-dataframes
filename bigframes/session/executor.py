@@ -16,13 +16,15 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import datetime
 import functools
 import itertools
-from typing import Iterator, Literal, Optional, Union
+from typing import Any, Iterator, Literal, Optional, Sequence, Union
 
-from google.cloud import bigquery
+from google.cloud import bigquery, bigquery_storage_v1
 import pandas as pd
 import pyarrow
+import pyarrow as pa
 
 import bigframes
 import bigframes.core
@@ -38,20 +40,41 @@ _ROW_LIMIT_EXCEEDED_TEMPLATE = (
 )
 
 
-@dataclasses.dataclass(frozen=True)
-class ExecuteResult:
-    _arrow_batches: Iterator[pyarrow.RecordBatch]
-    schema: bigframes.core.schema.ArraySchema
-    query_job: Optional[bigquery.QueryJob] = None
-    total_bytes: Optional[int] = None
-    total_rows: Optional[int] = None
-    total_bytes_processed: Optional[int] = None
+class ExecuteResult(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def total_bytes(self) -> Optional[int]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def total_rows(self) -> Optional[int]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def total_bytes_processed(self) -> Optional[int]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def schema(self) -> bigframes.core.schema.ArraySchema:
+        ...
+
+    @abc.abstractmethod
+    def _get_arrow_batches(self) -> Iterator[pyarrow.RecordBatch]:
+        ...
 
     @property
     def arrow_batches(self) -> Iterator[pyarrow.RecordBatch]:
         result_rows = 0
 
-        for batch in self._arrow_batches:
+        for batch in self._get_arrow_batches():
             batch = pyarrow_utils.cast_batch(batch, self.schema.to_pyarrow())
             result_rows += batch.num_rows
 
@@ -119,6 +142,171 @@ class ExecuteResult:
         if len(column) != 1:
             raise ValueError(f"Expected single row result, got {len(column)} rows.")
         return column[0]
+
+
+class LocalExecuteResult(ExecuteResult):
+    def __init__(self, data: pa.Table, bf_schema: bigframes.core.schema.ArraySchema):
+        self._data = data
+        self._schema = bf_schema
+
+    @property
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        return None
+
+    @property
+    def total_bytes(self) -> Optional[int]:
+        return None
+
+    @property
+    def total_rows(self) -> Optional[int]:
+        return self._data.num_rows
+
+    @property
+    def total_bytes_processed(self) -> Optional[int]:
+        return None
+
+    @property
+    def schema(self) -> bigframes.core.schema.ArraySchema:
+        return self._schema
+
+    def _get_arrow_batches(self) -> Iterator[pyarrow.RecordBatch]:
+        return iter(self._data.to_batches())
+
+
+class EmptyExecuteResult(ExecuteResult):
+    def __init__(
+        self,
+        bf_schema: bigframes.core.schema.ArraySchema,
+        query_job: Optional[bigquery.QueryJob] = None,
+    ):
+        self._schema = bf_schema
+        self._query_job = query_job
+
+    @property
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        return self._query_job
+
+    @property
+    def total_bytes(self) -> Optional[int]:
+        return None
+
+    @property
+    def total_rows(self) -> Optional[int]:
+        return 0
+
+    @property
+    def total_bytes_processed(self) -> Optional[int]:
+        if self.query_job:
+            return self.query_job.total_bytes_processed
+        return None
+
+    @property
+    def schema(self) -> bigframes.core.schema.ArraySchema:
+        return self._schema
+
+    def _get_arrow_batches(self) -> Iterator[pyarrow.RecordBatch]:
+        return iter([])
+
+
+class BQTableExecuteResult(ExecuteResult):
+    def __init__(
+        self,
+        data: bigquery.TableReference,
+        bf_schema: bigframes.core.schema.ArraySchema,
+        bq_client: bigquery.Client,
+        storage_client: bigquery_storage_v1.BigQueryReadClient,
+        *,
+        query_job: Optional[bigquery.QueryJob] = None,
+        snapshot_time: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+        selected_fields: Optional[Sequence[str]] = None,
+        sql_predicate: Optional[str] = None,
+    ):
+        self._data = data
+        self._schema = bf_schema
+        self._query_job = query_job
+        self._bqclient = bq_client
+        self._storage_client = storage_client
+        self._snapshot_time = snapshot_time
+        self._limit = limit
+        self._selected_fields = selected_fields
+        self._predicate = sql_predicate
+
+    @property
+    def query_job(self) -> Optional[bigquery.QueryJob]:
+        return self._query_job
+
+    @property
+    def total_bytes(self) -> Optional[int]:
+        return None
+
+    @property
+    def total_rows(self) -> Optional[int]:
+        return self._get_table_metadata(self._data).num_rows
+
+    @functools.cache
+    def _get_table_metadata(self) -> bigquery.Table:
+        return self._bqclient.get_table(self._data)
+
+    @property
+    def total_bytes_processed(self) -> Optional[int]:
+        if self.query_job:
+            return self.query_job.total_bytes_processed
+        return None
+
+    @property
+    def schema(self) -> bigframes.core.schema.ArraySchema:
+        return self._schema
+
+    def _get_arrow_batches(self) -> Iterator[pyarrow.RecordBatch]:
+        import google.cloud.bigquery_storage_v1.types as bq_storage_types
+        from google.protobuf import timestamp_pb2
+
+        table_mod_options = {}
+        read_options_dict: dict[str, Any] = {}
+        if self._selected_fields:
+            read_options_dict["selected_fields"] = list(self._selected_fields)
+        if self._predicate:
+            read_options_dict["row_restriction"] = self._predicate
+        read_options = bq_storage_types.ReadSession.TableReadOptions(
+            **read_options_dict
+        )
+
+        if self._snapshot_time:
+            snapshot_time = timestamp_pb2.Timestamp()
+            snapshot_time.FromDatetime(self._snapshot_time)
+            table_mod_options["snapshot_time"] = snapshot_time = snapshot_time
+        table_mods = bq_storage_types.ReadSession.TableModifiers(**table_mod_options)
+
+        requested_session = bq_storage_types.stream.ReadSession(
+            table=self._data.to_bqstorage(),
+            data_format=bq_storage_types.DataFormat.ARROW,
+            read_options=read_options,
+            table_modifiers=table_mods,
+        )
+        # Single stream to maintain ordering
+        request = bq_storage_types.CreateReadSessionRequest(
+            parent=f"projects/{self._data.project}",
+            read_session=requested_session,
+            max_stream_count=1,
+        )
+        session = self._storage_client.create_read_session(request=request)
+
+        if not session.streams:
+            batches: Iterator[pa.RecordBatch] = iter([])
+        else:
+            reader = self._storage_client.read_rows(session.streams[0].name)
+            rowstream = reader.rows()
+
+            def process_page(page):
+                pa_batch = page.to_arrow()
+                return pa.RecordBatch.from_arrays(
+                    pa_batch.columns, names=self.schema.names
+                )
+
+            batches = map(process_page, rowstream.pages)
+
+        return batches
 
 
 @dataclasses.dataclass(frozen=True)

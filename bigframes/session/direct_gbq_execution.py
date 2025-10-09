@@ -18,6 +18,7 @@ from typing import Literal, Optional, Tuple
 from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
+import pyarrow as pa
 
 from bigframes.core import compile, nodes
 from bigframes.core.compile import sqlglot
@@ -64,13 +65,16 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
             sql=compiled.sql,
         )
 
-        return executor.ExecuteResult(
-            _arrow_batches=iterator.to_arrow_iterable(),
-            schema=plan.schema,
-            query_job=query_job,
-            total_rows=iterator.total_rows,
-            total_bytes_processed=iterator.total_bytes_processed,
-        )
+        if query_job is not None and query_job.destination is not None:
+            return executor.BQTableExecuteResult(
+                data=query_job.destination,
+                bf_schema=plan.schema,
+            )
+        else:
+            return executor.LocalExecuteResult(
+                data=pa.Table.from_batches(iterator.to_arrow_iterable()),
+                bf_schema=plan.schema,
+            )
 
     def _run_execute_query(
         self,
