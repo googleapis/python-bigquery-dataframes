@@ -82,12 +82,15 @@ class BlobAccessor(base.SeriesMethods):
             bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
         series_to_check = bigframes.series.Series(self._block)
         # Check if it's a struct series from a verbose operation
-        if (
-            dtypes.is_struct_like(series_to_check.dtype)
-            and "content" in series_to_check.dtype.names
-            and dtypes.is_blob_like(series_to_check.dtype.field("content").dtype)
-        ):
-            series_to_check = series_to_check.struct.field("content")
+        if dtypes.is_struct_like(series_to_check.dtype):
+            pyarrow_dtype = series_to_check.dtype.pyarrow_dtype
+            if "content" in pyarrow_dtype.names:
+                content_field_type = pyarrow_dtype.field("content").type
+                content_bf_type = dtypes.arrow_dtype_to_bigframes_dtype(
+                    content_field_type
+                )
+                if content_bf_type == dtypes.OBJ_REF_DTYPE:
+                    series_to_check = series_to_check.struct.field("content")
         details_json = series_to_check._apply_unary_op(
             ops.obj_fetch_metadata_op
         ).struct.field("details")
