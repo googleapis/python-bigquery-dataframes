@@ -267,10 +267,14 @@ def _(
         return column.expr
     if op.periods > 0:
         return apply_window_if_present(
-            sge.func("LAG", column.expr, sge.convert(op.periods)), window
+            sge.func("LAG", column.expr, sge.convert(op.periods)),
+            window,
+            include_framing_clauses=False,
         )
     return apply_window_if_present(
-        sge.func("LEAD", column.expr, sge.convert(-op.periods)), window
+        sge.func("LEAD", column.expr, sge.convert(-op.periods)),
+        window,
+        include_framing_clauses=False,
     )
 
 
