@@ -126,7 +126,7 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 nox.options.sessions = [
     "unit_noextras",
     "system-3.9",  # No extras.
-    "system-3.11",
+    f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
     "cleanup",
