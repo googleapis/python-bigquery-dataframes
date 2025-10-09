@@ -140,10 +140,9 @@ def test_to_datetime(session: bigframes.session.Session):
 
 def test_to_timedelta(session: bigframes.session.Session):
     offsets = np.arange(5)
-    unit = "s"
 
-    bpd_result = bpd.to_timedelta(offsets, unit=unit)
-    session_result = session.to_timedelta(offsets, unit=unit)
+    bpd_result = bpd.to_timedelta(offsets, unit="s")
+    session_result = session.to_timedelta(offsets, unit="s")
 
     global_session = bpd.get_global_session()
     assert global_session is not session
