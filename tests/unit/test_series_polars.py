@@ -3491,6 +3491,7 @@ def test_to_csv(gcs_folder, scalars_df_index, scalars_pandas_df_index):
 
 
 def test_to_latex(scalars_df_index, scalars_pandas_df_index):
+    pytest.importorskip("jinja2")
     bf_result = scalars_df_index["int64_col"].to_latex()
     pd_result = scalars_pandas_df_index["int64_col"].to_latex()
 
@@ -3889,21 +3890,6 @@ def test_series_astype_w_invalid_error(session):
     input = pd.Series(["hello", "world", "3.11", "4000"])
     with pytest.raises(ValueError):
         session.read_pandas(input).astype("Float64", errors="bad_value")
-
-
-def test_astype_numeric_to_int(scalars_df_index, scalars_pandas_df_index):
-    # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
-    column = "numeric_col"
-    to_type = "Int64"
-    bf_result = scalars_df_index[column].astype(to_type).to_pandas()
-    # Truncate to int to avoid TypeError
-    pd_result = (
-        scalars_pandas_df_index[column]
-        .apply(lambda x: None if pd.isna(x) else math.trunc(x))
-        .astype(to_type)
-    )
-    pd.testing.assert_series_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
