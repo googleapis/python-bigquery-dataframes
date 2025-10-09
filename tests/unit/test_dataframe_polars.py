@@ -2319,8 +2319,7 @@ def test_binop_with_self_aggregate(session, scalars_dfs):
     df_columns = ["int64_col", "float64_col", "int64_too"]
 
     bf_df = scalars_df[df_columns]
-    bf_deviation = bf_df - bf_df.mean()
-    bf_result = bf_deviation.to_pandas()
+    bf_result = (bf_df - bf_df.mean()).to_pandas()
 
     pd_df = scalars_pandas_df[df_columns]
     pd_result = pd_df - pd_df.mean()

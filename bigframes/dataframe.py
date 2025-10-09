@@ -688,7 +688,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 return DataFrame(block)
 
         if len(col_ids) == 1:
-            return bigframes.series.Series(block, name=key)
+            return bigframes.series.Series(block)
         return DataFrame(block)
 
     # Bool Series selects rows

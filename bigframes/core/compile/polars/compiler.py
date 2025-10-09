@@ -493,9 +493,9 @@ if polars_installed:
             if isinstance(op, agg_ops.MedianOp):
                 return pl.median(*inputs)
             if isinstance(op, agg_ops.AllOp):
-                return pl.col(inputs).cast(pl.Boolean).all()
+                return pl.all(*inputs)
             if isinstance(op, agg_ops.AnyOp):
-                return pl.col(inputs).cast(pl.Boolean).any()
+                return pl.any(*inputs)  # type: ignore
             if isinstance(op, agg_ops.NuniqueOp):
                 return pl.col(*inputs).drop_nulls().n_unique()
             if isinstance(op, agg_ops.MinOp):
