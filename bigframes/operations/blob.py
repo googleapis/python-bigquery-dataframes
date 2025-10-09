@@ -484,7 +484,12 @@ class BlobAccessor(base.SeriesMethods):
                 ops.JSONValue(json_path="$.status")
             )
             results_df = bpd.DataFrame(
-                {"status": blurred_status_series, "content": dst}
+                {
+                    "status": blurred_status_series,
+                    "content": dst.blob.uri().str.to_blob(
+                        connection=self._resolve_connection(connection)
+                    ),
+                }
             )
             results_struct = bbq.struct(results_df).rename("blurred_results")
             return results_struct
@@ -618,7 +623,12 @@ class BlobAccessor(base.SeriesMethods):
                 ops.JSONValue(json_path="$.status")
             )
             results_df = bpd.DataFrame(
-                {"status": resized_status_series, "content": dst}
+                {
+                    "status": resized_status_series,
+                    "content": dst.blob.uri().str.to_blob(
+                        connection=self._resolve_connection(connection)
+                    ),
+                }
             )
             results_struct = bbq.struct(results_df).rename("resized_results")
             return results_struct
@@ -748,7 +758,9 @@ class BlobAccessor(base.SeriesMethods):
             results_df = bpd.DataFrame(
                 {
                     "status": normalized_status_series,
-                    "content": dst,
+                    "content": dst.blob.uri().str.to_blob(
+                        connection=self._resolve_connection(connection)
+                    ),
                 }
             )
             results_struct = bbq.struct(results_df).rename("normalized_results")
