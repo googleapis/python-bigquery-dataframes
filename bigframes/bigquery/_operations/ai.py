@@ -72,7 +72,7 @@ def generate(
         0    {'is_herbivore': True, 'number_of_legs': 4, 'f...
         1    {'is_herbivore': False, 'number_of_legs': 8, '...
         dtype: struct<is_herbivore: bool, number_of_legs: int64, full_response: extension<dbjson<JSONArrowType>>, status: string>[pyarrow]
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -171,7 +171,7 @@ def generate_bool(
         1     True
         2    False
         Name: result, dtype: boolean
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -253,7 +253,7 @@ def generate_int(
         1    4
         2    8
         Name: result, dtype: Int64
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -335,7 +335,7 @@ def generate_double(
         1    4.0
         2    8.0
         Name: result, dtype: Float64
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -414,7 +414,7 @@ def if_(
         0    Massachusetts
         1         Illinois
         dtype: string
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -468,7 +468,7 @@ def classify(
         1   Salmon    Fish
         <BLANKLINE>
         [2 rows x 2 columns]
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
@@ -524,7 +524,7 @@ def score(
         1    1.0
         2    3.0
         dtype: Float64
-    
+
     .. note::
 
         This product or feature is subject to the "Pre-GA Offerings Terms" in the General Service Terms section of the
