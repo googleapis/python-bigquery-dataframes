@@ -979,7 +979,6 @@ class BlobAccessor(base.SeriesMethods):
             model_params={"generationConfig": {"temperature": 0.0}},
         )
 
-
         transcribed_content_series = transcribed_results.struct.field("result").rename(
             "transcribed_content"
         )
