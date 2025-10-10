@@ -153,11 +153,9 @@ class PolarsExecutor(semi_executor.SemiExecutor):
         if peek is not None:
             lazy_frame = lazy_frame.limit(peek)
         pa_table = lazy_frame.collect().to_arrow()
-        return executor.ExecuteResult(
-            _arrow_batches=iter(map(self._adapt_batch, pa_table.to_batches())),
-            schema=plan.schema,
-            total_bytes=pa_table.nbytes,
-            total_rows=pa_table.num_rows,
+        return executor.LocalExecuteResult(
+            data=pa.Table.from_batches(map(self._adapt_batch, pa_table.to_batches())),
+            bf_schema=plan.schema,
         )
 
     def _can_execute(self, plan: bigframe_node.BigFrameNode):
