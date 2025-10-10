@@ -65,16 +65,11 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
             sql=compiled.sql,
         )
 
-        if query_job is not None and query_job.destination is not None:
-            return executor.BQTableExecuteResult(
-                data=query_job.destination,
-                bf_schema=plan.schema,
-            )
-        else:
-            return executor.LocalExecuteResult(
-                data=pa.Table.from_batches(iterator.to_arrow_iterable()),
-                bf_schema=plan.schema,
-            )
+        # just immediately downlaod everything for simplicity
+        return executor.LocalExecuteResult(
+            data=pa.Table.from_batches(iterator.to_arrow_iterable()),
+            bf_schema=plan.schema,
+        )
 
     def _run_execute_query(
         self,

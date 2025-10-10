@@ -54,14 +54,12 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
                 peek = limit
 
         return executor.BQTableExecuteResult(
-            data=node.source.table.get_table_ref(),
+            data=node.source,
             bf_schema=node.schema,
             bq_client=self.bqclient,
             storage_client=self.bqstoragereadclient,
             limit=peek,
             selected_fields=[item.source_id for item in node.scan_list.items],
-            snapshot_time=node.source.at_time,
-            sql_predicate=node.source.sql_predicate,
         )
 
     def _try_adapt_plan(

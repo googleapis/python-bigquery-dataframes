@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import abc
 import dataclasses
-import datetime
 import functools
 import itertools
 from typing import Any, Iterator, Literal, Optional, Sequence, Union
@@ -28,7 +27,7 @@ import pyarrow as pa
 
 import bigframes
 import bigframes.core
-from bigframes.core import pyarrow_utils
+from bigframes.core import bq_data, pyarrow_utils
 import bigframes.core.schema
 import bigframes.session._io.pandas as io_pandas
 import bigframes.session.execution_spec as ex_spec
@@ -211,26 +210,22 @@ class EmptyExecuteResult(ExecuteResult):
 class BQTableExecuteResult(ExecuteResult):
     def __init__(
         self,
-        data: bigquery.TableReference,
+        data: bq_data.BigqueryDataSource,
         bf_schema: bigframes.core.schema.ArraySchema,
         bq_client: bigquery.Client,
         storage_client: bigquery_storage_v1.BigQueryReadClient,
         *,
         query_job: Optional[bigquery.QueryJob] = None,
-        snapshot_time: Optional[datetime.datetime] = None,
         limit: Optional[int] = None,
         selected_fields: Optional[Sequence[str]] = None,
-        sql_predicate: Optional[str] = None,
     ):
         self._data = data
         self._schema = bf_schema
         self._query_job = query_job
         self._bqclient = bq_client
         self._storage_client = storage_client
-        self._snapshot_time = snapshot_time
         self._limit = limit
         self._selected_fields = selected_fields
-        self._predicate = sql_predicate
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -242,11 +237,11 @@ class BQTableExecuteResult(ExecuteResult):
 
     @property
     def total_rows(self) -> Optional[int]:
-        return self._get_table_metadata(self._data).num_rows
+        return self._get_table_metadata().num_rows
 
     @functools.cache
     def _get_table_metadata(self) -> bigquery.Table:
-        return self._bqclient.get_table(self._data)
+        return self._bqclient.get_table(self._data.table.get_table_ref())
 
     @property
     def total_bytes_processed(self) -> Optional[int]:
@@ -266,27 +261,27 @@ class BQTableExecuteResult(ExecuteResult):
         read_options_dict: dict[str, Any] = {}
         if self._selected_fields:
             read_options_dict["selected_fields"] = list(self._selected_fields)
-        if self._predicate:
-            read_options_dict["row_restriction"] = self._predicate
+        if self._data.sql_predicate:
+            read_options_dict["row_restriction"] = self._data.sql_predicate
         read_options = bq_storage_types.ReadSession.TableReadOptions(
             **read_options_dict
         )
 
-        if self._snapshot_time:
+        if self._data.at_time:
             snapshot_time = timestamp_pb2.Timestamp()
-            snapshot_time.FromDatetime(self._snapshot_time)
+            snapshot_time.FromDatetime(self._data.at_time)
             table_mod_options["snapshot_time"] = snapshot_time = snapshot_time
         table_mods = bq_storage_types.ReadSession.TableModifiers(**table_mod_options)
 
         requested_session = bq_storage_types.stream.ReadSession(
-            table=self._data.to_bqstorage(),
+            table=self._data.table.get_table_ref().to_bqstorage(),
             data_format=bq_storage_types.DataFormat.ARROW,
             read_options=read_options,
             table_modifiers=table_mods,
         )
         # Single stream to maintain ordering
         request = bq_storage_types.CreateReadSessionRequest(
-            parent=f"projects/{self._data.project}",
+            parent=f"projects/{self._data.table.project_id}",
             read_session=requested_session,
             max_stream_count=1,
         )

@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import math
-import os
 import threading
 from typing import Literal, Mapping, Optional, Sequence, Tuple
 import weakref
@@ -31,13 +30,12 @@ import bigframes
 from bigframes import exceptions as bfe
 import bigframes.constants
 import bigframes.core
-from bigframes.core import compile, local_data, rewrite
+from bigframes.core import bq_data, compile, local_data, rewrite
 import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
 import bigframes.core.events
 import bigframes.core.guid
 import bigframes.core.identifiers
 import bigframes.core.nodes as nodes
-import bigframes.core.ordering as order
 import bigframes.core.schema as schemata
 import bigframes.core.tree_properties as tree_properties
 import bigframes.dtypes
@@ -60,7 +58,6 @@ QUERY_COMPLEXITY_LIMIT = 1e7
 MAX_SUBTREE_FACTORINGS = 5
 _MAX_CLUSTER_COLUMNS = 4
 MAX_SMALL_RESULT_BYTES = 10 * 1024 * 1024 * 1024  # 10G
-_MAX_READ_STREAMS = os.cpu_count()
 
 SourceIdMapping = Mapping[str, str]
 
@@ -74,7 +71,7 @@ class ExecutionCache:
         ] = weakref.WeakKeyDictionary()
         self._uploaded_local_data: weakref.WeakKeyDictionary[
             local_data.ManagedArrowTable,
-            tuple[nodes.BigqueryDataSource, SourceIdMapping],
+            tuple[bq_data.BigqueryDataSource, SourceIdMapping],
         ] = weakref.WeakKeyDictionary()
 
     @property
@@ -84,23 +81,16 @@ class ExecutionCache:
     def cache_results_table(
         self,
         original_root: nodes.BigFrameNode,
-        table: bigquery.Table,
-        ordering: order.RowOrdering,
-        num_rows: Optional[int] = None,
+        data: bq_data.BigqueryDataSource,
     ):
         # Assumption: GBQ cached table uses field name as bq column name
         scan_list = nodes.ScanList(
             tuple(
-                nodes.ScanItem(field.id, field.dtype, field.id.sql)
-                for field in original_root.fields
+                nodes.ScanItem(field.id, field.id.sql) for field in original_root.fields
             )
         )
         cached_replacement = nodes.CachedTableNode(
-            source=nodes.BigqueryDataSource(
-                nodes.GbqTable.from_table(table),
-                ordering=ordering,
-                n_rows=num_rows,
-            ),
+            source=data,
             scan_list=scan_list,
             table_session=original_root.session,
             original_node=original_root,
@@ -111,7 +101,7 @@ class ExecutionCache:
     def cache_remote_replacement(
         self,
         local_data: local_data.ManagedArrowTable,
-        bq_data: nodes.BigqueryDataSource,
+        bq_data: bq_data.BigqueryDataSource,
     ):
         # bq table has one extra column for offsets, those are implicit for local data
         assert len(local_data.schema.items) + 1 == len(bq_data.table.physical_schema)
@@ -669,17 +659,31 @@ class BigQueryCachingExecutor(executor.Executor):
         )
 
         # we could actually cache even when caching is not explicitly requested, but being conservative for now
-        if cache_spec is not None:
-            assert query_job and query_job.destination
-            assert compiled.row_order is not None
-            table_info = self.bqclient.get_table(query_job.destination)
-            self.cache.cache_results_table(
-                og_plan, table_info, compiled.row_order, num_rows=table_info.num_rows
+        result_bq_data = None
+        if query_job and query_job.destination:
+            dst = query_job.destination
+            result_bq_data = bq_data.BigqueryDataSource(
+                table=bq_data.GbqTable(
+                    dst.project,
+                    dst.dataset_id,
+                    dst.table_id,
+                    tuple(compiled_schema),
+                    is_physically_stored=True,
+                    cluster_cols=tuple(cluster_cols),
+                ),
+                schema=og_schema,
+                ordering=compiled.row_order,
+                n_rows=iterator.num_results,
             )
 
-        if query_job and query_job.destination:
+        if cache_spec is not None:
+            assert result_bq_data is not None
+            assert compiled.row_order is not None
+            self.cache.cache_results_table(og_plan, result_bq_data)
+
+        if result_bq_data is not None:
             return executor.BQTableExecuteResult(
-                data=query_job.destination,
+                data=result_bq_data,
                 bf_schema=og_schema,
                 bq_client=self.bqclient,
                 storage_client=self.bqstoragereadclient,
