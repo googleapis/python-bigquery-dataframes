@@ -272,9 +272,7 @@ class GbqDataLoader:
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
         self._force_total_order = force_total_order
-        self._df_snapshot: Dict[
-            bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]
-        ] = {}
+        self._df_snapshot: Dict[str, Tuple[datetime.datetime, bigquery.Table]] = {}
         self._metrics = metrics
         self._publisher = publisher
         # Unfortunate circular reference, but need to pass reference when constructing objects
@@ -629,10 +627,6 @@ class GbqDataLoader:
 
         _check_duplicates("columns", columns)
 
-        table_ref = google.cloud.bigquery.table.TableReference.from_string(
-            table_id, default_project=self._bqclient.project
-        )
-
         columns = list(columns)
         include_all_columns = columns is None or len(columns) == 0
         filters = typing.cast(list, list(filters))
@@ -643,7 +637,8 @@ class GbqDataLoader:
 
         time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self._bqclient,
-            table_ref=table_ref,
+            table_id=table_id,
+            default_project=self._bqclient.project,
             bq_time=self._clock.get_time(),
             cache=self._df_snapshot,
             use_cache=use_cache,
