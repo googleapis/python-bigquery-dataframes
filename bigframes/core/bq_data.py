@@ -14,13 +14,21 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import dataclasses
 import datetime
 import functools
+import os
+import queue
+import threading
 import typing
-from typing import Optional, Sequence, Tuple
+from typing import Any, Iterator, Optional, Sequence, Tuple
 
+from google.cloud import bigquery_storage_v1
 import google.cloud.bigquery as bq
+import google.cloud.bigquery_storage_v1.types as bq_storage_types
+from google.protobuf import timestamp_pb2
+import pyarrow as pa
 
 import bigframes.core.schema
 
@@ -82,3 +90,117 @@ class BigqueryDataSource:
     ordering: typing.Optional[orderings.RowOrdering] = None
     # Optimization field
     n_rows: Optional[int] = None
+
+
+_WORKER_TIME_INCREMENT = 0.05
+
+
+def _iter_stream(
+    stream_name: str,
+    storage_read_client: bigquery_storage_v1.BigQueryReadClient,
+    result_queue: queue.Queue,
+    stop_event: threading.Event,
+):
+    reader = storage_read_client.read_rows(stream_name)
+    for page in reader.rows():
+        try:
+            result_queue.put(page.to_arrow(), timeout=_WORKER_TIME_INCREMENT)
+        except queue.Full:
+            continue
+        if stop_event.is_set():
+            return
+
+
+def _iter_streams(
+    streams, storage_read_client: bigquery_storage_v1.BigQueryReadClient
+) -> Iterator[pa.RecordBatch]:
+    stop_event = threading.Event()
+    result_queue: queue.Queue = queue.Queue(
+        len(streams)
+    )  # each response is large, so small queue is appropriate
+
+    in_progress: list[concurrent.futures.Future] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(streams)) as pool:
+        for stream in streams:
+            in_progress.append(
+                pool.submit(
+                    _iter_stream, stream, storage_read_client, result_queue, stop_event
+                )
+            )
+
+        while in_progress:
+            try:
+                yield result_queue.get(timeout=0.1)
+            except queue.Empty:
+                new_in_progress = []
+                for future in in_progress:
+                    if future.done():
+                        try:
+                            future.result()
+                        finally:
+                            stop_event.set()
+                            raise
+                    else:
+                        new_in_progress.append(future)
+                in_progress = new_in_progress
+
+
+@dataclasses.dataclass
+class ReadResult:
+    iter: Iterator[pa.RecordBatch]
+    approx_rows: int
+    approx_bytes: int
+
+
+def get_arrow_batches(
+    data: BigqueryDataSource,
+    columns: Sequence[str],
+    storage_read_client: bigquery_storage_v1.BigQueryReadClient,
+) -> ReadResult:
+    table_mod_options = {}
+    read_options_dict: dict[str, Any] = {"selected_fields": list(columns)}
+    if data.sql_predicate:
+        read_options_dict["row_restriction"] = data.sql_predicate
+    read_options = bq_storage_types.ReadSession.TableReadOptions(**read_options_dict)
+
+    if data.at_time:
+        snapshot_time = timestamp_pb2.Timestamp()
+        snapshot_time.FromDatetime(data.at_time)
+        table_mod_options["snapshot_time"] = snapshot_time
+    table_mods = bq_storage_types.ReadSession.TableModifiers(**table_mod_options)
+
+    requested_session = bq_storage_types.stream.ReadSession(
+        table=data.table.get_table_ref().to_bqstorage(),
+        data_format=bq_storage_types.DataFormat.ARROW,
+        read_options=read_options,
+        table_modifiers=table_mods,
+    )
+    # Single stream to maintain ordering
+    request = bq_storage_types.CreateReadSessionRequest(
+        parent=f"projects/{data.table.project_id}",
+        read_session=requested_session,
+        max_stream_count=1,
+    )
+
+    if data.ordering is not None:
+        max_streams = 1
+    else:
+        max_streams = os.cpu_count() or 8
+
+    session = storage_read_client.create_read_session(
+        request=request, max_stream_count=max_streams
+    )
+
+    if not session.streams:
+        batches: Iterator[pa.RecordBatch] = iter([])
+    else:
+        batches = _iter_streams(session.streams, storage_read_client)
+
+        def process_batch(pa_batch):
+            return pa.RecordBatch.from_arrays(pa_batch.columns, names=data.schema.names)
+
+        batches = map(process_batch, batches)
+
+    return ReadResult(
+        batches, session.estimated_row_count, session.estimated_total_bytes_scanned
+    )

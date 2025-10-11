@@ -147,7 +147,6 @@ class BigQueryCachingExecutor(executor.Executor):
         self._semi_executors: Sequence[semi_executor.SemiExecutor] = (
             read_api_execution.ReadApiSemiExecutor(
                 bqstoragereadclient=bqstoragereadclient,
-                bqclient=self.bqclient,
                 project=self.bqclient.project,
             ),
             local_scan_executor.LocalScanExecutor(),
@@ -684,14 +683,14 @@ class BigQueryCachingExecutor(executor.Executor):
         if result_bq_data is not None:
             return executor.BQTableExecuteResult(
                 data=result_bq_data,
-                bf_schema=og_schema,
-                bq_client=self.bqclient,
                 storage_client=self.bqstoragereadclient,
                 query_job=query_job,
             )
         else:
             return executor.LocalExecuteResult(
-                data=pa.Table.from_batches(iterator.to_arrow_iterable()),
+                data=pa.Table.from_batches(
+                    iterator.to_arrow_iterable(), plan.schema.to_pyarrow()
+                ),
                 bf_schema=plan.schema,
             )
 

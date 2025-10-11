@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from google.cloud import bigquery, bigquery_storage_v1
+from google.cloud import bigquery_storage_v1
 
 from bigframes.core import bigframe_node, nodes, rewrite
 from bigframes.session import executor, semi_executor
@@ -29,11 +29,9 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
     def __init__(
         self,
         bqstoragereadclient: bigquery_storage_v1.BigQueryReadClient,
-        bqclient: bigquery.Client,
         project: str,
     ):
         self.bqstoragereadclient = bqstoragereadclient
-        self.bqclient = bqclient
         self.project = project
 
     def execute(
@@ -55,8 +53,6 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
 
         return executor.BQTableExecuteResult(
             data=node.source,
-            bf_schema=node.schema,
-            bq_client=self.bqclient,
             storage_client=self.bqstoragereadclient,
             limit=peek,
             selected_fields=[item.source_id for item in node.scan_list.items],
