@@ -794,6 +794,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
             max_results
         )
+        if row_count is None:
+            raise NotImplementedError(
+                "Cannot determine total number of rows. Please use .to_pandas() to display."
+            )
 
         self._set_internal_query_job(query_job)
 
@@ -879,6 +883,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
         )
+        if row_count is None:
+            raise NotImplementedError(
+                "Cannot determine total number of rows. Please use .to_pandas() to display."
+            )
 
         self._set_internal_query_job(query_job)
         column_count = len(pandas_df.columns)
@@ -1884,7 +1892,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_results: Optional[int] = None,
         *,
         allow_large_results: Optional[bool] = None,
-    ) -> Iterable[pandas.DataFrame]:
+    ) -> blocks.PandasBatches:
         """Stream DataFrame results to an iterable of pandas DataFrame.
 
         page_size and max_results determine the size and number of batches,
@@ -1929,7 +1937,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 over the default size limit of 10 GB.
 
         Returns:
-            Iterable[pandas.DataFrame]:
+            bigframes.core.blocks.PandasBatches:
                 An iterable of smaller dataframes which combine to
                 form the original dataframe. Results stream from bigquery,
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
