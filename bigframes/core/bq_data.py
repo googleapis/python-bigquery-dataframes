@@ -30,6 +30,7 @@ import google.cloud.bigquery_storage_v1.types as bq_storage_types
 from google.protobuf import timestamp_pb2
 import pyarrow as pa
 
+from bigframes.core import pyarrow_utils
 import bigframes.core.schema
 
 if typing.TYPE_CHECKING:
@@ -197,7 +198,7 @@ def get_arrow_batches(
         batches = _iter_streams(session.streams, storage_read_client)
 
         def process_batch(pa_batch):
-            return pa.RecordBatch.from_arrays(pa_batch.columns, names=data.schema.names)
+            return pyarrow_utils.cast_batch(pa_batch, data.schema.to_pyarrow())
 
         batches = map(process_batch, batches)
 

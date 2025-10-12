@@ -24,7 +24,6 @@ from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 import google.cloud.bigquery_storage_v1
-import pyarrow as pa
 
 import bigframes
 from bigframes import exceptions as bfe
@@ -321,7 +320,7 @@ class BigQueryCachingExecutor(executor.Executor):
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        row_iter, query_job = self._run_execute_query(
+        _, query_job = self._run_execute_query(
             sql=sql,
             job_config=job_config,
         )
@@ -688,9 +687,7 @@ class BigQueryCachingExecutor(executor.Executor):
             )
         else:
             return executor.LocalExecuteResult(
-                data=pa.Table.from_batches(
-                    iterator.to_arrow_iterable(), plan.schema.to_pyarrow()
-                ),
+                data=iterator.to_arrow(),
                 bf_schema=plan.schema,
             )
 

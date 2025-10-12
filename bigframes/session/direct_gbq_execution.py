@@ -18,7 +18,6 @@ from typing import Literal, Optional, Tuple
 from google.cloud import bigquery
 import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
-import pyarrow as pa
 
 from bigframes.core import compile, nodes
 from bigframes.core.compile import sqlglot
@@ -67,7 +66,7 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
 
         # just immediately downlaod everything for simplicity
         return executor.LocalExecuteResult(
-            data=pa.Table.from_batches(iterator.to_arrow_iterable()),
+            data=iterator.to_arrow(),
             bf_schema=plan.schema,
         )
 

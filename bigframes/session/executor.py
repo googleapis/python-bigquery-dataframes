@@ -27,7 +27,7 @@ import pyarrow as pa
 
 import bigframes
 import bigframes.core
-from bigframes.core import bq_data, pyarrow_utils
+from bigframes.core import bq_data, local_data, pyarrow_utils
 import bigframes.core.schema
 import bigframes.session._io.pandas as io_pandas
 import bigframes.session.execution_spec as ex_spec
@@ -70,7 +70,6 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
         result_rows = 0
 
         for batch in self._batches:
-            batch = pyarrow_utils.cast_batch(batch, self._schema.to_pyarrow())
             result_rows += batch.num_rows
 
             maximum_result_rows = bigframes.options.compute.maximum_result_rows
@@ -162,8 +161,10 @@ class ExecuteResult(abc.ABC):
 
 class LocalExecuteResult(ExecuteResult):
     def __init__(self, data: pa.Table, bf_schema: bigframes.core.schema.ArraySchema):
-        self._data = data
-        self._schema = bf_schema
+        self._data = local_data.ManagedArrowTable(
+            data.cast(bf_schema.to_pyarrow()), bf_schema
+        )
+        self._data.validate()
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -175,14 +176,14 @@ class LocalExecuteResult(ExecuteResult):
 
     @property
     def schema(self) -> bigframes.core.schema.ArraySchema:
-        return self._schema
+        return self._data.schema
 
     def batches(self) -> ResultsIterator:
         return ResultsIterator(
-            iter(self._data.to_batches()),
+            iter(self._data.to_arrow()[1]),
             self.schema,
-            self._data.num_rows,
-            self._data.nbytes,
+            self._data.metadata.row_count,
+            self._data.metadata.total_bytes,
         )
 
 
