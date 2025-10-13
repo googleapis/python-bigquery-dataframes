@@ -219,17 +219,18 @@ class BQTableExecuteResult(ExecuteResult):
         self,
         data: bq_data.BigqueryDataSource,
         storage_client: bigquery_storage_v1.BigQueryReadClient,
+        project_id: str,
         *,
         query_job: Optional[bigquery.QueryJob] = None,
         limit: Optional[int] = None,
         selected_fields: Optional[Sequence[str]] = None,
     ):
         self._data = data
+        self._project_id = project_id
         self._query_job = query_job
         self._storage_client = storage_client
         self._limit = limit
         self._selected_fields = selected_fields
-        self._next_iterator = None
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -253,6 +254,7 @@ class BQTableExecuteResult(ExecuteResult):
             self._data,
             self._selected_fields or self._data.schema.names,
             self._storage_client,
+            self._project_id,
         )
         arrow_batches = read_batches.iter
         approx_bytes: Optional[int] = self._data.n_rows or read_batches.approx_bytes

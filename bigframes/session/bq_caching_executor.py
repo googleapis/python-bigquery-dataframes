@@ -682,6 +682,7 @@ class BigQueryCachingExecutor(executor.Executor):
         if result_bq_data is not None:
             return executor.BQTableExecuteResult(
                 data=result_bq_data,
+                project_id=self.bqclient.project,
                 storage_client=self.bqstoragereadclient,
                 query_job=query_job,
             )

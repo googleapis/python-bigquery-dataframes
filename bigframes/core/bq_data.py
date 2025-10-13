@@ -157,6 +157,7 @@ def get_arrow_batches(
     data: BigqueryDataSource,
     columns: Sequence[str],
     storage_read_client: bigquery_storage_v1.BigQueryReadClient,
+    project_id: str,
 ) -> ReadResult:
     table_mod_options = {}
     read_options_dict: dict[str, Any] = {"selected_fields": list(columns)}
@@ -176,21 +177,19 @@ def get_arrow_batches(
         read_options=read_options,
         table_modifiers=table_mods,
     )
-    # Single stream to maintain ordering
-    request = bq_storage_types.CreateReadSessionRequest(
-        parent=f"projects/{data.table.project_id}",
-        read_session=requested_session,
-        max_stream_count=1,
-    )
-
     if data.ordering is not None:
         max_streams = 1
     else:
         max_streams = os.cpu_count() or 8
 
-    session = storage_read_client.create_read_session(
-        request=request, max_stream_count=max_streams
+    # Single stream to maintain ordering
+    request = bq_storage_types.CreateReadSessionRequest(
+        parent=f"projects/{project_id}",
+        read_session=requested_session,
+        max_stream_count=max_streams,
     )
+
+    session = storage_read_client.create_read_session(request=request)
 
     if not session.streams:
         batches: Iterator[pa.RecordBatch] = iter([])

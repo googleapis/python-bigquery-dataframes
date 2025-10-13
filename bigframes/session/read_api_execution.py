@@ -53,6 +53,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
 
         return executor.BQTableExecuteResult(
             data=node.source,
+            project_id=self.project,
             storage_client=self.bqstoragereadclient,
             limit=peek,
             selected_fields=[item.source_id for item in node.scan_list.items],
