@@ -83,6 +83,11 @@ class BigqueryDataSource:
     This should not be modified once defined, as all attributes contribute to the default ordering.
     """
 
+    def __post_init__(self):
+        assert [field.name for field in self.table.physical_schema] == list(
+            self.schema.names
+        )
+
     table: GbqTable
     schema: bigframes.core.schema.ArraySchema
     at_time: typing.Optional[datetime.datetime] = None
