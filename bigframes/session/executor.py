@@ -161,10 +161,7 @@ class ExecuteResult(abc.ABC):
 
 class LocalExecuteResult(ExecuteResult):
     def __init__(self, data: pa.Table, bf_schema: bigframes.core.schema.ArraySchema):
-        self._data = local_data.ManagedArrowTable(
-            data.cast(bf_schema.to_pyarrow()), bf_schema
-        )
-        self._data.validate()
+        self._data = local_data.ManagedArrowTable.from_pyarrow(data, bf_schema)
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
