@@ -40,14 +40,9 @@ def apply_window_if_present(
         # Unbound grouping window.
         order_by = None
     elif window.is_range_bounded:
-        # Note that, when the window is range-bounded, we only need one ordering key.
-        # There are two reasons:
-        # 1. Manipulating null positions requires more than one ordering key, which
-        #  is forbidden by SQL window syntax for range rolling.
-        # 2. Pandas does not allow range rolling on timeseries with nulls.
-        order_by = get_window_order_by((window.ordering[0],), override_null_order=False)
+        order_by = get_window_order_by((window.ordering[0],))
     else:
-        order_by = get_window_order_by(window.ordering, override_null_order=True)
+        order_by = get_window_order_by(window.ordering)
 
     order = sge.Order(expressions=order_by) if order_by else None
 

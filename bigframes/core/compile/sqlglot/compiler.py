@@ -299,6 +299,12 @@ class SQLGlotCompiler:
     def compile_aggregate(
         self, node: nodes.AggregateNode, child: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
+        # TODO: Update the notes
+        # Note that, when the window is range-bounded, we only need one ordering key.
+        # There are two reasons:
+        # 1. Manipulating null positions requires more than one ordering key, which
+        #  is forbidden by SQL window syntax for range rolling.
+        # 2. Pandas does not allow range rolling on timeseries with nulls.
         ordering_cols = windows.get_window_order_by(
             node.order_by, override_null_order=True
         )
