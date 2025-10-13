@@ -103,7 +103,7 @@ def _iter_stream(
     stop_event: threading.Event,
 ):
     reader = storage_read_client.read_rows(stream_name)
-    for page in reader.rows():
+    for page in reader.rows().pages:
         try:
             result_queue.put(page.to_arrow(), timeout=_WORKER_TIME_INCREMENT)
         except queue.Full:
@@ -113,7 +113,8 @@ def _iter_stream(
 
 
 def _iter_streams(
-    streams, storage_read_client: bigquery_storage_v1.BigQueryReadClient
+    streams: Sequence[bq_storage_types.ReadStream],
+    storage_read_client: bigquery_storage_v1.BigQueryReadClient,
 ) -> Iterator[pa.RecordBatch]:
     stop_event = threading.Event()
     result_queue: queue.Queue = queue.Queue(
@@ -125,7 +126,11 @@ def _iter_streams(
         for stream in streams:
             in_progress.append(
                 pool.submit(
-                    _iter_stream, stream, storage_read_client, result_queue, stop_event
+                    _iter_stream,
+                    stream.name,
+                    storage_read_client,
+                    result_queue,
+                    stop_event,
                 )
             )
 
@@ -138,7 +143,7 @@ def _iter_streams(
                     if future.done():
                         try:
                             future.result()
-                        finally:
+                        except Exception:
                             stop_event.set()
                             raise
                     else:
