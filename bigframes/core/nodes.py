@@ -753,6 +753,11 @@ class ReadTableNode(LeafNode):
 
     table_session: bigframes.session.Session = dataclasses.field()
 
+    # DELETE BEFORE SUBMITTING, DEBUG ONLY
+    def __post_init__(self):
+        for item in self.scan_list.items:
+            assert item.source_id in self.source.schema.names
+
     def _validate(self):
         # enforce invariants
         physical_names = set(map(lambda i: i.name, self.source.table.physical_schema))
