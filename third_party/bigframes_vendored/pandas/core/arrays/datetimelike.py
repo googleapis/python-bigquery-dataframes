@@ -51,7 +51,6 @@ class DatelikeOps:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-
             >>> s = bpd.Series(pd.date_range(
             ...     start='2014-08-01 10:00',
             ...     freq='h',
