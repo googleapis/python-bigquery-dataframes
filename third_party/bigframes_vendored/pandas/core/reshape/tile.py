@@ -34,7 +34,6 @@ def cut(
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series([0, 1, 5, 10])
         >>> s

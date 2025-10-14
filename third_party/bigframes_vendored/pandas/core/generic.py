@@ -39,7 +39,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
             >>> s.size
@@ -66,7 +65,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -107,7 +105,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Create a DataFrame:
 
@@ -351,7 +348,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame(
             ...     [
@@ -462,7 +458,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'animal': ['alligator', 'bee', 'falcon', 'lion',
             ...                     'monkey', 'parrot', 'shark', 'whale', 'zebra']})
@@ -562,7 +557,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'num_legs': [2, 4, 8, 0],
             ...                     'num_wings': [2, 0, 0, 0],
@@ -644,7 +638,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'float': [1.0], 'int': [1], 'string': ['foo']})
             >>> df.dtypes
@@ -669,7 +662,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Modification in the original Series will not affect the copy Series:
 
@@ -743,7 +735,6 @@ class NDFrame(indexing.IndexingMixin):
 
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
             ...                     [3, 4, np.nan, 1],
@@ -826,7 +817,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> import numpy as np
 
             >>> df = bpd.DataFrame(dict(
@@ -1068,7 +1058,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([0,1,2,3,4])
             >>> s.rolling(window=3).min()
@@ -1156,7 +1145,6 @@ class NDFrame(indexing.IndexingMixin):
 
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> data = [[8000, 1000], [9500, np.nan], [5000, 2000]]
             >>> df = bpd.DataFrame(data, columns=['Salary', 'Others'])

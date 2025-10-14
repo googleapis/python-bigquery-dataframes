@@ -20,7 +20,6 @@ class ListAccessor:
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         [1, 2, 3],
@@ -46,7 +45,6 @@ class ListAccessor:
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         [1, 2, 3],
@@ -84,7 +82,6 @@ class StructAccessor:
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
@@ -130,7 +127,6 @@ class StructAccessor:
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
@@ -166,7 +162,6 @@ class StructAccessor:
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
@@ -201,7 +196,6 @@ class StructFrameAccessor:
 
             >>> import bigframes.pandas as bpd
             >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> countries = bpd.Series(["cn", "es", "us"])
             >>> files = bpd.Series(
             ...     [

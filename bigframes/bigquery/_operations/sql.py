@@ -38,7 +38,6 @@ def sql_scalar(
         >>> import bigframes.bigquery as bbq
         >>> import pandas as pd
         >>> import pyarrow as pa
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(["1.5", "2.5", "3.5"])
         >>> s = s.astype(pd.ArrowDtype(pa.decimal128(38, 9)))

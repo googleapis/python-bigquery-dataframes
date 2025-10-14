@@ -618,7 +618,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Simple query input:
 
@@ -774,7 +773,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Read a whole table, with arbitrary ordering or ordering corresponding to the primary key(s).
 
@@ -853,7 +851,6 @@ class Session(
 
             >>> import bigframes.streaming as bst
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
@@ -882,7 +879,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Read an existing BigQuery ML model.
 
@@ -953,7 +949,6 @@ class Session(
 
             >>> import bigframes.pandas as bpd
             >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> d = {'col1': [1, 2], 'col2': [3, 4]}
             >>> pandas_df = pd.DataFrame(data=d)
@@ -1831,7 +1826,6 @@ class Session(
 
             >>> import bigframes.pandas as bpd
             >>> import datetime
-            >>> bpd.options.display.progress_bar = None
 
         Turning an arbitrary python function into a BigQuery managed python udf:
 
@@ -1994,7 +1988,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Use the [cw_lower_case_ascii_only](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string)
         function from Community UDFs.

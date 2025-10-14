@@ -50,7 +50,6 @@ def json_set(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> import numpy as np
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.read_gbq("SELECT JSON '{\\\"a\\\": 1}' AS data")["data"]
         >>> bbq.json_set(s, json_path_value_pairs=[("$.a", 100), ("$.b", "hi")])
@@ -101,7 +100,6 @@ def json_extract(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['{"class": {"students": [{"id": 5}, {"id": 12}]}}'])
         >>> bbq.json_extract(s, json_path="$.class")
@@ -141,7 +139,6 @@ def json_extract_array(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['[1, 2, 3]', '[4, 5]'])
         >>> bbq.json_extract_array(s)
@@ -204,7 +201,6 @@ def json_extract_string_array(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['[1, 2, 3]', '[4, 5]'])
         >>> bbq.json_extract_string_array(s)
@@ -272,7 +268,6 @@ def json_query(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['{"class": {"students": [{"id": 5}, {"id": 12}]}}'])
         >>> bbq.json_query(s, json_path="$.class")
@@ -303,7 +298,6 @@ def json_query_array(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['[1, 2, 3]', '[4, 5]'])
         >>> bbq.json_query_array(s)
@@ -355,7 +349,6 @@ def json_value(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['{"name": "Jakob", "age": "6"}', '{"name": "Jakob", "age": []}'])
         >>> bbq.json_value(s, json_path="$.age")
@@ -392,7 +385,6 @@ def json_value_array(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['[1, 2, 3]', '[4, 5]'])
         >>> bbq.json_value_array(s)
@@ -439,7 +431,6 @@ def to_json(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series([1, 2, 3])
         >>> bbq.to_json(s)
@@ -473,7 +464,6 @@ def to_json_string(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series([1, 2, 3])
         >>> bbq.to_json_string(s)
@@ -512,7 +502,6 @@ def parse_json(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(['{"class": {"students": [{"id": 5}, {"id": 12}]}}'])
         >>> s

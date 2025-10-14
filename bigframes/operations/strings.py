@@ -68,7 +68,6 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(["apple", "banana", "", bpd.NA])
             >>> s.str.reverse()

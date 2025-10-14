@@ -40,7 +40,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2, 3],
             ...                     'col2': [4, 5, 6]})
@@ -64,7 +63,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.axes[1:]
@@ -79,7 +77,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.values
@@ -111,7 +108,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df
                col1  col2
@@ -147,7 +143,6 @@ class DataFrame(generic.NDFrame):
             **Square DataFrame with homogeneous dtype**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> d1 = {'col1': [1, 2], 'col2': [3, 4]}
             >>> df1 = bpd.DataFrame(data=d1)
@@ -257,7 +252,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': ["hello", "world"], 'col3': [True, False]})
             >>> df.select_dtypes(include=['Int64'])
@@ -381,7 +375,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_numpy()
@@ -420,7 +413,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Write a DataFrame to a BigQuery table.
 
@@ -530,7 +522,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> gcs_bucket = "gs://bigframes-dev-testing/sample_parquet*.parquet"
@@ -587,7 +578,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_dict()
@@ -668,7 +658,6 @@ class DataFrame(generic.NDFrame):
 
             >>> import bigframes.pandas as bpd
             >>> import tempfile
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_excel(tempfile.TemporaryFile())
@@ -704,7 +693,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> print(df.to_latex())
@@ -755,7 +743,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df.to_records()
@@ -815,7 +802,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> print(df.to_string())
@@ -915,7 +901,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> print(df.to_html())
@@ -1025,7 +1010,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> print(df.to_markdown())
@@ -1059,7 +1043,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> gcs_bucket = "gs://bigframes-dev-testing/sample_pickle_gcs.pkl"
@@ -1081,7 +1064,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> import tempfile
@@ -1191,7 +1173,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
 
@@ -1244,7 +1225,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame(np.arange(12).reshape(3, 4),
             ...                    columns=['A', 'B', 'C', 'D'])
@@ -1403,7 +1383,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
             >>> df
@@ -1475,7 +1454,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'month': [1, 4, 7, 10],
             ...                     'year': [2012, 2014, 2013, 2014],
@@ -1617,7 +1595,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> import numpy as np
             >>> df = bpd.DataFrame([('bird', 389.0),
@@ -1796,7 +1773,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"name": ['Alfred', 'Batman', 'Catwoman'],
             ...                     "toy": [np.nan, 'Batmobile', 'Bullwhip'],
@@ -1909,7 +1885,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'num_legs': [2, 4], 'num_wings': [2, 0]},
             ...                    index=['falcon', 'dog'])
@@ -1965,7 +1940,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -1986,7 +1960,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
             ...     'B': [4, 5, 6],
@@ -2012,7 +1985,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
             ...     'B': [4, 5, 6],
@@ -2045,7 +2017,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'species': ['bear', 'bear', 'marsupial'],
             ...                     'population': [1864, 22000, 80000]},
@@ -2086,7 +2057,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'a': [20, 10, 0], 'b': [0, 10, 20]})
             >>> df
@@ -2178,7 +2148,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'a': [20, 10, 0], 'b': [0, 10, 20]})
             >>> df
@@ -2281,7 +2250,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'col1': ['A', 'A', 'B', bpd.NA, 'D', 'C'],
@@ -2425,7 +2393,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can use method name:
 
@@ -2468,7 +2435,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, 3, 4],
@@ -2499,7 +2465,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'a':[True, False, True], 'b':[-1, 0, 1]})
             >>> ~df
@@ -2528,7 +2493,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can use method name:
 
@@ -2570,7 +2534,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, 3, 4],
@@ -2610,7 +2573,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can use method name:
 
@@ -2653,7 +2615,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, -1, 1],
@@ -2693,7 +2654,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can use method name:
 
@@ -2736,7 +2696,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, -1, 1],
@@ -2776,7 +2735,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can use method name:
 
@@ -2819,7 +2777,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, -1, 1],
@@ -2859,7 +2816,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'angles': [0, 3, 4],
             ...        'degrees': [360, 180, 360]},
@@ -2900,7 +2856,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, -1, 1],
@@ -2937,7 +2892,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -2981,7 +2935,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'height': [1.5, 2.6],
@@ -3056,7 +3009,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3119,7 +3071,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3163,7 +3114,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can subtract a scalar:
 
@@ -3211,7 +3161,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3272,7 +3221,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3316,7 +3264,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can multiply with a scalar:
 
@@ -3364,7 +3311,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3408,7 +3354,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can multiply with a scalar:
 
@@ -3456,7 +3401,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3500,7 +3444,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can multiply with a scalar:
 
@@ -3548,7 +3491,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3609,7 +3551,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3653,7 +3594,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can divide by a scalar:
 
@@ -3701,7 +3641,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3762,7 +3701,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3806,7 +3744,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can modulo with a scalar:
 
@@ -3854,7 +3791,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3916,7 +3852,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -3961,7 +3896,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can exponentiate with a scalar:
 
@@ -4010,7 +3944,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -4106,7 +4039,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df1 = bpd.DataFrame({'A': [0, 0], 'B': [4, 4]})
             >>> df2 = bpd.DataFrame({'A': [1, 1], 'B': [3, 3]})
@@ -4156,7 +4088,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df1 = bpd.DataFrame({'A': [None, 0], 'B': [None, 4]})
             >>> df2 = bpd.DataFrame({'A': [1, 1], 'B': [3, 3]})
@@ -4187,7 +4118,6 @@ class DataFrame(generic.NDFrame):
 
             >>> import bigframes.pandas as bpd
             >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [[0, 1, 2], [], [], [3, 4]],
             ...                     'B': 1,
@@ -4245,7 +4175,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [1, 2, 3],
             ...                    'B': [400, 500, 600],
@@ -4279,7 +4208,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [1, 2, 3],
             ...                    'B': [400, 500, 600],
@@ -4318,7 +4246,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> index = ["a", "b", "c", "d", "e"]
             >>> columns = ["one", "two", "three", "four"]
@@ -4354,7 +4281,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [1, 2, 3],
             ...                    'B': [400, 500, 600]})
@@ -4419,7 +4345,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'Animal': ['Falcon', 'Falcon',
             ...                                'Parrot', 'Parrot'],
@@ -4516,7 +4441,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Let's use ``reuse=False`` flag to make sure a new ``remote_function``
         is created every time we run the following code, but you can skip it
@@ -4613,7 +4537,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Join two DataFrames by specifying how to handle the operation:
 
@@ -4765,7 +4688,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Merge DataFrames df1 and df2 by specifying type of merge:
 
@@ -4897,7 +4819,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame([(.21, .32), (.01, .67), (.66, .03), (.21, .18)],
             ...                   columns=['dogs', 'cats'])
             >>> df
@@ -4982,7 +4903,6 @@ class DataFrame(generic.NDFrame):
 
             >>> import bigframes.pandas as bpd
             >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df
@@ -5132,7 +5052,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [True, True], "B": [False, False]})
             >>> df
@@ -5179,7 +5098,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [True, True], "B": [False, False]})
             >>> df
@@ -5222,7 +5140,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
             >>> df
@@ -5269,7 +5186,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
@@ -5314,7 +5230,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
@@ -5358,7 +5273,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
@@ -5400,7 +5314,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
@@ -5442,7 +5355,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
@@ -5480,7 +5392,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(np.array([[1, 1], [2, 10], [3, 100], [4, 100]]),
             ...                   columns=['a', 'b'])
             >>> df.quantile(.1)
@@ -5518,7 +5429,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
@@ -5563,7 +5473,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [1, 2, 3, 4, 5],
             ...                    'B': [5, 4, 3, 2, 1],
@@ -5604,7 +5513,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 2, 3, 4, 5],
             ...                     "B": [3, 4, 3, 2, 1],
@@ -5644,7 +5552,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 2, 3, 4, 5],
             ...                     "B": [3, 4, 3, 2, 1],
@@ -5686,7 +5593,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, None, 3, 4, 5],
             ...                     "B": [1, 2, 3, 4, 5],
@@ -5739,7 +5645,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
             ...                     "B": [5, 6, 3, 4, 1, 2],
@@ -5831,7 +5736,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
             ...                     "B": [5, 6, 3, 4, 1, 2],
@@ -5913,7 +5817,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -5943,7 +5846,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -5977,7 +5879,6 @@ class DataFrame(generic.NDFrame):
          **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [1, None, 3, 4, 5],
             ...                     "B": [1, 2, 3, 4, 5],
@@ -6052,7 +5953,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 2]})
             >>> df
@@ -6081,7 +5981,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -6113,7 +6012,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -6145,7 +6043,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -6182,7 +6079,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -6223,7 +6119,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -6271,7 +6166,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [1, 2, 3]})
             >>> df
@@ -6335,7 +6229,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8], "C": ["cat", "cat", "dog"]})
             >>> df
@@ -6407,7 +6300,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     "foo": ["one", "one", "one", "two", "two"],
@@ -6477,7 +6369,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'Product': ['Product A', 'Product B', 'Product A', 'Product B', 'Product A', 'Product B'],
@@ -6570,7 +6461,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [1, 3], 'B': [2, 4]}, index=['foo', 'bar'])
             >>> df
@@ -6609,7 +6499,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': [1, 3], 'B': [2, 4]}, index=['foo', 'bar'])
             >>> df
@@ -6650,7 +6539,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can access the index of a DataFrame via ``index`` property.
 
@@ -6703,7 +6591,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can access the column labels of a DataFrame via ``columns`` property.
 
@@ -6751,7 +6638,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'num_legs': [2, 4, 4, 6, 7],
             ...                     'num_wings': [2, 0, 0, 0, bpd.NA]},
@@ -6832,7 +6718,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': range(1, 6), 'B': range(10, 0, -2)})
             >>> df
@@ -6908,7 +6793,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'A': range(1, 6),
             ...                    'B': range(10, 0, -2),
@@ -6983,7 +6867,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3, None, None, 6],
@@ -7033,7 +6916,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
             ...                     [3, 4, np.nan, 1],
@@ -7110,7 +6992,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'int_col': [1, 1, 2, 3],
@@ -7207,7 +7088,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...                    columns=['A', 'B', 'C'])
@@ -7241,7 +7121,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...   index=[4, 5, 6], columns=['A', 'B', 'C'])
@@ -7290,7 +7169,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> left = bpd.DataFrame([[0, 1, -2, -1], [1, 1, 1, 1]])
             >>> left
@@ -7384,7 +7262,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> left = bpd.DataFrame([[0, 1, -2, -1], [1, 1, 1, 1]])
             >>> left
@@ -7444,7 +7321,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...         'a': [0, 1, 2],
@@ -7467,7 +7343,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> import numpy as np
 
             >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [11, 22, 33]})
@@ -7502,7 +7377,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     "name" : ["alpha", "beta", "gamma"],
@@ -7577,7 +7451,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     "name" : ["alpha", "beta", "gamma"],
