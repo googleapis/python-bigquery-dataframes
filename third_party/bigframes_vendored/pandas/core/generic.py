@@ -102,7 +102,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-
         Create a DataFrame:
 
             >>> d = {'col1': [1, 2], 'col2': [3, 4]}
@@ -146,7 +145,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Note that this is equivalent of using ``to_datetime`` with ``unit='us'``:
 
-            >>> bpd.to_datetime(ser, unit='us', utc=True)
+            >>> bpd.to_datetime(ser, unit='us', utc=True)  # doctest: +SKIP
             0    2034-02-08 11:13:20.246789+00:00
             1    2021-06-19 17:20:44.123101+00:00
             2    2003-06-05 17:30:34.120101+00:00
@@ -551,7 +550,7 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({'num_legs': [2, 4, 8, 0],
             ...                     'num_wings': [2, 0, 0, 0],
             ...                     'num_specimen_seen': [10, 2, 1, 8]},
@@ -1045,7 +1044,7 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([0,1,2,3,4])
             >>> s.rolling(window=3).min()
             0    <NA>

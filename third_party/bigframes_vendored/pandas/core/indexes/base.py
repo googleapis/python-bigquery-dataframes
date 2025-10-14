@@ -1003,6 +1003,7 @@ class Index:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
 
             Generate an pandas.Index with duplicate values.
 

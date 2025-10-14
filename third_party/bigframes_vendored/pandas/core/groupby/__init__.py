@@ -44,7 +44,7 @@ class GroupBy:
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({"A": [1, 1, 1, 2, 2], "B": [0, 2, 8, 2, 7], "C": ["cat", "cat", "dog", "mouse", "cat"]})
             >>> df
                A  B      C
@@ -250,7 +250,7 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-
+            >>> import bigframes.pandas as bpd
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
             >>> ser.groupby(level=0).median()
@@ -288,6 +288,7 @@ class GroupBy:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame([
             ...     ['a', 1], ['a', 2], ['a', 3],
             ...     ['b', 1], ['b', 3], ['b', 5]
@@ -411,7 +412,7 @@ class GroupBy:
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame(
             ...     {
             ...         "group": ["a", "a", "a", "a", "a", "b", "b", "b", "b", "b"],
@@ -574,6 +575,7 @@ class GroupBy:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[None, 5, 6], C=[1, 2, 3]))
             >>> df.groupby("A").first()
                 B  C
@@ -1077,7 +1079,7 @@ class GroupBy:
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> lst = ['a', 'a', 'a', 'a', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
             >>> ser.groupby(level=0).rolling(2).min()
@@ -1133,7 +1135,7 @@ class GroupBy:
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> lst = ['a', 'a', 'c', 'c', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
             >>> ser.groupby(level=0).expanding().min()

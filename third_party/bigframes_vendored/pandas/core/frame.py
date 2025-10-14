@@ -4735,6 +4735,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame([(.21, .32), (.01, .67), (.66, .03), (.21, .18)],
             ...                   columns=['dogs', 'cats'])
             >>> df
@@ -5051,7 +5052,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({"A": [1, 2, 3], "B": [4.5, 5.5, 6.5]})
             >>> df
                 A    B
@@ -5261,7 +5262,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({"A": [1, 3], "B": [2, 4]})
             >>> df
                 A	B
@@ -5297,6 +5298,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame(np.array([[1, 1], [2, 10], [3, 100], [4, 100]]),
             ...                   columns=['a', 'b'])
             >>> df.quantile(.1)
@@ -5544,7 +5546,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
             ...                     "B": [5, 6, 3, 4, 1, 2],
             ...                     "C": ['a', 'b', 'a', 'b', 'a', 'b']})
@@ -5634,7 +5636,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({"A": [1, 1, 3, 3, 5, 5],
             ...                     "B": [5, 6, 3, 4, 1, 2],
             ...                     "C": ['a', 'b', 'a', 'b', 'a', 'b']})
@@ -6116,7 +6118,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({"A": [3, 1, 2], "B": [0, 2, 8], "C": ["cat", "cat", "dog"]})
             >>> df
                A  B    C
@@ -6254,7 +6256,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({
             ...     'Product': ['Product A', 'Product B', 'Product A', 'Product B', 'Product A', 'Product B'],
             ...     'Region': ['East', 'West', 'East', 'West', 'West', 'East'],
@@ -6867,7 +6869,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({
             ...     'int_col': [1, 1, 2, 3],
             ...     'string_col': ["a", "b", "c", "b"],
