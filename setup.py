@@ -77,9 +77,7 @@ extras = {
         "google-cloud-pubsub >=2.21.4",
     ],
     # used for local engine
-    # TODO(tswast): relax upper pin when issue with test_engines_astype_int
-    # and test_divmods_series is resolved.
-    "polars": ["polars >= 1.21.0, <1.34.0"],
+    "polars": ["polars >= 1.21.0"],
     "scikit-learn": ["scikit-learn>=1.2.2"],
     # Packages required for basic development flow.
     "dev": [
