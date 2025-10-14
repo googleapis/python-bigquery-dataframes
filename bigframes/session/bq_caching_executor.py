@@ -659,6 +659,8 @@ class BigQueryCachingExecutor(executor.Executor):
         # we could actually cache even when caching is not explicitly requested, but being conservative for now
         result_bq_data = None
         if query_job and query_job.destination:
+            # we might add extra sql columns in compilation, esp if caching w ordering, infer a bigframes type for them
+            result_bf_schema = _result_schema(og_schema, list(compiled.sql_schema))
             dst = query_job.destination
             result_bq_data = bq_data.BigqueryDataSource(
                 table=bq_data.GbqTable(
@@ -669,9 +671,9 @@ class BigQueryCachingExecutor(executor.Executor):
                     is_physically_stored=True,
                     cluster_cols=tuple(cluster_cols),
                 ),
-                schema=og_schema,
+                schema=result_bf_schema,
                 ordering=compiled.row_order,
-                n_rows=iterator.num_results,
+                n_rows=iterator.total_rows,
             )
 
         if cache_spec is not None:
@@ -685,12 +687,23 @@ class BigQueryCachingExecutor(executor.Executor):
                 project_id=self.bqclient.project,
                 storage_client=self.bqstoragereadclient,
                 query_job=query_job,
+                selected_fields=tuple(col for col in og_schema.names),
             )
         else:
             return executor.LocalExecuteResult(
-                data=iterator.to_arrow(),
+                data=iterator.to_arrow().select(og_schema.names),
                 bf_schema=plan.schema,
             )
+
+
+def _result_schema(
+    logical_schema: schemata.ArraySchema, sql_schema: list[bigquery.SchemaField]
+) -> schemata.ArraySchema:
+    inferred_schema = bigframes.dtypes.bf_type_from_type_kind(sql_schema)
+    inferred_schema.update(logical_schema._mapping)
+    return schemata.ArraySchema(
+        tuple(schemata.SchemaItem(col, dtype) for col, dtype in inferred_schema.items())
+    )
 
 
 def _if_schema_match(
