@@ -23,6 +23,7 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_ternary_op = scalar_compiler.scalar_op_compiler.register_ternary_op
 
 
 @register_unary_op(ops.AsTypeOp, pass_op=True)
@@ -92,6 +93,13 @@ def _(expr: TypedExpr, op: ops.MapOp) -> sge.Expression:
 @register_unary_op(ops.notnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.Not(this=sge.Is(this=expr.expr, expression=sge.Null()))
+
+
+@register_ternary_op(ops.where_op)
+def _(
+    original: TypedExpr, condition: TypedExpr, replacement: TypedExpr
+) -> sge.Expression:
+    return sge.If(this=condition.expr, true=original.expr, false=replacement.expr)
 
 
 # Helper functions
