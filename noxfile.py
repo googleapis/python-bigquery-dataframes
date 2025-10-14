@@ -126,6 +126,10 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
 nox.options.sessions = [
+    # Include unit_noextras to ensure at least some unit tests contribute to
+    # coverage.
+    # TODO(tswast): Consider removing this when unit_noextras and cover is run
+    # from GitHub actions.
     "unit_noextras",
     "system-3.9",  # No extras.
     f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
