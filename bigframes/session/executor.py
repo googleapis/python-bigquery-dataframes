@@ -254,8 +254,8 @@ class BQTableExecuteResult(ExecuteResult):
             self._project_id,
         )
         arrow_batches = read_batches.iter
-        approx_bytes: Optional[int] = self._data.n_rows or read_batches.approx_bytes
-        approx_rows: Optional[int] = read_batches.approx_rows
+        approx_bytes: Optional[int] = read_batches.approx_bytes
+        approx_rows: Optional[int] = self._data.n_rows or read_batches.approx_rows
 
         if self._limit is not None:
             if approx_rows is not None:
