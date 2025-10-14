@@ -687,7 +687,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 project_id=self.bqclient.project,
                 storage_client=self.bqstoragereadclient,
                 query_job=query_job,
-                selected_fields=tuple(col for col in og_schema.names),
+                selected_fields=tuple((col, col) for col in og_schema.names),
             )
         else:
             return executor.LocalExecuteResult(

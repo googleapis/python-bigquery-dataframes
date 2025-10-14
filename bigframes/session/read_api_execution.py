@@ -56,7 +56,9 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
             project_id=self.project,
             storage_client=self.bqstoragereadclient,
             limit=peek,
-            selected_fields=[item.source_id for item in node.scan_list.items],
+            selected_fields=[
+                (item.source_id, item.id.sql) for item in node.scan_list.items
+            ],
         )
 
     def _try_adapt_plan(

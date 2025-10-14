@@ -220,14 +220,16 @@ class BQTableExecuteResult(ExecuteResult):
         *,
         query_job: Optional[bigquery.QueryJob] = None,
         limit: Optional[int] = None,
-        selected_fields: Optional[Sequence[str]] = None,
+        selected_fields: Optional[Sequence[tuple[str, str]]] = None,
     ):
         self._data = data
         self._project_id = project_id
         self._query_job = query_job
         self._storage_client = storage_client
         self._limit = limit
-        self._selected_fields = selected_fields
+        self._selected_fields = selected_fields or [
+            (name, name) for name in data.schema.names
+        ]
 
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
@@ -240,20 +242,24 @@ class BQTableExecuteResult(ExecuteResult):
         return None
 
     @property
+    @functools.cache
     def schema(self) -> bigframes.core.schema.ArraySchema:
-        schema = self._data.schema
-        if self._selected_fields:
-            return schema.select(self._selected_fields)
-        return schema
+        source_ids = [selection[0] for selection in self._selected_fields]
+        return self._data.schema.select(source_ids).rename(dict(self._selected_fields))
 
     def batches(self) -> ResultsIterator:
         read_batches = bq_data.get_arrow_batches(
             self._data,
-            self._selected_fields or self._data.schema.names,
+            [x[0] for x in self._selected_fields],
             self._storage_client,
             self._project_id,
         )
-        arrow_batches = read_batches.iter
+        arrow_batches: Iterator[pa.RecordBatch] = map(
+            functools.partial(
+                pyarrow_utils.rename_batch, names=list(self.schema.names)
+            ),
+            read_batches.iter,
+        )
         approx_bytes: Optional[int] = read_batches.approx_bytes
         approx_rows: Optional[int] = self._data.n_rows or read_batches.approx_rows
 

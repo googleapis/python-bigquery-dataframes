@@ -207,7 +207,9 @@ def get_arrow_batches(
         batches = _iter_streams(session.streams, storage_read_client)
 
         def process_batch(pa_batch):
-            return pyarrow_utils.cast_batch(pa_batch, data.schema.to_pyarrow())
+            return pyarrow_utils.cast_batch(
+                pa_batch.select(columns), data.schema.select(columns).to_pyarrow()
+            )
 
         batches = map(process_batch, batches)
 
