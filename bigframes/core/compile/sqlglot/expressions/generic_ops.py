@@ -67,6 +67,18 @@ def _(expr: TypedExpr, op: ops.AsTypeOp) -> sge.Expression:
     return _cast(sg_expr, sg_to_type, op.safe)
 
 
+@register_ternary_op(ops.clip_op)
+def _(
+    original: TypedExpr,
+    lower: TypedExpr,
+    upper: TypedExpr,
+) -> sge.Expression:
+    return sge.Greatest(
+        this=sge.Least(this=original.expr, expressions=[upper.expr]),
+        expressions=[lower.expr],
+    )
+
+
 @register_unary_op(ops.hash_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("FARM_FINGERPRINT", expr.expr)
