@@ -1749,7 +1749,7 @@ class DataFrame(generic.NDFrame):
 
             >>> df = bpd.DataFrame({"name": ['Alfred', 'Batman', 'Catwoman'],
             ...                     "toy": [np.nan, 'Batmobile', 'Bullwhip'],
-            ...                     "born": [bpd.NA, "1940-04-25", bpd.NA]})
+            ...                     "born": [pd.NA, "1940-04-25", pd.NA]})
             >>> df
                    name        toy        born
             0    Alfred       <NA>        <NA>
@@ -2217,7 +2217,7 @@ class DataFrame(generic.NDFrame):
 
 
             >>> df = bpd.DataFrame({
-            ...     'col1': ['A', 'A', 'B', bpd.NA, 'D', 'C'],
+            ...     'col1': ['A', 'A', 'B', pd.NA, 'D', 'C'],
             ...     'col2': [2, 1, 9, 8, 7, 4],
             ...     'col3': [0, 1, 9, 4, 2, 3],
             ...     'col4': ['a', 'B', 'c', 'D', 'e', 'F']
@@ -4361,13 +4361,12 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
         Let's use ``reuse=False`` flag to make sure a new ``remote_function``
         is created every time we run the following code, but you can skip it
         to potentially reuse a previously deployed ``remote_function`` from
         the same user defined function.
 
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -4384,8 +4383,8 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [5 rows x 2 columns]
 
-            >>> df_hours = df_minutes.map(minutes_to_hours)
-            >>> df_hours
+            >>> df_hours = df_minutes.map(minutes_to_hours)  # doctest: +SKIP
+            >>> df_hours  # doctest: +SKIP
             system_minutes  user_minutes
             0             0.0           0.0
             1             0.5          0.25
@@ -4401,11 +4400,11 @@ class DataFrame(generic.NDFrame):
 
             >>> df_minutes = bpd.DataFrame(
             ...     {
-            ...         "system_minutes" : [0, 30, 60, None, 90, 120, bpd.NA],
-            ...         "user_minutes" : [0, 15, 75, 90, 6, None, bpd.NA]
+            ...         "system_minutes" : [0, 30, 60, None, 90, 120, pd.NA],
+            ...         "user_minutes" : [0, 15, 75, 90, 6, None, pd.NA]
             ...     }, dtype="Int64")
-            >>> df_hours = df_minutes.map(minutes_to_hours, na_action='ignore')
-            >>> df_hours
+            >>> df_hours = df_minutes.map(minutes_to_hours, na_action='ignore')  # doctest: +SKIP
+            >>> df_hours  # doctest: +SKIP
             system_minutes  user_minutes
             0             0.0           0.0
             1             0.5          0.25
@@ -6521,7 +6520,7 @@ class DataFrame(generic.NDFrame):
 
 
             >>> df = bpd.DataFrame({'num_legs': [2, 4, 4, 6, 7],
-            ...                     'num_wings': [2, 0, 0, 0, bpd.NA]},
+            ...                     'num_wings': [2, 0, 0, 0, pd.NA]},
             ...                    index=['falcon', 'dog', 'cat', 'ant', 'octopus'],
             ...                    dtype='Int64')
             >>> df

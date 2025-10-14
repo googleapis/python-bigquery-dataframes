@@ -68,7 +68,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         **Examples:**
 
 
-            >>> s = bpd.Series(["apple", "banana", "", bpd.NA])
+            >>> s = bpd.Series(["apple", "banana", "", pd.NA])
             >>> s.str.reverse()
             0     elppa
             1    ananab

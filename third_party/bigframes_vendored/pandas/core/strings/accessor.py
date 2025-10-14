@@ -146,7 +146,7 @@ class StringMethods:
 
         Returns the length (number of characters) in a string.
 
-            >>> s = bpd.Series(['dog', '', bpd.NA])
+            >>> s = bpd.Series(['dog', '', pd.NA])
             >>> s.str.len()
             0       3
             1       0
@@ -249,7 +249,7 @@ class StringMethods:
             ...     '1. Ant.',
             ...     '  2. Bee? ',
             ...     '\\t3. Cat!\\n',
-            ...     bpd.NA,
+            ...     pd.NA,
             ... ])
             >>> s.str.strip()
             0    1. Ant.
@@ -535,7 +535,7 @@ class StringMethods:
 
             >>> import bigframes.pandas as bpd
 
-            >>> s = bpd.Series(['Ant', '  Bee ', '\tCat\n', bpd.NA])
+            >>> s = bpd.Series(['Ant', '  Bee ', '\tCat\n', pd.NA])
             >>> s.str.rstrip()
             0      Ant
             1      Bee
@@ -567,7 +567,7 @@ class StringMethods:
 
             >>> import bigframes.pandas as bpd
 
-            >>> s = bpd.Series(['Ant', '  Bee ', '\tCat\n', bpd.NA])
+            >>> s = bpd.Series(['Ant', '  Bee ', '\tCat\n', pd.NA])
             >>> s.str.lstrip()
             0      Ant
             1     Bee
@@ -817,7 +817,7 @@ class StringMethods:
         as a regex. When *repl* is a string, it replaces matching regex patterns
         as with `re.sub()`. NaN value(s) in the Series are left as is:
 
-            >>> s = bpd.Series(['foo', 'fuz', bpd.NA])
+            >>> s = bpd.Series(['foo', 'fuz', pd.NA])
             >>> s.str.replace('f.', 'ba', regex=True)
             0     bao
             1     baz
@@ -827,7 +827,7 @@ class StringMethods:
         When *pat* is a string and *regex* is False, every *pat* is replaced
         with *repl* as with `str.replace()`:
 
-            >>> s = bpd.Series(['f.o', 'fuz', bpd.NA])
+            >>> s = bpd.Series(['f.o', 'fuz', pd.NA])
             >>> s.str.replace('f.', 'ba', regex=False)
             0     bao
             1     fuz
@@ -874,7 +874,7 @@ class StringMethods:
 
             >>> import bigframes.pandas as bpd
 
-            >>> s = bpd.Series(['bat', 'Bear', 'caT', bpd.NA])
+            >>> s = bpd.Series(['bat', 'Bear', 'caT', pd.NA])
             >>> s
             0     bat
             1    Bear
@@ -918,7 +918,7 @@ class StringMethods:
 
             >>> import bigframes.pandas as bpd
 
-            >>> s = bpd.Series(['bat', 'bear', 'caT', bpd.NA])
+            >>> s = bpd.Series(['bat', 'bear', 'caT', pd.NA])
             >>> s
             0     bat
             1    bear
@@ -1206,7 +1206,7 @@ class StringMethods:
 
             >>> import bigframes.pandas as bpd
 
-            >>> s = bpd.Series(['-1', '1', '1000', bpd.NA])
+            >>> s = bpd.Series(['-1', '1', '1000', pd.NA])
             >>> s
             0      -1
             1       1

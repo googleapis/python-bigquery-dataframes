@@ -809,7 +809,7 @@ class NDFrame(indexing.IndexingMixin):
 
             >>> df = bpd.DataFrame(dict(
             ...         age=[5, 6, np.nan],
-            ...         born=[bpd.NA, "1940-04-25", "1940-04-25"],
+            ...         born=[pd.NA, "1940-04-25", "1940-04-25"],
             ...         name=['Alfred', 'Batman', ''],
             ...         toy=[None, 'Batmobile', 'Joker'],
             ... ))
@@ -841,7 +841,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Show which entries in a Series are NA:
 
-            >>> ser = bpd.Series([5, None, 6, np.nan, bpd.NA])
+            >>> ser = bpd.Series([5, None, 6, np.nan, pd.NA])
             >>> ser
             0       5
             1    <NA>

@@ -160,7 +160,7 @@ class Series(NDFrame):  # type: ignore[misc]
             >>> s = bpd.Series([1, 4, 9, 16])
             >>> s.shape
             (4,)
-            >>> s = bpd.Series(['Alice', 'Bob', bpd.NA])
+            >>> s = bpd.Series(['Alice', 'Bob', pd.NA])
             >>> s.shape
             (3,)
         """
@@ -866,7 +866,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
 
-            >>> s = bpd.Series([0.0, 1.0, bpd.NA])
+            >>> s = bpd.Series([0.0, 1.0, pd.NA])
             >>> s
             0     0.0
             1     1.0
@@ -2517,7 +2517,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Empty strings are not considered NA values. ``None`` is considered an NA value.
 
-            >>> ser = bpd.Series(['2', bpd.NA, '', None, 'I stay'], dtype='object')
+            >>> ser = bpd.Series(['2', pd.NA, '', None, 'I stay'], dtype='object')
             >>> ser
             0         2
             1      <NA>
@@ -3089,7 +3089,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
 
-            >>> a = bpd.Series([1, 2, 3, bpd.NA])
+            >>> a = bpd.Series([1, 2, 3, pd.NA])
             >>> a
             0       1
             1       2
@@ -4391,7 +4391,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the max of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4431,7 +4431,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the min of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4516,7 +4516,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the sum of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4550,7 +4550,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the mean of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -5215,7 +5215,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
 
-            >>> s = bpd.Series([3, 1, 2, 3, 4, bpd.NA], dtype="Int64")
+            >>> s = bpd.Series([3, 1, 2, 3, 4, pd.NA], dtype="Int64")
 
             >>> s
             0       3
@@ -5470,7 +5470,7 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
 
-            >>> s = bpd.Series(['cat', 'dog', bpd.NA, 'rabbit'])
+            >>> s = bpd.Series(['cat', 'dog', pd.NA, 'rabbit'])
             >>> s
             0       cat
             1       dog
