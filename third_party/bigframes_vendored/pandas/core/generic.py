@@ -734,7 +734,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
             ...                     [3, 4, np.nan, 1],
@@ -817,7 +816,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame(dict(
             ...         age=[5, 6, np.nan],
@@ -1144,7 +1142,6 @@ class NDFrame(indexing.IndexingMixin):
         Constructing a income DataFrame from a dictionary.
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> data = [[8000, 1000], [9500, np.nan], [5000, 2000]]
             >>> df = bpd.DataFrame(data, columns=['Salary', 'Others'])

@@ -49,7 +49,6 @@ def json_set(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> import numpy as np
 
         >>> s = bpd.read_gbq("SELECT JSON '{\\\"a\\\": 1}' AS data")["data"]
         >>> bbq.json_set(s, json_path_value_pairs=[("$.a", 100), ("$.b", "hi")])

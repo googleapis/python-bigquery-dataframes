@@ -56,7 +56,6 @@ class PlotAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
             >>> df = bpd.DataFrame(np.random.randint(1, 7, 6000), columns=['one'])
             >>> df['two'] = np.random.randint(1, 7, 6000) + np.random.randint(1, 7, 6000)
             >>> ax = df.plot.hist(bins=12, alpha=0.5)

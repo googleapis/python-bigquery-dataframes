@@ -2419,7 +2419,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
         **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> import pandas as pd
 
         >>> data = {
         ...     "timestamp_col": pd.date_range(

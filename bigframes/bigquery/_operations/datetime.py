@@ -21,7 +21,6 @@ def unix_seconds(input: series.Series) -> series.Series:
 
     **Examples:**
 
-        >>> import pandas as pd
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
 
@@ -47,7 +46,6 @@ def unix_millis(input: series.Series) -> series.Series:
 
     **Examples:**
 
-        >>> import pandas as pd
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
 
@@ -73,7 +71,6 @@ def unix_micros(input: series.Series) -> series.Series:
 
     **Examples:**
 
-        >>> import pandas as pd
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
 

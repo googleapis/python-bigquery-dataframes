@@ -72,7 +72,6 @@ def cut(
 
     Cut with pd.IntervalIndex, requires importing pandas for IntervalIndex:
 
-        >>> import pandas as pd
         >>> interval_index = pd.IntervalIndex.from_tuples([(0, 1), (1, 5), (5, 20)])
         >>> bpd.cut(s, bins=interval_index)
         0                                            <NA>

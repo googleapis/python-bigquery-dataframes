@@ -38,7 +38,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
 
             >>> seconds_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="s"))
             >>> seconds_series
@@ -330,7 +329,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
 
             >>> s = bpd.Series([1, 2, 3, 4], name='foo',
             ...                index=['a', 'b', 'c', 'd'])
@@ -735,7 +733,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
 
             >>> ser = bpd.Series(pd.Categorical(['a', 'b', 'a']))
             >>> ser.to_numpy()
@@ -1498,7 +1495,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([np.nan, 1, 3, 10, 5])
             >>> s
@@ -1596,7 +1592,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series(['a', 'b', 'c', 'd'], index=[3, 2, 1, 4])
             >>> s.sort_index()
@@ -1969,7 +1964,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
         Consider 2 Datasets ``s1`` and ``s2`` containing
         highest clocked speeds of different birds.
@@ -2050,7 +2044,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         You can also group by more than one index levels.
 
-            >>> import pandas as pd
             >>> s = bpd.Series([380, 370., 24., 26.],
             ...                index=pd.MultiIndex.from_tuples(
             ...                    [("Falcon", "Clear"),
@@ -2216,7 +2209,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Drop 2nd level label in MultiIndex Series:
 
-            >>> import pandas as pd
             >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
             ...                              ['speed', 'weight', 'length']],
             ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
@@ -2330,7 +2322,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
         Filling in NaN in a Series via linear interpolation.
 
@@ -2374,7 +2365,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([np.nan, 2, np.nan, -1])
             >>> s
@@ -2554,7 +2544,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
         Drop NA values from a Series:
 
@@ -2617,7 +2606,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
         Boundary values are included by default:
 
@@ -2675,7 +2663,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> c = bpd.Series([6, 7, 8, 9], name="c")
             >>> a = bpd.Series([0, 0, 1, 2])
@@ -2743,7 +2730,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2780,7 +2766,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2822,7 +2807,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2860,7 +2844,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2896,7 +2879,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -2940,7 +2922,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -2986,7 +2967,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3031,7 +3011,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3077,7 +3056,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3123,7 +3101,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3282,7 +3259,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3346,7 +3322,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3441,7 +3416,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3502,7 +3476,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3586,7 +3559,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3646,7 +3618,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3730,7 +3701,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3791,7 +3761,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3875,7 +3844,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3936,7 +3904,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4019,7 +3986,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4081,7 +4047,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4166,7 +4131,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4228,7 +4192,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4279,7 +4242,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4333,7 +4295,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s1 = bpd.Series([1, np.nan])
             >>> s2 = bpd.Series([3, 4, 5])
@@ -4374,8 +4335,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> import numpy as np
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.update(bpd.Series([4, 5, 6]))
@@ -4467,7 +4426,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
         For Series input, the output is a scalar indicating whether any element is True.
 
@@ -4898,7 +4856,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
             >>> s = bpd.Series([1])
             >>> s.item()
             np.int64(1)
@@ -5975,7 +5932,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> ser = bpd.Series([1, 2, 3])
 

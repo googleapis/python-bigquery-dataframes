@@ -878,7 +878,6 @@ class Index:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> index = bpd.Index([3, 1, 2, 3, 4, np.nan])
             >>> index.value_counts()
@@ -934,7 +933,6 @@ class Index:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> idx = bpd.Index([np.nan, np.nan, 3])
             >>> idx.fillna(0)
@@ -1012,7 +1010,6 @@ class Index:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> idx = bpd.Index([1, np.nan, 3])
             >>> idx.dropna()

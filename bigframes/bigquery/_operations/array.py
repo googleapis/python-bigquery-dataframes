@@ -77,7 +77,6 @@ def array_agg(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> import numpy as np
 
     For a SeriesGroupBy object:
 
@@ -126,7 +125,6 @@ def array_to_string(series: series.Series, delimiter: str) -> series.Series:
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> import numpy as np
 
         >>> s = bpd.Series([["H", "i", "!"], ["Hello", "World"], np.nan, [], ["Hi"]])
         >>> bbq.array_to_string(s, delimiter=", ")

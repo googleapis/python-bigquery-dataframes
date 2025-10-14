@@ -1264,7 +1264,6 @@ class DataFrame(generic.NDFrame):
 
         Drop columns and/or rows of MultiIndex DataFrame:
 
-            >>> import pandas as pd
             >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
             ...                              ['speed', 'weight', 'length']],
             ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
@@ -1596,7 +1595,6 @@ class DataFrame(generic.NDFrame):
 
             >>> import bigframes.pandas as bpd
 
-            >>> import numpy as np
             >>> df = bpd.DataFrame([('bird', 389.0),
             ...                     ('bird', 24.0),
             ...                     ('mammal', 80.5),
@@ -1636,7 +1634,6 @@ class DataFrame(generic.NDFrame):
 
         You can also use ``reset_index`` with ``MultiIndex``.
 
-            >>> import pandas as pd
             >>> index = pd.MultiIndex.from_tuples([('bird', 'falcon'),
             ...                                    ('bird', 'parrot'),
             ...                                    ('mammal', 'lion'),
@@ -4117,7 +4114,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame({'A': [[0, 1, 2], [], [], [3, 4]],
             ...                     'B': 1,
@@ -4902,7 +4898,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
 
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> df
@@ -7343,7 +7338,6 @@ class DataFrame(generic.NDFrame):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame({"a": [1, 2, 3], "b": [11, 22, 33]})
 
@@ -7421,7 +7415,6 @@ class DataFrame(generic.NDFrame):
 
         You can specify a pandas Index with desired column labels.
 
-            >>> import pandas as pd
             >>> df[pd.Index(["age", "location"])]
                age location
             0   20       WA

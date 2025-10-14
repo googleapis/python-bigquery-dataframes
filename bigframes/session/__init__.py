@@ -948,7 +948,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
 
             >>> d = {'col1': [1, 2], 'col2': [3, 4]}
             >>> pandas_df = pd.DataFrame(data=d)
@@ -2078,7 +2077,6 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> import pandas as pd
             >>> @bpd.remote_function(cloud_function_service_account="default")
             ... def row_sum(s: pd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']

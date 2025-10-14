@@ -962,7 +962,6 @@ class StringMethods:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series(
             ...     [
@@ -1276,7 +1275,6 @@ class StringMethods:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
 
         Example with a list that contains non-string elements.
 

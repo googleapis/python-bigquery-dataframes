@@ -161,7 +161,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, np.nan], index=lst)
@@ -199,7 +198,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
             >>> df = bpd.DataFrame({'A': [1, 1, 2, 1, 2],
             ...                    'B': [np.nan, 2, 3, 4, 5],
             ...                    'C': [1, 2, 1, 1, 2]}, columns=['A', 'B', 'C'])
@@ -258,7 +256,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -337,7 +334,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -383,7 +379,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -426,7 +421,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame(
             ...     {
@@ -501,7 +495,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> ser = bpd.Series([390., 350., 357., np.nan, 22., 20., 30.],
             ...                  index=['Falcon', 'Falcon', 'Falcon', 'Falcon',
@@ -715,7 +708,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -750,7 +742,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -878,7 +869,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -916,7 +906,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -954,7 +943,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -992,7 +980,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -1032,7 +1019,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -1077,7 +1063,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -1119,7 +1104,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'a', 'a', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
@@ -1177,7 +1161,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'c', 'c', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
@@ -1347,7 +1330,6 @@ class SeriesGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
             >>> s.groupby(level=0).agg(['min', 'max'])
@@ -1379,7 +1361,6 @@ class SeriesGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
             >>> s.groupby(level=0).aggregate(['min', 'max'])
@@ -1411,7 +1392,6 @@ class SeriesGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 3], index=lst)
@@ -1461,7 +1441,6 @@ class DataFrameGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> data = {"A": [1, 1, 2, 2],
             ...         "B": [1, 2, 3, 4],
@@ -1520,7 +1499,6 @@ class DataFrameGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> data = {"A": [1, 1, 2, 2],
             ...         "B": [1, 2, 3, 4],
@@ -1579,7 +1557,6 @@ class DataFrameGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame({'id': ['spam', 'egg', 'egg', 'spam',
             ...                           'ham', 'ham'],
@@ -1614,7 +1591,6 @@ class DataFrameGroupBy(GroupBy):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
 
             >>> df = bpd.DataFrame({
             ...     'gender': ['male', 'male', 'female', 'male', 'female', 'male'],
