@@ -127,6 +127,39 @@ def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_date_series_diff(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "date_col"
+    bf_df = scalar_types_df[[col_name]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    op = agg_exprs.UnaryAggregation(
+        agg_ops.DateSeriesDiffOp(periods=1), expression.deref(col_name)
+    )
+    sql = _apply_unary_window_op(bf_df, op, window, "diff_date")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_diff(scalar_types_df: bpd.DataFrame, snapshot):
+    # Test integer
+    int_col = "int64_col"
+    bf_df_int = scalar_types_df[[int_col]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(int_col),))
+    int_op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(int_col)
+    )
+    int_sql = _apply_unary_window_op(bf_df_int, int_op, window, "diff_int")
+    snapshot.assert_match(int_sql, "diff_int.sql")
+
+    # Test boolean
+    bool_col = "bool_col"
+    bf_df_bool = scalar_types_df[[bool_col]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(bool_col),))
+    bool_op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(bool_col)
+    )
+    bool_sql = _apply_unary_window_op(bf_df_bool, bool_op, window, "diff_bool")
+    snapshot.assert_match(bool_sql, "diff_bool.sql")
+
+
 def test_first(scalar_types_df: bpd.DataFrame, snapshot):
     if sys.version_info < (3, 12):
         pytest.skip(
@@ -271,6 +304,33 @@ def test_rank(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_shift(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+
+    # Test lag
+    lag_op = agg_exprs.UnaryAggregation(
+        agg_ops.ShiftOp(periods=1), expression.deref(col_name)
+    )
+    lag_sql = _apply_unary_window_op(bf_df, lag_op, window, "lag")
+    snapshot.assert_match(lag_sql, "lag.sql")
+
+    # Test lead
+    lead_op = agg_exprs.UnaryAggregation(
+        agg_ops.ShiftOp(periods=-1), expression.deref(col_name)
+    )
+    lead_sql = _apply_unary_window_op(bf_df, lead_op, window, "lead")
+    snapshot.assert_match(lead_sql, "lead.sql")
+
+    # Test no-op
+    noop_op = agg_exprs.UnaryAggregation(
+        agg_ops.ShiftOp(periods=0), expression.deref(col_name)
+    )
+    noop_sql = _apply_unary_window_op(bf_df, noop_op, window, "noop")
+    snapshot.assert_match(noop_sql, "noop.sql")
+
+
 def test_sum(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col", "bool_col"]]
     agg_ops_map = {
@@ -281,4 +341,15 @@ def test_sum(scalar_types_df: bpd.DataFrame, snapshot):
         bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
     )
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_time_series_diff(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "timestamp_col"
+    bf_df = scalar_types_df[[col_name]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    op = agg_exprs.UnaryAggregation(
+        agg_ops.TimeSeriesDiffOp(periods=1), expression.deref(col_name)
+    )
+    sql = _apply_unary_window_op(bf_df, op, window, "diff_time")
     snapshot.assert_match(sql, "out.sql")
