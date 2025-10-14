@@ -54,7 +54,6 @@ def to_timedelta(
 
     **Examples:**
 
-        >>> import bigframes.pandas as bpd
 
     Converting a Scalar to timedelta
 

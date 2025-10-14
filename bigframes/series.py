@@ -532,7 +532,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([4, 3, 2])
 
         Download the data from BigQuery and convert it into an in-memory pandas Series.
@@ -659,7 +658,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([4, 3, 2, 2, 3])
 
         Iterate through the results in batches, limiting the total rows yielded
@@ -2418,7 +2416,6 @@ class Series(bigframes.operations.base.SeriesMethods, vendored_pandas_series.Ser
 
         **Examples:**
 
-        >>> import bigframes.pandas as bpd
 
         >>> data = {
         ...     "timestamp_col": pd.date_range(

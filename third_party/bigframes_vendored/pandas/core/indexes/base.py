@@ -32,7 +32,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 2, 3], name='x')
             >>> idx
@@ -62,7 +61,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -84,7 +82,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
             >>> s
@@ -118,7 +115,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
         For Series:
 
@@ -152,7 +148,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> bool(bpd.Index([1, 2, 3]).is_monotonic_increasing)
             True
@@ -176,7 +171,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> bool(bpd.Index([3, 2, 1]).is_monotonic_decreasing)
             True
@@ -200,7 +194,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> df = bpd.DataFrame([['HI', 'Temp'], ['HI', 'Precip'],
             ...                     ['NJ', 'Temp'], ['NJ', 'Precip']],
@@ -239,7 +232,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -260,7 +252,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> mi = bpd.MultiIndex.from_arrays([['a'], ['b'], ['c']])
             >>> mi
@@ -281,7 +272,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 5, 7, 7])
             >>> idx.is_unique
@@ -303,7 +293,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 5, 7, 7])
             >>> bool(idx.has_duplicates)
@@ -325,7 +314,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -352,7 +340,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
             >>> s
@@ -390,7 +377,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index(['a', 'b', 'c'])
             >>> new_idx = idx.copy()
@@ -424,7 +410,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -472,7 +457,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index(list('abc'))
             >>> idx
@@ -501,7 +485,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index(['Ant', 'Bear', 'Cow'], name='animal')
 
@@ -554,7 +537,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1,2,3])
             >>> idx
@@ -593,7 +575,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
         True, because nonzero integers are considered True.
 
@@ -620,7 +601,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> index = bpd.Index([0, 1, 2])
             >>> bool(index.any())
@@ -645,7 +625,6 @@ class Index:
 
          **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([3, 2, 1])
             >>> int(idx.min())
@@ -666,7 +645,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([3, 2, 1])
             >>> int(idx.max())
@@ -691,7 +669,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
         Consider dataset containing cereal calories
 
@@ -727,7 +704,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> unique_index = bpd.Index(list('abc'))
             >>> unique_index.get_loc('b')
@@ -770,7 +746,6 @@ class Index:
 
         Consider dataset containing cereal calories
 
-            >>> import bigframes.pandas as bpd
 
             >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
             ...                'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
@@ -803,7 +778,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> s = bpd.Series([1, 3, 5, 7, 7])
             >>> s
@@ -834,7 +808,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([10, 100, 1, 1000])
             >>> idx
@@ -877,7 +850,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> index = bpd.Index([3, 1, 2, 3, 4, np.nan])
             >>> index.value_counts()
@@ -932,7 +904,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([np.nan, np.nan, 3])
             >>> idx.fillna(0)
@@ -961,7 +932,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index(['A', 'C', 'A', 'B'], name='score')
             >>> idx.rename('grade')
@@ -990,7 +960,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index(['a', 'b', 'c'])
             >>> idx.drop(['a'])
@@ -1009,7 +978,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([1, np.nan, 3])
             >>> idx.dropna()
@@ -1035,7 +1003,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             Generate an pandas.Index with duplicate values.
 
@@ -1077,7 +1044,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> idx = bpd.Index([1, 1, 2, 3, 3])
             >>> idx.unique()
             Index([1, 2, 3], dtype='Int64')
@@ -1097,7 +1063,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([1], index=['a'])
             >>> s.index.item()
             'a'

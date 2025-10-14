@@ -67,7 +67,6 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> s = bpd.Series(["apple", "banana", "", bpd.NA])
             >>> s.str.reverse()

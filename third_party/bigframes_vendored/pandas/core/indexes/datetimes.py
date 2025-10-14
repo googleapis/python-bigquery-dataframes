@@ -15,7 +15,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.year
@@ -29,7 +28,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.month
@@ -43,7 +41,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.day
@@ -57,7 +54,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.day_of_week
@@ -71,7 +67,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.dayofweek
@@ -85,7 +80,6 @@ class DatetimeIndex(base.Index):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
 
             >>> idx = bpd.Index([pd.Timestamp("20250215")])
             >>> idx.weekday

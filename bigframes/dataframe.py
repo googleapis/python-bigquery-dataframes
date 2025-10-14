@@ -1770,7 +1770,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({'col': [4, 2, 2]})
 
         Download the data from BigQuery and convert it into an in-memory pandas DataFrame.
@@ -1891,7 +1890,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({'col': [4, 3, 2, 2, 3]})
 
         Iterate through the results in batches, limiting the total rows yielded
@@ -4249,7 +4247,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-        >>> import bigframes.pandas as bpd
 
         >>> data = {
         ...     "timestamp_col": pd.date_range(

@@ -19,7 +19,6 @@ Encapsulates the configuration for displaying objects.
 
 Define Repr mode to "deferred" will prevent job execution in repr.
 
-    >>> import bigframes.pandas as bpd
     >>> df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
     >>> bpd.options.display.repr_mode = "deferred"

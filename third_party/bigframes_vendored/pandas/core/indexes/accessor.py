@@ -12,7 +12,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range("2000-01-01", periods=3, freq="D")
             ... )
@@ -40,7 +39,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-31', '2017-01-08', freq='D').to_series()
             ... )
@@ -72,7 +70,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-31', '2017-01-08', freq='D').to_series()
             ... )
@@ -100,7 +97,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-28', '2017-01-03', freq='D').to_series()
             ... )
@@ -126,7 +122,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-28', '2017-01-03', freq='D').to_series()
             ... )
@@ -157,7 +152,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"])
             >>> s = bpd.to_datetime(s, utc=True, format="%d/%m/%Y %H:%M:%S%Ez")
             >>> s
@@ -178,7 +172,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range("2000-01-01", periods=3, freq="h")
             ... )
@@ -202,7 +195,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range("2000-01-01", periods=3, freq="min")
             ... )
@@ -226,7 +218,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range("2000-01-01", periods=3, freq="M")
             ... )
@@ -250,7 +241,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range('2009-12-27', '2010-01-04', freq='d').to_series()
             ... )
@@ -281,7 +271,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range("2000-01-01", periods=3, freq="s")
             ... )
@@ -309,7 +298,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"])
             >>> s = bpd.to_datetime(s, utc=True, format="%m/%d/%Y %H:%M:%S%Ez")
             >>> s
@@ -330,7 +318,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(["1/1/2020 10:00:00+00:00", "4/1/2020 11:00:00+00:00"])
             >>> s = bpd.to_datetime(s, utc=True, format="%m/%d/%Y %H:%M:%S%Ez")
             >>> s
@@ -351,7 +338,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range("2000-01-01", periods=3, freq="Y")
             ... )
@@ -375,7 +361,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([pd.Timedelta("4d3m2s1us")])
             >>> s
             0    4 days 00:03:02.000001
@@ -391,7 +376,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([pd.Timedelta("4d3m2s1us")])
             >>> s
             0    4 days 00:03:02.000001
@@ -407,7 +391,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([pd.Timedelta("4d3m2s1us")])
             >>> s
             0    4 days 00:03:02.000001
@@ -422,7 +405,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([pd.Timedelta("1d1m1s1us")])
             >>> s
             0    1 days 00:01:01.000001
@@ -438,7 +420,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"])
             >>> s = bpd.to_datetime(s, utc=True, format="%m/%d/%Y %H:%M:%S%Ez")
             >>> s
@@ -460,7 +441,6 @@ class DatetimeProperties:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(["1/1/2020 10:00:00+00:00", "2/1/2020 11:00:00+00:00"])
             >>> s = bpd.to_datetime(s, utc=True, format="%m/%d/%Y %H:%M:%S%Ez")
             >>> s

@@ -172,7 +172,6 @@ def eval(
 
     **Examples:**
 
-        >>> import bigframes.pandas as bpd
 
         >>> df = bpd.DataFrame({"animal": ["dog", "pig"], "age": [10, 20]})
         >>> df
