@@ -1283,16 +1283,16 @@ class Series(NDFrame):  # type: ignore[misc]
 
 
             >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
-            >>> s.autocorr()
-            0.10355263309024065
+            >>> float(s.autocorr())  # doctest: +ELLIPSIS
+            0.1035526330902...
 
-            >>> s.autocorr(lag=2)
+            >>> float(s.autocorr(lag=2))
             -1.0
 
         If the Pearson correlation is not well defined, then 'NaN' is returned.
 
             >>> s = bpd.Series([1, 0, 0, 0])
-            >>> s.autocorr()
+            >>> float(s.autocorr())
             nan
 
         Args:
