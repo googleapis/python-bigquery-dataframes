@@ -25,6 +25,7 @@ import warnings
 # isn't installed.
 import bigframes.core.compile.polars.operations.generic_ops  # noqa: F401
 import bigframes.core.compile.polars.operations.numeric_ops  # noqa: F401
+import bigframes.core.compile.polars.operations.struct_ops  # noqa: F401
 
 try:
     import bigframes._importing
