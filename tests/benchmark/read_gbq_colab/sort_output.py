@@ -14,7 +14,6 @@
 import pathlib
 
 import bigframes.pandas
-import bigframes.session.execution_spec
 import tests.benchmark.utils as utils
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
@@ -27,16 +26,8 @@ def sort_output(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    # Call the executor directly to isolate the query execution time
-    # from other DataFrame overhead for this benchmark.
-    execute_result = df._block.session._executor.execute(
-        df._block.expr,
-        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
-            ordered=True, promise_under_10gb=False
-        ),
-    )
-    assert execute_result.total_rows is not None and execute_result.total_rows >= 0
-    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
+    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    assert batches.total_rows is not None and batches.total_rows >= 0
     next(iter(batches))
 
     # Simulate the user sorting by a column and visualizing those results
@@ -45,17 +36,8 @@ def sort_output(*, project_id, dataset_id, table_id):
         sort_column = "col_bool_0"
 
     df_sorted = df.sort_values(sort_column)
-    execute_result_sorted = df_sorted._block.session._executor.execute(
-        df_sorted._block.expr,
-        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
-            ordered=True, promise_under_10gb=False
-        ),
-    )
-    assert (
-        execute_result_sorted.total_rows is not None
-        and execute_result_sorted.total_rows >= 0
-    )
-    batches_sorted = execute_result_sorted.to_pandas_batches(page_size=PAGE_SIZE)
+    batches_sorted = df_sorted.to_pandas_batches(page_size=PAGE_SIZE)
+    assert batches_sorted.total_rows is not None and batches_sorted.total_rows >= 0
     next(iter(batches_sorted))
 
 

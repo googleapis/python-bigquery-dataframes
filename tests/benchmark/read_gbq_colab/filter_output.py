@@ -14,7 +14,6 @@
 import pathlib
 
 import bigframes.pandas as bpd
-import bigframes.session.execution_spec
 import tests.benchmark.utils as utils
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
@@ -30,31 +29,15 @@ def filter_output(
     # e.g. "{local_inline}" or "{local_large}"
     df = bpd._read_gbq_colab(f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}")
 
-    # Call the executor directly to isolate the query execution time
-    # from other DataFrame overhead for this benchmark.
-    execute_result = df._block.session._executor.execute(
-        df._block.expr,
-        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
-            ordered=True, promise_under_10gb=False
-        ),
-    )
-    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
+    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
     next(iter(batches))
 
     # Simulate the user filtering by a column and visualizing those results
     df_filtered = df[df["col_bool_0"]]
-    # Force BigQuery execution for filtered DataFrame to get total_rows metadata
-    execute_result_filtered = df_filtered._block.session._executor.execute(
-        df_filtered._block.expr,
-        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
-            ordered=True, promise_under_10gb=False
-        ),
-    )
+    batches_filtered = df_filtered.to_pandas_batches(page_size=PAGE_SIZE)
 
-    rows = execute_result_filtered.total_rows or 0
+    rows = batches_filtered.total_rows or 0
     assert rows >= 0
-
-    batches_filtered = execute_result_filtered.to_pandas_batches(page_size=PAGE_SIZE)
 
     # It's possible we don't have any pages at all, since we filtered out all
     # matching rows.
