@@ -13,15 +13,19 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+import datetime
 import inspect
 from typing import Callable, Iterable, Union
+import warnings
 
 import google.cloud.bigquery as bigquery
 
+import bigframes.exceptions as bfe
 import bigframes.session
 import bigframes.session._io.bigquery as bf_io_bigquery
 
 _PYTHON_TO_BQ_TYPES = {int: "INT64", float: "FLOAT64", str: "STRING", bytes: "BYTES"}
+_UDF_CLEANUP_THRESHOLD_DAYS = 3
 
 
 @dataclass(frozen=True)
@@ -66,11 +70,38 @@ class TransformFunction:
         sig = inspect.signature(self._func)
         return _PYTHON_TO_BQ_TYPES[sig.return_annotation]
 
+    def _cleanup_old_udfs(self):
+        """Clean up old UDFs in the anonymous dataset."""
+        dataset = self._session._anon_dataset_manager.dataset
+        routines = list(self._session.bqclient.list_routines(dataset))
+        seven_days_ago = datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(days=_UDF_CLEANUP_THRESHOLD_DAYS)
+
+        cleaned_up_routines = 0
+        for routine in routines:
+            if (
+                routine.created < seven_days_ago
+                and routine._properties["routineType"] == "SCALAR_FUNCTION"
+            ):
+                self._session.bqclient.delete_routine(routine.reference)
+                cleaned_up_routines += 1
+
     def _create_udf(self):
         """Create Python UDF in BQ. Return name of the UDF."""
         udf_name = str(
             self._session._anon_dataset_manager.generate_unique_resource_id()
         )
+
+        # Try to clean up the old Python UDFs in the anonymous dataset. Do not
+        # raise an error when it fails for this step.
+        try:
+            self._cleanup_old_udfs()
+        except Exception as e:
+            msg = bfe.format_message(
+                f"Failed to clean up the old Python UDFs before creating {udf_name}: {e}"
+            )
+            warnings.warn(msg, category=bfe.CleanupFailedWarning)
 
         func_body = inspect.getsource(self._func)
         func_name = self._func.__name__
