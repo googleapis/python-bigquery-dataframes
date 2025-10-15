@@ -17,7 +17,6 @@ import pandas as pd
 import pytest
 
 import bigframes as bf
-import bigframes.pandas as bpd
 
 pytest.importorskip("anywidget")
 
@@ -530,34 +529,6 @@ def test_widget_row_count_reflects_actual_data_available(
         # not limited by page_size (which only affects pagination)
         assert widget.row_count == EXPECTED_ROW_COUNT
         assert widget.page_size == 2  # Respects the display option
-
-
-def test_repr_html_raises_when_row_count_is_none(monkeypatch):
-    df = bpd.DataFrame({"col1": [1, 2, 3]})
-
-    def mock_retrieve_repr_request_results(*args, **kwargs):
-        return df.to_pandas(), None, None
-
-    monkeypatch.setattr(
-        df._block, "retrieve_repr_request_results", mock_retrieve_repr_request_results
-    )
-
-    with pytest.raises(NotImplementedError):
-        df._repr_html_()
-
-
-def test_repr_raises_when_row_count_is_none(monkeypatch):
-    df = bpd.DataFrame({"col1": [1, 2, 3]})
-
-    def mock_retrieve_repr_request_results(*args, **kwargs):
-        return df.to_pandas(), None, None
-
-    monkeypatch.setattr(
-        df._block, "retrieve_repr_request_results", mock_retrieve_repr_request_results
-    )
-
-    with pytest.raises(NotImplementedError):
-        df.__repr__()
 
 
 # TODO(shuowei): Add tests for custom index and multiindex

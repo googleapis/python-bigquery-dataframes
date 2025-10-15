@@ -37,10 +37,7 @@ def sort_output(*, project_id, dataset_id, table_id):
 
     df_sorted = df.sort_values(sort_column)
     batches_sorted = df_sorted.to_pandas_batches(page_size=PAGE_SIZE)
-    assert (
-        batches_sorted.total_rows is not None
-        and batches_sorted.total_rows >= 0
-    )
+    assert batches_sorted.total_rows is not None and batches_sorted.total_rows >= 0
     next(iter(batches_sorted))
 
 
@@ -50,7 +47,6 @@ if __name__ == "__main__":
 
     utils.get_execution_time(
         sort_output,
-.
         current_path,
         config.benchmark_suffix,
         project_id=config.project_id,
