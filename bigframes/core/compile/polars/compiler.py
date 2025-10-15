@@ -724,22 +724,14 @@ if polars_installed:
                 ]
             )
             if how != "cross":
-                # Note: join_nulls renamed to nulls_equal for polars 1.24
-                polars_version = tuple(
-                    int(part) for part in pl.__version__.split(".") if part.isnumeric()
-                )
-                if polars_version >= (1, 24, 0):
-                    join_kwargs = {"nulls_equal": join_nulls}
-                else:
-                    join_kwargs = {"join_nulls": join_nulls}
-
                 joined = left.join(
                     right,
                     how=how,
                     left_on=left_on,
                     right_on=right_on,
+                    # Note: join_nulls renamed to nulls_equal for polars 1.24
+                    join_nulls=join_nulls,  # type: ignore
                     coalesce=False,
-                    **join_kwargs,  # type: ignore
                 )
             else:
                 joined = left.join(right, how=how, coalesce=False)
