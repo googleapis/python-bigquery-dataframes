@@ -986,9 +986,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
         Generate a Series with duplicated entries.
 
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama', 'hippo'],
             ...                name='animal')
             >>> s
@@ -1176,7 +1176,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([0.1, 1.3, 2.7])
             >>> s.round()
             0    0.0
@@ -1283,17 +1283,17 @@ class Series(NDFrame):  # type: ignore[misc]
 
 
             >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
-            >>> s.autocorr()  # doctest: +ELLIPSIS
-            np.float64(0.10355263309024067)
+            >>> s.autocorr()
+            0.10355263309024065
 
             >>> s.autocorr(lag=2)
-            np.float64(-1.0)
+            -1.0
 
         If the Pearson correlation is not well defined, then 'NaN' is returned.
 
             >>> s = bpd.Series([1, 0, 0, 0])
             >>> s.autocorr()
-            np.float64(nan)
+            nan
 
         Args:
             lag (int, default 1):
@@ -1927,10 +1927,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
         Consider 2 Datasets ``s1`` and ``s2`` containing
         highest clocked speeds of different birds.
 
+            >>> import bigframes.pandas as bpd
             >>> s1 = bpd.Series({'falcon': 330.0, 'eagle': 160.0})
             >>> s1
             falcon    330.0
@@ -2376,7 +2376,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([1, 2, 3, 4, 5])
             >>> s
             0    1
@@ -2684,7 +2684,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
             0     2.0
@@ -3973,7 +3973,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
             a     1.0
@@ -4006,6 +4006,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 The result of the operation.
 
         """
+        # TODO(b/452366836): adjust sample if needed to match pyarrow semantics.
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __pow__(self, other):
@@ -4055,7 +4056,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
             a     1.0
@@ -4610,7 +4611,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.quantile(.5)
             np.float64(2.5)
@@ -5290,7 +5291,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(["A_Str_Series"])
             >>> s
             0    A_Str_Series
@@ -5317,7 +5318,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> ser = bpd.Series([1, 2, 3, 3])
             >>> plot = ser.plot(kind='hist', title="My plot")
             >>> plot

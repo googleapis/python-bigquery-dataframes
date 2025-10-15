@@ -54,9 +54,9 @@ def to_timedelta(
 
     **Examples:**
 
-
     Converting a Scalar to timedelta
 
+        >>> import bigframes.pandas as bpd
         >>> scalar = 2
         >>> bpd.to_timedelta(scalar, unit='s')
         Timedelta('0 days 00:00:02')

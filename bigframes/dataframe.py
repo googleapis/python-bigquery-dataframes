@@ -4247,7 +4247,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-
+        >>> import bigframes.pandas as bpd
         >>> data = {
         ...     "timestamp_col": pd.date_range(
         ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
