@@ -207,7 +207,7 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr <= sge.convert(0),
+                this=expr.expr < sge.convert(0),
                 true=constants._NAN,
             )
         ],
