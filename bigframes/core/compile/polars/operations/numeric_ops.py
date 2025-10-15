@@ -88,4 +88,4 @@ def sqrt_op_impl(
 ) -> pl.Expr:
     import polars as pl
 
-    return pl.when(input <= 0).then(float("nan")).otherwise(input.sqrt())
+    return pl.when(input < 0).then(float("nan")).otherwise(input.sqrt())
