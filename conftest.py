@@ -23,16 +23,21 @@ import bigframes._config
 
 
 @pytest.fixture(scope="session")
-def polars_session():
-    pytest.importorskip("polars")
+def polars_session_or_bpd():
+    # Since the doctest imports fixture is autouse=True, don't skip if polars
+    # isn't available.
+    try:
+        from bigframes.testing import polars_session
 
-    from bigframes.testing import polars_session
+        return polars_session.TestSession()
+    except ImportError:
+        import bigframes.pandas as bpd
 
-    return polars_session.TestSession()
+        return bpd
 
 
 @pytest.fixture(autouse=True)
-def default_doctest_imports(doctest_namespace, polars_session):
+def default_doctest_imports(doctest_namespace, polars_session_or_bpd):
     """
     Avoid some boilerplate in pandas-inspired tests.
 
@@ -41,5 +46,5 @@ def default_doctest_imports(doctest_namespace, polars_session):
     doctest_namespace["np"] = np
     doctest_namespace["pd"] = pd
     doctest_namespace["pa"] = pa
-    doctest_namespace["bpd"] = polars_session
+    doctest_namespace["bpd"] = polars_session_or_bpd
     bigframes._config.options.display.progress_bar = None
