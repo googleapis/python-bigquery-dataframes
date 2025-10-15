@@ -21,6 +21,7 @@ import itertools
 from typing import Iterator, Literal, Optional, Sequence, Union
 
 from google.cloud import bigquery, bigquery_storage_v1
+import google.cloud.bigquery.table as bq_table
 import pandas as pd
 import pyarrow
 import pyarrow as pa
@@ -40,7 +41,9 @@ _ROW_LIMIT_EXCEEDED_TEMPLATE = (
 
 
 class ResultsIterator(Iterator[pa.RecordBatch]):
-    """Interface for mutable objects with state represented by a block value object."""
+    """
+    Iterator for query results, with some extra metadata attached.
+    """
 
     def __init__(
         self,
@@ -141,12 +144,7 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
 class ExecuteResult(abc.ABC):
     @property
     @abc.abstractmethod
-    def query_job(self) -> Optional[bigquery.QueryJob]:
-        ...
-
-    @property
-    @abc.abstractmethod
-    def total_bytes_processed(self) -> Optional[int]:
+    def execution_metadata(self) -> ExecutionMetadata:
         ...
 
     @property
@@ -158,18 +156,40 @@ class ExecuteResult(abc.ABC):
     def batches(self) -> ResultsIterator:
         ...
 
-
-class LocalExecuteResult(ExecuteResult):
-    def __init__(self, data: pa.Table, bf_schema: bigframes.core.schema.ArraySchema):
-        self._data = local_data.ManagedArrowTable.from_pyarrow(data, bf_schema)
-
     @property
     def query_job(self) -> Optional[bigquery.QueryJob]:
-        return None
+        return self.execution_metadata.query_job
 
     @property
     def total_bytes_processed(self) -> Optional[int]:
-        return None
+        return self.execution_metadata.bytes_processed
+
+
+@dataclasses.dataclass(frozen=True)
+class ExecutionMetadata:
+    query_job: Optional[bigquery.QueryJob] = None
+    bytes_processed: Optional[int] = None
+
+    @classmethod
+    def from_iterator(cls, iterator: bq_table.RowIterator) -> ExecutionMetadata:
+        return cls(
+            query_job=iterator.query, bytes_processed=iterator.total_bytes_processed
+        )
+
+
+class LocalExecuteResult(ExecuteResult):
+    def __init__(
+        self,
+        data: pa.Table,
+        bf_schema: bigframes.core.schema.ArraySchema,
+        execution_metadata: ExecutionMetadata = ExecutionMetadata(),
+    ):
+        self._data = local_data.ManagedArrowTable.from_pyarrow(data, bf_schema)
+        self._execution_metadata = execution_metadata
+
+    @property
+    def execution_metadata(self) -> ExecutionMetadata:
+        return self._execution_metadata
 
     @property
     def schema(self) -> bigframes.core.schema.ArraySchema:
@@ -188,20 +208,14 @@ class EmptyExecuteResult(ExecuteResult):
     def __init__(
         self,
         bf_schema: bigframes.core.schema.ArraySchema,
-        query_job: Optional[bigquery.QueryJob] = None,
+        execution_metadata: ExecutionMetadata = ExecutionMetadata(),
     ):
         self._schema = bf_schema
-        self._query_job = query_job
+        self._execution_metadata = execution_metadata
 
     @property
-    def query_job(self) -> Optional[bigquery.QueryJob]:
-        return self._query_job
-
-    @property
-    def total_bytes_processed(self) -> Optional[int]:
-        if self.query_job:
-            return self.query_job.total_bytes_processed
-        return None
+    def execution_metadata(self) -> ExecutionMetadata:
+        return self._execution_metadata
 
     @property
     def schema(self) -> bigframes.core.schema.ArraySchema:
@@ -218,13 +232,13 @@ class BQTableExecuteResult(ExecuteResult):
         storage_client: bigquery_storage_v1.BigQueryReadClient,
         project_id: str,
         *,
-        query_job: Optional[bigquery.QueryJob] = None,
+        execution_metadata: ExecutionMetadata = ExecutionMetadata(),
         limit: Optional[int] = None,
         selected_fields: Optional[Sequence[tuple[str, str]]] = None,
     ):
         self._data = data
         self._project_id = project_id
-        self._query_job = query_job
+        self._execution_metadata = execution_metadata
         self._storage_client = storage_client
         self._limit = limit
         self._selected_fields = selected_fields or [
@@ -232,14 +246,8 @@ class BQTableExecuteResult(ExecuteResult):
         ]
 
     @property
-    def query_job(self) -> Optional[bigquery.QueryJob]:
-        return self._query_job
-
-    @property
-    def total_bytes_processed(self) -> Optional[int]:
-        if self.query_job:
-            return self.query_job.total_bytes_processed
-        return None
+    def execution_metadata(self) -> ExecutionMetadata:
+        return self._execution_metadata
 
     @property
     @functools.cache

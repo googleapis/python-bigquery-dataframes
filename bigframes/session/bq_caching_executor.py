@@ -320,7 +320,7 @@ class BigQueryCachingExecutor(executor.Executor):
 
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
-        _, query_job = self._run_execute_query(
+        iterator, _ = self._run_execute_query(
             sql=sql,
             job_config=job_config,
         )
@@ -338,7 +338,7 @@ class BigQueryCachingExecutor(executor.Executor):
 
         return executor.EmptyExecuteResult(
             bf_schema=array_value.schema,
-            query_job=query_job,
+            execution_metadata=executor.ExecutionMetadata.from_iterator(iterator),
         )
 
     def dry_run(
@@ -681,18 +681,20 @@ class BigQueryCachingExecutor(executor.Executor):
             assert compiled.row_order is not None
             self.cache.cache_results_table(og_plan, result_bq_data)
 
+        execution_metadata = executor.ExecutionMetadata.from_iterator(iterator)
         if result_bq_data is not None:
             return executor.BQTableExecuteResult(
                 data=result_bq_data,
                 project_id=self.bqclient.project,
                 storage_client=self.bqstoragereadclient,
-                query_job=query_job,
+                execution_metadata=execution_metadata,
                 selected_fields=tuple((col, col) for col in og_schema.names),
             )
         else:
             return executor.LocalExecuteResult(
                 data=iterator.to_arrow().select(og_schema.names),
                 bf_schema=plan.schema,
+                execution_metadata=execution_metadata,
             )
 
 

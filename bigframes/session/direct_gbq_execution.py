@@ -68,6 +68,7 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
         return executor.LocalExecuteResult(
             data=iterator.to_arrow(),
             bf_schema=plan.schema,
+            execution_metadata=executor.ExecutionMetadata.from_iterator(iterator),
         )
 
     def _run_execute_query(
