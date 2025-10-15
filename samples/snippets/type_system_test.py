@@ -233,3 +233,46 @@ def test_type_system_examples() -> None:
         pd.Series([0.0, 1.0], dtype=dtypes.FLOAT_DTYPE),
         check_index_type=False,
     )
+
+    # [START bigquery_dataframes_type_system_json_query]
+    import pandas as pd
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
+
+    fruits = [
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+    ]
+
+    json_s = bpd.Series(fruits, dtype="json")
+    bbq.json_query(json_s, "$.fruits[0]")
+    # 0    {"name":"apple"}
+    # 1    {"name":"guava"}
+    # [END bigquery_dataframes_type_system_json_query]
+    pandas.testing.assert_series_equal(
+        bbq.json_query(json_s, "$.fruits[0]").to_pandas(),
+        pd.Series(['{"name":"apple"}', '{"name":"guava"}'], dtype=dtypes.JSON_DTYPE),
+        check_index_type=False,
+    )
+
+    # [START bigquery_dataframes_type_system_json_query_array]
+    import pandas as pd
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
+
+    fruits = [
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+    ]
+
+    json_s = bpd.Series(fruits, dtype="json")
+
+    bbq.json_query_array(json_s, "$.fruits")
+    # 0    ['{"name":"apple"}' '{"name":"cherry"}']
+    # 1    ['{"name":"guava"}' '{"name":"grapes"}']
+    # [END bigquery_dataframes_type_system_json_query_array]
+
+    # Can't test literals due to format issues
+    assert len(bbq.json_extract_array(json_s, "$.fruits")) == 2
