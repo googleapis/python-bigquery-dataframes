@@ -23,6 +23,7 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
 register_ternary_op = scalar_compiler.scalar_op_compiler.register_ternary_op
 
 
@@ -67,18 +68,6 @@ def _(expr: TypedExpr, op: ops.AsTypeOp) -> sge.Expression:
     return _cast(sg_expr, sg_to_type, op.safe)
 
 
-@register_ternary_op(ops.clip_op)
-def _(
-    original: TypedExpr,
-    lower: TypedExpr,
-    upper: TypedExpr,
-) -> sge.Expression:
-    return sge.Greatest(
-        this=sge.Least(this=original.expr, expressions=[upper.expr]),
-        expressions=[lower.expr],
-    )
-
-
 @register_unary_op(ops.hash_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("FARM_FINGERPRINT", expr.expr)
@@ -112,6 +101,44 @@ def _(
     original: TypedExpr, condition: TypedExpr, replacement: TypedExpr
 ) -> sge.Expression:
     return sge.If(this=condition.expr, true=original.expr, false=replacement.expr)
+
+
+@register_ternary_op(ops.clip_op)
+def _(
+    original: TypedExpr,
+    lower: TypedExpr,
+    upper: TypedExpr,
+) -> sge.Expression:
+    return sge.Greatest(
+        this=sge.Least(this=original.expr, expressions=[upper.expr]),
+        expressions=[lower.expr],
+    )
+
+
+@register_nary_op(ops.case_when_op)
+def _(*cases_and_outputs: TypedExpr) -> sge.Expression:
+    # Need to upcast BOOL to INT if any output is numeric
+    result_values = cases_and_outputs[1::2]
+    do_upcast_bool = any(
+        dtypes.is_numeric(t.dtype, include_bool=False) for t in result_values
+    )
+    if do_upcast_bool:
+        result_values = tuple(
+            TypedExpr(
+                sge.Cast(this=val.expr, to="INT64"),
+                dtypes.INT_DTYPE,
+            )
+            if val.dtype == dtypes.BOOL_DTYPE
+            else val
+            for val in result_values
+        )
+
+    return sge.Case(
+        ifs=[
+            sge.If(this=predicate.expr, true=output.expr)
+            for predicate, output in zip(cases_and_outputs[::2], result_values)
+        ],
+    )
 
 
 # Helper functions
