@@ -364,7 +364,7 @@ def test_series_construct_w_nested_json_dtype():
 
     db_json_arrow_dtype = db_dtypes.JSONArrowType()
     s = bigframes.pandas.Series(
-        pd.arrays.ArrowExtensionArray(pa_array),
+        pd.arrays.ArrowExtensionArray(pa_array),  # type: ignore
         dtype=pd.ArrowDtype(
             pa.list_(pa.struct([("key", db_json_arrow_dtype)])),
         ),
@@ -379,7 +379,7 @@ def test_series_construct_w_nested_json_dtype():
     if hasattr(pa, "JsonType"):
         pyarrow_json_dtype = pa.json_(pa.string())
         s2 = bigframes.pandas.Series(
-            pd.arrays.ArrowExtensionArray(pa_array),
+            pd.arrays.ArrowExtensionArray(pa_array),  # type: ignore
             dtype=pd.ArrowDtype(
                 pa.list_(pa.struct([("key", pyarrow_json_dtype)])),
             ),
