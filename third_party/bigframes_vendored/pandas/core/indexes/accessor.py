@@ -97,6 +97,7 @@ class DatetimeProperties:
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(
             ...     pd.date_range('2016-12-28', '2017-01-03', freq='D').to_series()
             ... )

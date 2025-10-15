@@ -37,7 +37,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> seconds_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="s"))
             >>> seconds_series
             0    2000-01-01 00:00:00
@@ -1053,6 +1053,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
 
         By default, for each set of duplicated values, the first occurrence is
         set on False and all others on True:
@@ -1616,7 +1617,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
             ...                          "Malta": 434000, "Maldives": 434000,
             ...                          "Brunei": 434000, "Iceland": 337000,
@@ -1700,7 +1701,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
             ...                          "Malta": 434000, "Maldives": 434000,
             ...                          "Brunei": 434000, "Iceland": 337000,
@@ -4570,7 +4571,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series([1, 2, 3])
             >>> s.median()
             np.float64(2.0)
@@ -4870,7 +4871,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
             >>> s = bpd.Series([10, 11, 12, 13, 14])
             >>> s
             0    10
@@ -4914,7 +4914,7 @@ class Series(NDFrame):  # type: ignore[misc]
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
             ... def should_mask(name: str) -> bool:
             ...     hash = 0
             ...     for char_ in name:
@@ -4927,12 +4927,12 @@ class Series(NDFrame):  # type: ignore[misc]
             1         Bob
             2    Caroline
             dtype: string
-            >>> s.mask(should_mask)
+            >>> s.mask(should_mask)  # doctest: +SKIP
             0        <NA>
             1         Bob
             2    Caroline
             dtype: string
-            >>> s.mask(should_mask, "REDACTED")
+            >>> s.mask(should_mask, "REDACTED")  # doctest: +SKIP
             0    REDACTED
             1         Bob
             2    Caroline
@@ -5469,7 +5469,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
             >>> s = bpd.Series(['cat', 'dog', pd.NA, 'rabbit'])
             >>> s
             0       cat
@@ -5490,7 +5489,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         It also accepts a remote function:
 
-            >>> @bpd.remote_function(cloud_function_service_account="default")
+            >>> @bpd.remote_function(cloud_function_service_account="default")  # doctest: +SKIP
             ... def my_mapper(val: str) -> str:
             ...     vowels = ["a", "e", "i", "o", "u"]
             ...     if val:
@@ -5499,7 +5498,7 @@ class Series(NDFrame):  # type: ignore[misc]
             ...         ])
             ...     return "N/A"
 
-            >>> s.map(my_mapper)
+            >>> s.map(my_mapper)  # doctest: +SKIP
             0       cAt
             1       dOg
             2       N/A

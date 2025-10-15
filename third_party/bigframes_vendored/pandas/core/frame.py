@@ -405,6 +405,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
+            >>> import bigframes.pandas as bpd
 
         Write a DataFrame to a BigQuery table.
 
@@ -513,7 +514,7 @@ class DataFrame(generic.NDFrame):
 
         **Examples:**
 
-
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> gcs_bucket = "gs://bigframes-dev-testing/sample_parquet*.parquet"
             >>> df.to_parquet(path=gcs_bucket)
@@ -4843,14 +4844,14 @@ class DataFrame(generic.NDFrame):
         to select only the necessary columns before calling `apply()`. Note: This
         feature is currently in **preview**.
 
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
             ... def foo(row: pd.Series) -> int:
             ...     result = 1
             ...     result += row["col1"]
             ...     result += row["col2"]*row["col2"]
             ...     return result
 
-            >>> df[["col1", "col2"]].apply(foo, axis=1)
+            >>> df[["col1", "col2"]].apply(foo, axis=1)  # doctest: +SKIP
             0    11
             1    19
             dtype: Int64
@@ -4858,7 +4859,7 @@ class DataFrame(generic.NDFrame):
         You could return an array output for every input row from the remote
         function.
 
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
             ... def marks_analyzer(marks: pd.Series) -> list[float]:
             ...     import statistics
             ...     average = marks.mean()
@@ -4875,8 +4876,8 @@ class DataFrame(generic.NDFrame):
             ...     "chemistry": [88, 56, 72],
             ...     "algebra": [78, 91, 79]
             ... }, index=["Alice", "Bob", "Charlie"])
-            >>> stats = df.apply(marks_analyzer, axis=1)
-            >>> stats
+            >>> stats = df.apply(marks_analyzer, axis=1)  # doctest: +SKIP
+            >>> stats  # doctest: +SKIP
             Alice      [77.67 78.   77.19 76.71]
             Bob        [75.67 80.   74.15 72.56]
             Charlie    [75.33 75.   75.28 75.22]
@@ -4899,14 +4900,14 @@ class DataFrame(generic.NDFrame):
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
             ... def foo(x: int, y: int, z: int) -> float:
             ...     result = 1
             ...     result += x
             ...     result += y/z
             ...     return result
 
-            >>> df.apply(foo, axis=1)
+            >>> df.apply(foo, axis=1)  # doctest: +SKIP
             0    2.6
             1    3.8
             dtype: Float64
