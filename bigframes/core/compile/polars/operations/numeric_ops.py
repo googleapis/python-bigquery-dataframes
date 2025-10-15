@@ -46,7 +46,7 @@ def ln_op_impl(
 ) -> pl.Expr:
     import polars as pl
 
-    return pl.when(input < 0).then(float("nan")).otherwise(input.log())
+    return pl.when(input <= 0).then(float("nan")).otherwise(input.log())
 
 
 @polars_compiler.register_op(numeric_ops.Log10Op)
@@ -57,7 +57,7 @@ def log10_op_impl(
 ) -> pl.Expr:
     import polars as pl
 
-    return pl.when(input < 0).then(float("nan")).otherwise(input.log(base=10))
+    return pl.when(input <= 0).then(float("nan")).otherwise(input.log(base=10))
 
 
 @polars_compiler.register_op(numeric_ops.Log1pOp)
@@ -68,7 +68,7 @@ def log1p_op_impl(
 ) -> pl.Expr:
     import polars as pl
 
-    return pl.when(input < -1).then(float("nan")).otherwise((input + 1).log())
+    return pl.when(input <= -1).then(float("nan")).otherwise((input + 1).log())
 
 
 @polars_compiler.register_op(numeric_ops.SinOp)
@@ -88,4 +88,4 @@ def sqrt_op_impl(
 ) -> pl.Expr:
     import polars as pl
 
-    return pl.when(input < 0).then(float("nan")).otherwise(input.sqrt())
+    return pl.when(input <= 0).then(float("nan")).otherwise(input.sqrt())
