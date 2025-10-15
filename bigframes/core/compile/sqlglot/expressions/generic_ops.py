@@ -73,6 +73,13 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("FARM_FINGERPRINT", expr.expr)
 
 
+@register_unary_op(ops.invert_op)
+def _(expr: TypedExpr) -> sge.Expression:
+    if expr.dtype == dtypes.BOOL_DTYPE:
+        return sge.Not(this=expr.expr)
+    return sge.BitwiseNot(this=expr.expr)
+
+
 @register_unary_op(ops.isnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.Is(this=expr.expr, expression=sge.Null())

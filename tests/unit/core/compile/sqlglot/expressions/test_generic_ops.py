@@ -233,6 +233,18 @@ def test_hash(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_invert(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bytes_col", "bool_col"]]
+    ops_map = {
+        "int64_col": ops.invert_op.as_expr("int64_col"),
+        "bytes_col": ops.invert_op.as_expr("bytes_col"),
+        "bool_col": ops.invert_op.as_expr("bool_col"),
+    }
+    sql = utils._apply_unary_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_isnull(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "float64_col"
     bf_df = scalar_types_df[[col_name]]
