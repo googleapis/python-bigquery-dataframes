@@ -97,7 +97,15 @@ def get_window_order_by(
     ordering: typing.Tuple[ordering_spec.OrderingExpression, ...],
     override_null_order: bool = False,
 ) -> typing.Optional[tuple[sge.Ordered, ...]]:
-    """Returns the SQL order by clause for a window specification."""
+    """Returns the SQL order by clause for a window specification.
+    Args:
+        ordering (Tuple[ordering_spec.OrderingExpression, ...]):
+            A tuple of ordering specification objects.
+        override_null_order (bool):
+            If True, overrides BigQuery's default null ordering behavior, which
+            is sometimes incompatible with ordered aggregations. The generated SQL
+            will include extra expressions to correctly enforce NULL FIRST/LAST.
+    """
     if not ordering:
         return None
 
@@ -110,8 +118,6 @@ def get_window_order_by(
         nulls_first = not ordering_spec_item.na_last
 
         if override_null_order:
-            # Bigquery SQL considers NULLS to be "smallest" values, but we need
-            # to override in these cases.
             is_null_expr = sge.Is(this=expr, expression=sge.Null())
             if nulls_first and desc:
                 order_by.append(
