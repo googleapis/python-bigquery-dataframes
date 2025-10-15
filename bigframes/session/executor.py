@@ -171,10 +171,10 @@ class ExecutionMetadata:
     bytes_processed: Optional[int] = None
 
     @classmethod
-    def from_iterator(cls, iterator: bq_table.RowIterator) -> ExecutionMetadata:
-        return cls(
-            query_job=iterator.query, bytes_processed=iterator.total_bytes_processed
-        )
+    def from_iterator_and_job(
+        cls, iterator: bq_table.RowIterator, job: Optional[bigquery.QueryJob]
+    ) -> ExecutionMetadata:
+        return cls(query_job=job, bytes_processed=iterator.total_bytes_processed)
 
 
 class LocalExecuteResult(ExecuteResult):
