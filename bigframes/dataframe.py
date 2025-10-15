@@ -23,7 +23,6 @@ import json
 import re
 import sys
 import textwrap
-import traceback
 import typing
 from typing import (
     Any,
@@ -788,18 +787,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode in ("deferred"):
             return formatter.repr_query_job(self._compute_dry_run())
 
-        # Anywidget mode uses interative display
-        if opts.repr_mode == "anywidget":
-            # Try to display with anywidget, fall back to deferred if not in IPython
-            try:
-                from bigframes import display
-
-                widget = display.TableWidget(self.copy())
-                return widget._repr_html_()  # Return widget's HTML representation
-            except (AttributeError, ValueError, ImportError):
-                # Not in IPython environment, fall back to deferred mode
-                return formatter.repr_query_job(self._compute_dry_run())
-
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
@@ -863,26 +850,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if opts.repr_mode == "anywidget":
             try:
+                import anywidget  # noqa: F401
                 from IPython.display import display as ipython_display
+                import traitlets  # noqa: F401
 
                 from bigframes import display
-
-                # Always create a new widget instance for each display call
-                # This ensures that each cell gets its own widget and prevents
-                # unintended sharing between cells
-                widget = display.TableWidget(df.copy())
-
-                ipython_display(widget)
-                return ""  # Return empty string since we used display()
-
-            except (AttributeError, ValueError, ImportError):
-                # Fallback if anywidget is not available
+            except ImportError:
                 warnings.warn(
-                    "Anywidget mode is not available. "
+                    "anywidget or its dependencies are not installed. "
                     "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
-                    f"Falling back to deferred mode. Error: {traceback.format_exc()}"
+                    "Falling back to deferred mode."
                 )
                 return formatter.repr_query_job(self._compute_dry_run())
+
+            # Always create a new widget instance for each display call
+            # This ensures that each cell gets its own widget and prevents
+            # unintended sharing between cells
+            widget = display.TableWidget(df.copy())
+
+            ipython_display(widget)
+            return ""  # Return empty string since we used display()
 
         # Continue with regular HTML rendering for non-anywidget modes
         # TODO(swast): pass max_columns and get the true column count back. Maybe
