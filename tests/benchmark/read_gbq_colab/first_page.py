@@ -14,7 +14,6 @@
 import pathlib
 
 import bigframes.pandas
-import bigframes.session.execution_spec
 import tests.benchmark.utils as utils
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
@@ -27,16 +26,8 @@ def first_page(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    # Call the executor directly to isolate the query execution time
-    # from other DataFrame overhead for this benchmark.
-    execute_result = df._block.session._executor.execute(
-        df._block.expr,
-        execution_spec=bigframes.session.execution_spec.ExecutionSpec(
-            ordered=True, promise_under_10gb=False
-        ),
-    )
-    assert execute_result.total_rows is not None and execute_result.total_rows >= 0
-    batches = execute_result.to_pandas_batches(page_size=PAGE_SIZE)
+    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    assert batches.total_rows is not None and batches.total_rows >= 0
     first_page = next(iter(batches))
     assert first_page is not None
 
