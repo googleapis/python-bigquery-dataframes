@@ -1787,80 +1787,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-
-        For applying arbitrary python function a `remote_function` is recommended.
-        Let's use ``reuse=False`` flag to make sure a new `remote_function`
-        is created every time we run the following code, but you can skip it
-        to potentially reuse a previously deployed `remote_function` from
-        the same user defined function.
-
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
-            ... def minutes_to_hours(x: int) -> float:
-            ...     return x/60
-
-            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
-            >>> minutes
-            0      0
-            1     30
-            2     60
-            3     90
-            4    120
-            dtype: Int64
-
-            >>> hours = minutes.apply(minutes_to_hours)
-            >>> hours
-            0    0.0
-            1    0.5
-            2    1.0
-            3    1.5
-            4    2.0
-            dtype: Float64
-
-        To turn a user defined function with external package dependencies into
-        a `remote_function`, you would provide the names of the packages via
-        `packages` param.
-
-            >>> @bpd.remote_function(
-            ...     reuse=False,
-            ...     packages=["cryptography"],
-            ...     cloud_function_service_account="default"
-            ... )
-            ... def get_hash(input: str) -> str:
-            ...     from cryptography.fernet import Fernet
-            ...
-            ...     # handle missing value
-            ...     if input is None:
-            ...         input = ""
-            ...
-            ...     key = Fernet.generate_key()
-            ...     f = Fernet(key)
-            ...     return f.encrypt(input.encode()).decode()
-
-            >>> names = bpd.Series(["Alice", "Bob"])
-            >>> hashes = names.apply(get_hash)
-
-        You could return an array output from the remote function.
-
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
-            ... def text_analyzer(text: str) -> list[int]:
-            ...     words = text.count(" ") + 1
-            ...     periods = text.count(".")
-            ...     exclamations = text.count("!")
-            ...     questions = text.count("?")
-            ...     return [words, periods, exclamations, questions]
-
-            >>> texts = bpd.Series([
-            ...     "The quick brown fox jumps over the lazy dog.",
-            ...     "I love this product! It's amazing.",
-            ...     "Hungry? Wanna eat? Lets go!"
-            ... ])
-            >>> features = texts.apply(text_analyzer)
-            >>> features
-            0    [9 1 0 0]
-            1    [6 1 1 0]
-            2    [5 0 1 2]
-            dtype: list<item: int64>[pyarrow]
-
         Simple vectorized functions, lambdas or ufuncs can be applied directly
         with `by_row=False`.
 
@@ -1893,6 +1819,80 @@ class Series(NDFrame):  # type: ignore[misc]
             2    1.098612
             3    1.386294
             dtype: Float64
+
+        Use `remote_function` to apply an arbitrary Python function.
+        Set ``reuse=False`` flag to make sure a new `remote_function`
+        is created every time you run the following code. Omit it
+        to reuse a previously deployed `remote_function` from
+        the same user defined function if the hash of the function definition
+        hasn't changed.
+
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
+            ... def minutes_to_hours(x: int) -> float:
+            ...     return x/60
+
+            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
+            >>> minutes
+            0      0
+            1     30
+            2     60
+            3     90
+            4    120
+            dtype: Int64
+
+            >>> hours = minutes.apply(minutes_to_hours)  # doctest: +SKIP
+            >>> hours  # doctest: +SKIP
+            0    0.0
+            1    0.5
+            2    1.0
+            3    1.5
+            4    2.0
+            dtype: Float64
+
+        To turn a user defined function with external package dependencies into
+        a `remote_function`, you would provide the names of the packages via
+        `packages` param.
+
+            >>> @bpd.remote_function(  # doctest: +SKIP
+            ...     reuse=False,
+            ...     packages=["cryptography"],
+            ...     cloud_function_service_account="default"
+            ... )
+            ... def get_hash(input: str) -> str:
+            ...     from cryptography.fernet import Fernet
+            ...
+            ...     # handle missing value
+            ...     if input is None:
+            ...         input = ""
+            ...
+            ...     key = Fernet.generate_key()
+            ...     f = Fernet(key)
+            ...     return f.encrypt(input.encode()).decode()
+
+            >>> names = bpd.Series(["Alice", "Bob"])
+            >>> hashes = names.apply(get_hash)  # doctest: +SKIP
+
+        You could return an array output from the remote function.
+
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
+            ... def text_analyzer(text: str) -> list[int]:
+            ...     words = text.count(" ") + 1
+            ...     periods = text.count(".")
+            ...     exclamations = text.count("!")
+            ...     questions = text.count("?")
+            ...     return [words, periods, exclamations, questions]
+
+            >>> texts = bpd.Series([
+            ...     "The quick brown fox jumps over the lazy dog.",
+            ...     "I love this product! It's amazing.",
+            ...     "Hungry? Wanna eat? Lets go!"
+            ... ])
+            >>> features = texts.apply(text_analyzer)  # doctest: +SKIP
+            >>> features  # doctest: +SKIP
+            0    [9 1 0 0]
+            1    [6 1 1 0]
+            2    [5 0 1 2]
+            dtype: list<item: int64>[pyarrow]
 
         Args:
             func (function):
