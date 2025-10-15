@@ -794,10 +794,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
             max_results
         )
-        if row_count is None:
-            raise NotImplementedError(
-                "Cannot determine total number of rows. Please use .to_pandas() to display."
-            )
 
         self._set_internal_query_job(query_job)
 
@@ -883,10 +879,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
         )
-        if row_count is None:
-            raise NotImplementedError(
-                "Cannot determine total number of rows. Please use .to_pandas() to display."
-            )
 
         self._set_internal_query_job(query_job)
         column_count = len(pandas_df.columns)
