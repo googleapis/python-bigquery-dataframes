@@ -48,3 +48,8 @@ def default_doctest_imports(doctest_namespace, polars_session_or_bpd):
     doctest_namespace["pa"] = pa
     doctest_namespace["bpd"] = polars_session_or_bpd
     bigframes._config.options.display.progress_bar = None
+
+    # TODO(tswast): Consider setting the numpy printoptions here for better
+    # compatibility across numpy versions.
+    # https://numpy.org/doc/stable/release/2.0.0-notes.html#representation-of-numpy-scalars-changed
+    # https://numpy.org/doc/stable/reference/generated/numpy.set_printoptions.html#numpy-set-printoptions
