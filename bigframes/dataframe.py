@@ -1930,10 +1930,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 over the default size limit of 10 GB.
 
         Returns:
-            bigframes.core.blocks.PandasBatches:
-                An iterable of smaller dataframes which combine to
-                form the original dataframe. Results stream from bigquery,
-                see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
+            An iterable of smaller dataframes which combine to
+            form the original dataframe. Results stream from bigquery,
+            see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
         """
         return self._to_pandas_batches(
             page_size=page_size,

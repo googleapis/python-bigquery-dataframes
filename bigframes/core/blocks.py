@@ -99,7 +99,7 @@ LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
 
 @dataclasses.dataclass
-class PandasBatches:
+class PandasBatches(Iterator[pd.DataFrame]):
     """Interface for mutable objects with state represented by a block value object."""
 
     def __init__(
