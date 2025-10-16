@@ -13,8 +13,9 @@
 # limitations under the License.
 import pathlib
 
+import benchmark.utils as utils
+
 import bigframes.pandas as bpd
-import tests.benchmark.utils as utils
 
 PAGE_SIZE = utils.READ_GBQ_COLAB_PAGE_SIZE
 
