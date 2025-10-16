@@ -623,18 +623,14 @@ class BigQueryCachingExecutor(executor.Executor):
 
             create_table = True
             if not cache_spec.cluster_cols:
+                assert len(cache_spec.cluster_cols) <= _MAX_CLUSTER_COLUMNS
                 offsets_id = bigframes.core.identifiers.ColumnId(
                     bigframes.core.guid.generate_guid()
                 )
                 plan = nodes.PromoteOffsetsNode(plan, offsets_id)
                 cluster_cols = [offsets_id.sql]
             else:
-                cluster_cols = [
-                    col
-                    for col in cache_spec.cluster_cols
-                    if bigframes.dtypes.is_clusterable(plan.schema.get_type(col))
-                ]
-                cluster_cols = cluster_cols[:_MAX_CLUSTER_COLUMNS]
+                cluster_cols = cache_spec.cluster_cols
 
         compiled = compile.compile_sql(
             compile.CompileRequest(
@@ -690,7 +686,11 @@ class BigQueryCachingExecutor(executor.Executor):
         execution_metadata = executor.ExecutionMetadata.from_iterator_and_job(
             iterator, query_job
         )
-        if result_bq_data is not None:
+        result_mostly_cached = (
+            hasattr(iterator, "_is_almost_completely_cached")
+            and iterator._is_almost_completely_cached()
+        )
+        if result_bq_data is not None and not result_mostly_cached:
             return executor.BQTableExecuteResult(
                 data=result_bq_data,
                 project_id=self.bqclient.project,

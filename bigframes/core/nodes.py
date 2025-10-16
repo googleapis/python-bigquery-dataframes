@@ -743,7 +743,6 @@ class ReadLocalNode(LeafNode):
         return self
 
 
-## Put ordering in here or just add order_by node above?
 @dataclasses.dataclass(frozen=True, eq=False)
 class ReadTableNode(LeafNode):
     source: bq_data.BigqueryDataSource
@@ -752,11 +751,6 @@ class ReadTableNode(LeafNode):
     scan_list: ScanList
 
     table_session: bigframes.session.Session = dataclasses.field()
-
-    # DELETE BEFORE SUBMITTING, DEBUG ONLY
-    def __post_init__(self):
-        for item in self.scan_list.items:
-            assert item.source_id in self.source.schema.names
 
     def _validate(self):
         # enforce invariants
