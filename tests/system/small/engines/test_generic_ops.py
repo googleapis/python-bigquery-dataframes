@@ -22,7 +22,7 @@ import bigframes.operations as ops
 from bigframes.session import polars_executor
 from bigframes.testing.engine_utils import assert_equivalence_execution
 
-pytest.importorskip("polars")
+polars = pytest.importorskip("polars")
 
 # Polars used as reference as its fast and local. Generally though, prefer gbq engine where they disagree.
 REFERENCE_ENGINE = polars_executor.PolarsExecutor()
@@ -54,6 +54,12 @@ def apply_op(
 
 @pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 def test_engines_astype_int(scalars_array_value: array_value.ArrayValue, engine):
+    polars_version = tuple([int(part) for part in polars.__version__.split(".")])
+    if polars_version >= (1, 34, 0):
+        # TODO(https://github.com/pola-rs/polars/issues/24841): Remove this when
+        # polars fixes Decimal to Int cast.
+        scalars_array_value = scalars_array_value.drop_columns(["numeric_col"])
+
     arr = apply_op(
         scalars_array_value,
         ops.AsTypeOp(to_type=bigframes.dtypes.INT_DTYPE),
@@ -308,7 +314,7 @@ def test_engines_astype_timedelta(scalars_array_value: array_value.ArrayValue, e
     assert_equivalence_execution(arr.node, REFERENCE_ENGINE, engine)
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 def test_engines_where_op(scalars_array_value: array_value.ArrayValue, engine):
     arr, _ = scalars_array_value.compute_values(
         [
