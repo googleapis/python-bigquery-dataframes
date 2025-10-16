@@ -78,14 +78,15 @@ class TransformFunction:
             datetime.timezone.utc
         ) - datetime.timedelta(days=_UDF_CLEANUP_THRESHOLD_DAYS)
 
-        cleaned_up_routines = 0
         for routine in routines:
             if (
                 routine.created < seven_days_ago
                 and routine._properties["routineType"] == "SCALAR_FUNCTION"
             ):
-                self._session.bqclient.delete_routine(routine.reference)
-                cleaned_up_routines += 1
+                try:
+                    self._session.bqclient.delete_routine(routine.reference)
+                except Exception:
+                    pass
 
     def _create_udf(self):
         """Create Python UDF in BQ. Return name of the UDF."""
@@ -93,9 +94,13 @@ class TransformFunction:
             self._session._anon_dataset_manager.generate_unique_resource_id()
         )
 
-        # Try to clean up the old Python UDFs in the anonymous dataset. Do not
-        # raise an error when it fails for this step.
+        # Try to clean up the old Python UDFs in the anonymous dataset. Failure
+        # to clean up is logged as a warning but does not halt execution.
         try:
+            # Before creating a new UDF, attempt to clean up any uncollected,
+            # old Python UDFs residing in the anonymous dataset. These UDFs
+            # accumulate over time and can eventually exceed resource limits.
+            # See more from b/450913424.
             self._cleanup_old_udfs()
         except Exception as e:
             msg = bfe.format_message(
