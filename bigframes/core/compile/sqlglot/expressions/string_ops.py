@@ -279,7 +279,7 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.strconcat_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    return sge.Concat(this=left.expr, expression=right.expr)
+    return sge.Concat(expressions=[left.expr, right.expr])
 
 
 @register_unary_op(ops.ZfillOp, pass_op=True)

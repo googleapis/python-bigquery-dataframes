@@ -5,7 +5,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    CONCAT() AS `bfcol_1`
+    CONCAT(`bfcol_0`, 'a') AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
