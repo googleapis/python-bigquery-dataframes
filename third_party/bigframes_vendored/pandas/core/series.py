@@ -2443,7 +2443,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s_fill = bpd.Series([11, 22, 33])
             >>> s.fillna(s_fill)
-            0    11.0
+            0     NaN
             1     2.0
             2    33.0
             3    -1.0
