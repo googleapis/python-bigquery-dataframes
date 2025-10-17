@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, TYPE_CHECKING, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.strings.accessor as vendorstr
@@ -25,7 +25,10 @@ import bigframes.dataframe as df
 import bigframes.operations as ops
 from bigframes.operations._op_converters import convert_index, convert_slice
 import bigframes.operations.aggregations as agg_ops
-import bigframes.series as series
+
+if TYPE_CHECKING:
+    import bigframes.core.indexes.base as indices
+    import bigframes.series as series
 
 # Maps from python to re2
 REGEXP_FLAGS = {
@@ -39,7 +42,7 @@ REGEXP_FLAGS = {
 class StringMethods(vendorstr.StringMethods):
     __doc__ = vendorstr.StringMethods.__doc__
 
-    def __init__(self, data: series.Series):
+    def __init__(self, data: Union[series.Series, indices.Index]):
         self._data = data
 
     def __getitem__(self, key: Union[int, slice]) -> series.Series:
