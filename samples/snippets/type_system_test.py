@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas.testing
+import pyarrow
 
 from bigframes import dtypes
 
@@ -80,46 +81,48 @@ def test_type_system_examples() -> None:
         check_index_type=False,
     )
 
-    # [START bigquery_dataframes_type_system_mixed_json]
-    import db_dtypes
-    import pandas as pd
-    import pyarrow as pa
+    assert pyarrow.__version__.startswith("19.") or pyarrow.__version__.startswith("2")
+    if hasattr(pyarrow, "JsonType"):
+        # [START bigquery_dataframes_type_system_mixed_json]
+        import db_dtypes
+        import pandas as pd
+        import pyarrow as pa
 
-    import bigframes.pandas as bpd
+        import bigframes.pandas as bpd
 
-    list_data = [
-        [{"key": "1"}],
-        [{"key": None}],
-        [{"key": '["1","3","5"]'}],
-        [{"key": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
-    ]
-    pa_array = pa.array(list_data, type=pa.list_(pa.struct([("key", pa.string())])))
-    bpd.Series(
-        pd.arrays.ArrowExtensionArray(pa_array),
-        dtype=pd.ArrowDtype(
-            pa.list_(pa.struct([("key", pa.json_(pa.string()))])),
-        ),
-    )
-    # 0                                       [{'key': '1'}]
-    # 1                                      [{'key': None}]
-    # 2                           [{'key': '["1","3","5"]'}]
-    # 3    [{'key': '{"a":1,"b":["x","y"],"c":{"x":[],"z"...
-    # [END bigquery_dataframes_type_system_mixed_json]
-    pandas.testing.assert_series_equal(
+        list_data = [
+            [{"key": "1"}],
+            [{"key": None}],
+            [{"key": '["1","3","5"]'}],
+            [{"key": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
+        ]
+        pa_array = pa.array(list_data, type=pa.list_(pa.struct([("key", pa.string())])))
         bpd.Series(
             pd.arrays.ArrowExtensionArray(pa_array),
             dtype=pd.ArrowDtype(
                 pa.list_(pa.struct([("key", pa.json_(pa.string()))])),
             ),
-        ).to_pandas(),
-        pd.Series(
-            pd.arrays.ArrowExtensionArray(pa_array),
-            dtype=pd.ArrowDtype(
-                pa.list_(pa.struct([("key", db_dtypes.JSONArrowType())])),
+        )
+        # 0                                       [{'key': '1'}]
+        # 1                                      [{'key': None}]
+        # 2                           [{'key': '["1","3","5"]'}]
+        # 3    [{'key': '{"a":1,"b":["x","y"],"c":{"x":[],"z"...
+        # [END bigquery_dataframes_type_system_mixed_json]
+        pandas.testing.assert_series_equal(
+            bpd.Series(
+                pd.arrays.ArrowExtensionArray(pa_array),
+                dtype=pd.ArrowDtype(
+                    pa.list_(pa.struct([("key", pa.json_(pa.string()))])),
+                ),
+            ).to_pandas(),
+            pd.Series(
+                pd.arrays.ArrowExtensionArray(pa_array),
+                dtype=pd.ArrowDtype(
+                    pa.list_(pa.struct([("key", db_dtypes.JSONArrowType())])),
+                ),
             ),
-        ),
-        check_index_type=False,
-    )
+            check_index_type=False,
+        )
 
     # [START bigquery_dataframes_type_system_load_timedelta]
     import pandas as pd
