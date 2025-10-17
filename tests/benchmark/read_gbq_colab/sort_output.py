@@ -27,9 +27,8 @@ def sort_output(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    # Simulate getting the first page, since we'll always do that first in the UI.
-    batches = df._to_pandas_batches(page_size=PAGE_SIZE)
-    assert (tr := batches.total_rows) is not None and tr >= 0
+    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    assert batches.total_rows is not None and batches.total_rows >= 0
     next(iter(batches))
 
     # Simulate the user sorting by a column and visualizing those results
@@ -38,9 +37,9 @@ def sort_output(*, project_id, dataset_id, table_id):
         sort_column = "col_bool_0"
 
     df_sorted = df.sort_values(sort_column)
-    batches = df_sorted._to_pandas_batches(page_size=PAGE_SIZE)
-    assert (tr := batches.total_rows) is not None and tr >= 0
-    next(iter(batches))
+    batches_sorted = df_sorted.to_pandas_batches(page_size=PAGE_SIZE)
+    assert batches_sorted.total_rows is not None and batches_sorted.total_rows >= 0
+    next(iter(batches_sorted))
 
 
 if __name__ == "__main__":
