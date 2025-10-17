@@ -21,6 +21,10 @@ class Window:
     def mean(self):
         """Calculate the weighted window mean."""
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+    
+    def median(self):
+        """Calculate the rolling median."""
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def var(self):
         """Calculate the weighted window variance."""
