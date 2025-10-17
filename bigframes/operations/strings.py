@@ -209,7 +209,7 @@ class StringMethods(vendorstr.StringMethods, Generic[T]):
         if compiled.groups == 0:
             raise ValueError("No capture groups in 'pat'")
 
-        results: dict[Hashable, T] = {}
+        results: dict[Hashable, series.Series] = {}
         for i in range(compiled.groups):
             labels = [
                 label
