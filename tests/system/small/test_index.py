@@ -698,6 +698,8 @@ def test_index_str_accessor_unary(scalars_df_index, scalars_pandas_df_index):
 
 
 def test_index_str_accessor_binary(scalars_df_index, scalars_pandas_df_index):
+    if pd.__version__.startswith("1."):
+        pytest.skip("doesn't work in pandas 1.x.")
     bf_index = scalars_df_index.set_index("string_col").index
     pd_index = scalars_pandas_df_index.set_index("string_col").index
 
