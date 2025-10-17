@@ -59,6 +59,9 @@ class Window(vendored_pandas_rolling.Window):
 
     def mean(self):
         return self._apply_aggregate(agg_ops.mean_op)
+    
+    def median(self):
+        return self._apply_aggregate(agg_ops.median_op)
 
     def var(self):
         return self._apply_aggregate(agg_ops.var_op)
