@@ -92,6 +92,7 @@ class TableWidget(WIDGET_BASE):
         # metadata about how many results there were. Use that to avoid
         # doing an extra COUNT(*) query that `len(...)` would do.
         self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        # TODO (shuowei): total_rows=None Incorrectly Defaults to 0. b/452747934
         self.row_count = self._batches.total_rows or 0
 
         self._set_table_html()
