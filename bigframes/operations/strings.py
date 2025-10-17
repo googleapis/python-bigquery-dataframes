@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from typing import Generic, Literal, Optional, TypeVar, Union
+from typing import Generic, Hashable, Literal, Optional, TypeVar, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.strings.accessor as vendorstr
@@ -209,23 +209,19 @@ class StringMethods(vendorstr.StringMethods, Generic[T]):
         if compiled.groups == 0:
             raise ValueError("No capture groups in 'pat'")
 
-        results: list[str] = []
-        block = self._data._block
+        results: dict[Hashable, T] = {}
         for i in range(compiled.groups):
             labels = [
                 label
                 for label, groupn in compiled.groupindex.items()
                 if i + 1 == groupn
             ]
-            label = labels[0] if labels else str(i)
-            block, id = block.apply_unary_op(
-                self._data._value_column,
+            label = labels[0] if labels else i
+            result = self._data._apply_unary_op(
                 ops.StrExtractOp(pat=pat, n=i + 1),
-                result_label=label,
             )
-            results.append(id)
-        block = block.select_columns(results)
-        return df.DataFrame(block)
+            results[label] = series.Series(result)
+        return df.DataFrame(results)
 
     def replace(
         self,
@@ -287,10 +283,10 @@ class StringMethods(vendorstr.StringMethods, Generic[T]):
             )
         return self._data._apply_unary_op(ops.StringSplitOp(pat=pat))
 
-    def zfill(self, width: int) -> series.Series:
+    def zfill(self, width: int) -> T:
         return self._data._apply_unary_op(ops.ZfillOp(width=width))
 
-    def center(self, width: int, fillchar: str = " ") -> series.Series:
+    def center(self, width: int, fillchar: str = " ") -> T:
         return self._data._apply_unary_op(
             ops.StrPadOp(length=width, fillchar=fillchar, side="both")
         )

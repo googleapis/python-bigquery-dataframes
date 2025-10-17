@@ -707,3 +707,17 @@ def test_index_str_accessor_binary(scalars_df_index, scalars_pandas_df_index):
     pd_result = pd_index.str.cat(pd_index.str[:4])
 
     pd.testing.assert_index_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("pat"),
+    [(r"(ell)(lo)"), (r"(?P<somename>h..)"), (r"(?P<somename>e.*o)([g-l]+)")],
+)
+def test_index_str_extract(scalars_df_index, scalars_pandas_df_index, pat):
+    bf_index = scalars_df_index.set_index("string_col").index
+    pd_index = scalars_pandas_df_index.set_index("string_col").index
+
+    bf_result = bf_index.str.extract(pat).to_pandas()
+    pd_result = pd_index.str.extract(pat)
+
+    pd.testing.assert_frame_equal(pd_result, bf_result, check_index_type=False)
