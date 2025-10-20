@@ -23,6 +23,7 @@ import json
 import re
 import sys
 import textwrap
+import traceback
 import typing
 from typing import (
     Any,
@@ -782,9 +783,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-
-        # Only deferred mode shows dry run
-        if opts.repr_mode in ("deferred"):
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -850,26 +851,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if opts.repr_mode == "anywidget":
             try:
-                import anywidget  # noqa: F401
                 from IPython.display import display as ipython_display
-                import traitlets  # noqa: F401
 
                 from bigframes import display
-            except ImportError:
+
+                # Always create a new widget instance for each display call
+                # This ensures that each cell gets its own widget and prevents
+                # unintended sharing between cells
+                widget = display.TableWidget(df.copy())
+
+                ipython_display(widget)
+                return ""  # Return empty string since we used display()
+
+            except (AttributeError, ValueError, ImportError):
+                # Fallback if anywidget is not available
                 warnings.warn(
-                    "anywidget or its dependencies are not installed. "
+                    "Anywidget mode is not available. "
                     "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
-                    "Falling back to deferred mode."
+                    f"Falling back to deferred mode. Error: {traceback.format_exc()}"
                 )
                 return formatter.repr_query_job(self._compute_dry_run())
-
-            # Always create a new widget instance for each display call
-            # This ensures that each cell gets its own widget and prevents
-            # unintended sharing between cells
-            widget = display.TableWidget(df.copy())
-
-            ipython_display(widget)
-            return ""  # Return empty string since we used display()
 
         # Continue with regular HTML rendering for non-anywidget modes
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -2568,33 +2569,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> None:
         ...
 
+    @validations.requires_index
     def sort_index(
         self,
         *,
-        axis: Union[int, str] = 0,
         ascending: bool = True,
         inplace: bool = False,
         na_position: Literal["first", "last"] = "last",
     ) -> Optional[DataFrame]:
-        if utils.get_axis_number(axis) == 0:
-            if na_position not in ["first", "last"]:
-                raise ValueError("Param na_position must be one of 'first' or 'last'")
-            na_last = na_position == "last"
-            index_columns = self._block.index_columns
-            ordering = [
-                order.ascending_over(column, na_last)
-                if ascending
-                else order.descending_over(column, na_last)
-                for column in index_columns
-            ]
-            block = self._block.order_by(ordering)
-        else:  # axis=1
-            _, indexer = self.columns.sort_values(
-                return_indexer=True, ascending=ascending, na_position=na_position  # type: ignore
-            )
-            block = self._block.select_columns(
-                [self._block.value_columns[i] for i in indexer]
-            )
+        if na_position not in ["first", "last"]:
+            raise ValueError("Param na_position must be one of 'first' or 'last'")
+        na_last = na_position == "last"
+        index_columns = self._block.index_columns
+        ordering = [
+            order.ascending_over(column, na_last)
+            if ascending
+            else order.descending_over(column, na_last)
+            for column in index_columns
+        ]
+        block = self._block.order_by(ordering)
         if inplace:
             self._set_block(block)
             return None

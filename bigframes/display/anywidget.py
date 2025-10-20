@@ -209,6 +209,15 @@ class TableWidget(WIDGET_BASE):
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
+        # TODO (shuowei): BigFrames Series with db_dtypes.JSONArrowType column
+        # fails to convert to pandas DataFrame in anywidget environment due to
+        # missing handling in to_pandas_batches(). b/453561268
+        # For empty dataframe, render empty table with headers.
+        if self.row_count == 0:
+            page_data = self._cached_data
+        else:
+            start = self.page * self.page_size
+            end = start + self.page_size
         if self._error_message:
             self.table_html = (
                 f"<div class='bigframes-error-message'>{self._error_message}</div>"
@@ -218,14 +227,14 @@ class TableWidget(WIDGET_BASE):
         start = self.page * self.page_size
         end = start + self.page_size
 
-            # fetch more data if the requested page is outside our cache
-            cached_data = self._cached_data
-            while len(cached_data) < end and not self._all_data_loaded:
-                if self._get_next_batch():
-                    cached_data = self._cached_data
-                else:
-                    break
-            page_data = cached_data.iloc[start:end]
+        # fetch more data if the requested page is outside our cache
+        cached_data = self._cached_data
+        while len(cached_data) < end and not self._all_data_loaded:
+            if self._get_next_batch():
+                cached_data = self._cached_data
+            else:
+                break
+        page_data = cached_data.iloc[start:end]
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(
