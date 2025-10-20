@@ -209,6 +209,9 @@ class TableWidget(WIDGET_BASE):
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
+        # TODO (shuowei): BigFrames Series with db_dtypes.JSONArrowType column
+        # fails to convert to pandas DataFrame in anywidget environment due to
+        # missing handling in to_pandas_batches(). b/453561268
         # For empty dataframe, render empty table with headers.
         if self.row_count == 0:
             page_data = self._cached_data
