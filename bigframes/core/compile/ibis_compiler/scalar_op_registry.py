@@ -30,7 +30,7 @@ import pandas as pd
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 import bigframes.core.compile.ibis_compiler.default_ordering
 from bigframes.core.compile.ibis_compiler.scalar_op_compiler import (
-    scalar_op_compiler,  # TODO(b/428238610): avoid import of variables
+    scalar_op_compiler,  # TODO(tswast): avoid import of variables
 )
 import bigframes.core.compile.ibis_types
 import bigframes.operations as ops
