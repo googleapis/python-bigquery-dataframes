@@ -99,7 +99,6 @@ class TableWidget(WIDGET_BASE):
 
         # set traitlets properties that trigger observers
         self.page_size = initial_page_size
-        self._reset_batches_for_new_page_size()
 
         # get the initial page
         self._set_table_html()
