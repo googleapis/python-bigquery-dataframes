@@ -783,8 +783,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         opts = bigframes.options.display
         max_results = opts.max_rows
 
-        # Only deferred mode shows dry run
-        if opts.repr_mode in ("deferred"):
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
