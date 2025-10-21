@@ -24,7 +24,6 @@ import bigframes as bf
 # Test constants to avoid change detector tests
 EXPECTED_ROW_COUNT = 6
 EXPECTED_PAGE_SIZE = 2
-EXPECTED_TOTAL_PAGES = 3
 
 
 @pytest.fixture(scope="module")
@@ -112,21 +111,19 @@ def empty_bf_df(
     return session.read_pandas(empty_pandas_df)
 
 
-def mock_execute_result_with_params(
-    self, schema, total_rows_val, arrow_batches_val, *args, **kwargs
-):
-    """
-    Mocks an execution result with configurable total_rows and arrow_batches.
-    """
-    from bigframes.session.executor import ExecuteResult
+@pytest.fixture(scope="module")
+def json_df(session: bf.Session) -> bf.dataframe.DataFrame:
+    """Create a DataFrame with a JSON column for testing."""
+    import bigframes.dtypes
 
-    return ExecuteResult(
-        iter(arrow_batches_val),
-        schema=schema,
-        query_job=None,
-        total_bytes=None,
-        total_rows=total_rows_val,
+    pandas_df = pd.DataFrame(
+        {
+            "a": [1],
+            "b": ['{"c": 2, "d": 3}'],
+        }
     )
+    pandas_df["b"] = pandas_df["b"].astype(bigframes.dtypes.JSON_DTYPE)
+    return session.read_pandas(pandas_df)
 
 
 def _assert_html_matches_pandas_slice(
@@ -438,12 +435,6 @@ def test_setting_page_size_above_max_should_be_clamped(table_widget):
     # The page size is clamped to the maximum.
     assert table_widget.page_size == expected_clamped_size
 
-    """
-    Test that the widget's CSS is loaded correctly.
-    """
-    css_content = table_widget._css
-    assert ".bigframes-widget .footer" in css_content
-
 
 @mock.patch("bigframes.display.TableWidget")
 def test_sql_anywidget_mode(mock_table_widget, session: bf.Session):
@@ -498,6 +489,43 @@ def test_struct_column_anywidget_mode(mock_display, session: bf.Session):
             assert "{&#x27;c&#x27;: 2, &#x27;d&#x27;: 3}" in html
 
             # Assert that _repr_html_ returns an empty string
+            assert result == ""
+
+
+def test_widget_creation_should_load_css_for_rendering(table_widget):
+    """
+    Test that the widget's CSS is loaded correctly.
+    """
+    css_content = table_widget._css
+    assert ".bigframes-widget .footer" in css_content
+
+
+@mock.patch("IPython.display.display")
+def test_json_column_anywidget_mode(mock_display, json_df: bf.dataframe.DataFrame):
+    """
+    Test that a DataFrame with a JSON column is displayed in anywidget mode
+    by converting JSON to string, and does not fall back to deferred representation.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        with mock.patch(
+            "bigframes.dataframe.formatter.repr_query_job"
+        ) as mock_repr_query_job:
+            result = json_df._repr_html_()
+
+            # Assert no fallback
+            mock_repr_query_job.assert_not_called()
+
+            # Assert TableWidget was created and displayed
+            mock_display.assert_called_once()
+            widget = mock_display.call_args[0][0]
+            from bigframes.display import TableWidget
+
+            assert isinstance(widget, TableWidget)
+
+            # Assert JSON was converted to string in the HTML
+            html = widget.table_html
+            assert "{&quot;c&quot;:2,&quot;d&quot;:3}" in html
+
             assert result == ""
 
 
