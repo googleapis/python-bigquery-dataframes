@@ -407,6 +407,19 @@ if polars_installed:
             assert isinstance(op, json_ops.JSONDecode)
             return input.str.json_decode(_DTYPE_MAPPING[op.to_type])
 
+        @compile_op.register(json_ops.ToJSONString)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.str.json_decode(pl.String())
+
+        @compile_op.register(json_ops.ParseJSON)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.str.json_decode(pl.String())
+
+        @compile_op.register(json_ops.JSONExtract)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, json_ops.JSONExtract)
+            return input.str.json_extract(json_path=op.json_path)
+
         @compile_op.register(arr_ops.ToArrayOp)
         def _(self, op: ops.ToArrayOp, *inputs: pl.Expr) -> pl.Expr:
             return pl.concat_list(*inputs)
