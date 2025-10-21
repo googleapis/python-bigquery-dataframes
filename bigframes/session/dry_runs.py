@@ -160,7 +160,10 @@ def get_query_stats(
     )
 
     result = pandas.Series(values, index=index)
-    result["totalBytesProcessed"] = int(result["totalBytesProcessed"])
+    if result["totalBytesProcessed"] is None:
+        result["totalBytesProcessed"] = 0
+    else:
+        result["totalBytesProcessed"] = int(result["totalBytesProcessed"])
 
     return result
 
