@@ -863,6 +863,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
                 return formatter.repr_query_job(self._compute_dry_run())
 
+            # The anywidget frontend doesn't support the db_dtypes JSON type, so
+            # convert to strings for display.
+            json_cols = [
+                series_name
+                for series_name, series in df.items()
+                if bigframes.dtypes.contains_db_dtypes_json_dtype(series.dtype)
+            ]
+            if json_cols:
+                warnings.warn(
+                    "Converting JSON columns to strings for display. "
+                    "This is temporary and will be removed when the frontend supports JSON types."
+                )
+                for col in json_cols:
+                    df[col] = df[col]._apply_unary_op(ops.json_ops.ToJSONString())
+
             # Always create a new widget instance for each display call
             # This ensures that each cell gets its own widget and prevents
             # unintended sharing between cells
