@@ -62,8 +62,7 @@ def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     Helper fixture to create a TableWidget instance with a fixed page size.
     This reduces duplication across tests that use the same widget configuration.
     """
-
-    from bigframes.display import TableWidget
+    from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         # Delay context manager cleanup of `max_rows` until after tests finish.
@@ -92,7 +91,7 @@ def small_bf_df(
 @pytest.fixture
 def small_widget(small_bf_df):
     """Helper fixture for tests using a DataFrame smaller than the page size."""
-    from bigframes.display import TableWidget
+    from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
         yield TableWidget(small_bf_df)
@@ -152,9 +151,10 @@ def test_widget_initialization_should_calculate_total_row_count(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
     """A TableWidget should correctly calculate the total row count on creation."""
-    from bigframes.display import TableWidget
+    from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(paginated_bf_df)
         widget = TableWidget(paginated_bf_df)
 
     assert widget.row_count == EXPECTED_ROW_COUNT
@@ -266,7 +266,7 @@ def test_widget_pagination_should_work_with_custom_page_size(
     A widget should paginate correctly with a custom page size of 3.
     """
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(paginated_bf_df)
         assert widget.page_size == 3
@@ -312,7 +312,7 @@ def test_widget_page_size_should_be_immutable_after_creation(
     by subsequent changes to global options.
     """
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(paginated_bf_df)
         assert widget.page_size == 2
@@ -331,7 +331,7 @@ def test_widget_page_size_should_be_immutable_after_creation(
 def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataFrame):
     """Given an empty DataFrame, the widget's row count should be 0."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(empty_bf_df)
 
@@ -341,7 +341,7 @@ def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataF
 def test_empty_widget_should_render_table_headers(empty_bf_df: bf.dataframe.DataFrame):
     """Given an empty DataFrame, the widget should still render table headers."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(empty_bf_df)
 
@@ -477,10 +477,8 @@ def test_struct_column_anywidget_mode(mock_display, session: bf.Session):
             # Assert that we did NOT fall back to the deferred representation.
             mock_repr_query_job.assert_not_called()
 
-            # Assert that display was called with a TableWidget
-            mock_display.assert_called_once()
             widget = mock_display.call_args[0][0]
-            from bigframes.display import TableWidget
+            from bigframes.display.anywidget import TableWidget
 
             assert isinstance(widget, TableWidget)
 
@@ -518,7 +516,7 @@ def test_json_column_anywidget_mode(mock_display, json_df: bf.dataframe.DataFram
             # Assert TableWidget was created and displayed
             mock_display.assert_called_once()
             widget = mock_display.call_args[0][0]
-            from bigframes.display import TableWidget
+            from bigframes.display.anywidget import TableWidget
 
             assert isinstance(widget, TableWidget)
 

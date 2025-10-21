@@ -14,8 +14,6 @@
 
 import pyarrow as pa
 
-from bigframes import dtypes
-
 
 def parse_sql_type(sql: str) -> pa.DataType:
     """
@@ -44,9 +42,6 @@ def parse_sql_type(sql: str) -> pa.DataType:
 
     if sql.upper() == "BOOL":
         return pa.bool_()
-
-    if sql.upper() == "JSON":
-        return dtypes.JSON_ARROW_TYPE
 
     if sql.upper().startswith("ARRAY<") and sql.endswith(">"):
         inner_type = sql[len("ARRAY<") : -1]
