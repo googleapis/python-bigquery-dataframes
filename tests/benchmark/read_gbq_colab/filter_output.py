@@ -30,20 +30,20 @@ def filter_output(
     # e.g. "{local_inline}" or "{local_large}"
     df = bpd._read_gbq_colab(f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}")
 
-    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
+    # Simulate getting the first page, since we'll always do that first in the UI.
+    batches = df._to_pandas_batches(page_size=PAGE_SIZE)
+    assert (tr := batches.total_rows) is not None and tr >= 0
     next(iter(batches))
 
     # Simulate the user filtering by a column and visualizing those results
     df_filtered = df[df["col_bool_0"]]
-    batches_filtered = df_filtered.to_pandas_batches(page_size=PAGE_SIZE)
-
-    rows = batches_filtered.total_rows or 0
-    assert rows >= 0
+    batches = df_filtered._to_pandas_batches(page_size=PAGE_SIZE)
+    assert (tr := batches.total_rows) is not None and tr >= 0
+    first_page = next(iter(batches))
 
     # It's possible we don't have any pages at all, since we filtered out all
     # matching rows.
-    first_page = next(iter(batches_filtered))
-    assert len(first_page.index) <= rows
+    assert len(first_page.index) <= tr
 
 
 if __name__ == "__main__":

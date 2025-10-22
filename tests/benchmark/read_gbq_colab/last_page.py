@@ -27,8 +27,9 @@ def last_page(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
-    assert batches.total_rows is not None and batches.total_rows >= 0
+    # Get number of rows (to calculate number of pages) and then all pages.
+    batches = df._to_pandas_batches(page_size=PAGE_SIZE)
+    assert (tr := batches.total_rows) is not None and tr >= 0
     for _ in batches:
         pass
 

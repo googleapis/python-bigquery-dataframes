@@ -27,10 +27,10 @@ def first_page(*, project_id, dataset_id, table_id):
         f"SELECT * FROM `{project_id}`.{dataset_id}.{table_id}"
     )
 
-    batches = df.to_pandas_batches(page_size=PAGE_SIZE)
-    assert batches.total_rows is not None and batches.total_rows >= 0
-    first_page = next(iter(batches))
-    assert first_page is not None
+    # Get number of rows (to calculate number of pages) and the first page.
+    batches = df._to_pandas_batches(page_size=PAGE_SIZE)
+    assert (tr := batches.total_rows) is not None and tr >= 0
+    next(iter(batches))
 
 
 if __name__ == "__main__":
