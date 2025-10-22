@@ -349,13 +349,13 @@ UnsafePowOp = base_ops.create_binary_op(
 )
 unsafe_pow_op = UnsafePowOp()
 
-IsNanOp = base_ops.create_unary_op(
-    name="isnan",
+IsNanOrNullOp = base_ops.create_unary_op(
+    name="isnanornull",
     type_signature=op_typing.FixedOutputType(
         dtypes.is_numeric, dtypes.BOOL_DTYPE, "numeric"
     ),
 )
-isnan_op = IsNanOp()
+isnanornull_op = IsNanOrNullOp()
 
 IsFiniteOp = base_ops.create_unary_op(
     name="isfinite",

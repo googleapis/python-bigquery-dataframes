@@ -270,9 +270,9 @@ class ExpressionCompiler:
 scalar_op_compiler = ExpressionCompiler()
 
 
-@scalar_op_compiler.register_unary_op(numeric_ops.isnan_op)
-def isnan(arg):
-    return arg.isnan()
+@scalar_op_compiler.register_unary_op(numeric_ops.isnanornull_op)
+def isnanornull(arg):
+    return arg.isnan() | arg.isnull()
 
 
 @scalar_op_compiler.register_unary_op(numeric_ops.isfinite_op)
