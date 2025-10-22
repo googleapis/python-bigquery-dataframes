@@ -75,12 +75,13 @@ import bigframes.operations.datetimes as dt
 import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
 import bigframes.operations.python_op_maps as python_ops
-import bigframes.operations.strings as strings
 import bigframes.operations.structs as structs
 import bigframes.session
 
 if typing.TYPE_CHECKING:
     import bigframes.geopandas.geoseries
+    import bigframes.operations.strings as strings
+
 
 LevelType = typing.Union[str, int]
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -1363,6 +1364,8 @@ class Series(vendored_pandas_series.Series):
 
     def __abs__(self) -> Series:
         return self.abs()
+
+    __abs__.__doc__ = inspect.getdoc(vendored_pandas_series.Series.abs)
 
     def abs(self) -> Series:
         return self._apply_unary_op(ops.abs_op)
@@ -2659,6 +2662,8 @@ class Series(vendored_pandas_series.Series):
     # confusing type checker by overriding str
     @property
     def str(self) -> strings.StringMethods:
+        import bigframes.operations.strings as strings
+
         return strings.StringMethods(self)
 
     @property
