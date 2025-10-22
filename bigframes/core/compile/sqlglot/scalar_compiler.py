@@ -192,7 +192,7 @@ def isnanornull(arg: TypedExpr) -> sge.Expression:
 def isfinite(arg: TypedExpr) -> sge.Expression:
     return sge.Not(
         this=sge.Or(
-            this=sge.Is(this=expr.expr, expression=sge.Null()),
+            this=sge.Is(this=arg.expr, expression=sge.Null()),
             right=sge.Or(
                 this=sge.IsInf(this=arg.expr),
                 right=sge.IsNan(this=arg.expr),
