@@ -350,7 +350,7 @@ UnsafePowOp = base_ops.create_binary_op(
 unsafe_pow_op = UnsafePowOp()
 
 IsNanOp = base_ops.create_unary_op(
-    name="isnanornull",
+    name="isnan",
     type_signature=op_typing.FixedOutputType(
         dtypes.is_numeric, dtypes.BOOL_DTYPE, "numeric"
     ),
