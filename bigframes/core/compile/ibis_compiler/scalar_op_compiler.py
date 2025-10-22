@@ -277,4 +277,4 @@ def isnanornull(arg):
 
 @scalar_op_compiler.register_unary_op(numeric_ops.isfinite_op)
 def isfinite(arg):
-    return arg.isinf().not_() & arg.isnan().not_()
+    return arg.isinf().not_() & arg.isnan().not_() & arg.isnull().not_()
