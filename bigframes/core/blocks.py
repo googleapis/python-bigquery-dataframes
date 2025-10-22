@@ -124,9 +124,6 @@ class PandasBatches(Iterator[pd.DataFrame]):
     def __next__(self) -> pd.DataFrame:
         return next(self._dataframes)
 
-    def __iter__(self) -> Iterator[pd.DataFrame]:
-        return self
-
 
 @dataclasses.dataclass()
 class MaterializationOptions:

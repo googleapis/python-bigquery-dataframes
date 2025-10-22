@@ -1887,7 +1887,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         max_results: Optional[int] = None,
         *,
         allow_large_results: Optional[bool] = None,
-    ) -> blocks.PandasBatches:
+    ) -> Iterable[pandas.DataFrame]:
         """Stream DataFrame results to an iterable of pandas DataFrame.
 
         page_size and max_results determine the size and number of batches,
@@ -1930,7 +1930,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 over the default size limit of 10 GB.
 
         Returns:
-            blocks.PandasBatches:
+            Iterable[pandas.DataFrame]:
                 An iterable of smaller dataframes which combine to
                 form the original dataframe. Results stream from bigquery,
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable

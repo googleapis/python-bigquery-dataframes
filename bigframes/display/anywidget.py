@@ -23,6 +23,8 @@ import uuid
 import pandas as pd
 
 import bigframes
+from bigframes.core.blocks import PandasBatches
+import bigframes.dataframe
 import bigframes.display.html
 
 # anywidget and traitlets are optional dependencies. We don't want the import of
@@ -56,6 +58,7 @@ class TableWidget(WIDGET_BASE):
     row_count = traitlets.Int(0).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
     _initial_load_complete = traitlets.Bool(False).tag(sync=True)
+    _batches: PandasBatches
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """Initialize the TableWidget.
@@ -65,8 +68,7 @@ class TableWidget(WIDGET_BASE):
         """
         if not ANYWIDGET_INSTALLED:
             raise ImportError(
-                "Please `pip install anywidget traitlets` or "
-                "`pip install 'bigframes[anywidget]'` to use TableWidget."
+                "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use TableWidget."
             )
 
         self._dataframe = dataframe
@@ -85,16 +87,22 @@ class TableWidget(WIDGET_BASE):
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: List[pd.DataFrame] = []
 
-        # Respect display options for initial page size
-        self.page_size = bigframes.options.display.max_rows
+        # respect display options for initial page size
+        initial_page_size = bigframes.options.display.max_rows
 
-        # The query issued by `to_pandas_batches()` already contains
-        # metadata about how many results there were. Use that to avoid
-        # doing an extra COUNT(*) query that `len(...)` would do.
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
-        # TODO (shuowei): total_rows=None Incorrectly Defaults to 0. b/452747934
+        # set traitlets properties that trigger observers
+        self.page_size = initial_page_size
+
+        # len(dataframe) is expensive, since it will trigger a
+        # SELECT COUNT(*) query. It is a must have however.
+        # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
+        # before we get here so that the count might already be cached.
+        # TODO(b/452747934): Allow row_count to be None and check to see if
+        # there are multiple pages and show "page 1 of many" in this case
+        self._reset_batches_for_new_page_size()
         self.row_count = self._batches.total_rows or 0
 
+        # get the initial page
         self._set_table_html()
         self._initial_load_complete = True
         self._initializing = False
@@ -187,7 +195,7 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self) -> None:
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        self._batches = self._dataframe._to_pandas_batches(page_size=self.page_size)
 
         self._cached_batches = []
         self._batch_iter = None
