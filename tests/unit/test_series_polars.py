@@ -15,6 +15,7 @@
 import datetime as dt
 import json
 import math
+import operator
 import pathlib
 import re
 import tempfile
@@ -4700,6 +4701,30 @@ def test_series_apply_python_numeric_fns(scalars_dfs, ufunc, col):
 @pytest.mark.parametrize(
     ("ufunc",),
     [
+        pytest.param(str.upper),
+        pytest.param(str.lower),
+        pytest.param(len),
+    ],
+)
+def test_series_apply_python_string_fns(scalars_dfs, ufunc):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["string_col"]
+    bf_result = bf_col.apply(ufunc).to_pandas()
+
+    pd_col = scalars_pandas_df["string_col"]
+
+    def wrapped(x):
+        return ufunc(x) if isinstance(x, str) else None
+
+    pd_result = pd_col.apply(wrapped)
+
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("ufunc",),
+    [
         pytest.param(numpy.add),
         pytest.param(numpy.divide),
     ],
@@ -4716,6 +4741,29 @@ def test_combine_series_ufunc(scalars_dfs, ufunc):
 
     pd_col = scalars_pandas_df["int64_col"].dropna()
     pd_result = pd_col.combine(pd_col, ufunc)
+
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("func",),
+    [
+        pytest.param(operator.add),
+        pytest.param(operator.truediv),
+    ],
+    ids=[
+        "add",
+        "divide",
+    ],
+)
+def test_combine_series_pyfunc(scalars_dfs, func):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df["int64_col"].dropna()
+    bf_result = bf_col.combine(bf_col, func).to_pandas()
+
+    pd_col = scalars_pandas_df["int64_col"].dropna()
+    pd_result = pd_col.combine(pd_col, func)
 
     assert_series_equal(bf_result, pd_result, check_dtype=False)
 
