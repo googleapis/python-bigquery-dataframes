@@ -199,6 +199,14 @@ if polars_installed:
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             return input.ceil()
 
+        @compile_op.register(num_ops.IsNanOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.is_nan()
+
+        @compile_op.register(num_ops.IsFiniteOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.is_finite()
+
         @compile_op.register(num_ops.PosOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             return input.__pos__()
