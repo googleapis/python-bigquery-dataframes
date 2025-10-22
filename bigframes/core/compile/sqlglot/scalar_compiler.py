@@ -185,7 +185,10 @@ scalar_op_compiler = ScalarOpCompiler()
 
 @scalar_op_compiler.register_unary_op(numeric_ops.isnanornull_op)
 def isnanornull(arg: TypedExpr) -> sge.Expression:
-    return sge.Or(this=sge.IsNan(this=arg.expr), right=sge.IsNull(this=arg.expr))
+    return sge.Or(
+        this=sge.IsNan(this=arg.expr),
+        right=sge.Is(this=arg.expr, expression=sge.Null()),
+    )
 
 
 @scalar_op_compiler.register_unary_op(numeric_ops.isfinite_op)
