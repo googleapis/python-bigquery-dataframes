@@ -63,8 +63,10 @@ def test_dataframe_groupby_head(scalars_df_index, scalars_pandas_df_index):
 
 def test_dataframe_groupby_len(scalars_df_index, scalars_pandas_df_index):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+
     bf_result = len(scalars_df_index[col_names].groupby("bool_col"))
     pd_result = len(scalars_pandas_df_index[col_names].groupby("bool_col"))
+
     assert bf_result == pd_result
 
 
@@ -678,6 +680,7 @@ def test_dataframe_groupby_last(
 def test_series_groupby_len(scalars_df_index, scalars_pandas_df_index):
     bf_result = len(scalars_df_index.groupby("bool_col")["int64_col"])
     pd_result = len(scalars_pandas_df_index.groupby("bool_col")["int64_col"])
+
     assert bf_result == pd_result
 
 
