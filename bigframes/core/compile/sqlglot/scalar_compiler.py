@@ -21,8 +21,8 @@ import sqlglot.expressions as sge
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.expression as ex
-import bigframes.operations as ops
 from bigframes.operations import numeric_ops
+import bigframes.operations as ops
 
 
 class ScalarOpCompiler:
@@ -190,4 +190,6 @@ def isnanornull(arg: TypedExpr) -> sge.Expression:
 
 @scalar_op_compiler.register_unary_op(numeric_ops.isfinite_op)
 def isfinite(arg: TypedExpr) -> sge.Expression:
-    return sge.Not(this=sge.Or(this=sge.IsInf(this=arg.expr), right=sge.IsNan(this=arg.expr)))
+    return sge.Not(
+        this=sge.Or(this=sge.IsInf(this=arg.expr), right=sge.IsNan(this=arg.expr))
+    )
