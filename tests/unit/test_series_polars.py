@@ -4656,6 +4656,50 @@ def test_apply_numpy_ufunc(scalars_dfs, ufunc):
 @pytest.mark.parametrize(
     ("ufunc",),
     [
+        pytest.param(math.log),
+        pytest.param(math.log10),
+        pytest.param(math.sin),
+        pytest.param(math.cos),
+        pytest.param(math.tan),
+        pytest.param(math.sinh),
+        pytest.param(math.cosh),
+        pytest.param(math.tanh),
+        pytest.param(math.asin),
+        pytest.param(math.acos),
+        pytest.param(math.atan),
+        pytest.param(abs),
+    ],
+)
+@pytest.mark.parametrize(
+    ("col",),
+    [pytest.param("float64_col"), pytest.param("int64_col")],
+)
+def test_series_apply_python_numeric_fns(scalars_dfs, ufunc, col):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_col = scalars_df[col]
+    bf_result = bf_col.apply(ufunc).to_pandas()
+
+    pd_col = scalars_pandas_df[col]
+
+    def wrapped(x):
+        try:
+            return ufunc(x)
+        except ValueError:
+            return pd.NA
+        except OverflowError:
+            if ufunc == math.sinh and x < 0:
+                return float("-inf")
+            return float("inf")
+
+    pd_result = pd_col.apply(wrapped)
+
+    assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    ("ufunc",),
+    [
         pytest.param(numpy.add),
         pytest.param(numpy.divide),
     ],
