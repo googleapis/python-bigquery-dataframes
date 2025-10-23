@@ -20,8 +20,9 @@ Please keep implementations in sequential order by op name.
 
 from __future__ import annotations
 
+from bigframes_vendored.ibis.expr import datatypes as ibis_dtypes
 from bigframes_vendored.ibis.expr import types as ibis_types
-import bigframes_vendored.ibis.udf.scalar as ibis_udf
+from bigframes_vendored.ibis.udf import scalar as ibis_udf  # type: ignore
 
 from bigframes.core.compile.ibis_compiler.scalar_op_compiler import scalar_op_compiler
 from bigframes.operations import geo_ops
@@ -31,8 +32,8 @@ register_binary_op = scalar_op_compiler.register_binary_op
 
 
 @ibis_udf.scalar.builtin("ST_IsEmpty")
-def st_isempty(x: ibis_types.GeoValue) -> ibis_types.BooleanValue:
-    ...
+def st_isempty(x: ibis_dtypes.GeoSpatial) -> ibis_types.BooleanValue:
+    raise NotImplementedError()
 
 
 @register_unary_op(geo_ops.geo_st_isempty_op)
@@ -41,8 +42,8 @@ def geo_st_isempty_op_impl(x: ibis_types.Value):
 
 
 @ibis_udf.scalar.builtin("ST_GeometryType")
-def st_geometrytype(x: ibis_types.GeoValue) -> ibis_types.StringValue:
-    ...
+def st_geometrytype(x: ibis_dtypes.GeoSpatial) -> ibis_types.StringValue:
+    raise NotImplementedError()
 
 
 @register_unary_op(geo_ops.geo_st_geometrytype_op)
@@ -51,8 +52,8 @@ def geo_st_geometrytype_op_impl(x: ibis_types.Value):
 
 
 @ibis_udf.scalar.builtin("ST_IsRing")
-def st_isring(x: ibis_types.GeoValue) -> ibis_types.BooleanValue:
-    ...
+def st_isring(x: ibis_dtypes.GeoSpatial) -> ibis_types.BooleanValue:
+    raise NotImplementedError()
 
 
 @register_unary_op(geo_ops.geo_st_isring_op)
@@ -62,16 +63,16 @@ def geo_st_isring_op_impl(x: ibis_types.Value):
 
 @ibis_udf.scalar.builtin("ST_EQUALS")
 def st_equals(
-    x: ibis_types.GeoValue, y: ibis_types.GeoValue
+    x: ibis_dtypes.GeoSpatial, y: ibis_dtypes.GeoSpatial
 ) -> ibis_types.BooleanValue:
-    ...
+    raise NotImplementedError()
 
 
 @ibis_udf.scalar.builtin("ST_SIMPLIFY")
 def st_simplify(
-    x: ibis_types.GeoValue, tolerance: ibis_types.NumericValue
-) -> ibis_types.GeoValue:
-    ...
+    x: ibis_dtypes.GeoSpatial, tolerance: ibis_types.NumericValue
+) -> ibis_dtypes.GeoSpatial:
+    raise NotImplementedError()
 
 
 @register_unary_op(geo_ops.geo_st_issimple_op)
@@ -81,8 +82,8 @@ def geo_st_issimple_op_impl(x: ibis_types.Value):
 
 
 @ibis_udf.scalar.builtin("ST_ISVALID")
-def st_isvalid(x: ibis_types.GeoValue) -> ibis_types.BooleanValue:
-    ...
+def st_isvalid(x: ibis_dtypes.GeoSpatial) -> ibis_types.BooleanValue:
+    raise NotImplementedError()
 
 
 @register_unary_op(geo_ops.geo_st_isvalid_op)
@@ -92,13 +93,11 @@ def geo_st_isvalid_op_impl(x: ibis_types.Value):
 
 @ibis_udf.scalar.builtin("ST_UNION")
 def st_union(
-    x: ibis_types.GeoValue, y: ibis_types.GeoValue
-) -> ibis_types.GeoValue:
-    ...
+    x: ibis_dtypes.GeoSpatial, y: ibis_dtypes.GeoSpatial
+) -> ibis_dtypes.GeoSpatial:
+    raise NotImplementedError()
 
 
 @register_binary_op(geo_ops.geo_st_union_op)
-def geo_st_union_op_impl(
-    x: ibis_types.Value, y: ibis_types.Value
-) -> ibis_types.Value:
+def geo_st_union_op_impl(x: ibis_types.Value, y: ibis_types.Value) -> ibis_types.Value:
     return st_union(x, y)

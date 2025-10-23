@@ -14,15 +14,11 @@
 
 from __future__ import annotations
 
-import geopandas as gpd  # type: ignore
-import pandas as pd
-import pytest
-
-import bigframes.geopandas as bpd
 import geopandas as gpd
 import geopandas.testing
 import pandas as pd
-import pytest
+
+import bigframes.geopandas as bpd
 
 
 def test_geoseries_is_empty(polars_session):
@@ -37,6 +33,72 @@ def test_geoseries_is_empty(polars_session):
 
     result = bf_gseries.is_empty.to_pandas()
     expected = pd.Series([False, True], dtype="boolean", name="is_empty")
+
+    pd.testing.assert_series_equal(expected, result, check_index=False)
+
+
+def test_geoseries_is_valid(polars_session):
+    session = polars_session
+    geometries = [
+        "POLYGON ((0 0, 1 1, 0 1, 0 0))",
+        "POLYGON ((0 0, 1 1, 1 0, 0 1, 0 0))",
+    ]
+    gseries = gpd.GeoSeries.from_wkt(geometries)
+
+    bf_gseries = bpd.GeoSeries(gseries, session=session)
+
+    result = bf_gseries.is_valid.to_pandas()
+    expected = pd.Series([True, False], dtype="boolean", name="is_valid")
+
+    pd.testing.assert_series_equal(expected, result, check_index=False)
+
+
+def test_geoseries_is_ring(polars_session):
+    session = polars_session
+    geometries = [
+        "LINESTRING (0 0, 1 0, 1 1, 0 1, 0 0)",
+        "LINESTRING (0 0, 1 1, 1 0, 0 1)",
+    ]
+    gseries = gpd.GeoSeries.from_wkt(geometries)
+
+    bf_gseries = bpd.GeoSeries(gseries, session=session)
+
+    result = bf_gseries.is_ring.to_pandas()
+    expected = pd.Series([True, False], dtype="boolean", name="is_ring")
+
+    pd.testing.assert_series_equal(expected, result, check_index=False)
+
+
+def test_geoseries_is_simple(polars_session):
+    session = polars_session
+    geometries = [
+        "LINESTRING (0 0, 1 1)",
+        "LINESTRING (0 0, 1 1, 0 1, 1 0)",
+    ]
+    gseries = gpd.GeoSeries.from_wkt(geometries)
+
+    bf_gseries = bpd.GeoSeries(gseries, session=session)
+
+    result = bf_gseries.is_simple.to_pandas()
+    expected = pd.Series([True, False], dtype="boolean", name="is_simple")
+
+    pd.testing.assert_series_equal(expected, result, check_index=False)
+
+
+def test_geoseries_geom_type(polars_session):
+    session = polars_session
+    geometries = [
+        "POINT (0 0)",
+        "POLYGON ((0 0, 1 1, 0 1, 0 0))",
+    ]
+    gseries = gpd.GeoSeries.from_wkt(geometries)
+
+    bf_gseries = bpd.GeoSeries(gseries, session=session)
+
+    result = bf_gseries.geom_type.to_pandas()
+    expected = pd.Series(
+        ["ST_POINT", "ST_POLYGON"], dtype="string[pyarrow]", name="geom_type"
+    )
 
     pd.testing.assert_series_equal(expected, result, check_index=False)
 
@@ -69,69 +131,3 @@ def test_geoseries_union(polars_session):
     expected = pd.Series(expected_union, dtype=gpd.array.GeometryDtype())
 
     gpd.testing.assert_geoseries_equal(result, expected, check_series_type=False)
-
-
-def test_geoseries_is_valid(polars_session):
-    session = polars_session
-    geometries = [
-        "POLYGON ((0 0, 1 1, 0 1, 0 0))",
-        "POLYGON ((0 0, 1 1, 1 0, 0 1, 0 0))",
-    ]
-    gseries = gpd.GeoSeries.from_wkt(geometries)
-
-    bf_gseries = bpd.GeoSeries(gseries, session=session)
-
-    result = bf_gseries.is_valid.to_pandas()
-    expected = pd.Series([True, False], dtype="boolean", name="is_valid")
-
-    pd.testing.assert_series_equal(expected, result, check_index=False)
-
-
-def test_geoseries_is_simple(polars_session):
-    session = polars_session
-    geometries = [
-        "LINESTRING (0 0, 1 1)",
-        "LINESTRING (0 0, 1 1, 0 1, 1 0)",
-    ]
-    gseries = gpd.GeoSeries.from_wkt(geometries)
-
-    bf_gseries = bpd.GeoSeries(gseries, session=session)
-
-    result = bf_gseries.is_simple.to_pandas()
-    expected = pd.Series([True, False], dtype="boolean", name="is_simple")
-
-    pd.testing.assert_series_equal(expected, result, check_index=False)
-
-
-def test_geoseries_is_ring(polars_session):
-    session = polars_session
-    geometries = [
-        "LINESTRING (0 0, 1 0, 1 1, 0 1, 0 0)",
-        "LINESTRING (0 0, 1 1, 1 0, 0 1)",
-    ]
-    gseries = gpd.GeoSeries.from_wkt(geometries)
-
-    bf_gseries = bpd.GeoSeries(gseries, session=session)
-
-    result = bf_gseries.is_ring.to_pandas()
-    expected = pd.Series([True, False], dtype="boolean", name="is_ring")
-
-    pd.testing.assert_series_equal(expected, result, check_index=False)
-
-
-def test_geoseries_geom_type(polars_session):
-    session = polars_session
-    geometries = [
-        "POINT (0 0)",
-        "POLYGON ((0 0, 1 1, 0 1, 0 0))",
-    ]
-    gseries = gpd.GeoSeries.from_wkt(geometries)
-
-    bf_gseries = bpd.GeoSeries(gseries, session=session)
-
-    result = bf_gseries.geom_type.to_pandas()
-    expected = pd.Series(
-        ["ST_POINT", "ST_POLYGON"], dtype="string[pyarrow]", name="geom_type"
-    )
-
-    pd.testing.assert_series_equal(expected, result, check_index=False)
