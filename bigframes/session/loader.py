@@ -47,6 +47,8 @@ from google.cloud.bigquery_storage_v1 import types as bq_storage_types
 import pandas
 import pyarrow as pa
 
+import bigframes._tools
+import bigframes._tools.strings
 from bigframes.core import guid, identifiers, local_data, nodes, ordering, utils
 import bigframes.core as core
 import bigframes.core.blocks as blocks
@@ -701,18 +703,23 @@ class GbqDataLoader:
         # Optionally, execute the query
         # -----------------------------
 
-        # max_results introduces non-determinism and limits the cost on
-        # clustered tables, so fallback to a query. We do this here so that
-        # the index is consistent with tables that have primary keys, even
-        # when max_results is set.
-        if max_results is not None:
+        if (
+            # max_results introduces non-determinism and limits the cost on
+            # clustered tables, so fallback to a query. We do this here so that
+            # the index is consistent with tables that have primary keys, even
+            # when max_results is set.
+            max_results is not None
+            # Views such as INFORMATION_SCHEMA also introduce non-determinism.
+            # They can update frequently and don't support time travel.
+            or not core.ArrayValue.is_table_type_supported(table.table_type)
+        ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
             all_columns: Iterable[str] = (
                 itertools.chain(index_cols, columns) if columns else ()
             )
             query = bf_io_bigquery.to_query(
-                table_id,
+                f"{table.project}.{table.dataset_id}.{table.table_id}",
                 columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters

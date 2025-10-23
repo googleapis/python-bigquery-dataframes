@@ -141,6 +141,11 @@ class ArrayValue:
         )
         return cls(node)
 
+    @staticmethod
+    def is_table_type_supported(table_type: Optional[str]):
+        # Some external tables like those in GCS support all the features we want, such as time travel.
+        return table_type in ("TABLE", "MATERIALIZED_VIEW", "EXTERNAL")
+
     @property
     def column_ids(self) -> typing.Sequence[str]:
         """Returns column ids as strings."""

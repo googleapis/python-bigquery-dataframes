@@ -20,7 +20,7 @@ import pytest
     "view_id",
     [
         # https://cloud.google.com/bigquery/docs/information-schema-intro
-        "region-US.INFORMATION_SCHEMA.JOBS_BY_USER",
+        "region-US.INFORMATION_SCHEMA.SESSIONS_BY_USER",
         "region-US.INFORMATION_SCHEMA.SCHEMATA",
     ],
 )
@@ -32,7 +32,7 @@ def test_read_gbq_jobs_by_user_returns_schema(
     else:
         table_id = view_id
 
-    df = unordered_session.read_gbq(table_id)
+    df = unordered_session.read_gbq(table_id, max_results=10)
     assert df.dtypes is not None
 
 

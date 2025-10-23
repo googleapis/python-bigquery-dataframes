@@ -42,7 +42,6 @@ def _convert_information_schema_table_id_to_table_reference(
     default_project: Optional[str],
 ) -> bigquery.TableReference:
     """Squeeze an INFORMATION_SCHEMA reference into a TableReference.
-
     This is kind-of a hack. INFORMATION_SCHEMA is a view that isn't available
     via the tables.get REST API.
     """
@@ -152,13 +151,7 @@ def get_table_metadata(
 
         return cached_table
 
-    table_id_casefold = table_id.casefold()
-    if (
-        # Ensure we don't have false positives for some user defined dataset
-        # like MY_INFORMATION_SCHEMA or tables called INFORMATION_SCHEMA.
-        ".INFORMATION_SCHEMA.".casefold() in table_id_casefold
-        or table_id_casefold.startswith("INFORMATION_SCHEMA.".casefold())
-    ):
+    if is_information_schema(table_id):
         table = get_information_schema_metadata(
             bqclient=bqclient, table_id=table_id, default_project=default_project
         )
@@ -177,6 +170,17 @@ def get_table_metadata(
     cached_table = (bq_time, table)
     cache[table_id] = cached_table
     return cached_table
+
+
+def is_information_schema(table_id: str):
+    table_id_casefold = table_id.casefold()
+    # Include the "."s to ensure we don't have false positives for some user
+    # defined dataset like MY_INFORMATION_SCHEMA or tables called
+    # INFORMATION_SCHEMA.
+    return (
+        ".INFORMATION_SCHEMA.".casefold() in table_id_casefold
+        or table_id_casefold.startswith("INFORMATION_SCHEMA.".casefold())
+    )
 
 
 def is_time_travel_eligible(
@@ -244,6 +248,8 @@ def is_time_travel_eligible(
                 warnings.warn(
                     msg, category=bfe.TimeTravelDisabledWarning, stacklevel=stacklevel
                 )
+            return False
+        elif table.table_type == "VIEW":
             return False
 
     # table might support time travel, lets do a dry-run query with time travel
