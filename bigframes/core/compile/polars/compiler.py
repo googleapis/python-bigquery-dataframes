@@ -444,7 +444,7 @@ if polars_installed:
 
         @compile_op.register(geo_ops.GeoStGeometrytypeOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return "ST_" + input.str.extract(r"^(\w+)", 1)
+            return input.str.extract(r"^(\w+)", 1).str.to_titlecase()
 
         @compile_op.register(geo_ops.GeoStIsringOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
