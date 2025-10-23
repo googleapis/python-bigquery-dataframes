@@ -962,6 +962,10 @@ class BlobAccessor:
                 depend on the "verbose" parameter.
                 Contains the transcribed text from the audio file.
                 Includes error messages if verbosity is enabled.
+
+        Raises:
+            ValueError: If engine is not 'bigquery'.
+            RuntimeError: If the transcription result structure is invalid.
         """
         if engine.casefold() != "bigquery":
             raise ValueError("Must specify the engine, supported value is 'bigquery'.")
@@ -984,6 +988,10 @@ class BlobAccessor:
             model_params={"generationConfig": {"temperature": 0.0}},
         )
 
+        # Validate that the result is not None
+        if transcribed_results is None:
+            raise RuntimeError("Transcription returned None result")
+
         transcribed_content_series = transcribed_results.struct.field("result").rename(
             "transcribed_content"
         )
@@ -999,4 +1007,4 @@ class BlobAccessor:
             results_struct = bbq.struct(results_df).rename("transcription_results")
             return results_struct
         else:
-            return transcribed_content_series.rename("transcribed_content")
+            return transcribed_content_series
