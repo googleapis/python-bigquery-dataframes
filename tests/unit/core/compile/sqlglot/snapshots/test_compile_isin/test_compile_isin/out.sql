@@ -1,17 +1,17 @@
 WITH `bfcte_1` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` INT64, `bfcol_2` INT64>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS INT64), 0)])
+    `int64_col` AS `bfcol_0`,
+    `rowindex` AS `bfcol_1`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_2` AS (
   SELECT
-    `bfcol_1` AS `bfcol_3`,
-    `bfcol_0` AS `bfcol_4`,
-    `bfcol_2` AS `bfcol_5`
+    `bfcol_1` AS `bfcol_2`,
+    `bfcol_0` AS `bfcol_3`
   FROM `bfcte_1`
 ), `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_6` INT64>>[STRUCT(CAST(NULL AS INT64))])
+    `int64_too` AS `bfcol_4`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_3` AS (
   SELECT
     `bfcte_2`.*,
@@ -20,20 +20,18 @@ WITH `bfcte_1` AS (
         1
       FROM (
         SELECT
-          `bfcol_6`
+          `bfcol_4`
         FROM `bfcte_0`
         GROUP BY
-          `bfcol_6`
+          `bfcol_4`
       ) AS `bft_0`
       WHERE
-        COALESCE(`bfcte_2`.`bfcol_4`, 0) = COALESCE(`bft_0`.`bfcol_6`, 0)
-        AND COALESCE(`bfcte_2`.`bfcol_4`, 1) = COALESCE(`bft_0`.`bfcol_6`, 1)
-    ) AS `bfcol_7`
+        COALESCE(`bfcte_2`.`bfcol_3`, 0) = COALESCE(`bft_0`.`bfcol_4`, 0)
+        AND COALESCE(`bfcte_2`.`bfcol_3`, 1) = COALESCE(`bft_0`.`bfcol_4`, 1)
+    ) AS `bfcol_5`
   FROM `bfcte_2`
 )
 SELECT
-  `bfcol_3` AS `rowindex`,
-  `bfcol_7` AS `int64_col`
+  `bfcol_2` AS `rowindex`,
+  `bfcol_5` AS `int64_col`
 FROM `bfcte_3`
-ORDER BY
-  `bfcol_5` ASC NULLS LAST

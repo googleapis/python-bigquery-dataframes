@@ -1,7 +1,9 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` DATE, `bfcol_1` INT64, `bfcol_2` STRING>>[STRUCT(CAST(NULL AS DATE), CAST(NULL AS INT64), CAST(NULL AS STRING))])
+    `date_col` AS `bfcol_0`,
+    `int64_col` AS `bfcol_1`,
+    `string_col` AS `bfcol_2`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     APPROX_QUANTILES(`bfcol_1`, 2)[OFFSET(1)] AS `bfcol_3`,

@@ -1,7 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` FLOAT64, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS FLOAT64), 0)])
+    `float64_col` AS `bfcol_0`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     *,
@@ -9,11 +9,9 @@ WITH `bfcte_0` AS (
       WHEN ABS(`bfcol_0`) > 709.78
       THEN SIGN(`bfcol_0`) * CAST('Infinity' AS FLOAT64)
       ELSE SINH(`bfcol_0`)
-    END AS `bfcol_2`
+    END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_2` AS `float64_col`
+  `bfcol_1` AS `float64_col`
 FROM `bfcte_1`
-ORDER BY
-  `bfcol_1` ASC NULLS LAST

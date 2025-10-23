@@ -1,7 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64>>[STRUCT(CAST(NULL AS INT64))])
+    `int64_col` AS `bfcol_0`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     MIN(`bfcol_0`) AS `bfcol_1`

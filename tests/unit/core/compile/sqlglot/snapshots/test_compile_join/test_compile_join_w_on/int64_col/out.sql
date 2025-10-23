@@ -1,7 +1,8 @@
 WITH `bfcte_1` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS INT64))])
+    `int64_col` AS `bfcol_0`,
+    `rowindex` AS `bfcol_1`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_2` AS (
   SELECT
     `bfcol_1` AS `bfcol_2`,
@@ -9,8 +10,9 @@ WITH `bfcte_1` AS (
   FROM `bfcte_1`
 ), `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_4` INT64, `bfcol_5` INT64>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS INT64))])
+    `int64_col` AS `bfcol_4`,
+    `rowindex` AS `bfcol_5`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_3` AS (
   SELECT
     `bfcol_5` AS `bfcol_6`,

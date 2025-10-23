@@ -1,19 +1,19 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN, `bfcol_1` BYTES, `bfcol_2` INT64, `bfcol_3` INT64>>[STRUCT(CAST(NULL AS BOOLEAN), CAST(NULL AS BYTES), CAST(NULL AS INT64), 0)])
+    `bool_col` AS `bfcol_0`,
+    `bytes_col` AS `bfcol_1`,
+    `int64_col` AS `bfcol_2`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     *,
-    ~`bfcol_2` AS `bfcol_8`,
-    ~`bfcol_1` AS `bfcol_9`,
-    NOT `bfcol_0` AS `bfcol_10`
+    ~`bfcol_2` AS `bfcol_6`,
+    ~`bfcol_1` AS `bfcol_7`,
+    NOT `bfcol_0` AS `bfcol_8`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_8` AS `int64_col`,
-  `bfcol_9` AS `bytes_col`,
-  `bfcol_10` AS `bool_col`
+  `bfcol_6` AS `int64_col`,
+  `bfcol_7` AS `bytes_col`,
+  `bfcol_8` AS `bool_col`
 FROM `bfcte_1`
-ORDER BY
-  `bfcol_3` ASC NULLS LAST

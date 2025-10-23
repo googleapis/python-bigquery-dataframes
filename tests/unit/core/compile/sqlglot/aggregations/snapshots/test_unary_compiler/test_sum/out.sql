@@ -1,7 +1,8 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS BOOLEAN), CAST(NULL AS INT64))])
+    `bool_col` AS `bfcol_0`,
+    `int64_col` AS `bfcol_1`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     COALESCE(SUM(`bfcol_1`), 0) AS `bfcol_4`,

@@ -1,21 +1,21 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` INT64, `bfcol_2` TIMESTAMP, `bfcol_3` INT64>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS INT64), CAST(NULL AS TIMESTAMP), 0)])
+    `int64_col` AS `bfcol_0`,
+    `rowindex` AS `bfcol_1`,
+    `timestamp_col` AS `bfcol_2`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_1` AS `bfcol_8`,
-    `bfcol_2` AS `bfcol_9`,
-    `bfcol_0` AS `bfcol_10`,
-    CAST(FLOOR(IEEE_DIVIDE(86400000000, `bfcol_0`)) AS INT64) AS `bfcol_11`
+    `bfcol_1` AS `bfcol_6`,
+    `bfcol_2` AS `bfcol_7`,
+    `bfcol_0` AS `bfcol_8`,
+    CAST(FLOOR(IEEE_DIVIDE(86400000000, `bfcol_0`)) AS INT64) AS `bfcol_9`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_8` AS `rowindex`,
-  `bfcol_9` AS `timestamp_col`,
-  `bfcol_10` AS `int64_col`,
-  `bfcol_11` AS `timedelta_div_numeric`
+  `bfcol_6` AS `rowindex`,
+  `bfcol_7` AS `timestamp_col`,
+  `bfcol_8` AS `int64_col`,
+  `bfcol_9` AS `timedelta_div_numeric`
 FROM `bfcte_1`
-ORDER BY
-  `bfcol_3` ASC NULLS LAST

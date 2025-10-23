@@ -1,7 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` STRING, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS STRING), 0)])
+    `string_col` AS `bfcol_0`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     *,
@@ -11,11 +11,9 @@ WITH `bfcte_0` AS (
       endpoint => 'gemini-2.5-flash',
       request_type => 'SHARED',
       output_schema => 'x INT64, y FLOAT64'
-    ) AS `bfcol_2`
+    ) AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_2` AS `result`
+  `bfcol_1` AS `result`
 FROM `bfcte_1`
-ORDER BY
-  `bfcol_1` ASC NULLS LAST

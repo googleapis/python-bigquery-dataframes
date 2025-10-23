@@ -709,9 +709,9 @@ class GbqDataLoader:
             # the index is consistent with tables that have primary keys, even
             # when max_results is set.
             max_results is not None
-            # Views such as INFORMATION_SCHEMA also introduce non-determinism.
+            # Views such as INFORMATION_SCHEMA can introduce non-determinism.
             # They can update frequently and don't support time travel.
-            or not core.ArrayValue.is_table_type_supported(table.table_type)
+            or bf_read_gbq_table.is_information_schema(table_id)
         ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.

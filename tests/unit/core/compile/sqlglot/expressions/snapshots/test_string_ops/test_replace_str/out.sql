@@ -1,15 +1,13 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` STRING, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS STRING), 0)])
+    `string_col` AS `bfcol_0`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     *,
-    REPLACE(`bfcol_0`, 'e', 'a') AS `bfcol_2`
+    REPLACE(`bfcol_0`, 'e', 'a') AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_2` AS `string_col`
+  `bfcol_1` AS `string_col`
 FROM `bfcte_1`
-ORDER BY
-  `bfcol_1` ASC NULLS LAST

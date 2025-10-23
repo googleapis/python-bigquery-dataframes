@@ -1,22 +1,17 @@
 WITH `bfcte_0` AS (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS INT64), 0)])
+    `int64_col` AS `bfcol_0`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
     *,
     CASE
       WHEN `bfcol_0` IS NULL
       THEN NULL
-      ELSE LAST_VALUE(`bfcol_0`) OVER (
-        ORDER BY `bfcol_0` DESC, `bfcol_1` ASC NULLS LAST
-        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-      )
-    END AS `bfcol_2`
+      ELSE LAST_VALUE(`bfcol_0`) OVER (ORDER BY `bfcol_0` DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+    END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_2` AS `agg_int64`
+  `bfcol_1` AS `agg_int64`
 FROM `bfcte_1`
-ORDER BY
-  `bfcol_1` ASC NULLS LAST
