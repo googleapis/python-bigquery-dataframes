@@ -790,25 +790,9 @@ class BlobAccessor:
     ) -> bigframes.series.Series:
         """Extracts text from PDF URLs and saves the text as string.
 
-        Args:
-            engine ('pypdf' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
-            connection (str or None, default None): BQ connection used for
-                function internet transactions, and the output blob if "dst"
-                is str. If None, uses default connection of the session.
-            max_batching_rows (int, default 1): Max number of rows per batch
-                send to cloud run to execute the function.
-            container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
-            container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
-            verbose (bool, default "False"): controls the verbosity of the output.
-                When set to True, both error messages and the extracted content
-                are displayed. Conversely, when set to False, only the extracted
-                content is presented, suppressing error messages.
-
-        Returns:
-            bigframes.series.Series: str or struct[str, str],
-                depend on the "verbose" parameter.
-                Contains the extracted text from the PDF file.
-                Includes error messages if verbosity is enabled.
+        Raises:
+            ValueError: If engine is not 'pypdf'.
+            RuntimeError: If PDF extraction fails or returns invalid structure.
         """
         if engine is None or engine.casefold() != "pypdf":
             raise ValueError("Must specify the engine, supported value is 'pypdf'.")
@@ -830,20 +814,37 @@ class BlobAccessor:
 
         df = self.get_runtime_json_str(mode="R").to_frame()
         df["verbose"] = verbose
-        res = self._df_apply_udf(df, pdf_extract_udf)
+
+        try:
+            res = self._df_apply_udf(df, pdf_extract_udf)
+        except Exception as e:
+            raise RuntimeError(f"PDF extraction UDF failed: {e}") from e
+
+        # Validate result is not None
+        if res is None:
+            raise RuntimeError("PDF extraction returned None result")
+
+        # Extract content with error handling
+        try:
+            content_series = res._apply_unary_op(ops.JSONValue(json_path="$.content"))
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to extract content field from PDF result: {e}"
+            ) from e
 
         if verbose:
-            extracted_content_series = res._apply_unary_op(
-                ops.JSONValue(json_path="$.content")
-            )
-            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
-            results_df = bpd.DataFrame(
-                {"status": status_series, "content": extracted_content_series}
-            )
-            results_struct = bbq.struct(results_df).rename("extracted_results")
-            return results_struct
+            try:
+                status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to extract status field from PDF result: {e}"
+                ) from e
+
+            res_df = bpd.DataFrame({"status": status_series, "content": content_series})
+            struct_series = bbq.struct(res_df)
+            return struct_series
         else:
-            return res.rename("extracted_content")
+            return content_series
 
     def pdf_chunk(
         self,
@@ -860,30 +861,9 @@ class BlobAccessor:
         """Extracts and chunks text from PDF URLs and saves the text as
            arrays of strings.
 
-        Args:
-            engine ('pypdf' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
-            connection (str or None, default None): BQ connection used for
-                function internet transactions, and the output blob if "dst"
-                is str. If None, uses default connection of the session.
-            chunk_size (int, default 2000): the desired size of each text chunk
-                (number of characters).
-            overlap_size (int, default 200): the number of overlapping characters
-                between consective chunks. The helps to ensure context is
-                perserved across chunk boundaries.
-            max_batching_rows (int, default 1): Max number of rows per batch
-                send to cloud run to execute the function.
-            container_cpu (int or float, default 2): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
-            container_memory (str, default "1Gi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
-            verbose (bool, default "False"): controls the verbosity of the output.
-                When set to True, both error messages and the extracted content
-                are displayed. Conversely, when set to False, only the extracted
-                content is presented, suppressing error messages.
-
-        Returns:
-            bigframe.series.Series: array[str] or struct[str, array[str]],
-                depend on the "verbose" parameter.
-                where each string is a chunk of text extracted from PDF.
-                Includes error messages if verbosity is enabled.
+        Raises:
+            ValueError: If engine is not 'pypdf'.
+            RuntimeError: If PDF chunking fails or returns invalid structure.
         """
         if engine is None or engine.casefold() != "pypdf":
             raise ValueError("Must specify the engine, supported value is 'pypdf'.")
@@ -915,13 +895,31 @@ class BlobAccessor:
         df["overlap_size"] = overlap_size
         df["verbose"] = verbose
 
-        res = self._df_apply_udf(df, pdf_chunk_udf)
+        try:
+            res = self._df_apply_udf(df, pdf_chunk_udf)
+        except Exception as e:
+            raise RuntimeError(f"PDF chunking UDF failed: {e}") from e
+
+        if res is None:
+            raise RuntimeError("PDF chunking returned None result")
+
+        try:
+            content_series = bbq.json_extract_string_array(res, "$.content")
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to extract content array from PDF chunk result: {e}"
+            ) from e
 
         if verbose:
-            chunked_content_series = bbq.json_extract_string_array(res, "$.content")
-            status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            try:
+                status_series = res._apply_unary_op(ops.JSONValue(json_path="$.status"))
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to extract status field from PDF chunk result: {e}"
+                ) from e
+
             results_df = bpd.DataFrame(
-                {"status": status_series, "content": chunked_content_series}
+                {"status": status_series, "content": content_series}
             )
             resultes_struct = bbq.struct(results_df).rename("chunked_results")
             return resultes_struct
