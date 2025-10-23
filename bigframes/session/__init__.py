@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from collections import abc
 import datetime
+import fnmatch
+import inspect
 import logging
 import os
 import secrets
@@ -40,13 +42,13 @@ import warnings
 import weakref
 
 import bigframes_vendored.constants as constants
+import bigframes_vendored.google_cloud_bigquery.retry as third_party_gcb_retry
 import bigframes_vendored.ibis.backends.bigquery as ibis_bigquery  # noqa
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
 import bigframes_vendored.pandas.io.parquet as third_party_pandas_parquet
 import bigframes_vendored.pandas.io.parsers.readers as third_party_pandas_readers
 import bigframes_vendored.pandas.io.pickle as third_party_pandas_pickle
 import google.cloud.bigquery as bigquery
-import google.cloud.storage as storage  # type: ignore
 import numpy as np
 import pandas
 from pandas._typing import (
@@ -59,28 +61,26 @@ import pyarrow as pa
 
 from bigframes import exceptions as bfe
 from bigframes import version
+import bigframes._config
 import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 import bigframes.constants
 import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
+import bigframes.core.events
+import bigframes.core.indexes
+import bigframes.core.indexes.multi
 import bigframes.core.pyformat
-
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
+import bigframes.formatting_helpers
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session, bq_caching_executor, executor
 import bigframes.session._io.bigquery as bf_io_bigquery
-import bigframes.session.anonymous_dataset
 import bigframes.session.clients
-import bigframes.session.loader
-import bigframes.session.metrics
 import bigframes.session.validation
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
-    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
     import bigframes.series
     import bigframes.streaming.dataframe as streaming_dataframe
@@ -131,7 +131,16 @@ class Session(
         context: Optional[bigquery_options.BigQueryOptions] = None,
         clients_provider: Optional[bigframes.session.clients.ClientsProvider] = None,
     ):
+        # Address circular imports in doctest due to bigframes/session/__init__.py
+        # containing a lot of logic and samples.
+        from bigframes.session import anonymous_dataset, clients, loader, metrics
+
         _warn_if_bf_version_is_obsolete()
+
+        # Publisher needs to be created before the other objects, especially
+        # the executors, because they access it.
+        self._publisher = bigframes.core.events.Publisher()
+        self._publisher.subscribe(bigframes.formatting_helpers.progress_callback)
 
         if context is None:
             context = bigquery_options.BigQueryOptions()
@@ -166,7 +175,7 @@ class Session(
         if clients_provider:
             self._clients_provider = clients_provider
         else:
-            self._clients_provider = bigframes.session.clients.ClientsProvider(
+            self._clients_provider = clients.ClientsProvider(
                 project=context.project,
                 location=self._location,
                 use_regional_endpoints=context.use_regional_endpoints,
@@ -218,21 +227,21 @@ class Session(
             else bigframes.enums.DefaultIndexKind.NULL
         )
 
-        self._metrics = bigframes.session.metrics.ExecutionMetrics()
+        self._metrics = metrics.ExecutionMetrics()
         self._function_session = bff_session.FunctionSession()
-        self._anon_dataset_manager = (
-            bigframes.session.anonymous_dataset.AnonymousDatasetManager(
-                self._clients_provider.bqclient,
-                location=self._location,
-                session_id=self._session_id,
-                kms_key=self._bq_kms_key_name,
-            )
+        self._anon_dataset_manager = anonymous_dataset.AnonymousDatasetManager(
+            self._clients_provider.bqclient,
+            location=self._location,
+            session_id=self._session_id,
+            kms_key=self._bq_kms_key_name,
+            publisher=self._publisher,
         )
         # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
         self._session_resource_manager = (
             bigquery_session.SessionResourceManager(
                 self.bqclient,
                 self._location,
+                publisher=self._publisher,
             )
             if (self._bq_kms_key_name is None)
             else None
@@ -240,7 +249,7 @@ class Session(
         self._temp_storage_manager = (
             self._session_resource_manager or self._anon_dataset_manager
         )
-        self._loader = bigframes.session.loader.GbqDataLoader(
+        self._loader = loader.GbqDataLoader(
             session=self,
             bqclient=self._clients_provider.bqclient,
             storage_manager=self._temp_storage_manager,
@@ -249,6 +258,7 @@ class Session(
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
             metrics=self._metrics,
+            publisher=self._publisher,
         )
         self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
             bqclient=self._clients_provider.bqclient,
@@ -258,6 +268,7 @@ class Session(
             strictly_ordered=self._strictly_ordered,
             metrics=self._metrics,
             enable_polars_execution=context.enable_polars_execution,
+            publisher=self._publisher,
         )
 
     def __del__(self):
@@ -311,6 +322,15 @@ class Session(
         return self._bq_connection_manager
 
     @property
+    def options(self) -> bigframes._config.Options:
+        """Options for configuring BigQuery DataFrames.
+
+        Included for compatibility between bpd and Session.
+        """
+        # TODO(tswast): Consider making a separate session-level options object.
+        return bigframes._config.options
+
+    @property
     def session_id(self):
         return self._session_id
 
@@ -339,15 +359,6 @@ class Session(
     @property
     def slot_millis_sum(self):
         """The sum of all slot time used by bigquery jobs in this session."""
-        if not bigframes.options._allow_large_results:
-            msg = bfe.format_message(
-                "Queries executed with `allow_large_results=False` within the session will not "
-                "have their slot milliseconds counted in this sum.  If you need precise slot "
-                "milliseconds information, query the `INFORMATION_SCHEMA` tables "
-                "to get relevant metrics.",
-            )
-            warnings.warn(msg, UserWarning)
-
         return self._metrics.slot_millis
 
     @property
@@ -377,8 +388,14 @@ class Session(
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
-            self._function_session.clean_up(
+            remote_function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
+            )
+
+        publisher_session = getattr(self, "_publisher", None)
+        if publisher_session:
+            publisher_session.publish(
+                bigframes.core.events.SessionClosed(self.session_id)
             )
 
     @overload
@@ -394,6 +411,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -410,6 +428,7 @@ class Session(
         use_cache: Optional[bool] = ...,
         col_order: Iterable[str] = ...,
         dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> pandas.Series:
         ...
 
@@ -424,8 +443,8 @@ class Session(
         filters: third_party_pandas_gbq.FiltersType = (),
         use_cache: Optional[bool] = None,
         col_order: Iterable[str] = (),
-        dry_run: bool = False
-        # Add a verify index argument that fails if the index is not unique.
+        dry_run: bool = False,
+        allow_large_results: Optional[bool] = None,
     ) -> dataframe.DataFrame | pandas.Series:
         # TODO(b/281571214): Generate prompt to show the progress of read_gbq.
         if columns and col_order:
@@ -434,6 +453,9 @@ class Session(
             )
         elif col_order:
             columns = col_order
+
+        if allow_large_results is None:
+            allow_large_results = bigframes._config.options._allow_large_results
 
         if bf_io_bigquery.is_query(query_or_table):
             return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
@@ -445,6 +467,7 @@ class Session(
                 use_cache=use_cache,
                 filters=filters,
                 dry_run=dry_run,
+                allow_large_results=allow_large_results,
             )
         else:
             if configuration is not None:
@@ -520,6 +543,8 @@ class Session(
         if pyformat_args is None:
             pyformat_args = {}
 
+        allow_large_results = bigframes._config.options._allow_large_results
+
         query = bigframes.core.pyformat.pyformat(
             query,
             pyformat_args=pyformat_args,
@@ -532,10 +557,7 @@ class Session(
             index_col=bigframes.enums.DefaultIndexKind.NULL,
             force_total_order=False,
             dry_run=typing.cast(Union[Literal[False], Literal[True]], dry_run),
-            # TODO(tswast): we may need to allow allow_large_results to be overwritten
-            # or possibly a general configuration object for an explicit
-            # destination table and write disposition.
-            allow_large_results=False,
+            allow_large_results=allow_large_results,
         )
 
     @overload
@@ -551,6 +573,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[False] = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> dataframe.DataFrame:
         ...
 
@@ -567,6 +590,7 @@ class Session(
         col_order: Iterable[str] = ...,
         filters: third_party_pandas_gbq.FiltersType = ...,
         dry_run: Literal[True] = ...,
+        allow_large_results: Optional[bool] = ...,
     ) -> pandas.Series:
         ...
 
@@ -582,6 +606,7 @@ class Session(
         col_order: Iterable[str] = (),
         filters: third_party_pandas_gbq.FiltersType = (),
         dry_run: bool = False,
+        allow_large_results: Optional[bool] = None,
     ) -> dataframe.DataFrame | pandas.Series:
         """Turn a SQL query into a DataFrame.
 
@@ -592,11 +617,9 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Simple query input:
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.read_gbq_query('''
             ...    SELECT
             ...       pitcherFirstName,
@@ -631,9 +654,48 @@ class Session(
 
         See also: :meth:`Session.read_gbq`.
 
+        Args:
+            query (str):
+                A SQL query to execute.
+            index_col (Iterable[str] or str, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used.
+            columns (Iterable[str], optional):
+                The columns to read from the query result. If not
+                specified, all columns will be read.
+            configuration (dict, optional):
+                A dictionary of query job configuration options. See the
+                BigQuery REST API documentation for a list of available options:
+                https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs#configuration.query
+            max_results (int, optional):
+                The maximum number of rows to retrieve from the query
+                result. If not specified, all rows will be loaded.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to ``True``.
+                Setting this to ``False`` will force a re-execution of the query.
+            col_order (Iterable[str], optional):
+                The desired order of columns in the resulting DataFrame. This
+                parameter is deprecated and will be removed in a future version.
+                Use ``columns`` instead.
+            filters (list[tuple], optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            dry_run (bool, optional):
+                If ``True``, the function will not actually execute the query but
+                will instead return statistics about the query. Defaults to
+                ``False``.
+            allow_large_results (bool, optional):
+                Whether to allow large query results. If ``True``, the query
+                results can be larger than the maximum response size.
+                Defaults to ``bpd.options.compute.allow_large_results``.
+
         Returns:
-            bigframes.pandas.DataFrame:
-                A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame or pandas.Series:
+                A DataFrame representing the result of the query. If ``dry_run``
+                is ``True``, a ``pandas.Series`` containing query statistics is
+                returned.
 
         Raises:
             ValueError:
@@ -648,6 +710,9 @@ class Session(
         elif col_order:
             columns = col_order
 
+        if allow_large_results is None:
+            allow_large_results = bigframes._config.options._allow_large_results
+
         return self._loader.read_gbq_query(  # type: ignore # for dry_run overload
             query=query,
             index_col=index_col,
@@ -657,6 +722,7 @@ class Session(
             use_cache=use_cache,
             filters=filters,
             dry_run=dry_run,
+            allow_large_results=allow_large_results,
         )
 
     @overload
@@ -705,18 +771,47 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Read a whole table, with arbitrary ordering or ordering corresponding to the primary key(s).
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
         See also: :meth:`Session.read_gbq`.
 
+        Args:
+            table_id (str):
+                The identifier of the BigQuery table to read.
+            index_col (Iterable[str] or str, optional):
+                The column(s) to use as the index for the DataFrame. This can be
+                a single column name or a list of column names. If not provided,
+                a default index will be used.
+            columns (Iterable[str], optional):
+                The columns to read from the table. If not specified, all
+                columns will be read.
+            max_results (int, optional):
+                The maximum number of rows to retrieve from the table. If not
+                specified, all rows will be loaded.
+            filters (list[tuple], optional):
+                A list of filters to apply to the data. Filters are specified
+                as a list of tuples, where each tuple contains a column name,
+                an operator (e.g., '==', '!='), and a value.
+            use_cache (bool, optional):
+                Whether to use cached results for the query. Defaults to ``True``.
+                Setting this to ``False`` will force a re-execution of the query.
+            col_order (Iterable[str], optional):
+                The desired order of columns in the resulting DataFrame. This
+                parameter is deprecated and will be removed in a future version.
+                Use ``columns`` instead.
+            dry_run (bool, optional):
+                If ``True``, the function will not actually execute the query but
+                will instead return statistics about the table. Defaults to
+                ``False``.
+
         Returns:
-            bigframes.pandas.DataFrame:
-                A DataFrame representing results of the query or table.
+            bigframes.pandas.DataFrame or pandas.Series:
+                A DataFrame representing the contents of the table. If
+                ``dry_run`` is ``True``, a ``pandas.Series`` containing table
+                statistics is returned.
 
         Raises:
             ValueError:
@@ -753,8 +848,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.streaming as bst
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
@@ -782,11 +875,9 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Read an existing BigQuery ML model.
 
+            >>> import bigframes.pandas as bpd
             >>> model_name = "bigframes-dev.bqml_tutorial.penguins_model"
             >>> model = bpd.read_gbq_model(model_name)
 
@@ -852,9 +943,6 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> d = {'col1': [1, 2], 'col2': [3, 4]}
             >>> pandas_df = pd.DataFrame(data=d)
@@ -1343,12 +1431,24 @@ class Session(
     def _check_file_size(self, filepath: str):
         max_size = 1024 * 1024 * 1024  # 1 GB in bytes
         if filepath.startswith("gs://"):  # GCS file path
-            client = storage.Client()
-            bucket_name, blob_name = filepath.split("/", 3)[2:]
+            bucket_name, blob_path = filepath.split("/", 3)[2:]
+
+            client = self._clients_provider.storageclient
             bucket = client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            blob.reload()
-            file_size = blob.size
+
+            list_blobs_params = inspect.signature(bucket.list_blobs).parameters
+            if "match_glob" in list_blobs_params:
+                # Modern, efficient method for new library versions
+                matching_blobs = bucket.list_blobs(match_glob=blob_path)
+                file_size = sum(blob.size for blob in matching_blobs)
+            else:
+                # Fallback method for older library versions
+                prefix = blob_path.split("*", 1)[0]
+                all_blobs = bucket.list_blobs(prefix=prefix)
+                matching_blobs = [
+                    blob for blob in all_blobs if fnmatch.fnmatch(blob.name, blob_path)
+                ]
+                file_size = sum(blob.size for blob in matching_blobs)
         elif os.path.exists(filepath):  # local file path
             file_size = os.path.getsize(filepath)
         else:
@@ -1419,6 +1519,9 @@ class Session(
         cloud_function_timeout: Optional[int] = 600,
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_vpc_connector_egress_settings: Optional[
+            Literal["all", "private-ranges-only", "unspecified"]
+        ] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
@@ -1584,6 +1687,13 @@ class Session(
                 function. This is useful if your code needs access to data or
                 service(s) that are on a VPC network. See for more details
                 https://cloud.google.com/functions/docs/networking/connecting-vpc.
+            cloud_function_vpc_connector_egress_settings (str, Optional):
+                Egress settings for the VPC connector, controlling what outbound
+                traffic is routed through the VPC connector.
+                Options are: `all`, `private-ranges-only`, or `unspecified`.
+                If not specified, `private-ranges-only` is used by default.
+                See for more details
+                https://cloud.google.com/run/docs/configuring/vpc-connectors#egress-job.
             cloud_function_memory_mib (int, Optional):
                 The amounts of memory (in mebibytes) to allocate for the cloud
                 function (2nd gen) created. This also dictates a corresponding
@@ -1641,6 +1751,7 @@ class Session(
             cloud_function_timeout=cloud_function_timeout,
             cloud_function_max_instances=cloud_function_max_instances,
             cloud_function_vpc_connector=cloud_function_vpc_connector,
+            cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
             cloud_build_service_account=cloud_build_service_account,
@@ -1707,14 +1818,12 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> import datetime
-            >>> bpd.options.display.progress_bar = None
 
         Turning an arbitrary python function into a BigQuery managed python udf:
 
             >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
-            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)
+            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)  # doctest: +SKIP
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -1727,8 +1836,8 @@ class Session(
             4    120
             dtype: Int64
 
-            >>> hours = minutes.apply(minutes_to_hours)
-            >>> hours
+            >>> hours = minutes.apply(minutes_to_hours)  # doctest: +SKIP
+            >>> hours  # doctest: +SKIP
             0    0.0
             1    0.5
             2    1.0
@@ -1741,7 +1850,7 @@ class Session(
         packages (optionally with the package version) via `packages` param.
 
             >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
-            >>> @bpd.udf(
+            >>> @bpd.udf(  # doctest: +SKIP
             ...     dataset="bigfranes_testing",
             ...     name=bq_name,
             ...     packages=["cryptography"]
@@ -1758,14 +1867,14 @@ class Session(
             ...     return f.encrypt(input.encode()).decode()
 
             >>> names = bpd.Series(["Alice", "Bob"])
-            >>> hashes = names.apply(get_hash)
+            >>> hashes = names.apply(get_hash)  # doctest: +SKIP
 
         You can clean-up the BigQuery functions created above using the BigQuery
         client from the BigQuery DataFrames session:
 
-            >>> session = bpd.get_global_session()
-            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)
-            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)
+            >>> session = bpd.get_global_session()  # doctest: +SKIP
+            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)  # doctest: +SKIP
+            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)  # doctest: +SKIP
 
         Args:
             input_types (type or sequence(type), Optional):
@@ -1871,12 +1980,10 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Use the [cw_lower_case_ascii_only](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string)
         function from Community UDFs.
 
+            >>> import bigframes.pandas as bpd
             >>> func = bpd.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
 
         You can run it on scalar input. Usually you would do so to verify that
@@ -1936,13 +2043,13 @@ class Session(
         Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
-            >>> @bpd.remote_function(cloud_function_service_account="default")
+            >>> @bpd.remote_function(cloud_function_service_account="default")  # doctest: +SKIP
             ... def tenfold(num: int) -> float:
             ...     return num * 10
 
         Then, read back the deployed BQ remote function:
 
-            >>> tenfold_ref = bpd.read_gbq_function(
+            >>> tenfold_ref = bpd.read_gbq_function(  # doctest: +SKIP
             ...     tenfold.bigframes_remote_function,
             ... )
 
@@ -1954,7 +2061,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> df['a'].apply(tenfold_ref)
+            >>> df['a'].apply(tenfold_ref)  # doctest: +SKIP
             0    10.0
             1    20.0
             Name: a, dtype: Float64
@@ -1963,11 +2070,11 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function(cloud_function_service_account="default")
-            ... def row_sum(s: bpd.Series) -> float:
+            >>> @bpd.remote_function(cloud_function_service_account="default")  # doctest: +SKIP
+            ... def row_sum(s: pd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
-            >>> row_sum_ref = bpd.read_gbq_function(
+            >>> row_sum_ref = bpd.read_gbq_function(  # doctest: +SKIP
             ...     row_sum.bigframes_remote_function,
             ...     is_row_processor=True,
             ... )
@@ -1980,7 +2087,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> df.apply(row_sum_ref, axis=1)
+            >>> df.apply(row_sum_ref, axis=1)  # doctest: +SKIP
             0     9.0
             1    12.0
             dtype: Float64
@@ -2051,6 +2158,8 @@ class Session(
             project=None,
             timeout=None,
             query_with_job=True,
+            job_retry=third_party_gcb_retry.DEFAULT_ML_JOB_RETRY,
+            publisher=self._publisher,
         )
         return iterator, query_job
 
@@ -2078,6 +2187,7 @@ class Session(
             project=None,
             timeout=None,
             query_with_job=True,
+            publisher=self._publisher,
         )
 
         return table
@@ -2180,6 +2290,104 @@ class Session(
 
         s = self._loader.read_gbq_table(object_table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
+
+    # =========================================================================
+    # bigframes.pandas attributes
+    #
+    # These are included so that Session and bigframes.pandas can be used
+    # interchangeably.
+    # =========================================================================
+    def cut(self, *args, **kwargs) -> bigframes.series.Series:
+        """Cuts a BigQuery DataFrames object.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.cut` for full documentation.
+        """
+        import bigframes.core.reshape.tile
+
+        return bigframes.core.reshape.tile.cut(
+            *args,
+            session=self,
+            **kwargs,
+        )
+
+    def DataFrame(self, *args, **kwargs):
+        """Constructs a DataFrame.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.DataFrame` for full documentation.
+        """
+        import bigframes.dataframe
+
+        return bigframes.dataframe.DataFrame(*args, session=self, **kwargs)
+
+    @property
+    def MultiIndex(self) -> bigframes.core.indexes.multi.MultiIndexAccessor:
+        """Constructs a MultiIndex.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.MulitIndex` for full documentation.
+        """
+        import bigframes.core.indexes.multi
+
+        return bigframes.core.indexes.multi.MultiIndexAccessor(self)
+
+    def Index(self, *args, **kwargs):
+        """Constructs a Index.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.Index` for full documentation.
+        """
+        import bigframes.core.indexes
+
+        return bigframes.core.indexes.Index(*args, session=self, **kwargs)
+
+    def Series(self, *args, **kwargs):
+        """Constructs a Series.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.Series` for full documentation.
+        """
+        import bigframes.series
+
+        return bigframes.series.Series(*args, session=self, **kwargs)
+
+    def to_datetime(
+        self, *args, **kwargs
+    ) -> Union[pandas.Timestamp, datetime.datetime, bigframes.series.Series]:
+        """Converts a BigQuery DataFrames object to datetime dtype.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.to_datetime` for full documentation.
+        """
+        import bigframes.core.tools
+
+        return bigframes.core.tools.to_datetime(
+            *args,
+            session=self,
+            **kwargs,
+        )
+
+    def to_timedelta(self, *args, **kwargs):
+        """Converts a BigQuery DataFrames object to timedelta/duration dtype.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.to_timedelta` for full documentation.
+        """
+        import bigframes.pandas.core.tools.timedeltas
+
+        return bigframes.pandas.core.tools.timedeltas.to_timedelta(
+            *args,
+            session=self,
+            **kwargs,
+        )
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:

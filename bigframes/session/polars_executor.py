@@ -18,10 +18,25 @@ from typing import Optional, TYPE_CHECKING
 
 import pyarrow as pa
 
-from bigframes.core import array_value, bigframe_node, expression, local_data, nodes
+from bigframes.core import (
+    agg_expressions,
+    array_value,
+    bigframe_node,
+    expression,
+    local_data,
+    nodes,
+)
 import bigframes.operations
 from bigframes.operations import aggregations as agg_ops
-from bigframes.operations import comparison_ops, numeric_ops
+from bigframes.operations import (
+    bool_ops,
+    comparison_ops,
+    date_ops,
+    frequency_ops,
+    generic_ops,
+    numeric_ops,
+    string_ops,
+)
 from bigframes.session import executor, semi_executor
 
 if TYPE_CHECKING:
@@ -44,6 +59,9 @@ _COMPATIBLE_NODES = (
 )
 
 _COMPATIBLE_SCALAR_OPS = (
+    bool_ops.AndOp,
+    bool_ops.OrOp,
+    bool_ops.XorOp,
     comparison_ops.EqOp,
     comparison_ops.EqNullsMatchOp,
     comparison_ops.NeOp,
@@ -51,12 +69,34 @@ _COMPATIBLE_SCALAR_OPS = (
     comparison_ops.GtOp,
     comparison_ops.LeOp,
     comparison_ops.GeOp,
+    date_ops.YearOp,
+    date_ops.QuarterOp,
+    date_ops.MonthOp,
+    date_ops.DayOfWeekOp,
+    date_ops.DayOp,
+    date_ops.IsoYearOp,
+    date_ops.IsoWeekOp,
+    date_ops.IsoDayOp,
+    frequency_ops.FloorDtOp,
     numeric_ops.AddOp,
     numeric_ops.SubOp,
     numeric_ops.MulOp,
     numeric_ops.DivOp,
     numeric_ops.FloorDivOp,
     numeric_ops.ModOp,
+    generic_ops.AsTypeOp,
+    generic_ops.WhereOp,
+    generic_ops.CoalesceOp,
+    generic_ops.FillNaOp,
+    generic_ops.CaseWhenOp,
+    generic_ops.InvertOp,
+    generic_ops.IsInOp,
+    generic_ops.IsNullOp,
+    generic_ops.NotNullOp,
+    string_ops.StartsWithOp,
+    string_ops.EndsWithOp,
+    string_ops.StrContainsOp,
+    string_ops.StrContainsRegexOp,
 )
 _COMPATIBLE_AGG_OPS = (
     agg_ops.SizeOp,
@@ -79,7 +119,7 @@ def _is_node_polars_executable(node: nodes.BigFrameNode):
     if not isinstance(node, _COMPATIBLE_NODES):
         return False
     for expr in node._node_expressions:
-        if isinstance(expr, expression.Aggregation):
+        if isinstance(expr, agg_expressions.Aggregation):
             if not type(expr.op) in _COMPATIBLE_AGG_OPS:
                 return False
         if isinstance(expr, expression.Expression):

@@ -36,8 +36,7 @@ const Event = {
  */
 function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
-	const container = document.createElement("div");
-	container.classList.add("bigframes-widget");
+	el.classList.add("bigframes-widget");
 
 	// Structure
 	const tableContainer = document.createElement("div");
@@ -89,7 +88,9 @@ function render({ model, el }) {
 		const totalPages = Math.ceil(rowCount / pageSize);
 
 		rowCountLabel.textContent = `${rowCount.toLocaleString()} total rows`;
-		paginationLabel.textContent = `Page ${currentPage + 1} of ${totalPages || 1}`;
+		paginationLabel.textContent = `Page ${(
+			currentPage + 1
+		).toLocaleString()} of ${(totalPages || 1).toLocaleString()}`;
 		prevPage.disabled = currentPage === 0;
 		nextPage.disabled = currentPage >= totalPages - 1;
 		pageSizeSelect.value = pageSize;
@@ -149,10 +150,8 @@ function render({ model, el }) {
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
 
-	container.appendChild(tableContainer);
-	container.appendChild(footer);
-
-	el.appendChild(container);
+	el.appendChild(tableContainer);
+	el.appendChild(footer);
 
 	// Initial render
 	handleTableHTMLChange();

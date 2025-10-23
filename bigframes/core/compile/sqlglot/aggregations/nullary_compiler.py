@@ -20,7 +20,7 @@ import sqlglot.expressions as sge
 
 from bigframes.core import window_spec
 import bigframes.core.compile.sqlglot.aggregations.op_registration as reg
-from bigframes.core.compile.sqlglot.aggregations.utils import apply_window_if_present
+from bigframes.core.compile.sqlglot.aggregations.windows import apply_window_if_present
 from bigframes.operations import aggregations as agg_ops
 
 NULLARY_OP_REGISTRATION = reg.OpRegistration()
@@ -39,3 +39,15 @@ def _(
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
     return apply_window_if_present(sge.func("COUNT", sge.convert(1)), window)
+
+
+@NULLARY_OP_REGISTRATION.register(agg_ops.RowNumberOp)
+def _(
+    op: agg_ops.RowNumberOp,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    result: sge.Expression = sge.func("ROW_NUMBER")
+    if window is None:
+        # ROW_NUMBER always needs an OVER clause.
+        return sge.Window(this=result)
+    return apply_window_if_present(result, window, include_framing_clauses=False)

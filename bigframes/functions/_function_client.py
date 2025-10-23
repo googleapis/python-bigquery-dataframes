@@ -19,16 +19,17 @@ import inspect
 import logging
 import os
 import random
-import re
 import shutil
 import string
 import tempfile
 import textwrap
 import types
 from typing import Any, cast, Optional, Sequence, Tuple, TYPE_CHECKING
+import warnings
 
 import requests
 
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as bf_formatting
 import bigframes.functions.function_template as bff_template
 
@@ -49,6 +50,15 @@ _INGRESS_SETTINGS_MAP = types.MappingProxyType(
         "all": functions_v2.ServiceConfig.IngressSettings.ALLOW_ALL,
         "internal-only": functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_ONLY,
         "internal-and-gclb": functions_v2.ServiceConfig.IngressSettings.ALLOW_INTERNAL_AND_GCLB,
+    }
+)
+
+# https://cloud.google.com/functions/docs/reference/rest/v2/projects.locations.functions#vpconnectoregresssettings
+_VPC_EGRESS_SETTINGS_MAP = types.MappingProxyType(
+    {
+        "all": functions_v2.ServiceConfig.VpcConnectorEgressSettings.ALL_TRAFFIC,
+        "private-ranges-only": functions_v2.ServiceConfig.VpcConnectorEgressSettings.PRIVATE_RANGES_ONLY,
+        "unspecified": functions_v2.ServiceConfig.VpcConnectorEgressSettings.VPC_CONNECTOR_EGRESS_SETTINGS_UNSPECIFIED,
     }
 )
 
@@ -135,6 +145,7 @@ class FunctionClient:
             timeout=None,
             metrics=None,
             query_with_job=True,
+            publisher=self._session._publisher,
         )
         logger.info(f"Created bigframes function {query_job.ddl_target_routine}")
 
@@ -246,8 +257,8 @@ class FunctionClient:
 
         # Augment user package requirements with any internal package
         # requirements.
-        packages = _utils._get_updated_package_requirements(
-            packages, is_row_processor, capture_references
+        packages = _utils.get_updated_package_requirements(
+            packages, is_row_processor, capture_references, ignore_package_version=True
         )
         if packages:
             managed_function_options["packages"] = packages
@@ -259,7 +270,7 @@ class FunctionClient:
         bq_function_name = name
         if not bq_function_name:
             # Compute a unique hash representing the user code.
-            function_hash = _utils._get_hash(func, packages)
+            function_hash = _utils.get_hash(func, packages)
             bq_function_name = _utils.get_bigframes_function_name(
                 function_hash,
                 session_id,
@@ -270,28 +281,6 @@ class FunctionClient:
         )
 
         udf_name = func.__name__
-        if capture_references:
-            # This code path ensures that if the udf body contains any
-            # references to variables and/or imports outside the body, they are
-            # captured as well.
-            import cloudpickle
-
-            pickled = cloudpickle.dumps(func)
-            udf_code = textwrap.dedent(
-                f"""
-                import cloudpickle
-                {udf_name} = cloudpickle.loads({pickled})
-            """
-            )
-        else:
-            # This code path ensures that if the udf body is self contained,
-            # i.e. there are no references to variables or imports outside the
-            # body.
-            udf_code = textwrap.dedent(inspect.getsource(func))
-            match = re.search(r"^def ", udf_code, flags=re.MULTILINE)
-            if match is None:
-                raise ValueError("The UDF is not defined correctly.")
-            udf_code = udf_code[match.start() :]
 
         with_connection_clause = (
             (
@@ -299,6 +288,13 @@ class FunctionClient:
             )
             if bq_connection_id
             else ""
+        )
+
+        # Generate the complete Python code block for the managed Python UDF,
+        # including the user's function, necessary imports, and the BigQuery
+        # handler wrapper.
+        python_code_block = bff_template.generate_managed_function_code(
+            func, udf_name, is_row_processor, capture_references
         )
 
         create_function_ddl = (
@@ -311,13 +307,11 @@ class FunctionClient:
                 OPTIONS ({managed_function_options_str})
                 AS r'''
                 __UDF_PLACE_HOLDER__
-                def bigframes_handler(*args):
-                    return {udf_name}(*args)
                 '''
             """
             )
             .strip()
-            .replace("__UDF_PLACE_HOLDER__", udf_code)
+            .replace("__UDF_PLACE_HOLDER__", python_code_block)
         )
 
         self._ensure_dataset_exists()
@@ -384,8 +378,8 @@ class FunctionClient:
     def create_cloud_function(
         self,
         def_,
-        cf_name,
         *,
+        random_name,
         input_types: Tuple[str],
         output_type: str,
         package_requirements=None,
@@ -393,6 +387,7 @@ class FunctionClient:
         max_instance_count=None,
         is_row_processor=False,
         vpc_connector=None,
+        vpc_connector_egress_settings="private-ranges-only",
         memory_mib=1024,
         ingress_settings="internal-only",
     ):
@@ -446,9 +441,9 @@ class FunctionClient:
             create_function_request.parent = (
                 self.get_cloud_function_fully_qualified_parent()
             )
-            create_function_request.function_id = cf_name
+            create_function_request.function_id = random_name
             function = functions_v2.Function()
-            function.name = self.get_cloud_function_fully_qualified_name(cf_name)
+            function.name = self.get_cloud_function_fully_qualified_name(random_name)
             function.build_config = functions_v2.BuildConfig()
             function.build_config.runtime = python_version
             function.build_config.entry_point = entry_point
@@ -490,6 +485,21 @@ class FunctionClient:
                 function.service_config.max_instance_count = max_instance_count
             if vpc_connector is not None:
                 function.service_config.vpc_connector = vpc_connector
+                if vpc_connector_egress_settings is None:
+                    msg = bfe.format_message(
+                        "The 'vpc_connector_egress_settings' was not specified. Defaulting to 'private-ranges-only'.",
+                    )
+                    warnings.warn(msg, category=UserWarning)
+                    vpc_connector_egress_settings = "private-ranges-only"
+                if vpc_connector_egress_settings not in _VPC_EGRESS_SETTINGS_MAP:
+                    raise bf_formatting.create_exception_with_feedback_link(
+                        ValueError,
+                        f"'{vpc_connector_egress_settings}' is not one of the supported vpc egress settings values: {list(_VPC_EGRESS_SETTINGS_MAP)}",
+                    )
+                function.service_config.vpc_connector_egress_settings = cast(
+                    functions_v2.ServiceConfig.VpcConnectorEgressSettings,
+                    _VPC_EGRESS_SETTINGS_MAP[vpc_connector_egress_settings],
+                )
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
@@ -515,24 +525,25 @@ class FunctionClient:
                 # Cleanup
                 os.remove(archive_path)
             except google.api_core.exceptions.AlreadyExists:
-                # If a cloud function with the same name already exists, let's
-                # update it
-                update_function_request = functions_v2.UpdateFunctionRequest()
-                update_function_request.function = function
-                operation = self._cloud_functions_client.update_function(
-                    request=update_function_request
-                )
-                operation.result()
+                # b/437124912: The most likely scenario is that
+                # `create_function` had a retry due to a network issue. The
+                # retried request then fails because the first call actually
+                # succeeded, but we didn't get the successful response back.
+                #
+                # Since the function name was randomly chosen to avoid
+                # conflicts, we know the AlreadyExist can only happen because
+                # we created it. This error is safe to ignore.
+                pass
 
         # Fetch the endpoint of the just created function
-        endpoint = self.get_cloud_function_endpoint(cf_name)
+        endpoint = self.get_cloud_function_endpoint(random_name)
         if not endpoint:
             raise bf_formatting.create_exception_with_feedback_link(
                 ValueError, "Couldn't fetch the http endpoint."
             )
 
         logger.info(
-            f"Successfully created cloud function {cf_name} with uri ({endpoint})"
+            f"Successfully created cloud function {random_name} with uri ({endpoint})"
         )
         return endpoint
 
@@ -549,6 +560,7 @@ class FunctionClient:
         cloud_function_max_instance_count,
         is_row_processor,
         cloud_function_vpc_connector,
+        cloud_function_vpc_connector_egress_settings,
         cloud_function_memory_mib,
         cloud_function_ingress_settings,
         bq_metadata,
@@ -556,12 +568,12 @@ class FunctionClient:
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
         # requirements
-        package_requirements = _utils._get_updated_package_requirements(
+        package_requirements = _utils.get_updated_package_requirements(
             package_requirements, is_row_processor
         )
 
         # Compute a unique hash representing the user code
-        function_hash = _utils._get_hash(def_, package_requirements)
+        function_hash = _utils.get_hash(def_, package_requirements)
 
         # If reuse of any existing function with the same name (indicated by the
         # same hash of its source code) is not intended, then attach a unique
@@ -589,7 +601,7 @@ class FunctionClient:
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
                 def_,
-                cloud_function_name,
+                random_name=cloud_function_name,
                 input_types=input_types,
                 output_type=output_type,
                 package_requirements=package_requirements,
@@ -597,6 +609,7 @@ class FunctionClient:
                 max_instance_count=cloud_function_max_instance_count,
                 is_row_processor=is_row_processor,
                 vpc_connector=cloud_function_vpc_connector,
+                vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
                 memory_mib=cloud_function_memory_mib,
                 ingress_settings=cloud_function_ingress_settings,
             )

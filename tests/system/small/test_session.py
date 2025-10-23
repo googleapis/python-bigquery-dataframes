@@ -36,6 +36,7 @@ import bigframes
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.ml.linear_model
+import bigframes.session.execution_spec
 from bigframes.testing import utils
 
 all_write_engines = pytest.mark.parametrize(
@@ -113,7 +114,10 @@ def test_read_gbq_tokyo(
 
     # use_explicit_destination=True, otherwise might use path with no query_job
     exec_result = session_tokyo._executor.execute(
-        df._block.expr, use_explicit_destination=True
+        df._block.expr,
+        bigframes.session.execution_spec.ExecutionSpec(
+            bigframes.session.execution_spec.CacheSpec(()), promise_under_10gb=False
+        ),
     )
     assert exec_result.query_job is not None
     assert exec_result.query_job.location == tokyo_location
@@ -426,18 +430,63 @@ def test_read_gbq_w_max_results(
     assert bf_result.shape[0] == max_results
 
 
-def test_read_gbq_w_script_no_select(session, dataset_id: str):
-    ddl = f"""
-    CREATE TABLE `{dataset_id}.test_read_gbq_w_ddl` (
-        `col_a` INT64,
-        `col_b` STRING
-    );
+@pytest.mark.parametrize(
+    ("sql_template", "expected_statement_type"),
+    (
+        pytest.param(
+            """
+            CREATE OR REPLACE TABLE `{dataset_id}.test_read_gbq_w_ddl` (
+                `col_a` INT64,
+                `col_b` STRING
+            );
+            """,
+            "CREATE_TABLE",
+            id="ddl-create-table",
+        ),
+        pytest.param(
+            # From https://cloud.google.com/bigquery/docs/boosted-tree-classifier-tutorial
+            """
+            CREATE OR REPLACE VIEW `{dataset_id}.test_read_gbq_w_create_view`
+            AS
+            SELECT
+              age,
+              workclass,
+              marital_status,
+              education_num,
+              occupation,
+              hours_per_week,
+              income_bracket,
+              CASE
+                WHEN MOD(functional_weight, 10) < 8 THEN 'training'
+                WHEN MOD(functional_weight, 10) = 8 THEN 'evaluation'
+                WHEN MOD(functional_weight, 10) = 9 THEN 'prediction'
+              END AS dataframe
+            FROM
+              `bigquery-public-data.ml_datasets.census_adult_income`;
+            """,
+            "CREATE_VIEW",
+            id="ddl-create-view",
+        ),
+        pytest.param(
+            """
+            CREATE OR REPLACE TABLE `{dataset_id}.test_read_gbq_w_dml` (
+                `col_a` INT64,
+                `col_b` STRING
+            );
 
-    INSERT INTO `{dataset_id}.test_read_gbq_w_ddl`
-    VALUES (123, 'hello world');
-    """
-    df = session.read_gbq(ddl).to_pandas()
-    assert df["statement_type"][0] == "SCRIPT"
+            INSERT INTO `{dataset_id}.test_read_gbq_w_dml`
+            VALUES (123, 'hello world');
+            """,
+            "SCRIPT",
+            id="dml",
+        ),
+    ),
+)
+def test_read_gbq_w_script_no_select(
+    session, dataset_id: str, sql_template: str, expected_statement_type: str
+):
+    df = session.read_gbq(sql_template.format(dataset_id=dataset_id)).to_pandas()
+    assert df["statement_type"][0] == expected_statement_type
 
 
 def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
@@ -462,8 +511,6 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
     [
         # Wildcard tables
         "bigquery-public-data.noaa_gsod.gsod194*",
-        # Linked datasets
-        "bigframes-dev.thelook_ecommerce.orders",
         # Materialized views
         "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
     ],
@@ -619,7 +666,7 @@ def test_read_gbq_wildcard(
         pytest.param(
             {"query": {"useQueryCache": False, "maximumBytesBilled": "100"}},
             marks=pytest.mark.xfail(
-                raises=google.api_core.exceptions.InternalServerError,
+                raises=google.api_core.exceptions.BadRequest,
                 reason="Expected failure when the query exceeds the maximum bytes billed limit.",
             ),
         ),
@@ -896,7 +943,10 @@ def test_read_pandas_tokyo(
     expected = scalars_pandas_df_index
 
     result = session_tokyo._executor.execute(
-        df._block.expr, use_explicit_destination=True
+        df._block.expr,
+        bigframes.session.execution_spec.ExecutionSpec(
+            bigframes.session.execution_spec.CacheSpec(()), promise_under_10gb=False
+        ),
     )
     assert result.query_job is not None
     assert result.query_job.location == tokyo_location
@@ -1285,6 +1335,32 @@ def test_read_csv_raises_error_for_invalid_index_col(
         match=error_msg,
     ):
         session.read_csv(path, engine="bigquery", index_col=index_col)
+
+
+def test_read_csv_for_gcs_wildcard_path(session, df_and_gcs_csv):
+    scalars_pandas_df, path = df_and_gcs_csv
+    path = path.replace(".csv", "*.csv")
+
+    index_col = "rowindex"
+    bf_df = session.read_csv(path, engine="bigquery", index_col=index_col)
+
+    # Convert default pandas dtypes to match BigQuery DataFrames dtypes.
+    # Also, `expand=True` is needed to read from wildcard paths. See details:
+    # https://github.com/fsspec/gcsfs/issues/616,
+    if not pd.__version__.startswith("1."):
+        storage_options = {"expand": True}
+    else:
+        storage_options = None
+    pd_df = session.read_csv(
+        path,
+        index_col=index_col,
+        dtype=scalars_pandas_df.dtypes.to_dict(),
+        storage_options=storage_options,
+    )
+
+    assert bf_df.shape == pd_df.shape
+    assert bf_df.columns.tolist() == pd_df.columns.tolist()
+    pd.testing.assert_frame_equal(bf_df.to_pandas(), pd_df.to_pandas())
 
 
 def test_read_csv_for_names(session, df_and_gcs_csv_for_two_columns):
@@ -2095,6 +2171,22 @@ def test_read_gbq_query_dry_run(scalars_table_id, session):
 
     assert isinstance(result, pd.Series)
     _assert_query_dry_run_stats_are_valid(result)
+
+
+def test_block_dry_run_includes_local_data(session):
+    df1 = bigframes.dataframe.DataFrame({"col_1": [1, 2, 3]}, session=session)
+    df2 = bigframes.dataframe.DataFrame({"col_2": [1, 2, 3]}, session=session)
+
+    result = df1.merge(df2, how="cross").to_pandas(dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+    assert result["totalBytesProcessed"] > 0
+    assert (
+        df1.to_pandas(dry_run=True)["totalBytesProcessed"]
+        + df2.to_pandas(dry_run=True)["totalBytesProcessed"]
+        == result["totalBytesProcessed"]
+    )
 
 
 def _assert_query_dry_run_stats_are_valid(result: pd.Series):

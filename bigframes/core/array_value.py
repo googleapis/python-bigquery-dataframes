@@ -18,12 +18,12 @@ import datetime
 import functools
 import typing
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
-import warnings
 
 import google.cloud.bigquery
 import pandas
 import pyarrow as pa
 
+from bigframes.core import agg_expressions
 import bigframes.core.expression as ex
 import bigframes.core.guid
 import bigframes.core.identifiers as ids
@@ -36,7 +36,6 @@ import bigframes.core.schema as schemata
 import bigframes.core.tree_properties
 from bigframes.core.window_spec import WindowSpec
 import bigframes.dtypes
-import bigframes.exceptions as bfe
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 
@@ -100,12 +99,6 @@ class ArrayValue:
     ):
         if offsets_col and primary_key:
             raise ValueError("must set at most one of 'offests', 'primary_key'")
-        if any(i.field_type == "JSON" for i in table.schema if i.name in schema.names):
-            msg = bfe.format_message(
-                "JSON column interpretation as a custom PyArrow extention in `db_dtypes` "
-                "is a preview feature and subject to change."
-            )
-            warnings.warn(msg, bfe.PreviewWarning)
         # define data source only for needed columns, this makes row-hashing cheaper
         table_def = nodes.GbqTable.from_table(table, columns=schema.names)
 
@@ -190,7 +183,7 @@ class ArrayValue:
                 child=self.node,
                 aggregations=(
                     (
-                        ex.NullaryAggregation(agg_ops.size_op),
+                        agg_expressions.NullaryAggregation(agg_ops.size_op),
                         ids.ColumnId(bigframes.core.guid.generate_guid()),
                     ),
                 ),
@@ -223,11 +216,6 @@ class ArrayValue:
     def slice(
         self, start: Optional[int], stop: Optional[int], step: Optional[int]
     ) -> ArrayValue:
-        if self.node.order_ambiguous and not (self.session._strictly_ordered):
-            msg = bfe.format_message(
-                "Window ordering may be ambiguous, this can cause unstable results."
-            )
-            warnings.warn(msg, bfe.AmbiguousWindowWarning)
         return ArrayValue(
             nodes.SliceNode(
                 self.node,
@@ -242,17 +230,6 @@ class ArrayValue:
         Convenience function to promote copy of column offsets to a value column. Can be used to reset index.
         """
         col_id = self._gen_namespaced_uid()
-        if self.node.order_ambiguous and not (self.session._strictly_ordered):
-            if not self.session._allows_ambiguity:
-                raise ValueError(
-                    "Generating offsets not supported in partial ordering mode"
-                )
-            else:
-                msg = bfe.format_message(
-                    "Window ordering may be ambiguous, this can cause unstable results."
-                )
-                warnings.warn(msg, category=bfe.AmbiguousWindowWarning)
-
         return (
             ArrayValue(
                 nodes.PromoteOffsetsNode(child=self.node, col_id=ids.ColumnId(col_id))
@@ -379,7 +356,7 @@ class ArrayValue:
 
     def aggregate(
         self,
-        aggregations: typing.Sequence[typing.Tuple[ex.Aggregation, str]],
+        aggregations: typing.Sequence[typing.Tuple[agg_expressions.Aggregation, str]],
         by_column_ids: typing.Sequence[str] = (),
         dropna: bool = True,
     ) -> ArrayValue:
@@ -420,7 +397,7 @@ class ArrayValue:
         """
 
         return self.project_window_expr(
-            ex.UnaryAggregation(op, ex.deref(column_name)),
+            agg_expressions.UnaryAggregation(op, ex.deref(column_name)),
             window_spec,
             never_skip_nulls,
             skip_reproject_unsafe,
@@ -428,23 +405,11 @@ class ArrayValue:
 
     def project_window_expr(
         self,
-        expression: ex.Aggregation,
+        expression: agg_expressions.Aggregation,
         window: WindowSpec,
         never_skip_nulls=False,
         skip_reproject_unsafe: bool = False,
     ):
-        # TODO: Support non-deterministic windowing
-        if window.is_row_bounded or not expression.op.order_independent:
-            if self.node.order_ambiguous and not self.session._strictly_ordered:
-                if not self.session._allows_ambiguity:
-                    raise ValueError(
-                        "Generating offsets not supported in partial ordering mode"
-                    )
-                else:
-                    msg = bfe.format_message(
-                        "Window ordering may be ambiguous, this can cause unstable results."
-                    )
-                    warnings.warn(msg, category=bfe.AmbiguousWindowWarning)
         output_name = self._gen_namespaced_uid()
         return (
             ArrayValue(
@@ -479,6 +444,14 @@ class ArrayValue:
         type: typing.Literal["inner", "outer", "left", "right", "cross"] = "inner",
         propogate_order: Optional[bool] = None,
     ) -> typing.Tuple[ArrayValue, typing.Tuple[dict[str, str], dict[str, str]]]:
+        for lcol, rcol in conditions:
+            ltype = self.get_column_type(lcol)
+            rtype = other.get_column_type(rcol)
+            if not bigframes.dtypes.can_compare(ltype, rtype):
+                raise TypeError(
+                    f"Cannot join with non-comparable join key types: {ltype}, {rtype}"
+                )
+
         l_mapping = {  # Identity mapping, only rename right side
             lcol.name: lcol.name for lcol in self.node.ids
         }

@@ -15,7 +15,6 @@ class DatelikeOps:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.to_datetime(
             ...     ['2014-08-15 08:15:12', '2012-02-29 08:15:12+06:00', '2015-08-15 08:15:12+05:00'],
@@ -51,7 +50,6 @@ class DatelikeOps:
 
         **Examples:**
 
-            >>> import pandas as pd
             >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(pd.date_range(
             ...     start='2014-08-01 10:00',
@@ -85,8 +83,6 @@ class DatelikeOps:
 
         **Examples:**
 
-            >>> import pandas as pd
-            >>> import bigframes.pandas as bpd
             >>> rng = pd.date_range('1/1/2018 11:59:00', periods=3, freq='min')
             >>> bpd.Series(rng).dt.floor("h")
             0    2018-01-01 11:00:00

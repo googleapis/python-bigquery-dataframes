@@ -486,6 +486,24 @@ class ArrayValue(Value):
         body = resolve(parameter.to_expr())
         return ops.ArrayMap(self, param=parameter.param, body=body).to_expr()
 
+    def reduce(self, func: Deferred | Callable[[ir.Value], ir.Value]) -> ir.ArrayValue:
+        if isinstance(func, Deferred):
+            name = "_"
+            resolve = func.resolve
+        elif callable(func):
+            name = next(iter(inspect.signature(func).parameters.keys()))
+            resolve = func
+        else:
+            raise TypeError(
+                f"`func` must be a Deferred or Callable, got `{type(func).__name__}`"
+            )
+
+        parameter = ops.Argument(
+            name=name, shape=self.op().shape, dtype=self.type().value_type
+        )
+        body = resolve(parameter.to_expr())
+        return ops.ArrayReduce(self, param=parameter.param, body=body).to_expr()
+
     def filter(
         self, predicate: Deferred | Callable[[ir.Value], bool | ir.BooleanValue]
     ) -> ir.ArrayValue:
@@ -990,7 +1008,6 @@ class ArrayValue(Value):
         ...     "nulls_only": [None, None, None],
         ...     "mixed_nulls": [[], None, [None]],
         ... }
-        >>> import pyarrow as pa
         >>> t = ibis.memtable(
         ...     pa.Table.from_pydict(
         ...         data,

@@ -15,9 +15,9 @@
 import dataclasses
 import typing
 
-from bigframes.core import bigframe_node
+from bigframes.core import agg_expressions, bigframe_node
 from bigframes.core import expression as ex
-from bigframes.core import nodes
+from bigframes.core import nodes, ordering
 
 
 def bind_schema_to_tree(
@@ -79,46 +79,77 @@ def bind_schema_to_node(
     if isinstance(node, nodes.AggregateNode):
         aggregations = []
         for aggregation, id in node.aggregations:
-            if isinstance(aggregation, ex.UnaryAggregation):
-                replaced = typing.cast(
-                    ex.Aggregation,
-                    dataclasses.replace(
-                        aggregation,
-                        arg=typing.cast(
-                            ex.RefOrConstant,
-                            ex.bind_schema_fields(
-                                aggregation.arg, node.child.field_by_id
-                            ),
-                        ),
-                    ),
-                )
-                aggregations.append((replaced, id))
-            elif isinstance(aggregation, ex.BinaryAggregation):
-                replaced = typing.cast(
-                    ex.Aggregation,
-                    dataclasses.replace(
-                        aggregation,
-                        left=typing.cast(
-                            ex.RefOrConstant,
-                            ex.bind_schema_fields(
-                                aggregation.left, node.child.field_by_id
-                            ),
-                        ),
-                        right=typing.cast(
-                            ex.RefOrConstant,
-                            ex.bind_schema_fields(
-                                aggregation.right, node.child.field_by_id
-                            ),
-                        ),
-                    ),
-                )
-                aggregations.append((replaced, id))
-            else:
-                aggregations.append((aggregation, id))
+            aggregations.append(
+                (_bind_schema_to_aggregation_expr(aggregation, node.child), id)
+            )
 
         return dataclasses.replace(
             node,
             aggregations=tuple(aggregations),
         )
 
+    if isinstance(node, nodes.WindowOpNode):
+        window_spec = dataclasses.replace(
+            node.window_spec,
+            grouping_keys=tuple(
+                typing.cast(
+                    ex.DerefOp, ex.bind_schema_fields(expr, node.child.field_by_id)
+                )
+                for expr in node.window_spec.grouping_keys
+            ),
+            ordering=tuple(
+                ordering.OrderingExpression(
+                    scalar_expression=ex.bind_schema_fields(
+                        expr.scalar_expression, node.child.field_by_id
+                    ),
+                    direction=expr.direction,
+                    na_last=expr.na_last,
+                )
+                for expr in node.window_spec.ordering
+            ),
+        )
+        return dataclasses.replace(
+            node,
+            expression=_bind_schema_to_aggregation_expr(node.expression, node.child),
+            window_spec=window_spec,
+        )
+
     return node
+
+
+def _bind_schema_to_aggregation_expr(
+    aggregation: agg_expressions.Aggregation,
+    child: bigframe_node.BigFrameNode,
+) -> agg_expressions.Aggregation:
+    assert isinstance(
+        aggregation, agg_expressions.Aggregation
+    ), f"Expected Aggregation, got {type(aggregation)}"
+
+    if isinstance(aggregation, agg_expressions.UnaryAggregation):
+        return typing.cast(
+            agg_expressions.Aggregation,
+            dataclasses.replace(
+                aggregation,
+                arg=typing.cast(
+                    ex.RefOrConstant,
+                    ex.bind_schema_fields(aggregation.arg, child.field_by_id),
+                ),
+            ),
+        )
+    elif isinstance(aggregation, agg_expressions.BinaryAggregation):
+        return typing.cast(
+            agg_expressions.Aggregation,
+            dataclasses.replace(
+                aggregation,
+                left=typing.cast(
+                    ex.RefOrConstant,
+                    ex.bind_schema_fields(aggregation.left, child.field_by_id),
+                ),
+                right=typing.cast(
+                    ex.RefOrConstant,
+                    ex.bind_schema_fields(aggregation.right, child.field_by_id),
+                ),
+            ),
+        )
+    else:
+        return aggregation

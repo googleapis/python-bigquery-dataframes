@@ -23,9 +23,12 @@ import json
 import re
 import sys
 import textwrap
+import traceback
 import typing
 from typing import (
+    Any,
     Callable,
+    cast,
     Dict,
     Hashable,
     Iterable,
@@ -55,7 +58,7 @@ import tabulate
 import bigframes._config.display_options as display_options
 import bigframes.constants
 import bigframes.core
-from bigframes.core import log_adapter
+from bigframes.core import agg_expressions, log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
 import bigframes.core.convert
@@ -65,6 +68,7 @@ import bigframes.core.groupby as groupby
 import bigframes.core.guid
 import bigframes.core.indexers as indexers
 import bigframes.core.indexes as indexes
+import bigframes.core.interchange
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -75,6 +79,7 @@ import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatter
 import bigframes.functions
+from bigframes.functions import function_typing
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.ai
@@ -83,13 +88,19 @@ import bigframes.operations.semantics
 import bigframes.operations.structs
 import bigframes.series
 import bigframes.session._io.bigquery
+import bigframes.session.execution_spec as ex_spec
 
 if typing.TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
     import bigframes.session
 
-    SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
+    SingleItemValue = Union[
+        bigframes.series.Series, int, float, str, pandas.Timedelta, Callable
+    ]
+    MultiItemValue = Union[
+        "DataFrame", Sequence[int | float | str | pandas.Timedelta | Callable]
+    ]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -310,7 +321,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def dtypes(self) -> pandas.Series:
-        return pandas.Series(data=self._block.dtypes, index=self._block.column_labels)
+        dtypes = self._block.dtypes
+        bigframes.dtypes.warn_on_db_dtypes_json_dtype(dtypes)
+        return pandas.Series(data=dtypes, index=self._block.column_labels)
 
     @property
     def columns(self) -> pandas.Index:
@@ -483,7 +496,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             column_sizes = pandas.concat([index_size, column_sizes])
         return column_sizes
 
-    @validations.requires_index
     def info(
         self,
         verbose: Optional[bool] = None,
@@ -506,12 +518,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         obuf.write(f"{type(self)}\n")
 
-        index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
+        if self._block.has_index:
+            index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
 
-        # These accessses are kind of expensive, maybe should try to skip?
-        first_indice = self.index[0]
-        last_indice = self.index[-1]
-        obuf.write(f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n")
+            # These accessses are kind of expensive, maybe should try to skip?
+            first_indice = self.index[0]
+            last_indice = self.index[-1]
+            obuf.write(
+                f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n"
+            )
+        else:
+            obuf.write("NullIndex\n")
 
         dtype_strings = self.dtypes.astype("string")
         if show_all_columns:
@@ -571,14 +588,55 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
+    @overload
+    def __getitem__(
+        self,
+        key: bigframes.series.Series,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: slice,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: List[str],
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: List[blocks.Label],
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(self, key: pandas.Index) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: blocks.Label,
+    ) -> bigframes.series.Series:
+        ...
+
     def __getitem__(
         self,
         key: Union[
             blocks.Label,
-            Sequence[blocks.Label],
+            List[str],
+            List[blocks.Label],
             # Index of column labels can be treated the same as a sequence of column labels.
             pandas.Index,
             bigframes.series.Series,
+            slice,
         ],
     ):  # No return type annotations (like pandas) as type cannot always be determined statically
         # NOTE: This implements the operations described in
@@ -590,32 +648,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(key, slice):
             return self.iloc[key]
 
-        if isinstance(key, typing.Hashable):
+        # TODO(tswast): Fix this pylance warning: Class overlaps "Hashable"
+        # unsafely and could produce a match at runtime
+        if isinstance(key, blocks.Label):
             return self._getitem_label(key)
-        # Select a subset of columns or re-order columns.
-        # In Ibis after you apply a projection, any column objects from the
-        # table before the projection can't be combined with column objects
-        # from the table after the projection. This is because the table after
-        # a projection is considered a totally separate table expression.
-        #
-        # This is unexpected behavior for a pandas user, who expects their old
-        # Series objects to still work with the new / mutated DataFrame. We
-        # avoid applying a projection in Ibis until it's absolutely necessary
-        # to provide pandas-like semantics.
-        # TODO(swast): Do we need to apply implicit join when doing a
-        # projection?
 
-        # Select a number of columns as DF.
-        key = key if utils.is_list_like(key) else [key]  # type:ignore
+        if utils.is_list_like(key):
+            return self._getitem_columns(key)
+        else:
+            # TODO(tswast): What case is this supposed to be handling?
+            return self._getitem_columns([cast(Hashable, key)])
 
+    __getitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__getitem__)
+
+    def _getitem_columns(self, key: Sequence[blocks.Label]) -> DataFrame:
         selected_ids: Tuple[str, ...] = ()
         for label in key:
             col_ids = self._block.label_to_col_id[label]
             selected_ids = (*selected_ids, *col_ids)
 
         return DataFrame(self._block.select_columns(selected_ids))
-
-    __getitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__getitem__)
 
     def _getitem_label(self, key: blocks.Label):
         col_ids = self._block.cols_matching_label(key)
@@ -814,7 +866,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             except (AttributeError, ValueError, ImportError):
                 # Fallback if anywidget is not available
                 warnings.warn(
-                    "Anywidget mode is not available. Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. Falling back to deferred mode."
+                    "Anywidget mode is not available. "
+                    "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
+                    f"Falling back to deferred mode. Error: {traceback.format_exc()}"
                 )
                 return formatter.repr_query_job(self._compute_dry_run())
 
@@ -881,8 +935,15 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self.drop(columns=[key])
         self._set_block(df._get_block())
 
-    def __setitem__(self, key: str, value: SingleItemValue):
-        df = self._assign_single_item(key, value)
+    def __setitem__(
+        self,
+        key: str | list[str] | pandas.Index,
+        value: SingleItemValue | MultiItemValue,
+    ):
+        if isinstance(key, (list, pandas.Index)):
+            df = self._assign_multi_items(key, value)
+        else:
+            df = self._assign_single_item(key, value)
         self._set_block(df._get_block())
 
     __setitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__setitem__)
@@ -1245,6 +1306,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __neg__(self) -> DataFrame:
         return self._apply_unary_op(ops.neg_op)
 
+    def __abs__(self) -> DataFrame:
+        return self._apply_unary_op(ops.abs_op)
+
+    __abs__.__doc__ = abs.__doc__
+
     def align(
         self,
         other: typing.Union[DataFrame, bigframes.series.Series],
@@ -1350,7 +1416,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = frame._block
 
         aggregations = [
-            ex.BinaryAggregation(op, ex.deref(left_col), ex.deref(right_col))
+            agg_expressions.BinaryAggregation(
+                op, ex.deref(left_col), ex.deref(right_col)
+            )
             for left_col in block.value_columns
             for right_col in block.value_columns
         ]
@@ -1617,7 +1685,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         block, _ = block.aggregate(
             aggregations=tuple(
-                ex.BinaryAggregation(agg_ops.CorrOp(), left_ex, right_ex)
+                agg_expressions.BinaryAggregation(agg_ops.CorrOp(), left_ex, right_ex)
                 for left_ex, right_ex in expr_pairs
             ),
             column_labels=labels,
@@ -1629,6 +1697,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             original_row_index=pandas.Index([None]), single_row_mode=True
         )
         return bigframes.pandas.Series(block)
+
+    def __dataframe__(
+        self, nan_as_null: bool = False, allow_copy: bool = True
+    ) -> bigframes.core.interchange.InterchangeDataFrame:
+        return bigframes.core.interchange.InterchangeDataFrame._from_bigframes(self)
 
     def to_arrow(
         self,
@@ -1702,8 +1775,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col': [4, 2, 2]})
 
         Download the data from BigQuery and convert it into an in-memory pandas DataFrame.
@@ -1824,8 +1895,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col': [4, 3, 2, 2, 3]})
 
         Iterate through the results in batches, limiting the total rows yielded
@@ -1866,6 +1935,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 form the original dataframe. Results stream from bigquery,
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
         """
+        return self._to_pandas_batches(
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
+        )
+
+    def _to_pandas_batches(
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> blocks.PandasBatches:
         return self._block.to_pandas_batches(
             page_size=page_size,
             max_results=max_results,
@@ -1979,6 +2061,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         self._set_block(block)
 
+    @overload
     def drop(
         self,
         labels: typing.Any = None,
@@ -1987,7 +2070,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: typing.Any = None,
         columns: Union[blocks.Label, Sequence[blocks.Label]] = None,
         level: typing.Optional[LevelType] = None,
+        inplace: Literal[False] = False,
     ) -> DataFrame:
+        ...
+
+    @overload
+    def drop(
+        self,
+        labels: typing.Any = None,
+        *,
+        axis: typing.Union[int, str] = 0,
+        index: typing.Any = None,
+        columns: Union[blocks.Label, Sequence[blocks.Label]] = None,
+        level: typing.Optional[LevelType] = None,
+        inplace: Literal[True],
+    ) -> None:
+        ...
+
+    def drop(
+        self,
+        labels: typing.Any = None,
+        *,
+        axis: typing.Union[int, str] = 0,
+        index: typing.Any = None,
+        columns: Union[blocks.Label, Sequence[blocks.Label]] = None,
+        level: typing.Optional[LevelType] = None,
+        inplace: bool = False,
+    ) -> Optional[DataFrame]:
         if labels:
             if index or columns:
                 raise ValueError("Cannot specify both 'labels' and 'index'/'columns")
@@ -2029,7 +2138,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         inverse_condition_id, ops.invert_op
                     )
             elif isinstance(index, indexes.Index):
-                return self._drop_by_index(index)
+                dropped_block = self._drop_by_index(index)._get_block()
+                if inplace:
+                    self._set_block(dropped_block)
+                    return None
+                return DataFrame(dropped_block)
             else:
                 block, condition_id = block.project_expr(
                     ops.ne_op.as_expr(level_id, ex.const(index))
@@ -2041,7 +2154,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = block.drop_columns(self._sql_names(columns))
         if index is None and not columns:
             raise ValueError("Must specify 'labels' or 'index'/'columns")
-        return DataFrame(block)
+
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
 
     def _drop_by_index(self, index: indexes.Index) -> DataFrame:
         block = index._block
@@ -2209,7 +2327,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _assign_single_item(
         self,
         k: str,
-        v: SingleItemValue,
+        v: SingleItemValue | MultiItemValue,
     ) -> DataFrame:
         if isinstance(v, bigframes.series.Series):
             return self._assign_series_join_on_index(k, v)
@@ -2227,7 +2345,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         elif utils.is_list_like(v):
             return self._assign_single_item_listlike(k, v)
         else:
-            return self._assign_scalar(k, v)
+            return self._assign_scalar(k, v)  # type: ignore
+
+    def _assign_multi_items(
+        self,
+        k: list[str] | pandas.Index,
+        v: SingleItemValue | MultiItemValue,
+    ) -> DataFrame:
+        value_sources: Sequence[Any] = []
+        if isinstance(v, DataFrame):
+            value_sources = [v[col] for col in v.columns]
+        elif isinstance(v, bigframes.series.Series):
+            # For behavior consistency with Pandas.
+            raise ValueError("Columns must be same length as key")
+        elif isinstance(v, Sequence):
+            value_sources = v
+        else:
+            # We assign the same scalar value to all target columns.
+            value_sources = [v] * len(k)
+
+        if len(value_sources) != len(k):
+            raise ValueError("Columns must be same length as key")
+
+        # Repeatedly assign columns in order.
+        result = self._assign_single_item(k[0], value_sources[0])
+        for target, source in zip(k[1:], value_sources[1:]):
+            result = result._assign_single_item(target, source)
+        return result
 
     def _assign_single_item_listlike(self, k: str, v: Sequence) -> DataFrame:
         given_rows = len(v)
@@ -2312,9 +2456,80 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         return DataFrame(block.with_index_labels(self._block.index.names))
 
-    def reset_index(self, *, drop: bool = False) -> DataFrame:
-        block = self._block.reset_index(drop)
-        return DataFrame(block)
+    @overload  # type: ignore[override]
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        drop: bool = ...,
+        inplace: Literal[False] = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = ...,
+        drop: bool = ...,
+        inplace: Literal[True] = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
+    ) -> None:
+        ...
+
+    @overload
+    def reset_index(
+        self,
+        level: blocks.LevelsType = None,
+        drop: bool = False,
+        inplace: bool = ...,
+        col_level: Union[int, str] = ...,
+        col_fill: Hashable = ...,
+        allow_duplicates: Optional[bool] = ...,
+        names: Union[None, Hashable, Sequence[Hashable]] = ...,
+    ) -> Optional[DataFrame]:
+        ...
+
+    def reset_index(
+        self,
+        level: blocks.LevelsType = None,
+        drop: bool = False,
+        inplace: bool = False,
+        col_level: Union[int, str] = 0,
+        col_fill: Hashable = "",
+        allow_duplicates: Optional[bool] = None,
+        names: Union[None, Hashable, Sequence[Hashable]] = None,
+    ) -> Optional[DataFrame]:
+        block = self._block
+        if names:
+            if isinstance(names, blocks.Label) and not isinstance(names, tuple):
+                names = [names]
+            else:
+                names = list(names)
+
+            if len(names) != self.index.nlevels:
+                raise ValueError("'names' must be same length as levels")
+
+            block = block.with_index_labels(names)
+        if allow_duplicates is None:
+            allow_duplicates = False
+        block = block.reset_index(
+            level,
+            drop,
+            col_level=col_level,
+            col_fill=col_fill,
+            allow_duplicates=allow_duplicates,
+        )
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
 
     def set_index(
         self,
@@ -2354,25 +2569,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> None:
         ...
 
-    @validations.requires_index
     def sort_index(
         self,
         *,
+        axis: Union[int, str] = 0,
         ascending: bool = True,
         inplace: bool = False,
         na_position: Literal["first", "last"] = "last",
     ) -> Optional[DataFrame]:
-        if na_position not in ["first", "last"]:
-            raise ValueError("Param na_position must be one of 'first' or 'last'")
-        na_last = na_position == "last"
-        index_columns = self._block.index_columns
-        ordering = [
-            order.ascending_over(column, na_last)
-            if ascending
-            else order.descending_over(column, na_last)
-            for column in index_columns
-        ]
-        block = self._block.order_by(ordering)
+        if utils.get_axis_number(axis) == 0:
+            if na_position not in ["first", "last"]:
+                raise ValueError("Param na_position must be one of 'first' or 'last'")
+            na_last = na_position == "last"
+            index_columns = self._block.index_columns
+            ordering = [
+                order.ascending_over(column, na_last)
+                if ascending
+                else order.descending_over(column, na_last)
+                for column in index_columns
+            ]
+            block = self._block.order_by(ordering)
+        else:  # axis=1
+            _, indexer = self.columns.sort_values(
+                return_indexer=True, ascending=ascending, na_position=na_position  # type: ignore
+            )
+            block = self._block.select_columns(
+                [self._block.value_columns[i] for i in indexer]
+            )
         if inplace:
             self._set_block(block)
             return None
@@ -2475,7 +2698,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             normalize=normalize,
             sort=sort,
             ascending=ascending,
-            dropna=dropna,
+            drop_na=dropna,
         )
         return bigframes.series.Series(block)
 
@@ -2722,11 +2945,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         False, label=label, dtype=pandas.BooleanDtype()
                     )
                     result_ids.append(result_id)
-            return DataFrame(block.select_columns(result_ids)).fillna(value=False)
+            return DataFrame(block.select_columns(result_ids))
         elif utils.is_list_like(values):
             return self._apply_unary_op(
                 ops.IsInOp(values=tuple(values), match_nulls=True)
-            ).fillna(value=False)
+            )
         else:
             raise TypeError(
                 "only list-like objects are allowed to be passed to "
@@ -2754,14 +2977,32 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             for item in df.itertuples(index=index, name=name):
                 yield item
 
-    def where(self, cond, other=None):
-        if isinstance(other, bigframes.series.Series):
-            raise ValueError("Seires is not a supported replacement type!")
+    def _apply_callable(self, condition):
+        """Executes the possible callable condition as needed."""
+        if callable(condition):
+            # When it's a bigframes function.
+            if hasattr(condition, "bigframes_bigquery_function"):
+                return self.apply(condition, axis=1)
 
+            # When it's a plain Python function.
+            return condition(self)
+
+        # When it's not a callable.
+        return condition
+
+    def where(self, cond, other=None):
         if self.columns.nlevels > 1:
             raise NotImplementedError(
                 "The dataframe.where() method does not support multi-column."
             )
+
+        # Execute it with the DataFrame when cond or/and other is callable.
+        # It can be either a plain python function or remote/managed function.
+        cond = self._apply_callable(cond)
+        other = self._apply_callable(other)
+
+        if isinstance(other, bigframes.series.Series):
+            raise ValueError("Seires is not a supported replacement type!")
 
         aligned_block, (_, _) = self._block.join(cond._block, how="left")
         # No left join is needed when 'other' is None or constant.
@@ -2774,7 +3015,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         labels = aligned_block.column_labels[:self_len]
         self_col = {x: ex.deref(y) for x, y in zip(labels, ids)}
 
-        if isinstance(cond, bigframes.series.Series) and cond.name in self_col:
+        if isinstance(cond, bigframes.series.Series):
             # This is when 'cond' is a valid series.
             y = aligned_block.value_columns[self_len]
             cond_col = {x: ex.deref(y) for x in self_col.keys()}
@@ -2812,7 +3053,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return result
 
     def mask(self, cond, other=None):
-        return self.where(~cond, other=other)
+        return self.where(~self._apply_callable(cond), other=other)
 
     def dropna(
         self,
@@ -3040,12 +3281,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         block = self._block.aggregate_all_and_stack(agg_ops.nunique_op)
         return bigframes.series.Series(block)
 
-    def agg(
-        self,
-        func: str
-        | typing.Sequence[str]
-        | typing.Mapping[blocks.Label, typing.Sequence[str] | str],
-    ) -> DataFrame | bigframes.series.Series:
+    def agg(self, func) -> DataFrame | bigframes.series.Series:
         if utils.is_dict_like(func):
             # Must check dict-like first because dictionaries are list-like
             # according to Pandas.
@@ -3059,15 +3295,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 if col_id is None:
                     raise KeyError(f"Column {col_label} does not exist")
                 for agg_func in agg_func_list:
-                    agg_op = agg_ops.lookup_agg_func(typing.cast(str, agg_func))
+                    op_and_label = agg_ops.lookup_agg_func(agg_func)
                     agg_expr = (
-                        ex.UnaryAggregation(agg_op, ex.deref(col_id))
-                        if isinstance(agg_op, agg_ops.UnaryAggregateOp)
-                        else ex.NullaryAggregation(agg_op)
+                        agg_expressions.UnaryAggregation(
+                            op_and_label[0], ex.deref(col_id)
+                        )
+                        if isinstance(op_and_label[0], agg_ops.UnaryAggregateOp)
+                        else agg_expressions.NullaryAggregation(op_and_label[0])
                     )
                     aggs.append(agg_expr)
                     labels.append(col_label)
-                    funcnames.append(agg_func)
+                    funcnames.append(op_and_label[1])
 
             # if any list in dict values, format output differently
             if any(utils.is_list_like(v) for v in func.values()):
@@ -3088,7 +3326,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     )
                 )
         elif utils.is_list_like(func):
-            aggregations = [agg_ops.lookup_agg_func(f) for f in func]
+            aggregations = [agg_ops.lookup_agg_func(f)[0] for f in func]
 
             for dtype, agg in itertools.product(self.dtypes, aggregations):
                 agg.output_type(
@@ -3104,9 +3342,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         else:  # function name string
             return bigframes.series.Series(
-                self._block.aggregate_all_and_stack(
-                    agg_ops.lookup_agg_func(typing.cast(str, func))
-                )
+                self._block.aggregate_all_and_stack(agg_ops.lookup_agg_func(func)[0])
             )
 
     aggregate = agg
@@ -3220,8 +3456,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         return DataFrame(pivot_block)
 
-    @validations.requires_index
-    @validations.requires_ordering()
     def pivot(
         self,
         *,
@@ -3235,8 +3469,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._pivot(columns=columns, index=index, values=values)
 
-    @validations.requires_index
-    @validations.requires_ordering()
     def pivot_table(
         self,
         values: typing.Optional[
@@ -3511,19 +3743,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def join(
         self,
         other: Union[DataFrame, bigframes.series.Series],
-        *,
         on: Optional[str] = None,
         how: str = "left",
+        lsuffix: str = "",
+        rsuffix: str = "",
     ) -> DataFrame:
         if isinstance(other, bigframes.series.Series):
             other = other.to_frame()
 
         left, right = self, other
 
-        if not left.columns.intersection(right.columns).empty:
-            raise NotImplementedError(
-                f"Deduping column names is not implemented. {constants.FEEDBACK_LINK}"
-            )
+        col_intersection = left.columns.intersection(right.columns)
+
+        if not col_intersection.empty:
+            if lsuffix == rsuffix == "":
+                raise ValueError(
+                    f"columns overlap but no suffix specified: {col_intersection}"
+                )
+
         if how == "cross":
             if on is not None:
                 raise ValueError("'on' is not supported for cross join.")
@@ -3531,7 +3768,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 right._block,
                 left_join_ids=[],
                 right_join_ids=[],
-                suffixes=("", ""),
+                suffixes=(lsuffix, rsuffix),
                 how="cross",
                 sort=True,
             )
@@ -3539,45 +3776,107 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # Join left columns with right index
         if on is not None:
+            if left._has_index and (on in left.index.names):
+                if on in left.columns:
+                    raise ValueError(
+                        f"'{on}' is both an index level and a column label, which is ambiguous."
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Joining on index level '{on}' is not yet supported. {constants.FEEDBACK_LINK}"
+                    )
+            if (left.columns == on).sum() > 1:
+                raise ValueError(f"The column label '{on}' is not unique.")
+
             if other._block.index.nlevels != 1:
                 raise ValueError(
                     "Join on columns must match the index level of the other DataFrame. Join on column with multi-index haven't been supported."
                 )
-            # Switch left index with on column
-            left_columns = left.columns
-            left_idx_original_names = left.index.names if left._has_index else ()
-            left_idx_names_in_cols = [
-                f"bigframes_left_idx_name_{i}"
-                for i in range(len(left_idx_original_names))
-            ]
-            if left._has_index:
-                left.index.names = left_idx_names_in_cols
-            left = left.reset_index(drop=False)
-            left = left.set_index(on)
 
-            # Join on index and switch back
-            combined_df = left._perform_join_by_index(right, how=how)
-            combined_df.index.name = on
-            combined_df = combined_df.reset_index(drop=False)
-            combined_df = combined_df.set_index(left_idx_names_in_cols)
-
-            # To be consistent with Pandas
-            if combined_df._has_index:
-                combined_df.index.names = (
-                    left_idx_original_names
-                    if how in ("inner", "left")
-                    else ([None] * len(combined_df.index.names))
-                )
-
-            # Reorder columns
-            combined_df = combined_df[list(left_columns) + list(right.columns)]
-            return combined_df
+            return self._join_on_key(
+                other,
+                on=on,
+                how=how,
+                lsuffix=lsuffix,
+                rsuffix=rsuffix,
+                should_duplicate_on_key=(on in col_intersection),
+            )
 
         # Join left index with right index
         if left._block.index.nlevels != right._block.index.nlevels:
             raise ValueError("Index to join on must have the same number of levels.")
 
-        return left._perform_join_by_index(right, how=how)
+        return left._perform_join_by_index(right, how=how)._add_join_suffix(
+            left.columns, right.columns, lsuffix=lsuffix, rsuffix=rsuffix
+        )
+
+    def _join_on_key(
+        self,
+        other: DataFrame,
+        on: str,
+        how: str,
+        lsuffix: str,
+        rsuffix: str,
+        should_duplicate_on_key: bool,
+    ) -> DataFrame:
+        left, right = self.copy(), other
+        # Replace all columns names with unique names for reordering.
+        left_col_original_names = left.columns
+        on_col_name = "bigframes_left_col_on"
+        dup_on_col_name = "bigframes_left_col_on_dup"
+        left_col_temp_names = [
+            f"bigframes_left_col_name_{i}" if col_name != on else on_col_name
+            for i, col_name in enumerate(left_col_original_names)
+        ]
+        left.columns = pandas.Index(left_col_temp_names)
+        # if on column is also in right df, we need to duplicate the column
+        # and set it to be the first column
+        if should_duplicate_on_key:
+            left[dup_on_col_name] = left[on_col_name]
+            on_col_name = dup_on_col_name
+            left_col_temp_names = [on_col_name] + left_col_temp_names
+            left = left[left_col_temp_names]
+
+        # Switch left index with on column
+        left_idx_original_names = left.index.names if left._has_index else ()
+        left_idx_names_in_cols = [
+            f"bigframes_left_idx_name_{i}" for i in range(len(left_idx_original_names))
+        ]
+        if left._has_index:
+            left.index.names = left_idx_names_in_cols
+        left = left.reset_index(drop=False)
+        left = left.set_index(on_col_name)
+
+        right_col_original_names = right.columns
+        right_col_temp_names = [
+            f"bigframes_right_col_name_{i}"
+            for i in range(len(right_col_original_names))
+        ]
+        right.columns = pandas.Index(right_col_temp_names)
+
+        # Join on index and switch back
+        combined_df = left._perform_join_by_index(right, how=how)
+        combined_df.index.name = on_col_name
+        combined_df = combined_df.reset_index(drop=False)
+        combined_df = combined_df.set_index(left_idx_names_in_cols)
+
+        # To be consistent with Pandas
+        if combined_df._has_index:
+            combined_df.index.names = (
+                left_idx_original_names
+                if how in ("inner", "left")
+                else ([None] * len(combined_df.index.names))
+            )
+
+        # Reorder columns
+        combined_df = combined_df[left_col_temp_names + right_col_temp_names]
+        return combined_df._add_join_suffix(
+            left_col_original_names,
+            right_col_original_names,
+            lsuffix=lsuffix,
+            rsuffix=rsuffix,
+            extra_col=on if on_col_name == dup_on_col_name else None,
+        )
 
     def _perform_join_by_index(
         self,
@@ -3590,6 +3889,59 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             other._block, how=how, block_identity_join=True, always_order=always_order
         )
         return DataFrame(block)
+
+    def _add_join_suffix(
+        self,
+        left_columns,
+        right_columns,
+        lsuffix: str = "",
+        rsuffix: str = "",
+        extra_col: typing.Optional[str] = None,
+    ):
+        """Applies suffixes to overlapping column names to mimic a pandas join.
+
+        This method identifies columns that are common to both a "left" and "right"
+        set of columns and renames them using the provided suffixes. Columns that
+        are not in the intersection are kept with their original names.
+
+        Args:
+            left_columns (pandas.Index):
+                The column labels from the left DataFrame.
+            right_columns (pandas.Index):
+                The column labels from the right DataFrame.
+            lsuffix (str):
+                The suffix to apply to overlapping column names from the left side.
+            rsuffix (str):
+                The suffix to apply to overlapping column names from the right side.
+            extra_col (typing.Optional[str]):
+                An optional column name to prepend to the final list of columns.
+                This argument is used specifically to match the behavior of a
+                pandas join. When a join key (i.e., the 'on' column) exists
+                in both the left and right DataFrames, pandas creates two versions
+                of that column: one copy keeps its original name and is placed as
+                the first column, while the other instances receive the normal
+                suffix. Passing the join key's name here replicates that behavior.
+
+        Returns:
+            DataFrame:
+                A new DataFrame with the columns renamed to resolve overlaps.
+        """
+        combined_df = self.copy()
+        col_intersection = left_columns.intersection(right_columns)
+        final_col_names = [] if extra_col is None else [extra_col]
+        for col_name in left_columns:
+            if col_name in col_intersection:
+                final_col_names.append(f"{col_name}{lsuffix}")
+            else:
+                final_col_names.append(col_name)
+
+        for col_name in right_columns:
+            if col_name in col_intersection:
+                final_col_names.append(f"{col_name}{rsuffix}")
+            else:
+                final_col_names.append(col_name)
+        combined_df.columns = pandas.Index(final_col_names)
+        return combined_df
 
     @validations.requires_ordering()
     def rolling(
@@ -3659,11 +4011,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         as_index: bool = True,
         dropna: bool = True,
     ):
+        if utils.is_list_like(level):
+            by_key_is_singular = False
+        else:
+            by_key_is_singular = True
+
         return groupby.DataFrameGroupBy(
             self._block,
             by_col_ids=self._resolve_levels(level),
             as_index=as_index,
             dropna=dropna,
+            by_key_is_singular=by_key_is_singular,
         )
 
     def _groupby_series(
@@ -3676,10 +4034,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         as_index: bool = True,
         dropna: bool = True,
     ):
+        # Pandas makes a distinction between groupby with a list of keys
+        # versus groupby with a single item in some methods, like __iter__.
         if not isinstance(by, bigframes.series.Series) and utils.is_list_like(by):
             by = list(by)
+            by_key_is_singular = False
         else:
             by = [typing.cast(typing.Union[blocks.Label, bigframes.series.Series], by)]
+            by_key_is_singular = True
 
         block = self._block
         col_ids: typing.Sequence[str] = []
@@ -3709,6 +4071,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             by_col_ids=col_ids,
             as_index=as_index,
             dropna=dropna,
+            by_key_is_singular=by_key_is_singular,
         )
 
     def abs(self) -> DataFrame:
@@ -3911,9 +4274,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> import pandas as pd
-        >>> bpd.options.display.progress_bar = None
-
         >>> data = {
         ...     "timestamp_col": pd.date_range(
         ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
@@ -4024,17 +4384,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             index=index and self._has_index,
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
-        options = {
+        options: dict[str, Union[bool, str]] = {
             "field_delimiter": sep,
             "header": header,
         }
-        query_job = self._session._executor.export_gcs(
+        result = self._session._executor.execute(
             export_array.rename_columns(id_overrides),
-            path_or_buf,
-            format="csv",
-            export_options=options,
+            ex_spec.ExecutionSpec(
+                ex_spec.GcsOutputSpec(
+                    uri=path_or_buf, format="csv", export_options=tuple(options.items())
+                )
+            ),
         )
-        self._set_internal_query_job(query_job)
+        self._set_internal_query_job(result.query_job)
         return None
 
     def to_json(
@@ -4077,13 +4439,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             index=index and self._has_index,
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
-        query_job = self._session._executor.export_gcs(
+        result = self._session._executor.execute(
             export_array.rename_columns(id_overrides),
-            path_or_buf,
-            format="json",
-            export_options={},
+            ex_spec.ExecutionSpec(
+                ex_spec.GcsOutputSpec(uri=path_or_buf, format="json", export_options=())
+            ),
         )
-        self._set_internal_query_job(query_job)
+        self._set_internal_query_job(result.query_job)
         return None
 
     def to_gbq(
@@ -4156,16 +4518,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
         )
 
-        query_job = self._session._executor.export_gbq(
+        result = self._session._executor.execute(
             export_array.rename_columns(id_overrides),
-            destination=destination,
-            cluster_cols=clustering_fields,
-            if_exists=if_exists,
+            ex_spec.ExecutionSpec(
+                ex_spec.TableOutputSpec(
+                    destination,
+                    cluster_cols=tuple(clustering_fields),
+                    if_exists=if_exists,
+                )
+            ),
         )
-        self._set_internal_query_job(query_job)
+        assert result.query_job is not None
+        self._set_internal_query_job(result.query_job)
 
         # The query job should have finished, so there should be always be a result table.
-        result_table = query_job.destination
+        result_table = result.query_job.destination
         assert result_table is not None
 
         if temp_table_ref:
@@ -4233,13 +4600,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             index=index and self._has_index,
             ordering_id=bigframes.session._io.bigquery.IO_ORDERING_ID,
         )
-        query_job = self._session._executor.export_gcs(
+        result = self._session._executor.execute(
             export_array.rename_columns(id_overrides),
-            path,
-            format="parquet",
-            export_options=export_options,
+            ex_spec.ExecutionSpec(
+                ex_spec.GcsOutputSpec(
+                    uri=path,
+                    format="parquet",
+                    export_options=tuple(export_options.items()),
+                )
+            ),
         )
-        self._set_internal_query_job(query_job)
+        self._set_internal_query_job(result.query_job)
         return None
 
     def to_dict(
@@ -4252,7 +4623,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> dict | list[dict]:
-        return self.to_pandas(allow_large_results=allow_large_results).to_dict(orient, into, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_dict(orient=orient, into=into, **kwargs)  # type: ignore
 
     def to_excel(
         self,
@@ -4318,24 +4689,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> str | None:
         return self.to_pandas(allow_large_results=allow_large_results).to_string(
             buf,
-            columns,  # type: ignore
-            col_space,
-            header,  # type: ignore
-            index,
-            na_rep,
-            formatters,
-            float_format,
-            sparsify,
-            index_names,
-            justify,
-            max_rows,
-            max_cols,
-            show_dimensions,
-            decimal,
-            line_width,
-            min_rows,
-            max_colwidth,
-            encoding,
+            columns=columns,  # type: ignore
+            col_space=col_space,
+            header=header,  # type: ignore
+            index=index,
+            na_rep=na_rep,
+            formatters=formatters,
+            float_format=float_format,
+            sparsify=sparsify,
+            index_names=index_names,
+            justify=justify,
+            max_rows=max_rows,
+            max_cols=max_cols,
+            show_dimensions=show_dimensions,
+            decimal=decimal,
+            line_width=line_width,
+            min_rows=min_rows,
+            max_colwidth=max_colwidth,
+            encoding=encoding,
         )
 
     def to_html(
@@ -4368,28 +4739,28 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> str:
         return self.to_pandas(allow_large_results=allow_large_results).to_html(
             buf,
-            columns,  # type: ignore
-            col_space,
-            header,
-            index,
-            na_rep,
-            formatters,
-            float_format,
-            sparsify,
-            index_names,
-            justify,  # type: ignore
-            max_rows,
-            max_cols,
-            show_dimensions,
-            decimal,
-            bold_rows,
-            classes,
-            escape,
-            notebook,
-            border,
-            table_id,
-            render_links,
-            encoding,
+            columns=columns,  # type: ignore
+            col_space=col_space,
+            header=header,
+            index=index,
+            na_rep=na_rep,
+            formatters=formatters,
+            float_format=float_format,
+            sparsify=sparsify,
+            index_names=index_names,
+            justify=justify,  # type: ignore
+            max_rows=max_rows,
+            max_cols=max_cols,
+            show_dimensions=show_dimensions,
+            decimal=decimal,
+            bold_rows=bold_rows,
+            classes=classes,
+            escape=escape,
+            notebook=notebook,
+            border=border,
+            table_id=table_id,
+            render_links=render_links,
+            encoding=encoding,
         )
 
     def to_markdown(
@@ -4401,7 +4772,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode, index, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_pickle(self, path, *, allow_large_results=None, **kwargs) -> None:
         return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
@@ -4588,37 +4959,73 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 )
 
                 # Apply the function
-                result_series = rows_as_json_series._apply_unary_op(
-                    ops.RemoteFunctionOp(function_def=func.udf_def, apply_on_null=True)
-                )
+                if args:
+                    result_series = rows_as_json_series._apply_nary_op(
+                        ops.NaryRemoteFunctionOp(function_def=func.udf_def),
+                        list(args),
+                    )
+                else:
+                    result_series = rows_as_json_series._apply_unary_op(
+                        ops.RemoteFunctionOp(
+                            function_def=func.udf_def, apply_on_null=True
+                        )
+                    )
             else:
                 # This is a special case where we are providing not-pandas-like
                 # extension. If the bigquery function can take one or more
-                # params then we assume that here the user intention is to use
-                # the column values of the dataframe as arguments to the
-                # function. For this to work the following condition must be
-                # true:
-                #   1. The number or input params in the function must be same
-                #      as the number of columns in the dataframe
+                # params (excluding the args) then we assume that here the user
+                # intention is to use the column values of the dataframe as
+                # arguments to the function. For this to work the following
+                # condition must be true:
+                #   1. The number or input params (excluding the args) in the
+                #      function must be same as the number of columns in the
+                #      dataframe.
                 #   2. The dtypes of the columns in the dataframe must be
-                #      compatible with the data types of the input params
+                #      compatible with the data types of the input params.
                 #   3. The order of the columns in the dataframe must correspond
-                #      to the order of the input params in the function
+                #      to the order of the input params in the function.
                 udf_input_dtypes = func.udf_def.signature.bf_input_types
-                if len(udf_input_dtypes) != len(self.columns):
+                if not args and len(udf_input_dtypes) != len(self.columns):
                     raise ValueError(
-                        f"BigFrames BigQuery function takes {len(udf_input_dtypes)}"
-                        f" arguments but DataFrame has {len(self.columns)} columns."
+                        f"Parameter count mismatch: BigFrames BigQuery function"
+                        f" expected {len(udf_input_dtypes)} parameters but"
+                        f" received {len(self.columns)} DataFrame columns."
                     )
-                if udf_input_dtypes != tuple(self.dtypes.to_list()):
+                if args and len(udf_input_dtypes) != len(self.columns) + len(args):
                     raise ValueError(
-                        f"BigFrames BigQuery function takes arguments of types "
-                        f"{udf_input_dtypes} but DataFrame dtypes are {tuple(self.dtypes)}."
+                        f"Parameter count mismatch: BigFrames BigQuery function"
+                        f" expected {len(udf_input_dtypes)} parameters but"
+                        f" received {len(self.columns) + len(args)} values"
+                        f" ({len(self.columns)} DataFrame columns and"
+                        f" {len(args)} args)."
                     )
+                end_slice = -len(args) if args else None
+                if udf_input_dtypes[:end_slice] != tuple(self.dtypes.to_list()):
+                    raise ValueError(
+                        f"Data type mismatch for DataFrame columns:"
+                        f" Expected {udf_input_dtypes[:end_slice]}"
+                        f" Received {tuple(self.dtypes)}."
+                    )
+                if args:
+                    bq_types = (
+                        function_typing.sdk_type_from_python_type(type(arg))
+                        for arg in args
+                    )
+                    args_dtype = tuple(
+                        function_typing.sdk_type_to_bf_type(bq_type)
+                        for bq_type in bq_types
+                    )
+                    if udf_input_dtypes[end_slice:] != args_dtype:
+                        raise ValueError(
+                            f"Data type mismatch for 'args' parameter:"
+                            f" Expected {udf_input_dtypes[end_slice:]}"
+                            f" Received {args_dtype}."
+                        )
 
                 series_list = [self[col] for col in self.columns]
+                op_list = series_list[1:] + list(args)
                 result_series = series_list[0]._apply_nary_op(
-                    ops.NaryRemoteFunctionOp(function_def=func.udf_def), series_list[1:]
+                    ops.NaryRemoteFunctionOp(function_def=func.udf_def), op_list
                 )
             result_series.name = None
 
@@ -4693,9 +5100,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         numeric_only=False,
         na_option: str = "keep",
         ascending=True,
+        pct: bool = False,
     ) -> DataFrame:
         df = self._drop_non_numeric() if numeric_only else self
-        return DataFrame(block_ops.rank(df._block, method, na_option, ascending))
+        return DataFrame(
+            block_ops.rank(df._block, method, na_option, ascending, pct=pct)
+        )
 
     def first_valid_index(self):
         return

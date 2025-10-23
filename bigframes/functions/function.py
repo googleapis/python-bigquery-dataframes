@@ -90,7 +90,7 @@ def _try_import_routine(
         return BigqueryCallableRoutine(
             udf_def,
             session,
-            post_routine=_utils._build_unnest_post_routine(override_type),
+            post_routine=_utils.build_unnest_post_routine(override_type),
         )
     return BigqueryCallableRoutine(udf_def, session, is_managed=not is_remote)
 
@@ -107,7 +107,7 @@ def _try_import_row_routine(
         return BigqueryCallableRowRoutine(
             udf_def,
             session,
-            post_routine=_utils._build_unnest_post_routine(override_type),
+            post_routine=_utils.build_unnest_post_routine(override_type),
         )
     return BigqueryCallableRowRoutine(udf_def, session, is_managed=not is_remote)
 
@@ -178,13 +178,6 @@ def read_gbq_function(
             ValueError, f"Unknown function '{routine_ref}'."
         )
 
-    if is_row_processor and len(routine.arguments) > 1:
-        raise bf_formatting.create_exception_with_feedback_link(
-            ValueError,
-            "A multi-input function cannot be a row processor. A row processor function "
-            "takes in a single input representing the row.",
-        )
-
     if is_row_processor:
         return _try_import_row_routine(routine, session)
     else:
@@ -226,7 +219,13 @@ class BigqueryCallableRoutine:
 
         args_string = ", ".join(map(bf_sql.simple_literal, args))
         sql = f"SELECT `{str(self._udf_def.routine_ref)}`({args_string})"
-        iter, job = bf_io_bigquery.start_query_with_client(self._session.bqclient, sql=sql, query_with_job=True, job_config=bigquery.QueryJobConfig())  # type: ignore
+        iter, job = bf_io_bigquery.start_query_with_client(
+            self._session.bqclient,
+            sql=sql,
+            query_with_job=True,
+            job_config=bigquery.QueryJobConfig(),
+            publisher=self._session._publisher,
+        )  # type: ignore
         return list(iter.to_arrow().to_pydict().values())[0][0]
 
     @property
@@ -304,7 +303,13 @@ class BigqueryCallableRowRoutine:
 
         args_string = ", ".join(map(bf_sql.simple_literal, args))
         sql = f"SELECT `{str(self._udf_def.routine_ref)}`({args_string})"
-        iter, job = bf_io_bigquery.start_query_with_client(self._session.bqclient, sql=sql, query_with_job=True, job_config=bigquery.QueryJobConfig())  # type: ignore
+        iter, job = bf_io_bigquery.start_query_with_client(
+            self._session.bqclient,
+            sql=sql,
+            query_with_job=True,
+            job_config=bigquery.QueryJobConfig(),
+            publisher=self._session._publisher,
+        )  # type: ignore
         return list(iter.to_arrow().to_pydict().values())[0][0]
 
     @property

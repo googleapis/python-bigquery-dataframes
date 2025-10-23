@@ -8,7 +8,7 @@
 #
 #     https://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
+# Unless required by applicable law or agreed to in writing, software/
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
@@ -46,9 +46,7 @@ COLAB_AND_BQ_STUDIO_PYTHON_VERSIONS = [
     "3.11",
 ]
 
-# pytest-retry is not yet compatible with pytest 8.x.
-# https://github.com/str0zzapreti/pytest-retry/issues/32
-PYTEST_VERSION = "pytest<8.0.0dev"
+PYTEST_VERSION = "pytest==8.4.2"
 SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = [
     "docs",
@@ -78,15 +76,20 @@ UNIT_TEST_STANDARD_DEPENDENCIES = [
 ]
 UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
-UNIT_TEST_EXTRAS: List[str] = ["tests", "anywidget"]
+UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.12": ["tests", "polars", "scikit-learn", "anywidget"],
+    "3.10": ["tests", "scikit-learn", "anywidget"],
+    "3.11": ["tests", "polars", "scikit-learn", "anywidget"],
+    # Make sure we leave some versions without "extras" so we know those
+    # dependencies are actually optional.
+    "3.13": ["tests", "polars", "scikit-learn", "anywidget"],
 }
 
+# 3.11 is used by colab.
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.12", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -105,12 +108,13 @@ SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
 ]
 SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_DEPENDENCIES: List[str] = []
-SYSTEM_TEST_EXTRAS: List[str] = []
+SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
-    "3.9": ["tests", "anywidget"],
-    "3.10": ["tests", "polars"],
-    "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
-    "3.13": ["tests", "polars"],
+    # Make sure we leave some versions without "extras" so we know those
+    # dependencies are actually optional.
+    "3.10": ["tests", "scikit-learn", "anywidget"],
+    LATEST_FULLY_SUPPORTED_PYTHON: ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.13": ["tests", "polars", "anywidget"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
@@ -120,8 +124,13 @@ CURRENT_DIRECTORY = pathlib.Path(__file__).parent.absolute()
 # Sessions are executed in the order so putting the smaller sessions
 # ahead to fail fast at presubmit running.
 nox.options.sessions = [
-    "system-3.9",
-    "system-3.12",
+    # Include unit_noextras to ensure at least some unit tests contribute to
+    # coverage.
+    # TODO(tswast): Consider removing this when unit_noextras and cover is run
+    # from GitHub actions.
+    "unit_noextras",
+    "system-3.9",  # No extras.
+    f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
     "cleanup",
@@ -659,7 +668,7 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     session.install(
         "--upgrade",
         "-e",
-        "git+https://github.com/googleapis/python-bigquery-storage.git#egg=google-cloud-bigquery-storage",
+        "git+https://github.com/googleapis/google-cloud-python.git#egg=google-cloud-bigquery-storage&subdirectory=packages/google-cloud-bigquery-storage",
     )
     already_installed.add("google-cloud-bigquery-storage")
     session.install(
@@ -797,7 +806,7 @@ def notebook(session: nox.Session):
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
         "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
-        "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Needs DATASET_ID.
+        "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Limited quota for vector index ddl statements on table.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/366290533): to protect BQML quota
         "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
@@ -832,11 +841,10 @@ def notebook(session: nox.Session):
             ]
         )
 
-    # Convert each Path notebook object to a string using a list comprehension.
+    # Convert each Path notebook object to a string using a list comprehension,
+    # and remove tests that we choose not to test.
     notebooks = [str(nb) for nb in notebooks_list]
-
-    # Remove tests that we choose not to test.
-    notebooks = list(filter(lambda nb: nb not in denylist, notebooks))
+    notebooks = [nb for nb in notebooks if nb not in denylist and "/kaggle/" not in nb]
 
     # Regionalized notebooks
     notebooks_reg = {

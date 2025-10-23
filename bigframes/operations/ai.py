@@ -45,7 +45,6 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
@@ -115,7 +114,6 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
@@ -134,7 +132,6 @@ class AIAccessor:
 
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
@@ -266,7 +263,6 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
@@ -356,7 +352,6 @@ class AIAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 
@@ -496,7 +491,6 @@ class AIAccessor:
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> import bigframes
             >>> bigframes.options.experiments.ai_operators = True
@@ -566,6 +560,10 @@ class AIAccessor:
                 column_to_search=embedding_result_column,
                 query=query_df,
                 top_k=top_k,
+                # TODO(tswast): set allow_large_results based on Series size.
+                # If we expect small results, it could be faster to set
+                # allow_large_results to False.
+                allow_large_results=True,
             )
             .rename(columns={"content": search_column})
             .set_index("index")
@@ -604,7 +602,6 @@ class AIAccessor:
         ** Examples: **
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> bpd.options.experiments.ai_operators = True
             >>> bpd.options.compute.ai_ops_confirmation_threshold = 25
 

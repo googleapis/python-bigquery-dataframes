@@ -245,6 +245,9 @@ class FunctionSession:
         cloud_function_timeout: Optional[int] = 600,
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
+        cloud_function_vpc_connector_egress_settings: Optional[
+            Literal["all", "private-ranges-only", "unspecified"]
+        ] = None,
         cloud_function_memory_mib: Optional[int] = 1024,
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
@@ -425,6 +428,13 @@ class FunctionSession:
                 function. This is useful if your code needs access to data or
                 service(s) that are on a VPC network. See for more details
                 https://cloud.google.com/functions/docs/networking/connecting-vpc.
+            cloud_function_vpc_connector_egress_settings (str, Optional):
+                Egress settings for the VPC connector, controlling what outbound
+                traffic is routed through the VPC connector.
+                Options are: `all`, `private-ranges-only`, or `unspecified`.
+                If not specified, `private-ranges-only` is used by default.
+                See for more details
+                https://cloud.google.com/run/docs/configuring/vpc-connectors#egress-job.
             cloud_function_memory_mib (int, Optional):
                 The amounts of memory (in mebibytes) to allocate for the cloud
                 function (2nd gen) created. This also dictates a corresponding
@@ -504,6 +514,16 @@ class FunctionSession:
                 " For more details see https://cloud.google.com/functions/docs/securing/cmek#before_you_begin.",
             )
 
+        # A VPC connector is required to specify VPC egress settings.
+        if (
+            cloud_function_vpc_connector_egress_settings is not None
+            and cloud_function_vpc_connector is None
+        ):
+            raise bf_formatting.create_exception_with_feedback_link(
+                ValueError,
+                "cloud_function_vpc_connector must be specified before cloud_function_vpc_connector_egress_settings.",
+            )
+
         if cloud_function_ingress_settings is None:
             cloud_function_ingress_settings = "internal-only"
             msg = bfe.format_message(
@@ -536,6 +556,11 @@ class FunctionSession:
             if input_types is not None:
                 if not isinstance(input_types, collections.abc.Sequence):
                     input_types = [input_types]
+                if _utils.has_conflict_input_type(py_sig, input_types):
+                    msg = bfe.format_message(
+                        "Conflicting input types detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(
                     parameters=[
                         par.replace(annotation=itype)
@@ -543,12 +568,13 @@ class FunctionSession:
                     ]
                 )
             if output_type:
+                if _utils.has_conflict_output_type(py_sig, output_type):
+                    msg = bfe.format_message(
+                        "Conflicting return type detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(return_annotation=output_type)
 
-            # Try to get input types via type annotations.
-
-            # The function will actually be receiving a pandas Series, but allow both
-            # BigQuery DataFrames and pandas object types for compatibility.
             # The function will actually be receiving a pandas Series, but allow
             # both BigQuery DataFrames and pandas object types for compatibility.
             is_row_processor = False
@@ -587,7 +613,7 @@ class FunctionSession:
                 bqrf_metadata = _utils.get_bigframes_metadata(
                     python_output_type=py_sig.return_annotation
                 )
-                post_process_routine = _utils._build_unnest_post_routine(
+                post_process_routine = _utils.build_unnest_post_routine(
                     py_sig.return_annotation
                 )
                 py_sig = py_sig.replace(return_annotation=str)
@@ -610,6 +636,7 @@ class FunctionSession:
                 cloud_function_max_instance_count=cloud_function_max_instances,
                 is_row_processor=is_row_processor,
                 cloud_function_vpc_connector=cloud_function_vpc_connector,
+                cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
                 cloud_function_memory_mib=cloud_function_memory_mib,
                 cloud_function_ingress_settings=cloud_function_ingress_settings,
                 bq_metadata=bqrf_metadata,
@@ -838,6 +865,11 @@ class FunctionSession:
             if input_types is not None:
                 if not isinstance(input_types, collections.abc.Sequence):
                     input_types = [input_types]
+                if _utils.has_conflict_input_type(py_sig, input_types):
+                    msg = bfe.format_message(
+                        "Conflicting input types detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(
                     parameters=[
                         par.replace(annotation=itype)
@@ -845,9 +877,12 @@ class FunctionSession:
                     ]
                 )
             if output_type:
+                if _utils.has_conflict_output_type(py_sig, output_type):
+                    msg = bfe.format_message(
+                        "Conflicting return type detected, using the one from the decorator."
+                    )
+                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
                 py_sig = py_sig.replace(return_annotation=output_type)
-
-            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
 
             # The function will actually be receiving a pandas Series, but allow
             # both BigQuery DataFrames and pandas object types for compatibility.
@@ -855,6 +890,8 @@ class FunctionSession:
             if new_sig := _convert_row_processor_sig(py_sig):
                 py_sig = new_sig
                 is_row_processor = True
+
+            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
 
             managed_function_client = _function_client.FunctionClient(
                 dataset_ref.project,
@@ -943,11 +980,26 @@ def _convert_row_processor_sig(
 ) -> Optional[inspect.Signature]:
     import bigframes.series as bf_series
 
-    if len(signature.parameters) == 1:
-        only_param = next(iter(signature.parameters.values()))
-        param_type = only_param.annotation
-        if (param_type == bf_series.Series) or (param_type == pandas.Series):
+    if len(signature.parameters) >= 1:
+        first_param = next(iter(signature.parameters.values()))
+        param_type = first_param.annotation
+        # Type hints for Series inputs should use pandas.Series because the
+        # underlying serialization process converts the input to a string
+        # representation of a pandas Series (not bigframes Series). Using
+        # bigframes Series will lead to TypeError when creating the function
+        # remotely. See more from b/445182819.
+        if param_type == bf_series.Series:
+            raise bf_formatting.create_exception_with_feedback_link(
+                TypeError,
+                "Argument type hint must be Pandas Series, not BigFrames Series.",
+            )
+        if param_type == pandas.Series:
             msg = bfe.format_message("input_types=Series is in preview.")
             warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
-            return signature.replace(parameters=[only_param.replace(annotation=str)])
+            return signature.replace(
+                parameters=[
+                    p.replace(annotation=str) if i == 0 else p
+                    for i, p in enumerate(signature.parameters.values())
+                ]
+            )
     return None

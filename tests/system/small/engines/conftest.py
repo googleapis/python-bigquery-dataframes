@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 import bigframes
-from bigframes.core import ArrayValue, local_data
+from bigframes.core import ArrayValue, events, local_data
 from bigframes.session import (
     direct_gbq_execution,
     local_scan_executor,
@@ -50,11 +50,14 @@ def engine(request, bigquery_client: bigquery.Client) -> semi_executor.SemiExecu
         return local_scan_executor.LocalScanExecutor()
     if request.param == "polars":
         return polars_executor.PolarsExecutor()
+    publisher = events.Publisher()
     if request.param == "bq":
-        return direct_gbq_execution.DirectGbqExecutor(bigquery_client)
+        return direct_gbq_execution.DirectGbqExecutor(
+            bigquery_client, publisher=publisher
+        )
     if request.param == "bq-sqlglot":
         return direct_gbq_execution.DirectGbqExecutor(
-            bigquery_client, compiler="sqlglot"
+            bigquery_client, compiler="sqlglot", publisher=publisher
         )
     raise ValueError(f"Unrecognized param: {request.param}")
 
@@ -90,3 +93,10 @@ def repeated_data_source(
     repeated_pandas_df: pd.DataFrame,
 ) -> local_data.ManagedArrowTable:
     return local_data.ManagedArrowTable.from_pandas(repeated_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def arrays_array_value(
+    repeated_data_source: local_data.ManagedArrowTable, fake_session: bigframes.Session
+):
+    return ArrayValue.from_managed(repeated_data_source, fake_session)

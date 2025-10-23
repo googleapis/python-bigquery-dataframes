@@ -38,9 +38,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
-
             >>> seconds_series = bpd.Series(pd.date_range("2000-01-01", periods=3, freq="s"))
             >>> seconds_series
             0    2000-01-01 00:00:00
@@ -110,8 +107,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can access the index of a Series via ``index`` property.
 
@@ -161,13 +156,11 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 4, 9, 16])
             >>> s.shape
             (4,)
-            >>> s = bpd.Series(['Alice', 'Bob', bpd.NA])
+            >>> s = bpd.Series(['Alice', 'Bob', pd.NA])
             >>> s.shape
             (3,)
         """
@@ -180,8 +173,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.dtype
@@ -200,8 +191,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         For a Series:
 
@@ -248,8 +237,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, None])
             >>> s
@@ -272,8 +259,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
             >>> s
@@ -297,8 +282,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
             >>> s
@@ -321,9 +304,12 @@ class Series(NDFrame):  # type: ignore[misc]
 
     def reset_index(
         self,
+        level=None,
         *,
         drop: bool = False,
         name=pd_ext.no_default,
+        inplace: bool = False,
+        allow_duplicates: Optional[bool] = None,
     ) -> DataFrame | Series | None:
         """
         Generate a new DataFrame or Series with the index reset.
@@ -334,9 +320,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, 4], name='foo',
             ...                index=['a', 'b', 'c', 'd'])
@@ -399,6 +382,9 @@ class Series(NDFrame):  # type: ignore[misc]
             [4 rows x 3 columns]
 
         Args:
+            level (int, str, tuple, or list, default optional):
+                For a Series with a MultiIndex, only remove the specified levels
+                from the index. Removes all levels by default.
             drop (bool, default False):
                 Just reset the index, without inserting it as a column in
                 the new DataFrame.
@@ -406,6 +392,10 @@ class Series(NDFrame):  # type: ignore[misc]
                 The name to use for the column containing the original Series
                 values. Uses ``self.name`` by default. This argument is ignored
                 when `drop` is True.
+            inplace (bool, default False):
+                Modify the Series in place (do not create a new object).
+            allow_duplicates (bool, optional, default None):
+                Allow duplicate column labels to be created.
 
         Returns:
             bigframes.pandas.Series or bigframes.pandas.DataFrame or None:
@@ -430,8 +420,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3], index=[0, 1, 2])
             >>> s.keys()
@@ -512,8 +500,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(["elk", "pig", "dog", "quetzal"], name="animal")
             >>> print(s.to_markdown())
@@ -567,9 +553,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> from collections import OrderedDict, defaultdict
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.to_dict()
@@ -607,8 +591,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(["a", "b", "c"],
             ...                name="vals")
@@ -704,8 +686,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s
@@ -738,9 +718,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> ser = bpd.Series(pd.Categorical(['a', 'b', 'a']))
             >>> ser.to_numpy()
@@ -793,8 +770,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> original_df = bpd.DataFrame({"foo": range(5), "bar": range(5, 10)})
             >>> original_df
@@ -855,8 +830,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s
@@ -892,10 +865,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
-            >>> s = bpd.Series([0.0, 1.0, bpd.NA])
+            >>> s = bpd.Series([0.0, 1.0, pd.NA])
             >>> s
             0     0.0
             1     1.0
@@ -918,8 +889,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 3, 5, 7, 7])
             >>> s
@@ -953,8 +922,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([2, 1, 3, 3], name='A')
             >>> s
@@ -996,8 +963,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([2, 4, 8, 2, 4, None])
             >>> s.mode()
@@ -1021,11 +986,9 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Generate a Series with duplicated entries.
 
+            >>> import bigframes.pandas as bpd
             >>> s = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama', 'hippo'],
             ...                name='animal')
             >>> s
@@ -1091,7 +1054,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         By default, for each set of duplicated values, the first occurrence is
         set on False and all others on True:
@@ -1162,8 +1124,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(data=[1, None, 4, 1],
             ...                index=['A', 'B', 'C', 'D'])
@@ -1191,8 +1151,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(data=[1, None, 4, 3, 4],
             ...                index=['A', 'B', 'C', 'D', 'E'])
@@ -1219,8 +1177,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([0.1, 1.3, 2.7])
             >>> s.round()
             0    0.0
@@ -1252,8 +1208,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([[1, 2, 3], [], [3, 4]])
             >>> s
@@ -1291,8 +1245,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s1 = bpd.Series([.2, .0, .6, .2])
             >>> s2 = bpd.Series([.3, .6, .0, .1])
@@ -1329,21 +1281,19 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([0.25, 0.5, 0.2, -0.05])
-            >>> s.autocorr()  # doctest: +ELLIPSIS
-            np.float64(0.10355263309024067)
+            >>> float(s.autocorr())  # doctest: +ELLIPSIS
+            0.1035526330902...
 
-            >>> s.autocorr(lag=2)
-            np.float64(-1.0)
+            >>> float(s.autocorr(lag=2))
+            -1.0
 
         If the Pearson correlation is not well defined, then 'NaN' is returned.
 
             >>> s = bpd.Series([1, 0, 0, 0])
-            >>> s.autocorr()
-            np.float64(nan)
+            >>> float(s.autocorr())
+            nan
 
         Args:
             lag (int, default 1):
@@ -1367,8 +1317,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s1 = bpd.Series([0.90010907, 0.13484424, 0.62036035])
             >>> s2 = bpd.Series([0.12528585, 0.26962463, 0.51111198])
@@ -1396,8 +1344,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Difference with previous row
 
@@ -1462,8 +1408,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([0, 1, 2, 3])
             >>> other = bpd.Series([-1, 2, -3, 4])
@@ -1519,9 +1463,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([np.nan, 1, 3, 10, 5])
             >>> s
@@ -1618,9 +1559,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['a', 'b', 'c', 'd'], index=[3, 2, 1, 4])
             >>> s.sort_index()
@@ -1680,8 +1618,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
             ...                          "Malta": 434000, "Maldives": 434000,
             ...                          "Brunei": 434000, "Iceland": 337000,
@@ -1766,8 +1702,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> countries_population = {"Italy": 59000000, "France": 65000000,
             ...                          "Malta": 434000, "Maldives": 434000,
             ...                          "Brunei": 434000, "Iceland": 337000,
@@ -1853,82 +1787,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-        For applying arbitrary python function a `remote_function` is recommended.
-        Let's use ``reuse=False`` flag to make sure a new `remote_function`
-        is created every time we run the following code, but you can skip it
-        to potentially reuse a previously deployed `remote_function` from
-        the same user defined function.
-
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
-            ... def minutes_to_hours(x: int) -> float:
-            ...     return x/60
-
-            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
-            >>> minutes
-            0      0
-            1     30
-            2     60
-            3     90
-            4    120
-            dtype: Int64
-
-            >>> hours = minutes.apply(minutes_to_hours)
-            >>> hours
-            0    0.0
-            1    0.5
-            2    1.0
-            3    1.5
-            4    2.0
-            dtype: Float64
-
-        To turn a user defined function with external package dependencies into
-        a `remote_function`, you would provide the names of the packages via
-        `packages` param.
-
-            >>> @bpd.remote_function(
-            ...     reuse=False,
-            ...     packages=["cryptography"],
-            ...     cloud_function_service_account="default"
-            ... )
-            ... def get_hash(input: str) -> str:
-            ...     from cryptography.fernet import Fernet
-            ...
-            ...     # handle missing value
-            ...     if input is None:
-            ...         input = ""
-            ...
-            ...     key = Fernet.generate_key()
-            ...     f = Fernet(key)
-            ...     return f.encrypt(input.encode()).decode()
-
-            >>> names = bpd.Series(["Alice", "Bob"])
-            >>> hashes = names.apply(get_hash)
-
-        You could return an array output from the remote function.
-
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
-            ... def text_analyzer(text: str) -> list[int]:
-            ...     words = text.count(" ") + 1
-            ...     periods = text.count(".")
-            ...     exclamations = text.count("!")
-            ...     questions = text.count("?")
-            ...     return [words, periods, exclamations, questions]
-
-            >>> texts = bpd.Series([
-            ...     "The quick brown fox jumps over the lazy dog.",
-            ...     "I love this product! It's amazing.",
-            ...     "Hungry? Wanna eat? Lets go!"
-            ... ])
-            >>> features = texts.apply(text_analyzer)
-            >>> features
-            0    [9 1 0 0]
-            1    [6 1 1 0]
-            2    [5 0 1 2]
-            dtype: list<item: int64>[pyarrow]
-
         Simple vectorized functions, lambdas or ufuncs can be applied directly
         with `by_row=False`.
 
@@ -1961,6 +1819,80 @@ class Series(NDFrame):  # type: ignore[misc]
             2    1.098612
             3    1.386294
             dtype: Float64
+
+        Use `remote_function` to apply an arbitrary Python function.
+        Set ``reuse=False`` flag to make sure a new `remote_function`
+        is created every time you run the following code. Omit it
+        to reuse a previously deployed `remote_function` from
+        the same user defined function if the hash of the function definition
+        hasn't changed.
+
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
+            ... def minutes_to_hours(x: int) -> float:
+            ...     return x/60
+
+            >>> minutes = bpd.Series([0, 30, 60, 90, 120])
+            >>> minutes
+            0      0
+            1     30
+            2     60
+            3     90
+            4    120
+            dtype: Int64
+
+            >>> hours = minutes.apply(minutes_to_hours)  # doctest: +SKIP
+            >>> hours  # doctest: +SKIP
+            0    0.0
+            1    0.5
+            2    1.0
+            3    1.5
+            4    2.0
+            dtype: Float64
+
+        To turn a user defined function with external package dependencies into
+        a `remote_function`, you would provide the names of the packages via
+        `packages` param.
+
+            >>> @bpd.remote_function(  # doctest: +SKIP
+            ...     reuse=False,
+            ...     packages=["cryptography"],
+            ...     cloud_function_service_account="default"
+            ... )
+            ... def get_hash(input: str) -> str:
+            ...     from cryptography.fernet import Fernet
+            ...
+            ...     # handle missing value
+            ...     if input is None:
+            ...         input = ""
+            ...
+            ...     key = Fernet.generate_key()
+            ...     f = Fernet(key)
+            ...     return f.encrypt(input.encode()).decode()
+
+            >>> names = bpd.Series(["Alice", "Bob"])
+            >>> hashes = names.apply(get_hash)  # doctest: +SKIP
+
+        You could return an array output from the remote function.
+
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
+            ... def text_analyzer(text: str) -> list[int]:
+            ...     words = text.count(" ") + 1
+            ...     periods = text.count(".")
+            ...     exclamations = text.count("!")
+            ...     questions = text.count("?")
+            ...     return [words, periods, exclamations, questions]
+
+            >>> texts = bpd.Series([
+            ...     "The quick brown fox jumps over the lazy dog.",
+            ...     "I love this product! It's amazing.",
+            ...     "Hungry? Wanna eat? Lets go!"
+            ... ])
+            >>> features = texts.apply(text_analyzer)  # doctest: +SKIP
+            >>> features  # doctest: +SKIP
+            0    [9 1 0 0]
+            1    [6 1 1 0]
+            2    [5 0 1 2]
+            dtype: list<item: int64>[pyarrow]
 
         Args:
             func (function):
@@ -1995,13 +1927,10 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
         Consider 2 Datasets ``s1`` and ``s2`` containing
         highest clocked speeds of different birds.
 
+            >>> import bigframes.pandas as bpd
             >>> s1 = bpd.Series({'falcon': 330.0, 'eagle': 160.0})
             >>> s1
             falcon    330.0
@@ -2055,8 +1984,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can group by a named index level.
 
@@ -2079,7 +2006,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         You can also group by more than one index levels.
 
-            >>> import pandas as pd
             >>> s = bpd.Series([380, 370., 24., 26.],
             ...                index=pd.MultiIndex.from_tuples(
             ...                    [("Falcon", "Clear"),
@@ -2228,8 +2154,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(data=np.arange(3), index=['A', 'B', 'C'])
             >>> s
@@ -2246,7 +2170,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Drop 2nd level label in MultiIndex Series:
 
-            >>> import pandas as pd
             >>> midx = pd.MultiIndex(levels=[['llama', 'cow', 'falcon'],
             ...                              ['speed', 'weight', 'length']],
             ...                      codes=[[0, 0, 0, 1, 1, 1, 2, 2, 2],
@@ -2359,9 +2282,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
         Filling in NaN in a Series via linear interpolation.
 
@@ -2400,26 +2320,30 @@ class Series(NDFrame):  # type: ignore[misc]
         value=None,
     ) -> Series | None:
         """
-        Fill NA/NaN values using the specified method.
+        Fill NA (NULL in BigQuery) values using the specified method.
+
+        Note that empty strings ``''``, :attr:`numpy.inf`, and
+        :attr:`numpy.nan` are ***not*** considered NA values. This NA/NULL
+        logic differs from numpy, but it is the same as BigQuery and the
+        :class:`pandas.ArrowDtype`.
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
-            >>> s = bpd.Series([np.nan, 2, np.nan, -1])
+            >>> s = bpd.Series(
+            ...     pa.array([np.nan, 2, None, -1], type=pa.float64()),
+            ...     dtype=pd.ArrowDtype(pa.float64()),
+            ... )
             >>> s
-            0    <NA>
+            0     NaN
             1     2.0
             2    <NA>
             3    -1.0
             dtype: Float64
 
-        Replace all NA elements with 0s.
+        Replace all NA (NULL) elements with 0s.
 
             >>> s.fillna(0)
-            0    0.0
+            0    NaN
             1    2.0
             2    0.0
             3   -1.0
@@ -2429,7 +2353,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
             >>> s_fill = bpd.Series([11, 22, 33])
             >>> s.fillna(s_fill)
-            0    11.0
+            0     NaN
             1     2.0
             2    33.0
             3    -1.0
@@ -2460,8 +2384,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([1, 2, 3, 4, 5])
             >>> s
             0    1
@@ -2586,9 +2508,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
         Drop NA values from a Series:
 
@@ -2606,7 +2525,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Empty strings are not considered NA values. ``None`` is considered an NA value.
 
-            >>> ser = bpd.Series(['2', bpd.NA, '', None, 'I stay'], dtype='object')
+            >>> ser = bpd.Series(['2', pd.NA, '', None, 'I stay'], dtype='object')
             >>> ser
             0         2
             1      <NA>
@@ -2650,9 +2569,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
         Boundary values are included by default:
 
@@ -2709,9 +2625,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> c = bpd.Series([6, 7, 8, 9], name="c")
             >>> a = bpd.Series([0, 0, 1, 2])
@@ -2779,9 +2692,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
             0     2.0
@@ -2816,9 +2726,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2859,9 +2766,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2898,9 +2802,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([2, np.nan, 5, -1, 0])
             >>> s
@@ -2935,9 +2836,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -2980,9 +2878,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3027,9 +2922,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3073,9 +2965,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3120,9 +3009,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3167,9 +3053,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3213,10 +3096,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
-            >>> a = bpd.Series([1, 2, 3, bpd.NA])
+            >>> a = bpd.Series([1, 2, 3, pd.NA])
             >>> a
             0       1
             1       2
@@ -3277,8 +3158,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
             >>> s
@@ -3329,9 +3208,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3394,9 +3270,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3439,8 +3312,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1.5, 2.6], index=['elk', 'moose'])
             >>> s
@@ -3491,9 +3362,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3553,9 +3421,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3599,8 +3464,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can multiply with a scalar:
 
@@ -3639,9 +3502,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3700,9 +3560,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3746,8 +3603,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can multiply with a scalar:
 
@@ -3786,9 +3641,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3848,9 +3700,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3894,8 +3743,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can divide by a scalar:
 
@@ -3934,9 +3781,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -3996,9 +3840,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4042,8 +3883,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can modulo with a scalar:
 
@@ -4081,9 +3920,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4145,9 +3981,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
             a     1.0
@@ -4180,6 +4013,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 The result of the operation.
 
         """
+        # TODO(b/452366836): adjust sample if needed to match pyarrow semantics.
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def __pow__(self, other):
@@ -4191,8 +4025,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         You can exponentiate with a scalar:
 
@@ -4232,9 +4064,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
             a     1.0
@@ -4294,9 +4123,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4346,9 +4172,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> a = bpd.Series([1, 1, 1, np.nan], index=['a', 'b', 'c', 'd'])
             >>> a
@@ -4401,9 +4224,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s1 = bpd.Series([1, np.nan])
             >>> s2 = bpd.Series([3, 4, 5])
@@ -4443,10 +4263,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.update(bpd.Series([4, 5, 6]))
@@ -4472,7 +4288,7 @@ class Series(NDFrame):  # type: ignore[misc]
             2    6
             dtype: Int64
 
-            If ``other`` contains NaNs the corresponding values are not updated
+            If ``other`` contains NA (NULL values) the corresponding values are not updated
             in the original Series.
 
             >>> s = bpd.Series([1, 2, 3])
@@ -4537,9 +4353,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
         For Series input, the output is a scalar indicating whether any element is True.
 
@@ -4573,8 +4386,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Calculating the max of a Series:
 
@@ -4589,7 +4400,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the max of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4615,8 +4426,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Calculating the min of a Series:
 
@@ -4631,7 +4440,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the min of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4656,8 +4465,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'person_id': [0, 1, 2, 3],
             ...                     'age': [21, 25, 62, 43],
@@ -4704,8 +4511,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Calculating the sum of a Series:
 
@@ -4720,7 +4525,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the sum of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4740,8 +4545,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Calculating the mean of a Series:
 
@@ -4756,7 +4559,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         Calculating the mean of a Series containing ``NA`` values:
 
-            >>> s = bpd.Series([1, 3, bpd.NA])
+            >>> s = bpd.Series([1, 3, pd.NA])
             >>> s
             0       1
             1       3
@@ -4777,8 +4580,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([1, 2, 3])
             >>> s.median()
             np.float64(2.0)
@@ -4818,8 +4619,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([1, 2, 3, 4])
             >>> s.quantile(.5)
             np.float64(2.5)
@@ -4870,8 +4669,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['A', 'A', 'B'])
             >>> s
@@ -4898,8 +4695,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s.skew()
@@ -4936,8 +4731,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 2, 3], index=['cat', 'dog', 'dog', 'mouse'])
             >>> s
@@ -4979,9 +4772,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series([1])
             >>> s.item()
             np.int64(1)
@@ -5003,8 +4793,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['A', 'B', 'C'])
             >>> for index, value in s.items():
@@ -5025,8 +4813,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([10, 11, 12, 13, 14])
             >>> s
@@ -5093,9 +4879,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([10, 11, 12, 13, 14])
             >>> s
             0    10
@@ -5139,7 +4922,7 @@ class Series(NDFrame):  # type: ignore[misc]
         condition is evaluated based on a complicated business logic which cannot
         be expressed in form of a Series.
 
-            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")
+            >>> @bpd.remote_function(reuse=False, cloud_function_service_account="default")  # doctest: +SKIP
             ... def should_mask(name: str) -> bool:
             ...     hash = 0
             ...     for char_ in name:
@@ -5152,12 +4935,12 @@ class Series(NDFrame):  # type: ignore[misc]
             1         Bob
             2    Caroline
             dtype: string
-            >>> s.mask(should_mask)
+            >>> s.mask(should_mask)  # doctest: +SKIP
             0        <NA>
             1         Bob
             2    Caroline
             dtype: string
-            >>> s.mask(should_mask, "REDACTED")
+            >>> s.mask(should_mask, "REDACTED")  # doctest: +SKIP
             0    REDACTED
             1         Bob
             2    Caroline
@@ -5251,8 +5034,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Consider dataset containing cereal calories.
 
@@ -5289,8 +5070,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Consider dataset containing cereal calories.
 
@@ -5330,8 +5109,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3])
             >>> s
@@ -5382,8 +5159,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Series
 
@@ -5447,10 +5222,8 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
-            >>> s = bpd.Series([3, 1, 2, 3, 4, bpd.NA], dtype="Int64")
+            >>> s = bpd.Series([3, 1, 2, 3, 4, pd.NA], dtype="Int64")
 
             >>> s
             0       3
@@ -5526,8 +5299,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series(["A_Str_Series"])
             >>> s
             0    A_Str_Series
@@ -5555,8 +5326,6 @@ class Series(NDFrame):  # type: ignore[misc]
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> ser = bpd.Series([1, 2, 3, 3])
             >>> plot = ser.plot(kind='hist', title="My plot")
             >>> plot
@@ -5582,8 +5351,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['llama', 'cow', 'llama', 'beetle', 'llama',
             ...                 'hippo'], name='animal')
@@ -5648,8 +5415,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 2])
             >>> s.is_monotonic_increasing
@@ -5672,8 +5437,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([3, 2, 2, 1])
             >>> s.is_monotonic_decreasing
@@ -5714,10 +5477,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> s = bpd.Series(['cat', 'dog', bpd.NA, 'rabbit'])
+            >>> s = bpd.Series(['cat', 'dog', pd.NA, 'rabbit'])
             >>> s
             0       cat
             1       dog
@@ -5737,7 +5497,7 @@ class Series(NDFrame):  # type: ignore[misc]
 
         It also accepts a remote function:
 
-            >>> @bpd.remote_function(cloud_function_service_account="default")
+            >>> @bpd.remote_function(cloud_function_service_account="default")  # doctest: +SKIP
             ... def my_mapper(val: str) -> str:
             ...     vowels = ["a", "e", "i", "o", "u"]
             ...     if val:
@@ -5746,7 +5506,7 @@ class Series(NDFrame):  # type: ignore[misc]
             ...         ])
             ...     return "N/A"
 
-            >>> s.map(my_mapper)
+            >>> s.map(my_mapper)  # doctest: +SKIP
             0       cAt
             1       dOg
             2       N/A
@@ -5780,8 +5540,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> mydict = [{'a': 1, 'b': 2, 'c': 3, 'd': 4},
             ...               {'a': 100, 'b': 200, 'c': 300, 'd': 400},
@@ -5860,8 +5618,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[1, 2], [4, 5], [7, 8]],
             ...                    index=['cobra', 'viper', 'sidewinder'],
@@ -5947,8 +5703,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...                    columns=['A', 'B', 'C'])
@@ -5982,8 +5736,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[0, 2, 3], [0, 4, 1], [10, 20, 30]],
             ...                    index=[4, 5, 6], columns=['A', 'B', 'C'])
@@ -6018,8 +5770,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> bpd.Series([1, 2, 3]).values
             array([1, 2, 3])
@@ -6040,8 +5790,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         For Series:
 
@@ -6077,9 +5825,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> import numpy as np
 
             >>> ser = bpd.Series([1, 2, 3])
 
@@ -6105,8 +5850,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3])
             >>> len(s)
@@ -6121,8 +5864,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> ser = bpd.Series([True, False, True])
             >>> ~ser
@@ -6142,8 +5883,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([0, 1, 2, 3])
 
@@ -6181,8 +5920,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([0, 1, 2, 3])
 
@@ -6220,8 +5957,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([0, 1, 2, 3])
 
@@ -6259,8 +5994,6 @@ class Series(NDFrame):  # type: ignore[misc]
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([15, 30, 45])
             >>> s[1]

@@ -17,12 +17,12 @@ import dataclasses
 import functools
 import itertools
 import operator
-from typing import cast, Literal, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import cast, Literal, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 
 import pandas as pd
 
 import bigframes.core
-from bigframes.core import identifiers, nodes, ordering, window_spec
+from bigframes.core import agg_expressions, identifiers, nodes, ordering, window_spec
 from bigframes.core.compile.polars import lowering
 import bigframes.core.expression as ex
 import bigframes.core.guid as guid
@@ -31,9 +31,14 @@ import bigframes.core.rewrite.schema_binding
 import bigframes.dtypes
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
+import bigframes.operations.array_ops as arr_ops
 import bigframes.operations.bool_ops as bool_ops
 import bigframes.operations.comparison_ops as comp_ops
+import bigframes.operations.date_ops as date_ops
+import bigframes.operations.datetime_ops as dt_ops
+import bigframes.operations.frequency_ops as freq_ops
 import bigframes.operations.generic_ops as gen_ops
+import bigframes.operations.json_ops as json_ops
 import bigframes.operations.numeric_ops as num_ops
 import bigframes.operations.string_ops as string_ops
 
@@ -42,11 +47,50 @@ if TYPE_CHECKING:
     import polars as pl
 else:
     try:
-        import polars as pl
+        import bigframes._importing
+
+        # Use import_polars() instead of importing directly so that we check
+        # the version numbers.
+        pl = bigframes._importing.import_polars()
     except Exception:
         polars_installed = False
 
+
+def register_op(op: Type):
+    """Register a compilation from BigFrames to Ibis.
+
+    This decorator can be used, even if Polars is not installed.
+
+    Args:
+        op: The type of the operator the wrapped function compiles.
+    """
+
+    def decorator(func):
+        if polars_installed:
+            # Ignore the type because compile_op is a generic Callable, so
+            # register isn't available according to mypy.
+            return PolarsExpressionCompiler.compile_op.register(op)(func)  # type: ignore
+        else:
+            return func
+
+    return decorator
+
+
 if polars_installed:
+    _FREQ_MAPPING = {
+        "Y": "1y",
+        "Q": "1q",
+        "M": "1mo",
+        "W": "1w",
+        "D": "1d",
+        "h": "1h",
+        "min": "1m",
+        "s": "1s",
+        "ms": "1ms",
+        "us": "1us",
+        "ns": "1ns",
+    }
+
     _DTYPE_MAPPING = {
         # Direct mappings
         bigframes.dtypes.INT_DTYPE: pl.Int64(),
@@ -141,7 +185,7 @@ if polars_installed:
 
         @compile_op.register(gen_ops.InvertOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return ~input
+            return input.not_()
 
         @compile_op.register(num_ops.AbsOp)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
@@ -170,6 +214,10 @@ if polars_installed:
         @compile_op.register(bool_ops.OrOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
             return l_input | r_input
+
+        @compile_op.register(bool_ops.XorOp)
+        def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
+            return l_input ^ r_input
 
         @compile_op.register(num_ops.AddOp)
         def _(self, op: ops.ScalarOp, l_input: pl.Expr, r_input: pl.Expr) -> pl.Expr:
@@ -232,19 +280,9 @@ if polars_installed:
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             # TODO: Filter out types that can't be coerced to right type
             assert isinstance(op, gen_ops.IsInOp)
-            if op.match_nulls or not any(map(pd.isna, op.values)):
-                # newer polars version have nulls_equal arg
-                return input.is_in(op.values)
-            else:
-                return input.is_in(op.values) or input.is_null()
-
-        @compile_op.register(gen_ops.IsNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_null()
-
-        @compile_op.register(gen_ops.NotNullOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.is_not_null()
+            assert not op.match_nulls  # should be stripped by a lowering step rn
+            values = pl.Series(op.values, strict=False)
+            return input.is_in(values)
 
         @compile_op.register(gen_ops.FillNaOp)
         @compile_op.register(gen_ops.CoalesceOp)
@@ -280,21 +318,140 @@ if polars_installed:
             assert isinstance(op, string_ops.StrConcatOp)
             return pl.concat_str(l_input, r_input)
 
+        @compile_op.register(string_ops.StrContainsOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StrContainsOp)
+            return input.str.contains(pattern=op.pat, literal=True)
+
+        @compile_op.register(string_ops.StrContainsRegexOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StrContainsRegexOp)
+            return input.str.contains(pattern=op.pat, literal=False)
+
+        @compile_op.register(string_ops.StartsWithOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.StartsWithOp)
+            if len(op.pat) == 1:
+                return input.str.starts_with(op.pat[0])
+            else:
+                return pl.any_horizontal(
+                    *(input.str.starts_with(pat) for pat in op.pat)
+                )
+
+        @compile_op.register(string_ops.EndsWithOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, string_ops.EndsWithOp)
+            if len(op.pat) == 1:
+                return input.str.ends_with(op.pat[0])
+            else:
+                return pl.any_horizontal(*(input.str.ends_with(pat) for pat in op.pat))
+
+        @compile_op.register(freq_ops.FloorDtOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, freq_ops.FloorDtOp)
+            return input.dt.truncate(every=_FREQ_MAPPING[op.freq])
+
+        @compile_op.register(dt_ops.StrftimeOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, dt_ops.StrftimeOp)
+            return input.dt.strftime(op.date_format)
+
+        @compile_op.register(date_ops.YearOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.year()
+
+        @compile_op.register(date_ops.QuarterOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.quarter()
+
+        @compile_op.register(date_ops.MonthOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.month()
+
+        @compile_op.register(date_ops.DayOfWeekOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.weekday() - 1
+
+        @compile_op.register(date_ops.DayOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.day()
+
+        @compile_op.register(date_ops.IsoYearOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.iso_year()
+
+        @compile_op.register(date_ops.IsoWeekOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.week()
+
+        @compile_op.register(date_ops.IsoDayOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            return input.dt.weekday()
+
+        @compile_op.register(dt_ops.ParseDatetimeOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, dt_ops.ParseDatetimeOp)
+            return input.str.to_datetime(
+                time_unit="us", time_zone=None, ambiguous="earliest"
+            )
+
+        @compile_op.register(dt_ops.ParseTimestampOp)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, dt_ops.ParseTimestampOp)
+            return input.str.to_datetime(
+                time_unit="us", time_zone="UTC", ambiguous="earliest"
+            )
+
+        @compile_op.register(json_ops.JSONDecode)
+        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
+            assert isinstance(op, json_ops.JSONDecode)
+            return input.str.json_decode(_DTYPE_MAPPING[op.to_type])
+
+        @compile_op.register(arr_ops.ToArrayOp)
+        def _(self, op: ops.ToArrayOp, *inputs: pl.Expr) -> pl.Expr:
+            return pl.concat_list(*inputs)
+
+        @compile_op.register(arr_ops.ArrayReduceOp)
+        def _(self, op: ops.ArrayReduceOp, input: pl.Expr) -> pl.Expr:
+            # TODO: Unify this with general aggregation compilation?
+            if isinstance(op.aggregation, agg_ops.MinOp):
+                return input.list.min()
+            if isinstance(op.aggregation, agg_ops.MaxOp):
+                return input.list.max()
+            if isinstance(op.aggregation, agg_ops.SumOp):
+                return input.list.sum()
+            if isinstance(op.aggregation, agg_ops.MeanOp):
+                return input.list.mean()
+            if isinstance(op.aggregation, agg_ops.CountOp):
+                return input.list.len()
+            if isinstance(op.aggregation, agg_ops.StdOp):
+                return input.list.std()
+            if isinstance(op.aggregation, agg_ops.VarOp):
+                return input.list.var()
+            if isinstance(op.aggregation, agg_ops.AnyOp):
+                return input.list.any()
+            if isinstance(op.aggregation, agg_ops.AllOp):
+                return input.list.all()
+            else:
+                raise NotImplementedError(
+                    f"Haven't implemented array aggregation: {op.aggregation}"
+                )
+
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:
         scalar_compiler = PolarsExpressionCompiler()
 
         def get_args(
             self,
-            agg: ex.Aggregation,
+            agg: agg_expressions.Aggregation,
         ) -> Sequence[pl.Expr]:
             """Prepares arguments for aggregation by compiling them."""
-            if isinstance(agg, ex.NullaryAggregation):
+            if isinstance(agg, agg_expressions.NullaryAggregation):
                 return []
-            elif isinstance(agg, ex.UnaryAggregation):
+            elif isinstance(agg, agg_expressions.UnaryAggregation):
                 arg = self.scalar_compiler.compile_expression(agg.arg)
                 return [arg]
-            elif isinstance(agg, ex.BinaryAggregation):
+            elif isinstance(agg, agg_expressions.BinaryAggregation):
                 larg = self.scalar_compiler.compile_expression(agg.left)
                 rarg = self.scalar_compiler.compile_expression(agg.right)
                 return [larg, rarg]
@@ -303,13 +460,13 @@ if polars_installed:
                 f"Aggregation {agg} not yet supported in polars engine."
             )
 
-        def compile_agg_expr(self, expr: ex.Aggregation):
-            if isinstance(expr, ex.NullaryAggregation):
+        def compile_agg_expr(self, expr: agg_expressions.Aggregation):
+            if isinstance(expr, agg_expressions.NullaryAggregation):
                 inputs: Tuple = ()
-            elif isinstance(expr, ex.UnaryAggregation):
+            elif isinstance(expr, agg_expressions.UnaryAggregation):
                 assert isinstance(expr.arg, ex.DerefOp)
                 inputs = (expr.arg.id.sql,)
-            elif isinstance(expr, ex.BinaryAggregation):
+            elif isinstance(expr, agg_expressions.BinaryAggregation):
                 assert isinstance(expr.left, ex.DerefOp)
                 assert isinstance(expr.right, ex.DerefOp)
                 inputs = (
@@ -336,9 +493,9 @@ if polars_installed:
             if isinstance(op, agg_ops.MedianOp):
                 return pl.median(*inputs)
             if isinstance(op, agg_ops.AllOp):
-                return pl.all(*inputs)
+                return pl.col(inputs).cast(pl.Boolean).all()
             if isinstance(op, agg_ops.AnyOp):
-                return pl.any(*inputs)  # type: ignore
+                return pl.col(inputs).cast(pl.Boolean).any()
             if isinstance(op, agg_ops.NuniqueOp):
                 return pl.col(*inputs).drop_nulls().n_unique()
             if isinstance(op, agg_ops.MinOp):
@@ -381,357 +538,371 @@ if polars_installed:
                 f"Aggregate op {op} not yet supported in polars engine."
             )
 
+    @dataclasses.dataclass(frozen=True)
+    class PolarsCompiler:
+        """
+        Compiles ArrayValue to polars LazyFrame and executes.
 
-@dataclasses.dataclass(frozen=True)
-class PolarsCompiler:
-    """
-    Compiles ArrayValue to polars LazyFrame and executes.
+        This feature is in development and is incomplete.
+        While most node types are supported, this has the following limitations:
+        1. GBQ data sources not supported.
+        2. Joins do not order rows correctly
+        3. Incomplete scalar op support
+        4. Incomplete aggregate op support
+        5. Incomplete analytic op support
+        6. Some complex windowing types not supported (eg. groupby + rolling)
+        7. UDFs are not supported.
+        8. Returned types may not be entirely consistent with BigQuery backend
+        9. Some operations are not entirely lazy - sampling and somse windowing.
+        """
 
-    This feature is in development and is incomplete.
-    While most node types are supported, this has the following limitations:
-    1. GBQ data sources not supported.
-    2. Joins do not order rows correctly
-    3. Incomplete scalar op support
-    4. Incomplete aggregate op support
-    5. Incomplete analytic op support
-    6. Some complex windowing types not supported (eg. groupby + rolling)
-    7. UDFs are not supported.
-    8. Returned types may not be entirely consistent with BigQuery backend
-    9. Some operations are not entirely lazy - sampling and somse windowing.
-    """
+        expr_compiler = PolarsExpressionCompiler()
+        agg_compiler = PolarsAggregateCompiler()
 
-    expr_compiler = PolarsExpressionCompiler()
-    agg_compiler = PolarsAggregateCompiler()
-
-    def compile(self, plan: nodes.BigFrameNode) -> pl.LazyFrame:
-        if not polars_installed:
-            raise ValueError(
-                "Polars is not installed, cannot compile to polars engine."
-            )
-
-        # TODO: Create standard way to configure BFET -> BFET rewrites
-        # Polars has incomplete slice support in lazy mode
-        node = plan
-        node = bigframes.core.rewrite.column_pruning(node)
-        node = nodes.bottom_up(node, bigframes.core.rewrite.rewrite_slice)
-        node = bigframes.core.rewrite.pull_out_window_order(node)
-        node = bigframes.core.rewrite.schema_binding.bind_schema_to_tree(node)
-        node = lowering.lower_ops_to_polars(node)
-        return self.compile_node(node)
-
-    @functools.singledispatchmethod
-    def compile_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
-        """Defines transformation but isn't cached, always use compile_node instead"""
-        raise ValueError(f"Can't compile unrecognized node: {node}")
-
-    @compile_node.register
-    def compile_readlocal(self, node: nodes.ReadLocalNode):
-        cols_to_read = {
-            scan_item.source_id: scan_item.id.sql for scan_item in node.scan_list.items
-        }
-        lazy_frame = cast(
-            pl.DataFrame, pl.from_arrow(node.local_data_source.data)
-        ).lazy()
-        lazy_frame = lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
-        if node.offsets_col:
-            lazy_frame = lazy_frame.with_columns(
-                [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.offsets_col.sql)]
-            )
-        return lazy_frame
-
-    @compile_node.register
-    def compile_filter(self, node: nodes.FilterNode):
-        return self.compile_node(node.child).filter(
-            self.expr_compiler.compile_expression(node.predicate)
-        )
-
-    @compile_node.register
-    def compile_orderby(self, node: nodes.OrderByNode):
-        frame = self.compile_node(node.child)
-        if len(node.by) == 0:
-            # pragma: no cover
-            return frame
-        return self._sort(frame, node.by)
-
-    def _sort(
-        self, frame: pl.LazyFrame, by: Sequence[ordering.OrderingExpression]
-    ) -> pl.LazyFrame:
-        sorted = frame.sort(
-            [self.expr_compiler.compile_expression(by.scalar_expression) for by in by],
-            descending=[not by.direction.is_ascending for by in by],
-            nulls_last=[by.na_last for by in by],
-            maintain_order=True,
-        )
-        return sorted
-
-    @compile_node.register
-    def compile_reversed(self, node: nodes.ReversedNode):
-        return self.compile_node(node.child).reverse()
-
-    @compile_node.register
-    def compile_selection(self, node: nodes.SelectionNode):
-        return self.compile_node(node.child).select(
-            **{new.sql: orig.id.sql for orig, new in node.input_output_pairs}
-        )
-
-    @compile_node.register
-    def compile_projection(self, node: nodes.ProjectionNode):
-        new_cols = []
-        for proj_expr, name in node.assignments:
-            bound_expr = ex.bind_schema_fields(proj_expr, node.child.field_by_id)
-            new_col = self.expr_compiler.compile_expression(bound_expr).alias(name.sql)
-            if bound_expr.output_type is None:
-                new_col = new_col.cast(
-                    _bigframes_dtype_to_polars_dtype(bigframes.dtypes.DEFAULT_DTYPE)
+        def compile(self, plan: nodes.BigFrameNode) -> pl.LazyFrame:
+            if not polars_installed:
+                raise ValueError(
+                    "Polars is not installed, cannot compile to polars engine."
                 )
-            new_cols.append(new_col)
-        return self.compile_node(node.child).with_columns(new_cols)
 
-    @compile_node.register
-    def compile_offsets(self, node: nodes.PromoteOffsetsNode):
-        return self.compile_node(node.child).with_columns(
-            [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.col_id.sql)]
-        )
+            # TODO: Create standard way to configure BFET -> BFET rewrites
+            # Polars has incomplete slice support in lazy mode
+            node = plan
+            node = bigframes.core.rewrite.column_pruning(node)
+            node = nodes.bottom_up(node, bigframes.core.rewrite.rewrite_slice)
+            node = bigframes.core.rewrite.pull_out_window_order(node)
+            node = bigframes.core.rewrite.schema_binding.bind_schema_to_tree(node)
+            node = lowering.lower_ops_to_polars(node)
+            return self.compile_node(node)
 
-    @compile_node.register
-    def compile_join(self, node: nodes.JoinNode):
-        left = self.compile_node(node.left_child)
-        right = self.compile_node(node.right_child)
+        @functools.singledispatchmethod
+        def compile_node(self, node: nodes.BigFrameNode) -> pl.LazyFrame:
+            """Defines transformation but isn't cached, always use compile_node instead"""
+            raise ValueError(f"Can't compile unrecognized node: {node}")
 
-        left_on = []
-        right_on = []
-        for left_ex, right_ex in node.conditions:
-            left_ex, right_ex = lowering._coerce_comparables(left_ex, right_ex)
-            left_on.append(self.expr_compiler.compile_expression(left_ex))
-            right_on.append(self.expr_compiler.compile_expression(right_ex))
+        @compile_node.register
+        def compile_readlocal(self, node: nodes.ReadLocalNode):
+            cols_to_read = {
+                scan_item.source_id: scan_item.id.sql
+                for scan_item in node.scan_list.items
+            }
+            lazy_frame = cast(
+                pl.DataFrame, pl.from_arrow(node.local_data_source.data)
+            ).lazy()
+            lazy_frame = lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
+            if node.offsets_col:
+                lazy_frame = lazy_frame.with_columns(
+                    [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.offsets_col.sql)]
+                )
+            return lazy_frame
 
-        if node.type == "right":
+        @compile_node.register
+        def compile_filter(self, node: nodes.FilterNode):
+            return self.compile_node(node.child).filter(
+                self.expr_compiler.compile_expression(node.predicate)
+            )
+
+        @compile_node.register
+        def compile_orderby(self, node: nodes.OrderByNode):
+            frame = self.compile_node(node.child)
+            if len(node.by) == 0:
+                # pragma: no cover
+                return frame
+            return self._sort(frame, node.by)
+
+        def _sort(
+            self, frame: pl.LazyFrame, by: Sequence[ordering.OrderingExpression]
+        ) -> pl.LazyFrame:
+            sorted = frame.sort(
+                [
+                    self.expr_compiler.compile_expression(by.scalar_expression)
+                    for by in by
+                ],
+                descending=[not by.direction.is_ascending for by in by],
+                nulls_last=[by.na_last for by in by],
+                maintain_order=True,
+            )
+            return sorted
+
+        @compile_node.register
+        def compile_reversed(self, node: nodes.ReversedNode):
+            return self.compile_node(node.child).reverse()
+
+        @compile_node.register
+        def compile_selection(self, node: nodes.SelectionNode):
+            return self.compile_node(node.child).select(
+                **{new.sql: orig.id.sql for orig, new in node.input_output_pairs}
+            )
+
+        @compile_node.register
+        def compile_projection(self, node: nodes.ProjectionNode):
+            new_cols = []
+            for proj_expr, name in node.assignments:
+                bound_expr = ex.bind_schema_fields(proj_expr, node.child.field_by_id)
+                new_col = self.expr_compiler.compile_expression(bound_expr).alias(
+                    name.sql
+                )
+                if bound_expr.output_type is None:
+                    new_col = new_col.cast(
+                        _bigframes_dtype_to_polars_dtype(bigframes.dtypes.DEFAULT_DTYPE)
+                    )
+                new_cols.append(new_col)
+            return self.compile_node(node.child).with_columns(new_cols)
+
+        @compile_node.register
+        def compile_offsets(self, node: nodes.PromoteOffsetsNode):
+            return self.compile_node(node.child).with_columns(
+                [pl.int_range(pl.len(), dtype=pl.Int64).alias(node.col_id.sql)]
+            )
+
+        @compile_node.register
+        def compile_join(self, node: nodes.JoinNode):
+            left = self.compile_node(node.left_child)
+            right = self.compile_node(node.right_child)
+
+            left_on = []
+            right_on = []
+            for left_ex, right_ex in node.conditions:
+                left_ex, right_ex = lowering._coerce_comparables(left_ex, right_ex)
+                left_on.append(self.expr_compiler.compile_expression(left_ex))
+                right_on.append(self.expr_compiler.compile_expression(right_ex))
+
+            if node.type == "right":
+                return self._ordered_join(
+                    right, left, "left", right_on, left_on, node.joins_nulls
+                ).select([id.sql for id in node.ids])
             return self._ordered_join(
-                right, left, "left", right_on, left_on, node.joins_nulls
-            ).select([id.sql for id in node.ids])
-        return self._ordered_join(
-            left, right, node.type, left_on, right_on, node.joins_nulls
-        )
+                left, right, node.type, left_on, right_on, node.joins_nulls
+            )
 
-    @compile_node.register
-    def compile_isin(self, node: nodes.InNode):
-        left = self.compile_node(node.left_child)
-        right = self.compile_node(node.right_child).unique(node.right_col.id.sql)
-        right = right.with_columns(pl.lit(True).alias(node.indicator_col.sql))
+        @compile_node.register
+        def compile_isin(self, node: nodes.InNode):
+            left = self.compile_node(node.left_child)
+            right = self.compile_node(node.right_child).unique(node.right_col.id.sql)
+            right = right.with_columns(pl.lit(True).alias(node.indicator_col.sql))
 
-        left_ex, right_ex = lowering._coerce_comparables(node.left_col, node.right_col)
+            left_ex, right_ex = lowering._coerce_comparables(
+                node.left_col, node.right_col
+            )
 
-        left_pl_ex = self.expr_compiler.compile_expression(left_ex)
-        right_pl_ex = self.expr_compiler.compile_expression(right_ex)
+            left_pl_ex = self.expr_compiler.compile_expression(left_ex)
+            right_pl_ex = self.expr_compiler.compile_expression(right_ex)
 
-        joined = left.join(
-            right,
-            how="left",
-            left_on=left_pl_ex,
-            right_on=right_pl_ex,
-            # Note: join_nulls renamed to nulls_equal for polars 1.24
-            join_nulls=node.joins_nulls,  # type: ignore
-            coalesce=False,
-        )
-        passthrough = [pl.col(id) for id in left.columns]
-        indicator = pl.col(node.indicator_col.sql).fill_null(False)
-        return joined.select((*passthrough, indicator))
-
-    def _ordered_join(
-        self,
-        left_frame: pl.LazyFrame,
-        right_frame: pl.LazyFrame,
-        how: Literal["inner", "outer", "left", "cross"],
-        left_on: Sequence[pl.Expr],
-        right_on: Sequence[pl.Expr],
-        join_nulls: bool,
-    ):
-        if how == "right":
-            # seems to cause seg faults as of v1.30 for no apparent reason
-            raise ValueError("right join not supported")
-        left = left_frame.with_columns(
-            [
-                pl.int_range(pl.len()).alias("_bf_join_l"),
-            ]
-        )
-        right = right_frame.with_columns(
-            [
-                pl.int_range(pl.len()).alias("_bf_join_r"),
-            ]
-        )
-        if how != "cross":
             joined = left.join(
                 right,
-                how=how,
-                left_on=left_on,
-                right_on=right_on,
+                how="left",
+                left_on=left_pl_ex,
+                right_on=right_pl_ex,
                 # Note: join_nulls renamed to nulls_equal for polars 1.24
-                join_nulls=join_nulls,  # type: ignore
+                join_nulls=node.joins_nulls,  # type: ignore
                 coalesce=False,
             )
-        else:
-            joined = left.join(right, how=how, coalesce=False)
+            passthrough = [pl.col(id) for id in left.columns]
+            indicator = pl.col(node.indicator_col.sql).fill_null(False)
+            return joined.select((*passthrough, indicator))
 
-        join_order = (
-            ["_bf_join_l", "_bf_join_r"]
-            if how != "right"
-            else ["_bf_join_r", "_bf_join_l"]
-        )
-        return joined.sort(join_order, nulls_last=True).drop(
-            ["_bf_join_l", "_bf_join_r"]
-        )
-
-    @compile_node.register
-    def compile_concat(self, node: nodes.ConcatNode):
-        child_frames = [self.compile_node(child) for child in node.child_nodes]
-        child_frames = [
-            frame.rename(
-                {col: id.sql for col, id in zip(frame.columns, node.output_ids)}
-            ).cast(
-                {
-                    field.id.sql: _bigframes_dtype_to_polars_dtype(field.dtype)
-                    for field in node.fields
-                }
-            )
-            for frame in child_frames
-        ]
-        df = pl.concat(child_frames)
-        return df
-
-    @compile_node.register
-    def compile_agg(self, node: nodes.AggregateNode):
-        df = self.compile_node(node.child)
-        if node.dropna and len(node.by_column_ids) > 0:
-            df = df.filter(
-                [pl.col(ref.id.sql).is_not_null() for ref in node.by_column_ids]
-            )
-        if node.order_by:
-            df = self._sort(df, node.order_by)
-        return self._aggregate(df, node.aggregations, node.by_column_ids)
-
-    def _aggregate(
-        self,
-        df: pl.LazyFrame,
-        aggregations: Sequence[Tuple[ex.Aggregation, identifiers.ColumnId]],
-        grouping_keys: Tuple[ex.DerefOp, ...],
-    ) -> pl.LazyFrame:
-        # Need to materialize columns to broadcast constants
-        agg_inputs = [
-            list(
-                map(
-                    lambda x: x.alias(guid.generate_guid()),
-                    self.agg_compiler.get_args(agg),
-                )
-            )
-            for agg, _ in aggregations
-        ]
-
-        df_agg_inputs = df.with_columns(itertools.chain(*agg_inputs))
-
-        agg_exprs = [
-            self.agg_compiler.compile_agg_op(
-                agg.op, list(map(lambda x: x.meta.output_name(), inputs))
-            ).alias(id.sql)
-            for (agg, id), inputs in zip(aggregations, agg_inputs)
-        ]
-
-        if len(grouping_keys) > 0:
-            group_exprs = [pl.col(ref.id.sql) for ref in grouping_keys]
-            grouped_df = df_agg_inputs.group_by(group_exprs)
-            return grouped_df.agg(agg_exprs).sort(group_exprs, nulls_last=True)
-        else:
-            return df_agg_inputs.select(agg_exprs)
-
-    @compile_node.register
-    def compile_explode(self, node: nodes.ExplodeNode):
-        assert node.offsets_col is None
-        df = self.compile_node(node.child)
-        cols = [pl.col(col.id.sql) for col in node.column_ids]
-        return df.explode(cols)
-
-    @compile_node.register
-    def compile_sample(self, node: nodes.RandomSampleNode):
-        df = self.compile_node(node.child)
-        # Sample is not available on lazyframe
-        return df.collect().sample(fraction=node.fraction).lazy()
-
-    @compile_node.register
-    def compile_window(self, node: nodes.WindowOpNode):
-        df = self.compile_node(node.child)
-
-        window = node.window_spec
-        # Should have been handled by reweriter
-        assert len(window.ordering) == 0
-        if window.min_periods > 0:
-            raise NotImplementedError("min_period not yet supported for polars engine")
-
-        if (window.bounds is None) or (window.is_unbounded):
-            # polars will automatically broadcast the aggregate to the matching input rows
-            agg_pl = self.agg_compiler.compile_agg_expr(node.expression)
-            if window.grouping_keys:
-                agg_pl = agg_pl.over(id.id.sql for id in window.grouping_keys)
-            result = df.with_columns(agg_pl.alias(node.output_name.sql))
-        else:  # row-bounded window
-            window_result = self._calc_row_analytic_func(
-                df, node.expression, node.window_spec, node.output_name.sql
-            )
-            result = pl.concat([df, window_result], how="horizontal")
-
-        # Probably easier just to pull this out as a rewriter
-        if (
-            node.expression.op.skips_nulls
-            and not node.never_skip_nulls
-            and node.expression.column_references
+        def _ordered_join(
+            self,
+            left_frame: pl.LazyFrame,
+            right_frame: pl.LazyFrame,
+            how: Literal["inner", "outer", "left", "cross"],
+            left_on: Sequence[pl.Expr],
+            right_on: Sequence[pl.Expr],
+            join_nulls: bool,
         ):
-            nullity_expr = functools.reduce(
-                operator.or_,
-                (
-                    pl.col(column.sql).is_null()
-                    for column in node.expression.column_references
-                ),
+            if how == "right":
+                # seems to cause seg faults as of v1.30 for no apparent reason
+                raise ValueError("right join not supported")
+            left = left_frame.with_columns(
+                [
+                    pl.int_range(pl.len()).alias("_bf_join_l"),
+                ]
             )
-            result = result.with_columns(
-                pl.when(nullity_expr)
-                .then(None)
-                .otherwise(pl.col(node.output_name.sql))
-                .alias(node.output_name.sql)
+            right = right_frame.with_columns(
+                [
+                    pl.int_range(pl.len()).alias("_bf_join_r"),
+                ]
             )
-        return result
+            if how != "cross":
+                joined = left.join(
+                    right,
+                    how=how,
+                    left_on=left_on,
+                    right_on=right_on,
+                    # Note: join_nulls renamed to nulls_equal for polars 1.24
+                    join_nulls=join_nulls,  # type: ignore
+                    coalesce=False,
+                )
+            else:
+                joined = left.join(right, how=how, coalesce=False)
 
-    def _calc_row_analytic_func(
-        self,
-        frame: pl.LazyFrame,
-        agg_expr: ex.Aggregation,
-        window: window_spec.WindowSpec,
-        name: str,
-    ) -> pl.LazyFrame:
-        if not isinstance(window.bounds, window_spec.RowsWindowBounds):
-            raise NotImplementedError("Only row bounds supported by polars engine")
-        groupby = None
-        if len(window.grouping_keys) > 0:
-            groupby = [
-                self.expr_compiler.compile_expression(ref)
-                for ref in window.grouping_keys
+            join_order = (
+                ["_bf_join_l", "_bf_join_r"]
+                if how != "right"
+                else ["_bf_join_r", "_bf_join_l"]
+            )
+            return joined.sort(join_order, nulls_last=True).drop(
+                ["_bf_join_l", "_bf_join_r"]
+            )
+
+        @compile_node.register
+        def compile_concat(self, node: nodes.ConcatNode):
+            child_frames = [self.compile_node(child) for child in node.child_nodes]
+            child_frames = [
+                frame.rename(
+                    {col: id.sql for col, id in zip(frame.columns, node.output_ids)}
+                ).cast(
+                    {
+                        field.id.sql: _bigframes_dtype_to_polars_dtype(field.dtype)
+                        for field in node.fields
+                    }
+                )
+                for frame in child_frames
+            ]
+            df = pl.concat(child_frames)
+            return df
+
+        @compile_node.register
+        def compile_agg(self, node: nodes.AggregateNode):
+            df = self.compile_node(node.child)
+            if node.dropna and len(node.by_column_ids) > 0:
+                df = df.filter(
+                    [pl.col(ref.id.sql).is_not_null() for ref in node.by_column_ids]
+                )
+            if node.order_by:
+                df = self._sort(df, node.order_by)
+            return self._aggregate(df, node.aggregations, node.by_column_ids)
+
+        def _aggregate(
+            self,
+            df: pl.LazyFrame,
+            aggregations: Sequence[
+                Tuple[agg_expressions.Aggregation, identifiers.ColumnId]
+            ],
+            grouping_keys: Tuple[ex.DerefOp, ...],
+        ) -> pl.LazyFrame:
+            # Need to materialize columns to broadcast constants
+            agg_inputs = [
+                list(
+                    map(
+                        lambda x: x.alias(guid.generate_guid()),
+                        self.agg_compiler.get_args(agg),
+                    )
+                )
+                for agg, _ in aggregations
             ]
 
-        # Polars API semi-bounded, and any grouped rolling window challenging
-        # https://github.com/pola-rs/polars/issues/4799
-        # https://github.com/pola-rs/polars/issues/8976
-        pl_agg_expr = self.agg_compiler.compile_agg_expr(agg_expr).alias(name)
-        index_col_name = "_bf_pl_engine_offsets"
-        indexed_df = frame.with_row_index(index_col_name)
-        # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
-        period_n, offset_n = _get_period_and_offset(window.bounds)
-        return (
-            indexed_df.rolling(
-                index_column=index_col_name,
-                period=f"{period_n}i",
-                offset=f"{offset_n}i" if (offset_n is not None) else None,
-                group_by=groupby,
+            df_agg_inputs = df.with_columns(itertools.chain(*agg_inputs))
+
+            agg_exprs = [
+                self.agg_compiler.compile_agg_op(
+                    agg.op, list(map(lambda x: x.meta.output_name(), inputs))
+                ).alias(id.sql)
+                for (agg, id), inputs in zip(aggregations, agg_inputs)
+            ]
+
+            if len(grouping_keys) > 0:
+                group_exprs = [pl.col(ref.id.sql) for ref in grouping_keys]
+                grouped_df = df_agg_inputs.group_by(group_exprs)
+                return grouped_df.agg(agg_exprs).sort(group_exprs, nulls_last=True)
+            else:
+                return df_agg_inputs.select(agg_exprs)
+
+        @compile_node.register
+        def compile_explode(self, node: nodes.ExplodeNode):
+            assert node.offsets_col is None
+            df = self.compile_node(node.child)
+            cols = [col.id.sql for col in node.column_ids]
+            return df.explode(cols)
+
+        @compile_node.register
+        def compile_sample(self, node: nodes.RandomSampleNode):
+            df = self.compile_node(node.child)
+            # Sample is not available on lazyframe
+            return df.collect().sample(fraction=node.fraction).lazy()
+
+        @compile_node.register
+        def compile_window(self, node: nodes.WindowOpNode):
+            df = self.compile_node(node.child)
+
+            window = node.window_spec
+            # Should have been handled by reweriter
+            assert len(window.ordering) == 0
+            if window.min_periods > 0:
+                raise NotImplementedError(
+                    "min_period not yet supported for polars engine"
+                )
+
+            if (window.bounds is None) or (window.is_unbounded):
+                # polars will automatically broadcast the aggregate to the matching input rows
+                agg_pl = self.agg_compiler.compile_agg_expr(node.expression)
+                if window.grouping_keys:
+                    agg_pl = agg_pl.over(
+                        self.expr_compiler.compile_expression(key)
+                        for key in window.grouping_keys
+                    )
+                result = df.with_columns(agg_pl.alias(node.output_name.sql))
+            else:  # row-bounded window
+                window_result = self._calc_row_analytic_func(
+                    df, node.expression, node.window_spec, node.output_name.sql
+                )
+                result = pl.concat([df, window_result], how="horizontal")
+
+            # Probably easier just to pull this out as a rewriter
+            if (
+                node.expression.op.skips_nulls
+                and not node.never_skip_nulls
+                and node.expression.column_references
+            ):
+                nullity_expr = functools.reduce(
+                    operator.or_,
+                    (
+                        pl.col(column.sql).is_null()
+                        for column in node.expression.column_references
+                    ),
+                )
+                result = result.with_columns(
+                    pl.when(nullity_expr)
+                    .then(None)
+                    .otherwise(pl.col(node.output_name.sql))
+                    .alias(node.output_name.sql)
+                )
+            return result
+
+        def _calc_row_analytic_func(
+            self,
+            frame: pl.LazyFrame,
+            agg_expr: agg_expressions.Aggregation,
+            window: window_spec.WindowSpec,
+            name: str,
+        ) -> pl.LazyFrame:
+            if not isinstance(window.bounds, window_spec.RowsWindowBounds):
+                raise NotImplementedError("Only row bounds supported by polars engine")
+            groupby = None
+            if len(window.grouping_keys) > 0:
+                groupby = [
+                    self.expr_compiler.compile_expression(ref)
+                    for ref in window.grouping_keys
+                ]
+
+            # Polars API semi-bounded, and any grouped rolling window challenging
+            # https://github.com/pola-rs/polars/issues/4799
+            # https://github.com/pola-rs/polars/issues/8976
+            pl_agg_expr = self.agg_compiler.compile_agg_expr(agg_expr).alias(name)
+            index_col_name = "_bf_pl_engine_offsets"
+            indexed_df = frame.with_row_index(index_col_name)
+            # https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.rolling.html
+            period_n, offset_n = _get_period_and_offset(window.bounds)
+            return (
+                indexed_df.rolling(
+                    index_column=index_col_name,
+                    period=f"{period_n}i",
+                    offset=f"{offset_n}i" if (offset_n is not None) else None,
+                    group_by=groupby,
+                )
+                .agg(pl_agg_expr)
+                .select(name)
             )
-            .agg(pl_agg_expr)
-            .select(name)
-        )
 
 
 def _get_period_and_offset(

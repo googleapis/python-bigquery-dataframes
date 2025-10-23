@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime
 import typing
-from typing import Literal, Sequence, Tuple, Union
+from typing import Iterable, Literal, Optional, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -24,11 +24,12 @@ import numpy
 import pandas as pd
 
 from bigframes import session
+from bigframes.core import agg_expressions
 from bigframes.core import expression as ex
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
-from bigframes.core.groupby import aggs, series_group_by
+from bigframes.core.groupby import aggs, group_by, series_group_by
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -53,6 +54,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         selected_cols: typing.Optional[typing.Sequence[str]] = None,
         dropna: bool = True,
         as_index: bool = True,
+        by_key_is_singular: bool = False,
     ):
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
@@ -63,6 +65,9 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         }
         self._by_col_ids = by_col_ids
+        self._by_key_is_singular = by_key_is_singular
+        if by_key_is_singular:
+            assert len(by_col_ids) == 1, "singular key should be exactly one group key"
 
         self._dropna = dropna
         self._as_index = as_index
@@ -148,6 +153,33 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         )
 
+    def describe(self, include: None | Literal["all"] = None):
+        from bigframes.pandas.core.methods import describe
+
+        return df.DataFrame(
+            describe._describe(
+                self._block,
+                self._selected_cols,
+                include,
+                as_index=self._as_index,
+                by_col_ids=self._by_col_ids,
+                dropna=self._dropna,
+            )
+        )
+
+    def __iter__(self) -> Iterable[Tuple[blocks.Label, df.DataFrame]]:
+        for group_keys, filtered_block in group_by.block_groupby_iter(
+            self._block,
+            by_col_ids=self._by_col_ids,
+            by_key_is_singular=self._by_key_is_singular,
+            dropna=self._dropna,
+        ):
+            filtered_df = df.DataFrame(filtered_block)
+            yield group_keys, filtered_df
+
+    def __len__(self) -> int:
+        return len(self.agg([]))
+
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
         agg_block, _ = self._block.aggregate_size(
             by_column_ids=self._by_col_ids,
@@ -180,7 +212,11 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return self._aggregate_all(agg_ops.median_op, numeric_only=True)
 
     def rank(
-        self, method="average", ascending: bool = True, na_option: str = "keep"
+        self,
+        method="average",
+        ascending: bool = True,
+        na_option: str = "keep",
+        pct: bool = False,
     ) -> df.DataFrame:
         return df.DataFrame(
             block_ops.rank(
@@ -190,6 +226,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 ascending,
                 grouping_cols=tuple(self._by_col_ids),
                 columns=tuple(self._selected_cols),
+                pct=pct,
             )
         )
 
@@ -241,6 +278,76 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             self._raise_on_non_numeric("var")
         return self._aggregate_all(agg_ops.var_op, numeric_only=True)
 
+    def corr(
+        self,
+        *,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        if not numeric_only:
+            self._raise_on_non_numeric("corr")
+        if len(self._selected_cols) > 30:
+            raise ValueError(
+                f"Cannot calculate corr on >30 columns, dataframe has {len(self._selected_cols)} selected columns."
+            )
+
+        labels = self._block._get_labels_for_columns(self._selected_cols)
+        block = self._block
+        aggregations = [
+            agg_expressions.BinaryAggregation(
+                agg_ops.CorrOp(), ex.deref(left_col), ex.deref(right_col)
+            )
+            for left_col in self._selected_cols
+            for right_col in self._selected_cols
+        ]
+        # unique columns stops
+        uniq_orig_columns = utils.combine_indices(labels, pd.Index(range(len(labels))))
+        result_labels = utils.cross_indices(uniq_orig_columns, uniq_orig_columns)
+
+        block, _ = block.aggregate(
+            by_column_ids=self._by_col_ids,
+            aggregations=aggregations,
+            column_labels=result_labels,
+        )
+
+        block = block.stack(levels=labels.nlevels + 1)
+        # Drop the last level of each index, which was created to guarantee uniqueness
+        return df.DataFrame(block).droplevel(-1, axis=0).droplevel(-1, axis=1)
+
+    def cov(
+        self,
+        *,
+        numeric_only: bool = False,
+    ) -> df.DataFrame:
+        if not numeric_only:
+            self._raise_on_non_numeric("cov")
+        if len(self._selected_cols) > 30:
+            raise ValueError(
+                f"Cannot calculate cov on >30 columns, dataframe has {len(self._selected_cols)} selected columns."
+            )
+
+        labels = self._block._get_labels_for_columns(self._selected_cols)
+        block = self._block
+        aggregations = [
+            agg_expressions.BinaryAggregation(
+                agg_ops.CovOp(), ex.deref(left_col), ex.deref(right_col)
+            )
+            for left_col in self._selected_cols
+            for right_col in self._selected_cols
+        ]
+        # unique columns stops
+        uniq_orig_columns = utils.combine_indices(labels, pd.Index(range(len(labels))))
+        result_labels = utils.cross_indices(uniq_orig_columns, uniq_orig_columns)
+
+        block, _ = block.aggregate(
+            by_column_ids=self._by_col_ids,
+            aggregations=aggregations,
+            column_labels=result_labels,
+        )
+
+        block = block.stack(levels=labels.nlevels + 1)
+        # Drop the last level of each index, which was created to guarantee uniqueness
+        return df.DataFrame(block).droplevel(-1, axis=0).droplevel(-1, axis=1)
+
     def skew(
         self,
         *,
@@ -262,6 +369,48 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return df.DataFrame(block)
 
     kurtosis = kurt
+
+    @validations.requires_ordering()
+    def first(self, numeric_only: bool = False, min_count: int = -1) -> df.DataFrame:
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        target_cols, index = self._aggregated_columns(numeric_only)
+        block, firsts_ids = self._block.multi_apply_window_op(
+            target_cols,
+            agg_ops.FirstNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            tuple(
+                aggs.agg(firsts_id, agg_ops.AnyValueOp()) for firsts_id in firsts_ids
+            ),
+            dropna=self._dropna,
+            column_labels=index,
+        )
+        return df.DataFrame(block)
+
+    @validations.requires_ordering()
+    def last(self, numeric_only: bool = False, min_count: int = -1) -> df.DataFrame:
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        target_cols, index = self._aggregated_columns(numeric_only)
+        block, lasts_ids = self._block.multi_apply_window_op(
+            target_cols,
+            agg_ops.LastNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            tuple(aggs.agg(lasts_id, agg_ops.AnyValueOp()) for lasts_id in lasts_ids),
+            dropna=self._dropna,
+            column_labels=index,
+        )
+        return df.DataFrame(block)
 
     def all(self) -> df.DataFrame:
         return self._aggregate_all(agg_ops.all_op)
@@ -285,7 +434,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             )
         )
         block, result_id = self._block.apply_analytic(
-            ex.NullaryAggregation(agg_ops.size_op),
+            agg_expressions.NullaryAggregation(agg_ops.size_op),
             window=window_spec,
             result_label=None,
         )
@@ -329,6 +478,39 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             grouping_keys=tuple(self._by_col_ids),
         )
         return self._apply_window_op(agg_ops.DiffOp(periods), window=window)
+
+    def value_counts(
+        self,
+        subset: Optional[Sequence[blocks.Label]] = None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ) -> Union[df.DataFrame, series.Series]:
+        if subset is None:
+            columns = self._selected_cols
+        else:
+            columns = [
+                column
+                for column in self._block.value_columns
+                if self._block.col_id_to_label[column] in subset
+            ]
+        block = self._block
+        if self._dropna:  # this drops null grouping columns
+            block = block_ops.dropna(block, self._by_col_ids)
+        block = block_ops.value_counts(
+            block,
+            columns,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            drop_na=dropna,  # this drops null value columns
+            grouping_keys=self._by_col_ids,
+        )
+        if self._as_index:
+            return series.Series(block)
+        else:
+            return series.Series(block).to_frame().reset_index(drop=False)
 
     @validations.requires_ordering()
     def rolling(
@@ -385,23 +567,19 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
 
     def agg(self, func=None, **kwargs) -> typing.Union[df.DataFrame, series.Series]:
         if func:
-            if isinstance(func, str):
-                return self.size() if func == "size" else self._agg_string(func)
-            elif utils.is_dict_like(func):
+            if utils.is_dict_like(func):
                 return self._agg_dict(func)
             elif utils.is_list_like(func):
                 return self._agg_list(func)
             else:
-                raise NotImplementedError(
-                    f"Aggregate with {func} not supported. {constants.FEEDBACK_LINK}"
-                )
+                return self.size() if func == "size" else self._agg_func(func)
         else:
             return self._agg_named(**kwargs)
 
-    def _agg_string(self, func: str) -> df.DataFrame:
+    def _agg_func(self, func) -> df.DataFrame:
         ids, labels = self._aggregated_columns()
         aggregations = [
-            aggs.agg(col_id, agg_ops.lookup_agg_func(func)) for col_id in ids
+            aggs.agg(col_id, agg_ops.lookup_agg_func(func)[0]) for col_id in ids
         ]
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
@@ -413,7 +591,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return dataframe if self._as_index else self._convert_index(dataframe)
 
     def _agg_dict(self, func: typing.Mapping) -> df.DataFrame:
-        aggregations: typing.List[ex.Aggregation] = []
+        aggregations: typing.List[agg_expressions.Aggregation] = []
         column_labels = []
 
         want_aggfunc_level = any(utils.is_list_like(aggs) for aggs in func.values())
@@ -424,7 +602,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
                 funcs_for_id if utils.is_list_like(funcs_for_id) else [funcs_for_id]
             )
             for f in func_list:
-                aggregations.append(aggs.agg(col_id, agg_ops.lookup_agg_func(f)))
+                aggregations.append(aggs.agg(col_id, agg_ops.lookup_agg_func(f)[0]))
                 column_labels.append(label)
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
@@ -449,19 +627,23 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
     def _agg_list(self, func: typing.Sequence) -> df.DataFrame:
         ids, labels = self._aggregated_columns()
         aggregations = [
-            aggs.agg(col_id, agg_ops.lookup_agg_func(f)) for col_id in ids for f in func
+            aggs.agg(col_id, agg_ops.lookup_agg_func(f)[0])
+            for col_id in ids
+            for f in func
         ]
 
         if self._block.column_labels.nlevels > 1:
             # Restructure MultiIndex for proper format: (idx1, idx2, func)
             # rather than ((idx1, idx2), func).
             column_labels = [
-                tuple(label) + (f,)
+                tuple(label) + (agg_ops.lookup_agg_func(f)[1],)
                 for label in labels.to_frame(index=False).to_numpy()
                 for f in func
             ]
         else:  # Single-level index
-            column_labels = [(label, f) for label in labels for f in func]
+            column_labels = [
+                (label, agg_ops.lookup_agg_func(f)[1]) for label in labels for f in func
+            ]
 
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
@@ -487,7 +669,7 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
             if not isinstance(v, tuple) or (len(v) != 2):
                 raise TypeError("kwargs values must be 2-tuples of column, aggfunc")
             col_id = self._resolve_label(v[0])
-            aggregations.append(aggs.agg(col_id, agg_ops.lookup_agg_func(v[1])))
+            aggregations.append(aggs.agg(col_id, agg_ops.lookup_agg_func(v[1])[0]))
             column_labels.append(k)
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,

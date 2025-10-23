@@ -8,11 +8,11 @@ import typing
 
 import pandas as pd
 
-from bigframes import constants, series
+from bigframes import constants
 
 
 def cut(
-    x: series.Series,
+    x,
     bins: typing.Union[
         int,
         pd.IntervalIndex,
@@ -34,8 +34,6 @@ def cut(
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
-
         >>> s = bpd.Series([0, 1, 5, 10])
         >>> s
         0     0
@@ -73,7 +71,6 @@ def cut(
 
     Cut with pd.IntervalIndex, requires importing pandas for IntervalIndex:
 
-        >>> import pandas as pd
         >>> interval_index = pd.IntervalIndex.from_tuples([(0, 1), (1, 5), (5, 20)])
         >>> bpd.cut(s, bins=interval_index)
         0                                            <NA>
@@ -113,7 +110,7 @@ def cut(
         dtype: struct<left_inclusive: int64, right_exclusive: int64>[pyarrow]
 
     Args:
-        x (bigframes.pandas.Series):
+        x (array-like):
             The input Series to be binned. Must be 1-dimensional.
         bins (int, pd.IntervalIndex, Iterable):
             The criteria to bin by.

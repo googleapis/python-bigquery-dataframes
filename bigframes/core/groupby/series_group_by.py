@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import datetime
 import typing
-from typing import Literal, Sequence, Union
+from typing import Iterable, Literal, Sequence, Tuple, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.groupby as vendored_pandas_groupby
@@ -28,7 +28,7 @@ from bigframes.core import expression as ex
 from bigframes.core import log_adapter
 import bigframes.core.block_transforms as block_ops
 import bigframes.core.blocks as blocks
-from bigframes.core.groupby import aggs
+from bigframes.core.groupby import aggs, group_by
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.validations as validations
@@ -36,6 +36,7 @@ from bigframes.core.window import rolling
 import bigframes.core.window as windows
 import bigframes.core.window_spec as window_specs
 import bigframes.dataframe as df
+import bigframes.dtypes
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series as series
 
@@ -51,6 +52,8 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         by_col_ids: typing.Sequence[str],
         value_name: blocks.Label = None,
         dropna=True,
+        *,
+        by_key_is_singular: bool = False,
     ):
         # TODO(tbergeron): Support more group-by expression types
         self._block = block
@@ -58,6 +61,10 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         self._by_col_ids = by_col_ids
         self._value_name = value_name
         self._dropna = dropna  # Applies to aggregations but not windowing
+
+        self._by_key_is_singular = by_key_is_singular
+        if by_key_is_singular:
+            assert len(by_col_ids) == 1, "singular key should be exactly one group key"
 
     @property
     def _session(self) -> session.Session:
@@ -73,6 +80,36 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
                 by_column_ids=self._by_col_ids, value_columns=[self._value_column], n=n
             )
         )
+
+    def describe(self, include: None | Literal["all"] = None):
+        from bigframes.pandas.core.methods import describe
+
+        return df.DataFrame(
+            describe._describe(
+                self._block,
+                columns=[self._value_column],
+                include=include,
+                as_index=True,
+                by_col_ids=self._by_col_ids,
+                dropna=self._dropna,
+            )
+        ).droplevel(level=0, axis=1)
+
+    def __iter__(self) -> Iterable[Tuple[blocks.Label, series.Series]]:
+        for group_keys, filtered_block in group_by.block_groupby_iter(
+            self._block,
+            by_col_ids=self._by_col_ids,
+            by_key_is_singular=self._by_key_is_singular,
+            dropna=self._dropna,
+        ):
+            filtered_series = series.Series(
+                filtered_block.select_column(self._value_column)
+            )
+            filtered_series.name = self._value_name
+            yield group_keys, filtered_series
+
+    def __len__(self) -> int:
+        return len(self.agg([]))
 
     def all(self) -> series.Series:
         return self._aggregate(agg_ops.all_op)
@@ -99,7 +136,11 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._aggregate(agg_ops.mean_op)
 
     def rank(
-        self, method="average", ascending: bool = True, na_option: str = "keep"
+        self,
+        method="average",
+        ascending: bool = True,
+        na_option: str = "keep",
+        pct: bool = False,
     ) -> series.Series:
         return series.Series(
             block_ops.rank(
@@ -109,6 +150,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
                 ascending,
                 grouping_cols=tuple(self._by_col_ids),
                 columns=(self._value_column,),
+                pct=pct,
             )
         )
 
@@ -162,23 +204,70 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
 
     kurtosis = kurt
 
+    @validations.requires_ordering()
+    def first(self, numeric_only: bool = False, min_count: int = -1) -> series.Series:
+        if numeric_only and not bigframes.dtypes.is_numeric(
+            self._block.expr.get_column_type(self._value_column)
+        ):
+            raise TypeError(
+                f"Cannot use 'numeric_only' with non-numeric column {self._value_name}."
+            )
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        block, firsts_id = self._block.apply_window_op(
+            self._value_column,
+            agg_ops.FirstNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            (aggs.agg(firsts_id, agg_ops.AnyValueOp()),),
+            dropna=self._dropna,
+        )
+        return series.Series(block.with_column_labels([self._value_name]))
+
+    @validations.requires_ordering()
+    def last(self, numeric_only: bool = False, min_count: int = -1) -> series.Series:
+        if numeric_only and not bigframes.dtypes.is_numeric(
+            self._block.expr.get_column_type(self._value_column)
+        ):
+            raise TypeError(
+                f"Cannot use 'numeric_only' with non-numeric column {self._value_name}."
+            )
+        window_spec = window_specs.unbound(
+            grouping_keys=tuple(self._by_col_ids),
+            min_periods=min_count if min_count >= 0 else 0,
+        )
+        block, firsts_id = self._block.apply_window_op(
+            self._value_column,
+            agg_ops.LastNonNullOp(),
+            window_spec=window_spec,
+        )
+        block, _ = block.aggregate(
+            self._by_col_ids,
+            (aggs.agg(firsts_id, agg_ops.AnyValueOp()),),
+            dropna=self._dropna,
+        )
+        return series.Series(block.with_column_labels([self._value_name]))
+
     def prod(self, *args) -> series.Series:
         return self._aggregate(agg_ops.product_op)
 
     def agg(self, func=None) -> typing.Union[df.DataFrame, series.Series]:
         column_names: list[str] = []
-        if isinstance(func, str):
-            aggregations = [aggs.agg(self._value_column, agg_ops.lookup_agg_func(func))]
-            column_names = [func]
-        elif utils.is_list_like(func):
-            aggregations = [
-                aggs.agg(self._value_column, agg_ops.lookup_agg_func(f)) for f in func
-            ]
-            column_names = list(func)
-        else:
+        if utils.is_dict_like(func):
             raise NotImplementedError(
                 f"Aggregate with {func} not supported. {constants.FEEDBACK_LINK}"
             )
+        if not utils.is_list_like(func):
+            func = [func]
+
+        aggregations = [
+            aggs.agg(self._value_column, agg_ops.lookup_agg_func(f)[0]) for f in func
+        ]
+        column_names = [agg_ops.lookup_agg_func(f)[1] for f in func]
 
         agg_block, _ = self._block.aggregate(
             by_column_ids=self._by_col_ids,
@@ -189,11 +278,35 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         if column_names:
             agg_block = agg_block.with_column_labels(column_names)
 
-        if len(aggregations) > 1:
-            return df.DataFrame(agg_block)
-        return series.Series(agg_block)
+        if len(aggregations) == 1:
+            return series.Series(agg_block)
+        return df.DataFrame(agg_block)
 
     aggregate = agg
+
+    def value_counts(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ) -> Union[df.DataFrame, series.Series]:
+        columns = [self._value_column]
+        block = self._block
+        if self._dropna:  # this drops null grouping columns
+            block = block_ops.dropna(block, self._by_col_ids)
+        block = block_ops.value_counts(
+            block,
+            columns,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            drop_na=dropna,  # this drops null value columns
+            grouping_keys=self._by_col_ids,
+        )
+        # TODO: once as_index=Fales supported, return DataFrame instead by resetting index
+        # with .to_frame().reset_index(drop=False)
+        return series.Series(block)
 
     @validations.requires_ordering()
     def cumsum(self, *args, **kwargs) -> series.Series:
@@ -314,7 +427,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         discard_name=False,
         window: typing.Optional[window_specs.WindowSpec] = None,
         never_skip_nulls: bool = False,
-    ):
+    ) -> series.Series:
         """Apply window op to groupby. Defaults to grouped cumulative window."""
         window_spec = window or window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids)

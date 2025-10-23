@@ -15,10 +15,12 @@
 import inspect
 import re
 import textwrap
+from typing import Sequence
 
 import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 from google.cloud import bigquery
+import pandas
 import pandas as pd
 import pyarrow
 import pytest
@@ -26,6 +28,7 @@ import test_utils.prefixer
 
 import bigframes
 import bigframes.clients
+import bigframes.core.events
 import bigframes.dtypes
 import bigframes.exceptions
 from bigframes.functions import _utils as bff_utils
@@ -768,6 +771,7 @@ def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_un
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=bigframes.core.events.Publisher(),
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -806,6 +810,7 @@ def test_read_gbq_function_runs_existing_udf_2_params_array_output(
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=bigframes.core.events.Publisher(),
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -846,6 +851,7 @@ def test_read_gbq_function_runs_existing_udf_4_params_array_output(
         timeout=None,
         metrics=None,
         query_with_job=True,
+        publisher=bigframes.core.events.Publisher(),
     )
     func = session.read_gbq_function(routine_id_unique)
 
@@ -1153,20 +1159,6 @@ def test_df_apply_scalar_func(session, scalars_dfs):
     )
 
 
-def test_read_gbq_function_multiple_inputs_not_a_row_processor(session):
-    with pytest.raises(ValueError) as context:
-        # The remote function has two args, which cannot be row processed. Throw
-        # a ValueError for it.
-        session.read_gbq_function(
-            function_name="bqutil.fn.cw_regexp_instr_2",
-            is_row_processor=True,
-        )
-    assert str(context.value) == (
-        "A multi-input function cannot be a row processor. A row processor function "
-        f"takes in a single input representing the row. {constants.FEEDBACK_LINK}"
-    )
-
-
 @pytest.mark.flaky(retries=2, delay=120)
 def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     columns = [
@@ -1179,7 +1171,7 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     ]
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    def add_ints(row):
+    def add_ints(row: pandas.Series) -> int:
         return row["int64_col"] + row["int64_too"]
 
     with pytest.warns(
@@ -1187,8 +1179,6 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
         match="input_types=Series is in preview.",
     ):
         add_ints_remote = session.remote_function(
-            input_types=bigframes.series.Series,
-            output_type=int,
             dataset=dataset_id_permanent,
             name=get_function_name(add_ints, is_row_processor=True),
             cloud_function_service_account="default",
@@ -1236,11 +1226,11 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs, dataset_id_permanent):
     ordering_columns = ["bool_col", "int64_col"]
     scalars_df, scalars_pandas_df = scalars_dfs
 
-    def add_ints(row):
+    def add_ints(row: pandas.Series) -> int:
         return row["int64_col"] + row["int64_too"]
 
     add_ints_remote = session.remote_function(
-        input_types=bigframes.series.Series,
+        input_types=pandas.Series,
         output_type=int,
         dataset=dataset_id_permanent,
         name=get_function_name(add_ints, is_row_processor=True),
@@ -1280,7 +1270,7 @@ def test_df_apply_axis_1_multiindex(session, dataset_id_permanent):
         return row["x"] + row["y"]
 
     add_numbers_remote = session.remote_function(
-        input_types=bigframes.series.Series,
+        input_types=pandas.Series,
         output_type=float,
         dataset=dataset_id_permanent,
         name=get_function_name(add_numbers, is_row_processor=True),
@@ -1334,7 +1324,7 @@ def test_df_apply_axis_1_unsupported_dtype(session, scalars_dfs, dataset_id_perm
         return len(row)
 
     echo_len_remote = session.remote_function(
-        input_types=bigframes.series.Series,
+        input_types=pandas.Series,
         output_type=float,
         dataset=dataset_id_permanent,
         name=get_function_name(echo_len, is_row_processor=True),
@@ -1642,3 +1632,29 @@ def test_remote_function_nary_partial_ordering_mode_assign(
     df = scalars_df_index[["int64_col", "int64_too", "float64_col", "string_col"]]
     df1 = df.assign(combined=df.apply(processor, axis=1))
     repr(df1)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_unsupported_type(
+    session,
+    dataset_id_permanent,
+    bq_cf_connection,
+):
+    # Remote functions do not support tuple return types.
+    def func_tuple(x):
+        return (x, x, x)
+
+    with pytest.raises(
+        ValueError,
+        match=r"'typing\.Sequence\[int\]' must be one of the supported types",
+    ):
+        bff.remote_function(
+            input_types=int,
+            output_type=Sequence[int],
+            session=session,
+            dataset=dataset_id_permanent,
+            bigquery_connection=bq_cf_connection,
+            reuse=True,
+            name=get_function_name(func_tuple),
+            cloud_function_service_account="default",
+        )(func_tuple)

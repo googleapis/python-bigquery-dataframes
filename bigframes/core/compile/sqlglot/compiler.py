@@ -23,6 +23,7 @@ import sqlglot.expressions as sge
 from bigframes.core import expression, guid, identifiers, nodes, pyarrow_utils, rewrite
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.aggregate_compiler as aggregate_compiler
+from bigframes.core.compile.sqlglot.aggregations import windows
 from bigframes.core.compile.sqlglot.expressions import typed_expr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
@@ -130,7 +131,7 @@ class SQLGlotCompiler:
         # Have to bind schema as the final step before compilation.
         root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
         selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
-            (name, scalar_compiler.compile_scalar_expression(ref))
+            (name, scalar_compiler.scalar_op_compiler.compile_expression(ref))
             for ref, name in root.output_cols
         )
         sqlglot_ir = self.compile_node(root.child).select(selected_cols)
@@ -138,7 +139,7 @@ class SQLGlotCompiler:
         if root.order_by is not None:
             ordering_cols = tuple(
                 sge.Ordered(
-                    this=scalar_compiler.compile_scalar_expression(
+                    this=scalar_compiler.scalar_op_compiler.compile_expression(
                         ordering.scalar_expression
                     ),
                     desc=ordering.direction.is_ascending is False,
@@ -198,7 +199,7 @@ class SQLGlotCompiler:
         self, node: nodes.SelectionNode, child: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
         selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
-            (id.sql, scalar_compiler.compile_scalar_expression(expr))
+            (id.sql, scalar_compiler.scalar_op_compiler.compile_expression(expr))
             for expr, id in node.input_output_pairs
         )
         return child.select(selected_cols)
@@ -208,7 +209,7 @@ class SQLGlotCompiler:
         self, node: nodes.ProjectionNode, child: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
         projected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
-            (id.sql, scalar_compiler.compile_scalar_expression(expr))
+            (id.sql, scalar_compiler.scalar_op_compiler.compile_expression(expr))
             for expr, id in node.assignments
         )
         return child.project(projected_cols)
@@ -217,7 +218,9 @@ class SQLGlotCompiler:
     def compile_filter(
         self, node: nodes.FilterNode, child: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
-        condition = scalar_compiler.compile_scalar_expression(node.predicate)
+        condition = scalar_compiler.scalar_op_compiler.compile_expression(
+            node.predicate
+        )
         return child.filter(tuple([condition]))
 
     @_compile_node.register
@@ -227,10 +230,12 @@ class SQLGlotCompiler:
         conditions = tuple(
             (
                 typed_expr.TypedExpr(
-                    scalar_compiler.compile_scalar_expression(left), left.output_type
+                    scalar_compiler.scalar_op_compiler.compile_expression(left),
+                    left.output_type,
                 ),
                 typed_expr.TypedExpr(
-                    scalar_compiler.compile_scalar_expression(right), right.output_type
+                    scalar_compiler.scalar_op_compiler.compile_expression(right),
+                    right.output_type,
                 ),
             )
             for left, right in node.conditions
@@ -239,6 +244,28 @@ class SQLGlotCompiler:
         return left.join(
             right,
             join_type=node.type,
+            conditions=conditions,
+            joins_nulls=node.joins_nulls,
+        )
+
+    @_compile_node.register
+    def compile_isin_join(
+        self, node: nodes.InNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        conditions = (
+            typed_expr.TypedExpr(
+                scalar_compiler.scalar_op_compiler.compile_expression(node.left_col),
+                node.left_col.output_type,
+            ),
+            typed_expr.TypedExpr(
+                scalar_compiler.scalar_op_compiler.compile_expression(node.right_col),
+                node.right_col.output_type,
+            ),
+        )
+
+        return left.isin_join(
+            right,
+            indicator_col=node.indicator_col.sql,
             conditions=conditions,
             joins_nulls=node.joins_nulls,
         )
@@ -272,22 +299,22 @@ class SQLGlotCompiler:
     def compile_aggregate(
         self, node: nodes.AggregateNode, child: ir.SQLGlotIR
     ) -> ir.SQLGlotIR:
-        ordering_cols = tuple(
-            sge.Ordered(
-                this=scalar_compiler.compile_scalar_expression(
-                    ordering.scalar_expression
-                ),
-                desc=ordering.direction.is_ascending is False,
-                nulls_first=ordering.na_last is False,
-            )
-            for ordering in node.order_by
+        # The BigQuery ordered aggregation cannot support for NULL FIRST/LAST,
+        # so we need to add extra expressions to enforce the null ordering.
+        ordering_cols = windows.get_window_order_by(
+            node.order_by, override_null_order=True
         )
         aggregations: tuple[tuple[str, sge.Expression], ...] = tuple(
-            (id.sql, aggregate_compiler.compile_aggregate(agg, order_by=ordering_cols))
+            (
+                id.sql,
+                aggregate_compiler.compile_aggregate(
+                    agg, order_by=ordering_cols if ordering_cols else ()
+                ),
+            )
             for agg, id in node.aggregations
         )
         by_cols: tuple[sge.Expression, ...] = tuple(
-            scalar_compiler.compile_scalar_expression(by_col)
+            scalar_compiler.scalar_op_compiler.compile_expression(by_col)
             for by_col in node.by_column_ids
         )
 
@@ -298,6 +325,77 @@ class SQLGlotCompiler:
                     dropna_cols.append(by_col)
 
         return child.aggregate(aggregations, by_cols, tuple(dropna_cols))
+
+    @_compile_node.register
+    def compile_window(
+        self, node: nodes.WindowOpNode, child: ir.SQLGlotIR
+    ) -> ir.SQLGlotIR:
+        window_spec = node.window_spec
+        if node.expression.op.order_independent and window_spec.is_unbounded:
+            # notably percentile_cont does not support ordering clause
+            window_spec = window_spec.without_order()
+
+        window_op = aggregate_compiler.compile_analytic(node.expression, window_spec)
+
+        inputs: tuple[sge.Expression, ...] = tuple(
+            scalar_compiler.scalar_op_compiler.compile_expression(
+                expression.DerefOp(column)
+            )
+            for column in node.expression.column_references
+        )
+
+        clauses: list[tuple[sge.Expression, sge.Expression]] = []
+        if node.expression.op.skips_nulls and not node.never_skip_nulls:
+            for column in inputs:
+                clauses.append((sge.Is(this=column, expression=sge.Null()), sge.Null()))
+
+        if window_spec.min_periods and len(inputs) > 0:
+            if node.expression.op.skips_nulls:
+                # Most operations do not count NULL values towards min_periods
+                not_null_columns = [
+                    sge.Not(this=sge.Is(this=column, expression=sge.Null()))
+                    for column in inputs
+                ]
+                # All inputs must be non-null for observation to count
+                if not not_null_columns:
+                    is_observation_expr: sge.Expression = sge.convert(True)
+                else:
+                    is_observation_expr = not_null_columns[0]
+                    for expr in not_null_columns[1:]:
+                        is_observation_expr = sge.And(
+                            this=is_observation_expr, expression=expr
+                        )
+                is_observation = ir._cast(is_observation_expr, "INT64")
+                observation_count = windows.apply_window_if_present(
+                    sge.func("SUM", is_observation), window_spec
+                )
+            else:
+                # Operations like count treat even NULLs as valid observations
+                # for the sake of min_periods notnull is just used to convert
+                # null values to non-null (FALSE) values to be counted.
+                is_observation = ir._cast(
+                    sge.Not(this=sge.Is(this=inputs[0], expression=sge.Null())),
+                    "INT64",
+                )
+                observation_count = windows.apply_window_if_present(
+                    sge.func("COUNT", is_observation), window_spec
+                )
+
+            clauses.append(
+                (
+                    observation_count < sge.convert(window_spec.min_periods),
+                    sge.Null(),
+                )
+            )
+        if clauses:
+            when_expressions = [sge.When(this=cond, true=res) for cond, res in clauses]
+            window_op = sge.Case(ifs=when_expressions, default=window_op)
+
+        # TODO: check if we can directly window the expression.
+        return child.window(
+            window_op=window_op,
+            output_column_id=node.output_name.sql,
+        )
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses
-from typing import Optional, Union
+from typing import Union
 import weakref
 
 import pandas
@@ -23,48 +23,31 @@ import bigframes
 import bigframes.core.blocks
 import bigframes.core.compile.polars
 import bigframes.dataframe
+import bigframes.session.execution_spec
 import bigframes.session.executor
 import bigframes.session.metrics
 
 
-# Does not support to_sql, export_gbq, export_gcs, dry_run, peek, head, get_row_count, cached
+# Does not support to_sql, dry_run, peek, cached
 @dataclasses.dataclass
 class TestExecutor(bigframes.session.executor.Executor):
     compiler = bigframes.core.compile.polars.PolarsCompiler()
 
-    def peek(
-        self,
-        array_value: bigframes.core.ArrayValue,
-        n_rows: int,
-        use_explicit_destination: Optional[bool] = False,
-    ):
-        """
-        A 'peek' efficiently accesses a small number of rows in the dataframe.
-        """
-        lazy_frame: polars.LazyFrame = self.compiler.compile(array_value.node)
-        pa_table = lazy_frame.collect().limit(n_rows).to_arrow()
-        # Currently, pyarrow types might not quite be exactly the ones in the bigframes schema.
-        # Nullability may be different, and might use large versions of list, string datatypes.
-        return bigframes.session.executor.ExecuteResult(
-            _arrow_batches=pa_table.to_batches(),
-            schema=array_value.schema,
-            total_bytes=pa_table.nbytes,
-            total_rows=pa_table.num_rows,
-        )
-
     def execute(
         self,
         array_value: bigframes.core.ArrayValue,
-        *,
-        ordered: bool = True,
-        use_explicit_destination: Optional[bool] = False,
-        page_size: Optional[int] = None,
-        max_results: Optional[int] = None,
+        execution_spec: bigframes.session.execution_spec.ExecutionSpec,
     ):
         """
         Execute the ArrayValue, storing the result to a temporary session-owned table.
         """
+        if execution_spec.destination_spec is not None:
+            raise ValueError(
+                f"TestExecutor does not support destination spec: {execution_spec.destination_spec}"
+            )
         lazy_frame: polars.LazyFrame = self.compiler.compile(array_value.node)
+        if execution_spec.peek is not None:
+            lazy_frame = lazy_frame.limit(execution_spec.peek)
         pa_table = lazy_frame.collect().to_arrow()
         # Currently, pyarrow types might not quite be exactly the ones in the bigframes schema.
         # Nullability may be different, and might use large versions of list, string datatypes.
@@ -111,11 +94,24 @@ class TestSession(bigframes.session.Session):
         self._loader = None  # type: ignore
 
     def read_pandas(self, pandas_dataframe, write_engine="default"):
+        original_input = pandas_dataframe
+
         # override read_pandas to always keep data local-only
-        if isinstance(pandas_dataframe, pandas.Series):
+        if isinstance(pandas_dataframe, (pandas.Series, pandas.Index)):
             pandas_dataframe = pandas_dataframe.to_frame()
+
         local_block = bigframes.core.blocks.Block.from_local(pandas_dataframe, self)
-        return bigframes.dataframe.DataFrame(local_block)
+        bf_df = bigframes.dataframe.DataFrame(local_block)
+
+        if isinstance(original_input, pandas.Series):
+            series = bf_df[bf_df.columns[0]]
+            series.name = original_input.name
+            return series
+
+        if isinstance(original_input, pandas.Index):
+            return bf_df.index
+
+        return bf_df
 
     @property
     def bqclient(self):

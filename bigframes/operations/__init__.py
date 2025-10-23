@@ -14,7 +14,22 @@
 
 from __future__ import annotations
 
-from bigframes.operations.array_ops import ArrayIndexOp, ArraySliceOp, ArrayToStringOp
+from bigframes.operations.ai_ops import (
+    AIClassify,
+    AIGenerate,
+    AIGenerateBool,
+    AIGenerateDouble,
+    AIGenerateInt,
+    AIIf,
+    AIScore,
+)
+from bigframes.operations.array_ops import (
+    ArrayIndexOp,
+    ArrayReduceOp,
+    ArraySliceOp,
+    ArrayToStringOp,
+    ToArrayOp,
+)
 from bigframes.operations.base_ops import (
     BinaryOp,
     NaryOp,
@@ -94,6 +109,8 @@ from bigframes.operations.geo_ops import (
     geo_area_op,
     geo_st_astext_op,
     geo_st_boundary_op,
+    geo_st_centroid_op,
+    geo_st_convexhull_op,
     geo_st_difference_op,
     geo_st_geogfromtext_op,
     geo_st_geogpoint_op,
@@ -101,6 +118,7 @@ from bigframes.operations.geo_ops import (
     geo_st_isclosed_op,
     geo_x_op,
     geo_y_op,
+    GeoStBufferOp,
     GeoStDistanceOp,
     GeoStLengthOp,
 )
@@ -114,6 +132,7 @@ from bigframes.operations.json_ops import (
     JSONValue,
     JSONValueArray,
     ParseJSON,
+    ToJSON,
     ToJSONString,
 )
 from bigframes.operations.numeric_ops import (
@@ -366,6 +385,7 @@ __all__ = [
     "JSONValue",
     "JSONValueArray",
     "ParseJSON",
+    "ToJSON",
     "ToJSONString",
     # Bool ops
     "and_op",
@@ -386,17 +406,30 @@ __all__ = [
     # Geo ops
     "geo_area_op",
     "geo_st_boundary_op",
+    "geo_st_centroid_op",
+    "geo_st_convexhull_op",
     "geo_st_difference_op",
     "geo_st_astext_op",
     "geo_st_geogfromtext_op",
     "geo_st_geogpoint_op",
     "geo_st_intersection_op",
     "geo_st_isclosed_op",
+    "GeoStBufferOp",
     "GeoStLengthOp",
     "geo_x_op",
     "geo_y_op",
     "GeoStDistanceOp",
+    # AI ops
+    "AIClassify",
+    "AIGenerate",
+    "AIGenerateBool",
+    "AIGenerateDouble",
+    "AIGenerateInt",
+    "AIIf",
+    "AIScore",
     # Numpy ops mapping
     "NUMPY_TO_BINOP",
     "NUMPY_TO_OP",
+    "ToArrayOp",
+    "ArrayReduceOp",
 ]

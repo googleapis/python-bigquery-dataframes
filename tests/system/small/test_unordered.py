@@ -103,7 +103,7 @@ def test_unordered_mode_read_gbq(unordered_session):
         }
     )
     # Don't need ignore_order as there is only 1 row
-    assert_pandas_df_equal(df.to_pandas(), expected)
+    assert_pandas_df_equal(df.to_pandas(), expected, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -195,15 +195,13 @@ def test_unordered_mode_no_ordering_error(unordered_session):
         df.merge(df, on="a").head(3)
 
 
-def test_unordered_mode_ambiguity_warning(unordered_session):
+def test_unordered_mode_allows_ambiguity(unordered_session):
     pd_df = pd.DataFrame(
         {"a": [1, 2, 3, 4, 5, 1], "b": [4, 5, 9, 3, 1, 6]}, dtype=pd.Int64Dtype()
     )
     pd_df.index = pd_df.index.astype(pd.Int64Dtype())
     df = bpd.DataFrame(pd_df, session=unordered_session)
-
-    with pytest.warns(bigframes.exceptions.AmbiguousWindowWarning):
-        df.merge(df, on="a").sort_values("b_x").head(3)
+    df.merge(df, on="a").sort_values("b_x").head(3)
 
 
 def test_unordered_mode_no_ambiguity_warning(unordered_session):
@@ -265,3 +263,27 @@ def test__resample_with_index(unordered_session, rule, origin, data):
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("values", "index", "columns"),
+    [
+        ("int64_col", "int64_too", ["string_col"]),
+        (["int64_col"], "int64_too", ["string_col"]),
+        (["int64_col", "float64_col"], "int64_too", ["string_col"]),
+    ],
+)
+def test_unordered_df_pivot(
+    scalars_df_unordered, scalars_pandas_df_index, values, index, columns
+):
+    bf_result = scalars_df_unordered.pivot(
+        values=values, index=index, columns=columns
+    ).to_pandas()
+    pd_result = scalars_pandas_df_index.pivot(
+        values=values, index=index, columns=columns
+    )
+
+    # Pandas produces NaN, where bq dataframes produces pd.NA
+    bf_result = bf_result.fillna(float("nan"))
+    pd_result = pd_result.fillna(float("nan"))
+    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)

@@ -101,18 +101,67 @@ def test_set_multi_index(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_reset_multi_index(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("level", "drop"),
+    [
+        (None, True),
+        (None, False),
+        (1, True),
+        ("bool_col", True),
+        (["float64_col", "int64_too"], True),
+        ([2, 0], False),
+    ],
+)
+def test_df_reset_multi_index(scalars_df_index, scalars_pandas_df_index, level, drop):
     bf_result = (
-        scalars_df_index.set_index(["bool_col", "int64_too"]).reset_index().to_pandas()
+        scalars_df_index.set_index(["bool_col", "int64_too", "float64_col"])
+        .reset_index(level=level, drop=drop)
+        .to_pandas()
     )
     pd_result = scalars_pandas_df_index.set_index(
-        ["bool_col", "int64_too"]
-    ).reset_index()
+        ["bool_col", "int64_too", "float64_col"]
+    ).reset_index(level=level, drop=drop)
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
-    pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
+    if pd_result.index.dtype != bf_result.index.dtype:
+        pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("level", "drop"),
+    [
+        (None, True),
+        (None, False),
+        (1, True),
+        ("bool_col", True),
+        (["float64_col", "int64_too"], True),
+        ([2, 0], False),
+    ],
+)
+def test_series_reset_multi_index(
+    scalars_df_index, scalars_pandas_df_index, level, drop
+):
+    bf_result = (
+        scalars_df_index.set_index(["bool_col", "int64_too", "float64_col"])[
+            "string_col"
+        ]
+        .reset_index(level=level, drop=drop)
+        .to_pandas()
+    )
+    pd_result = scalars_pandas_df_index.set_index(
+        ["bool_col", "int64_too", "float64_col"]
+    )["string_col"].reset_index(level=level, drop=drop)
+
+    # Pandas uses int64 instead of Int64 (nullable) dtype.
+    if pd_result.index.dtype != bf_result.index.dtype:
+        pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
+
+    if drop:
+        pandas.testing.assert_series_equal(bf_result, pd_result)
+    else:
+        pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
 def test_series_multi_index_idxmin(scalars_df_index, scalars_pandas_df_index):
@@ -880,16 +929,30 @@ def test_column_multi_index_rename(scalars_df_index, scalars_pandas_df_index):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
-def test_column_multi_index_reset_index(scalars_df_index, scalars_pandas_df_index):
+@pytest.mark.parametrize(
+    ("names", "col_fill", "col_level"),
+    [
+        (None, "", "l2"),
+        (("new_name"), "fill", 1),
+        ("new_name", "fill", 0),
+    ],
+)
+def test_column_multi_index_reset_index(
+    scalars_df_index, scalars_pandas_df_index, names, col_fill, col_level
+):
     columns = ["int64_too", "int64_col", "float64_col"]
-    multi_columns = pandas.MultiIndex.from_tuples(zip(["a", "b", "a"], ["a", "b", "b"]))
+    multi_columns = pandas.MultiIndex.from_tuples(
+        zip(["a", "b", "a"], ["a", "b", "b"]), names=["l1", "l2"]
+    )
     bf_df = scalars_df_index[columns].copy()
     bf_df.columns = multi_columns
     pd_df = scalars_pandas_df_index[columns].copy()
     pd_df.columns = multi_columns
 
-    bf_result = bf_df.reset_index().to_pandas()
-    pd_result = pd_df.reset_index()
+    bf_result = bf_df.reset_index(
+        names=names, col_fill=col_fill, col_level=col_level
+    ).to_pandas()
+    pd_result = pd_df.reset_index(names=names, col_fill=col_fill, col_level=col_level)
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
@@ -1411,3 +1474,13 @@ def test_multi_index_contains(scalars_df_index, scalars_pandas_df_index, key):
     pd_result = key in scalars_pandas_df_index.set_index(col_name).index
 
     assert bf_result == pd_result
+
+
+def test_multiindex_eq_const(scalars_df_index, scalars_pandas_df_index):
+    col_name = ["int64_col", "bool_col"]
+    bf_result = scalars_df_index.set_index(col_name).index == (2, False)
+    pd_result = scalars_pandas_df_index.set_index(col_name).index == (2, False)
+
+    pandas.testing.assert_index_equal(
+        pandas.Index(pd_result, dtype="boolean"), bf_result.to_pandas()
+    )

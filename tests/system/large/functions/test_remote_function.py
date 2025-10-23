@@ -527,8 +527,8 @@ def test_remote_function_restore_with_bigframes_series(
         add_one_uniq, add_one_uniq_dir = make_uniq_udf(add_one)
 
         # Expected cloud function name for the unique udf
-        package_requirements = bff_utils._get_updated_package_requirements()
-        add_one_uniq_hash = bff_utils._get_hash(add_one_uniq, package_requirements)
+        package_requirements = bff_utils.get_updated_package_requirements()
+        add_one_uniq_hash = bff_utils.get_hash(add_one_uniq, package_requirements)
         add_one_uniq_cf_name = bff_utils.get_cloud_function_name(
             add_one_uniq_hash, session.session_id
         )
@@ -843,22 +843,31 @@ def test_remote_function_with_external_package_dependencies(
 ):
     try:
 
-        def pd_np_foo(x):
+        # The return type hint in this function's signature has conflict. The
+        # `output_type` argument from remote_function decorator takes precedence
+        # and will be used instead.
+        def pd_np_foo(x) -> None:
             import numpy as mynp
             import pandas as mypd
 
             return mypd.Series([x, mynp.sqrt(mynp.abs(x))]).sum()
 
-        # Create the remote function with the name provided explicitly
-        pd_np_foo_remote = session.remote_function(
-            input_types=[int],
-            output_type=float,
-            dataset=dataset_id,
-            bigquery_connection=bq_cf_connection,
-            reuse=False,
-            packages=["numpy", "pandas >= 2.0.0"],
-            cloud_function_service_account="default",
-        )(pd_np_foo)
+        with warnings.catch_warnings(record=True) as record:
+            # Create the remote function with the name provided explicitly
+            pd_np_foo_remote = session.remote_function(
+                input_types=[int],
+                output_type=float,
+                dataset=dataset_id,
+                bigquery_connection=bq_cf_connection,
+                reuse=False,
+                packages=["numpy", "pandas >= 2.0.0"],
+                cloud_function_service_account="default",
+            )(pd_np_foo)
+
+        input_type_warning = "Conflicting input types detected"
+        assert not any(input_type_warning in str(warning.message) for warning in record)
+        return_type_warning = "Conflicting return type detected"
+        assert any(return_type_warning in str(warning.message) for warning in record)
 
         # The behavior of the created remote function should be as expected
         scalars_df, scalars_pandas_df = scalars_dfs
@@ -1469,14 +1478,20 @@ def test_remote_function_via_session_vpc(scalars_dfs):
             reuse=False,
             cloud_function_service_account="default",
             cloud_function_vpc_connector=gcf_vpc_connector,
+            cloud_function_vpc_connector_egress_settings="all",
             cloud_function_ingress_settings="all",
         )(square_num)
 
-        # assert that the GCF is created with the intended vpc connector
         gcf = rf_session.cloudfunctionsclient.get_function(
             name=square_num_remote.bigframes_cloud_function
         )
+
+        # assert that the GCF is created with the intended vpc connector and
+        # egress settings.
         assert gcf.service_config.vpc_connector == gcf_vpc_connector
+        # The value is <VpcConnectorEgressSettings.ALL_TRAFFIC: 2> since we set
+        # cloud_function_vpc_connector_egress_settings="all" earlier.
+        assert gcf.service_config.vpc_connector_egress_settings == 2
 
         # assert that the function works as expected on data
         scalars_df, scalars_pandas_df = scalars_dfs
@@ -1495,6 +1510,46 @@ def test_remote_function_via_session_vpc(scalars_dfs):
         cleanup_function_assets(
             square_num_remote, rf_session.bqclient, rf_session.cloudfunctionsclient
         )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_no_vpc_connector(session):
+    def foo(x):
+        return x
+
+    with pytest.raises(
+        ValueError,
+        match="^cloud_function_vpc_connector must be specified before cloud_function_vpc_connector_egress_settings",
+    ):
+        session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+            cloud_function_vpc_connector=None,
+            cloud_function_vpc_connector_egress_settings="all",
+            cloud_function_ingress_settings="all",
+        )(foo)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_wrong_vpc_egress_value(session):
+    def foo(x):
+        return x
+
+    with pytest.raises(
+        ValueError,
+        match="^'wrong-egress-value' is not one of the supported vpc egress settings values:",
+    ):
+        session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+            cloud_function_vpc_connector="dummy-value",
+            cloud_function_vpc_connector_egress_settings="wrong-egress-value",
+            cloud_function_ingress_settings="all",
+        )(foo)
 
 
 @pytest.mark.parametrize(
@@ -1667,7 +1722,7 @@ def test_df_apply_axis_1(session, scalars_dfs):
             )
 
         serialize_row_remote = session.remote_function(
-            input_types=bigframes.series.Series,
+            input_types=pandas.Series,
             output_type=str,
             reuse=False,
             cloud_function_service_account="default",
@@ -1716,7 +1771,7 @@ def test_df_apply_axis_1_aggregates(session, scalars_dfs):
             )
 
         analyze_remote = session.remote_function(
-            input_types=bigframes.series.Series,
+            input_types=pandas.Series,
             output_type=str,
             reuse=False,
             cloud_function_service_account="default",
@@ -1840,7 +1895,7 @@ def test_df_apply_axis_1_complex(session, pd_df):
             )
 
         serialize_row_remote = session.remote_function(
-            input_types=bigframes.series.Series,
+            input_types=pandas.Series,
             output_type=str,
             reuse=False,
             cloud_function_service_account="default",
@@ -1889,7 +1944,7 @@ SELECT "pandas na" AS text, NULL AS num
 
     try:
 
-        def float_parser(row):
+        def float_parser(row: pandas.Series):
             import numpy as mynp
             import pandas as mypd
 
@@ -1900,7 +1955,6 @@ SELECT "pandas na" AS text, NULL AS num
             return float(row["text"])
 
         float_parser_remote = session.remote_function(
-            input_types=bigframes.series.Series,
             output_type=float,
             reuse=False,
             cloud_function_service_account="default",
@@ -1926,6 +1980,114 @@ SELECT "pandas na" AS text, NULL AS num
         cleanup_function_assets(
             float_parser_remote, session.bqclient, session.cloudfunctionsclient
         )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_args(session, scalars_dfs):
+    columns = ["int64_col", "int64_too"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    try:
+
+        def the_sum(s1, s2, x):
+            return s1 + s2 + x
+
+        the_sum_mf = session.remote_function(
+            input_types=[int, int, int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(the_sum)
+
+        args1 = (1,)
+
+        # Fails to apply on dataframe with incompatible number of columns and args.
+        with pytest.raises(
+            ValueError,
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 values \\(2 DataFrame columns and 2 args\\)",
+        ):
+            scalars_df[columns].apply(
+                the_sum_mf,
+                axis=1,
+                args=(
+                    1,
+                    1,
+                ),
+            )
+
+        # Fails to apply on dataframe with incompatible column datatypes.
+        with pytest.raises(
+            ValueError,
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
+        ):
+            scalars_df[columns].assign(
+                int64_col=lambda df: df["int64_col"].astype("Float64")
+            ).apply(the_sum_mf, axis=1, args=args1)
+
+        # Fails to apply on dataframe with incompatible args datatypes.
+        with pytest.raises(
+            ValueError,
+            match="^Data type mismatch for 'args' parameter: Expected .* Received .*",
+        ):
+            scalars_df[columns].apply(the_sum_mf, axis=1, args=("hello world",))
+
+        bf_result = (
+            scalars_df[columns]
+            .dropna()
+            .apply(the_sum_mf, axis=1, args=args1)
+            .to_pandas()
+        )
+        pd_result = scalars_pandas_df[columns].dropna().apply(sum, axis=1, args=args1)
+
+        pandas.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+
+    finally:
+        # clean up the gcp assets created for the remote function.
+        cleanup_function_assets(the_sum_mf, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_df_apply_axis_1_series_args(session, scalars_dfs):
+    columns = ["int64_col", "float64_col"]
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    try:
+
+        @session.remote_function(
+            input_types=[pandas.Series, float, str, bool],
+            output_type=list[str],
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo_list(x: pandas.Series, y0: float, y1, y2) -> list[str]:
+            return (
+                [str(x["int64_col"]), str(y0), str(y1), str(y2)]
+                if y2
+                else [str(x["float64_col"])]
+            )
+
+        args1 = (12.34, "hello world", True)
+        bf_result = scalars_df[columns].apply(foo_list, axis=1, args=args1).to_pandas()
+        pd_result = scalars_pandas_df[columns].apply(foo_list, axis=1, args=args1)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        args2 = (43.21, "xxx3yyy", False)
+        foo_list_ref = session.read_gbq_function(
+            foo_list.bigframes_bigquery_function, is_row_processor=True
+        )
+        bf_result = (
+            scalars_df[columns].apply(foo_list_ref, axis=1, args=args2).to_pandas()
+        )
+        pd_result = scalars_pandas_df[columns].apply(foo_list, axis=1, args=args2)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(foo_list, session.bqclient, ignore_failures=False)
 
 
 @pytest.mark.parametrize(
@@ -1999,10 +2161,25 @@ def test_remote_function_unnamed_removed_w_session_cleanup():
     # create a clean session
     session = bigframes.connect()
 
-    # create an unnamed remote function in the session
-    @session.remote_function(reuse=False, cloud_function_service_account="default")
-    def foo(x: int) -> int:
-        return x + 1
+    with warnings.catch_warnings(record=True) as record:
+        # create an unnamed remote function in the session.
+        # The type hints in this function's signature are redundant. The
+        # `input_types` and `output_type` arguments from remote_function
+        # decorator take precedence and will be used instead.
+        @session.remote_function(
+            input_types=[int],
+            output_type=int,
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo(x: int) -> int:
+            return x + 1
+
+    # No following warning with only redundant type hints (no conflict).
+    input_type_warning = "Conflicting input types detected"
+    assert not any(input_type_warning in str(warning.message) for warning in record)
+    return_type_warning = "Conflicting return type detected"
+    assert not any(return_type_warning in str(warning.message) for warning in record)
 
     # ensure that remote function artifacts are created
     assert foo.bigframes_remote_function is not None
@@ -2176,19 +2353,19 @@ def test_df_apply_axis_1_multiple_params(session):
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
+            match="^Parameter count mismatch:.* expected 3 parameters but received 2 DataFrame columns.",
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 DataFrame columns.",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
@@ -2260,19 +2437,19 @@ def test_df_apply_axis_1_multiple_params_array_output(session):
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 2 columns\\.$",
+            match="^Parameter count mismatch:.* expected 3 parameters but received 2 DataFrame columns.",
         ):
             bf_df[["Id", "Age"]].apply(foo, axis=1)
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes 3 arguments but DataFrame has 4 columns\\.$",
+            match="^Parameter count mismatch:.* expected 3 parameters but received 4 DataFrame columns.",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Age=bf_df["Age"].astype("Int64")).apply(foo, axis=1)
 
@@ -2334,19 +2511,19 @@ def test_df_apply_axis_1_single_param_non_series(session):
         # Fails to apply on dataframe with incompatible number of columns
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes 1 arguments but DataFrame has 0 columns\\.$",
+            match="^Parameter count mismatch:.* expected 1 parameters but received 0 DataFrame.*",
         ):
             bf_df[[]].apply(foo, axis=1)
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes 1 arguments but DataFrame has 2 columns\\.$",
+            match="^Parameter count mismatch:.* expected 1 parameters but received 2 DataFrame.*",
         ):
             bf_df.assign(Country="lalaland").apply(foo, axis=1)
 
         # Fails to apply on dataframe with incompatible column datatypes
         with pytest.raises(
             ValueError,
-            match="^BigFrames BigQuery function takes arguments of types .* but DataFrame dtypes are .*",
+            match="^Data type mismatch for DataFrame columns: Expected .* Received .*",
         ):
             bf_df.assign(Id=bf_df["Id"].astype("Float64")).apply(foo, axis=1)
 
@@ -2823,3 +3000,232 @@ def test_remote_function_connection_path_format(
     finally:
         # clean up the gcp assets created for the remote function
         cleanup_function_assets(foo, session.bqclient, session.cloudfunctionsclient)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_df_where_mask(session, dataset_id, scalars_dfs):
+    try:
+
+        # The return type has to be bool type for callable where condition.
+        def is_sum_positive(a, b):
+            return a + b > 0
+
+        is_sum_positive_mf = session.remote_function(
+            input_types=[int, int],
+            output_type=bool,
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(is_sum_positive)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+        int64_cols = ["int64_col", "int64_too"]
+
+        bf_int64_df = scalars_df[int64_cols]
+        bf_int64_df_filtered = bf_int64_df.dropna()
+        pd_int64_df = scalars_pandas_df[int64_cols]
+        pd_int64_df_filtered = pd_int64_df.dropna()
+
+        # Test callable condition in dataframe.where method.
+        bf_result = bf_int64_df_filtered.where(is_sum_positive_mf, 0).to_pandas()
+        # Pandas doesn't support such case, use following as workaround.
+        pd_result = pd_int64_df_filtered.where(pd_int64_df_filtered.sum(axis=1) > 0, 0)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+        # Test callable condition in dataframe.mask method.
+        bf_result = bf_int64_df_filtered.mask(is_sum_positive_mf, 0).to_pandas()
+        # Pandas doesn't support such case, use following as workaround.
+        pd_result = pd_int64_df_filtered.mask(pd_int64_df_filtered.sum(axis=1) > 0, 0)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(
+            is_sum_positive_mf, session.bqclient, ignore_failures=False
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_df_where_other_issue(session, dataset_id, scalars_df_index):
+    try:
+
+        def the_sum(a, b):
+            return a + b
+
+        the_sum_mf = session.remote_function(
+            input_types=[int, float],
+            output_type=float,
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(the_sum)
+
+        int64_cols = ["int64_col", "float64_col"]
+        bf_int64_df = scalars_df_index[int64_cols]
+        bf_int64_df_filtered = bf_int64_df.dropna()
+
+        with pytest.raises(
+            ValueError,
+            match="Seires is not a supported replacement type!",
+        ):
+            # The execution of the callable other=the_sum_mf will return a
+            # Series, which is not a supported replacement type.
+            bf_int64_df_filtered.where(cond=bf_int64_df > 100, other=the_sum_mf)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(the_sum_mf, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_df_where_mask_series(session, dataset_id, scalars_dfs):
+    try:
+
+        # The return type has to be bool type for callable where condition.
+        def is_sum_positive_series(s: pandas.Series) -> bool:
+            return s["int64_col"] + s["int64_too"] > 0
+
+        with pytest.raises(
+            TypeError,
+            match="Argument type hint must be Pandas Series, not BigFrames Series.",
+        ):
+            session.remote_function(
+                input_types=bigframes.series.Series,
+                dataset=dataset_id,
+                reuse=False,
+                cloud_function_service_account="default",
+            )(is_sum_positive_series)
+
+        is_sum_positive_series_mf = session.remote_function(
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(is_sum_positive_series)
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+        int64_cols = ["int64_col", "int64_too"]
+
+        bf_int64_df = scalars_df[int64_cols]
+        bf_int64_df_filtered = bf_int64_df.dropna()
+        pd_int64_df = scalars_pandas_df[int64_cols]
+        pd_int64_df_filtered = pd_int64_df.dropna()
+
+        # This is for callable `other` arg in dataframe.where method.
+        def func_for_other(x):
+            return -x
+
+        # Test callable condition in dataframe.where method.
+        bf_result = bf_int64_df_filtered.where(
+            is_sum_positive_series_mf, func_for_other
+        ).to_pandas()
+        pd_result = pd_int64_df_filtered.where(is_sum_positive_series, func_for_other)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+        # Test callable condition in dataframe.mask method.
+        bf_result = bf_int64_df_filtered.mask(
+            is_sum_positive_series_mf, func_for_other
+        ).to_pandas()
+        pd_result = pd_int64_df_filtered.mask(is_sum_positive_series, func_for_other)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(
+            is_sum_positive_series_mf, session.bqclient, ignore_failures=False
+        )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_series_where_mask(session, dataset_id, scalars_dfs):
+    try:
+
+        def _ten_times(x):
+            return x * 10
+
+        ten_times_mf = session.remote_function(
+            input_types=float,
+            output_type=float,
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )(_ten_times)
+
+        scalars, scalars_pandas = scalars_dfs
+
+        bf_int64 = scalars["float64_col"]
+        bf_int64_filtered = bf_int64.dropna()
+        pd_int64 = scalars_pandas["float64_col"]
+        pd_int64_filtered = pd_int64.dropna()
+
+        # Test series.where method: the cond is not a callable and the other is
+        # a callable (remote function).
+        bf_result = bf_int64_filtered.where(
+            cond=bf_int64_filtered < 0, other=ten_times_mf
+        ).to_pandas()
+        pd_result = pd_int64_filtered.where(
+            cond=pd_int64_filtered < 0, other=_ten_times
+        )
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        # Test series.mask method: the cond is not a callable and the other is
+        # a callable (remote function).
+        bf_result = bf_int64_filtered.mask(
+            cond=bf_int64_filtered < 0, other=ten_times_mf
+        ).to_pandas()
+        pd_result = pd_int64_filtered.mask(cond=pd_int64_filtered < 0, other=_ten_times)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(ten_times_mf, session.bqclient, ignore_failures=False)
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_series_apply_args(session, dataset_id, scalars_dfs):
+    try:
+
+        @session.remote_function(
+            dataset=dataset_id,
+            reuse=False,
+            cloud_function_service_account="default",
+        )
+        def foo(x: int, y: bool, z: float) -> str:
+            if y:
+                return f"{x}: y is True."
+            if z > 0.0:
+                return f"{x}: y is False and z is positive."
+            return f"{x}: y is False and z is non-positive."
+
+        scalars_df, scalars_pandas_df = scalars_dfs
+
+        args1 = (True, 10.0)
+        bf_result = scalars_df["int64_too"].apply(foo, args=args1).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(foo, args=args1)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+        args2 = (False, -10.0)
+        foo_ref = session.read_gbq_function(foo.bigframes_bigquery_function)
+
+        bf_result = scalars_df["int64_too"].apply(foo_ref, args=args2).to_pandas()
+        pd_result = scalars_pandas_df["int64_too"].apply(foo, args=args2)
+
+        # Ignore any dtype difference.
+        pandas.testing.assert_series_equal(bf_result, pd_result, check_dtype=False)
+
+    finally:
+        # Clean up the gcp assets created for the remote function.
+        cleanup_function_assets(foo, session.bqclient, ignore_failures=False)

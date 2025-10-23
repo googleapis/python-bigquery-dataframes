@@ -23,6 +23,8 @@ import uuid
 import pandas as pd
 
 import bigframes
+import bigframes.dataframe
+import bigframes.display.html
 
 # anywidget and traitlets are optional dependencies. We don't want the import of this
 # module to fail if they aren't installed, though. Instead, we try to limit the surface that
@@ -72,7 +74,7 @@ class TableWidget(WIDGET_BASE):
         initial_page_size = bigframes.options.display.max_rows
 
         # Initialize data fetching attributes.
-        self._batches = dataframe.to_pandas_batches(page_size=initial_page_size)
+        self._batches = dataframe._to_pandas_batches(page_size=initial_page_size)
 
         # set traitlets properties that trigger observers
         self.page_size = initial_page_size
@@ -81,7 +83,9 @@ class TableWidget(WIDGET_BASE):
         # SELECT COUNT(*) query. It is a must have however.
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
-        self.row_count = len(dataframe)
+        # TODO(b/452747934): Allow row_count to be None and check to see if
+        # there are multiple pages and show "page 1 of many" in this case.
+        self.row_count = self._batches.total_rows or 0
 
         # get the initial page
         self._set_table_html()
@@ -179,7 +183,7 @@ class TableWidget(WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        self._batches = self._dataframe._to_pandas_batches(page_size=self.page_size)
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False
@@ -201,12 +205,9 @@ class TableWidget(WIDGET_BASE):
         page_data = cached_data.iloc[start:end]
 
         # Generate HTML table
-        self.table_html = page_data.to_html(
-            index=False,
-            max_rows=None,
+        self.table_html = bigframes.display.html.render_html(
+            dataframe=page_data,
             table_id=f"table-{self._table_id}",
-            classes="table table-striped table-hover",
-            escape=False,
         )
 
     @traitlets.observe("page")

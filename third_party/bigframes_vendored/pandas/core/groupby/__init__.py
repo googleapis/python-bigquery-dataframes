@@ -9,6 +9,8 @@ expose these user-facing objects to provide specific functionality.
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from bigframes import constants
 
 
@@ -16,6 +18,62 @@ class GroupBy:
     """
     Class for grouping and aggregating relational data.
     """
+
+    def describe(self, include: None | Literal["all"] = None):
+        """
+        Generate descriptive statistics.
+
+        Descriptive statistics include those that summarize the central
+        tendency, dispersion and shape of a
+        dataset's distribution, excluding ``NaN`` values.
+
+        Args:
+            include ("all" or None, optional):
+                If "all": All columns of the input will be included in the output.
+                If None: The result will include all numeric columns.
+
+        .. note::
+            Percentile values are approximates only.
+
+        .. note::
+            For numeric data, the result's index will include ``count``,
+            ``mean``, ``std``, ``min``, ``max`` as well as lower, ``50`` and
+            upper percentiles. By default the lower percentile is ``25`` and the
+            upper percentile is ``75``. The ``50`` percentile is the
+            same as the median.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame({"A": [1, 1, 1, 2, 2], "B": [0, 2, 8, 2, 7], "C": ["cat", "cat", "dog", "mouse", "cat"]})
+            >>> df
+               A  B      C
+            0  1  0    cat
+            1  1  2    cat
+            2  1  8    dog
+            3  2  2  mouse
+            4  2  7    cat
+            <BLANKLINE>
+            [5 rows x 3 columns]
+
+            >>> df.groupby("A").describe(include="all")
+                  B                                             C
+              count      mean       std min 25% 50% 75% max count nunique
+            A
+            1     3  3.333333  4.163332   0   0   2   8   8     3       2
+            2     2       4.5  3.535534   2   2   2   7   7     2       2
+            <BLANKLINE>
+            [2 rows x 10 columns]
+
+        Returns:
+            bigframes.pandas.DataFrame:
+                Summary statistics of the Series or Dataframe provided.
+
+        Raises:
+            ValueError:
+                If unsupported ``include`` type is provided.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def any(self):
         """
@@ -25,8 +83,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, 0], index=lst)
@@ -64,8 +120,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, 0], index=lst)
@@ -103,9 +157,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, np.nan], index=lst)
@@ -142,9 +193,6 @@ class GroupBy:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'A': [1, 1, 2, 1, 2],
             ...                    'B': [np.nan, 2, 3, 4, 5],
             ...                    'C': [1, 2, 1, 1, 2]}, columns=['A', 'B', 'C'])
@@ -203,9 +251,6 @@ class GroupBy:
         For SeriesGroupBy:
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
             >>> ser.groupby(level=0).median()
@@ -244,7 +289,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame([
             ...     ['a', 1], ['a', 2], ['a', 3],
             ...     ['b', 1], ['b', 3], ['b', 5]
@@ -283,9 +327,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -330,9 +371,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -375,9 +413,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame(
             ...     {
             ...         "group": ["a", "a", "a", "a", "a", "b", "b", "b", "b", "b"],
@@ -428,6 +463,8 @@ class GroupBy:
                 * keep: leave NA values where they are.
                 * top: smallest rank if ascending.
                 * bottom: smallest rank if descending.
+            pct (bool, default False):
+                Compute percentage rank of data within each group
 
         Returns:
             DataFrame with ranking of values within each group
@@ -448,9 +485,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> ser = bpd.Series([390., 350., 357., np.nan, 22., 20., 30.],
             ...                  index=['Falcon', 'Falcon', 'Falcon', 'Falcon',
@@ -484,8 +518,6 @@ class GroupBy:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b']
             >>> ser = bpd.Series([0, 1, 1, 0, 0, 1, 2, 4, 5], index=lst)
@@ -517,8 +549,6 @@ class GroupBy:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b']
             >>> ser = bpd.Series([0, 1, 1, 0, 0, 1, 2, 4, 5], index=lst)
@@ -537,6 +567,77 @@ class GroupBy:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def first(self, numeric_only: bool = False, min_count: int = -1):
+        """
+        Compute the first entry of each column within each group.
+
+        Defaults to skipping NA elements.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[None, 5, 6], C=[1, 2, 3]))
+            >>> df.groupby("A").first()
+                B  C
+            A
+            1  5.0  1
+            3  6.0  3
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+            >>> df.groupby("A").first(min_count=2)
+                B    C
+            A
+            1  <NA>     1
+            3  <NA>  <NA>
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            numeric_only (bool, default False):
+                Include only float, int, boolean columns. If None, will attempt to use
+                everything, then use only numeric data.
+            min_count (int, default -1):
+                The required number of valid values to perform the operation. If fewer
+                than ``min_count`` valid values are present the result will be NA.
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                First of values within each group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def last(self, numeric_only: bool = False, min_count: int = -1):
+        """
+        Compute the last entry of each column within each group.
+
+        Defaults to skipping NA elements.
+
+        **Examples:**
+
+            >>> df = bpd.DataFrame(dict(A=[1, 1, 3], B=[5, None, 6], C=[1, 2, 3]))
+            >>> df.groupby("A").last()
+                 B  C
+            A
+            1  5.0  2
+            3  6.0  3
+            <BLANKLINE>
+            [2 rows x 2 columns]
+
+        Args:
+            numeric_only (bool, default False):
+                Include only float, int, boolean columns. If None, will attempt to use
+                everything, then use only numeric data.
+            min_count (int, default -1):
+                The required number of valid values to perform the operation. If fewer
+                than ``min_count`` valid values are present the result will be NA.
+
+        Returns:
+            bigframes.pandas.DataFrame or bigframes.pandas.Series:
+                Last of values within each group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def sum(
         self,
         numeric_only: bool = False,
@@ -549,8 +650,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -594,9 +693,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -630,9 +726,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -679,8 +772,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -723,8 +814,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b', 'c']
             >>> ser = bpd.Series([5, 1, 2, 3, 4], index=lst)
@@ -761,9 +850,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -800,9 +886,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -839,9 +922,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -878,9 +958,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([6, 2, 0], index=lst)
@@ -919,9 +996,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
             >>> ser = bpd.Series([7, 2, 8, 4, 3, 3], index=lst)
@@ -965,9 +1039,6 @@ class GroupBy:
 
         For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 4], index=lst)
@@ -1009,9 +1080,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> lst = ['a', 'a', 'a', 'a', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
             >>> ser.groupby(level=0).rolling(2).min()
@@ -1068,9 +1136,6 @@ class GroupBy:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
             >>> lst = ['a', 'a', 'c', 'c', 'e']
             >>> ser = bpd.Series([1, 0, -2, -1, 2], index=lst)
             >>> ser.groupby(level=0).expanding().min()
@@ -1094,8 +1159,6 @@ class GroupBy:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[1, 2], [1, 4], [5, 6]],
             ...                   columns=['A', 'B'])
@@ -1123,10 +1186,8 @@ class GroupBy:
 
         **Examples:**
 
-        For SeriesGroupBy:
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
+        For SeriesGroupBy:
 
             >>> lst = ['a', 'a', 'b']
             >>> ser = bpd.Series([1, 2, 3], index=lst)
@@ -1165,6 +1226,72 @@ class GroupBy:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def __iter__(self):
+        r"""
+        Groupby iterator.
+
+        This method provides an iterator over the groups created by the ``resample``
+        or ``groupby`` operation on the object. The method yields tuples where
+        the first element is the label (group key) corresponding to each group or
+        resampled bin, and the second element is the subset of the data that falls
+        within that group or bin.
+
+        **Examples:**
+
+
+        For SeriesGroupBy:
+
+            >>> lst = ["a", "a", "b"]
+            >>> ser = bpd.Series([1, 2, 3], index=lst)
+            >>> ser
+            a    1
+            a    2
+            b    3
+            dtype: Int64
+            >>> for x, y in ser.groupby(level=0):
+            ...     print(f"{x}\n{y}\n")
+            a
+            a    1
+            a    2
+            dtype: Int64
+            b
+            b    3
+            dtype: Int64
+
+        For DataFrameGroupBy:
+
+            >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+            >>> df = bpd.DataFrame(data, columns=["a", "b", "c"])
+            >>> df
+               a  b  c
+            0  1  2  3
+            1  1  5  6
+            2  7  8  9
+            <BLANKLINE>
+            [3 rows x 3 columns]
+            >>> for x, y in df.groupby(by=["a"]):
+            ...     print(f'{x}\n{y}\n')
+            (1,)
+               a  b  c
+            0  1  2  3
+            1  1  5  6
+            <BLANKLINE>
+            [2 rows x 3 columns]
+            (7,)
+            <BLANKLINE>
+               a  b  c
+            2  7  8  9
+            <BLANKLINE>
+            [1 rows x 3 columns]
+            <BLANKLINE>
+
+        Returns:
+            Iterable[Label | Tuple, bigframes.pandas.Series | bigframes.pandas.DataFrame]:
+                Generator yielding sequence of (name, subsetted object)
+                for each group.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
 
 class SeriesGroupBy(GroupBy):
     def agg(self, func):
@@ -1173,9 +1300,6 @@ class SeriesGroupBy(GroupBy):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
             >>> s.groupby(level=0).agg(['min', 'max'])
@@ -1206,9 +1330,6 @@ class SeriesGroupBy(GroupBy):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 2, 3, 4], index=[1, 1, 2, 2])
             >>> s.groupby(level=0).aggregate(['min', 'max'])
@@ -1239,9 +1360,6 @@ class SeriesGroupBy(GroupBy):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> lst = ['a', 'a', 'b', 'b']
             >>> ser = bpd.Series([1, 2, 3, 3], index=lst)
@@ -1256,6 +1374,32 @@ class SeriesGroupBy(GroupBy):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def value_counts(
+        self,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ):
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        Args:
+            normalize (bool, default False):
+                Return proportions rather than frequencies.
+            sort (bool, default True):
+                Sort by frequencies.
+            ascending (bool, default False):
+                Sort in ascending order.
+            dropna (bool, default True):
+                Don't include counts of rows that contain NA values.
+
+        Returns:
+            Series or DataFrame:
+                Series if the groupby as_index is True, otherwise DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
 
 class DataFrameGroupBy(GroupBy):
     def agg(self, func, **kwargs):
@@ -1264,9 +1408,6 @@ class DataFrameGroupBy(GroupBy):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> data = {"A": [1, 1, 2, 2],
             ...         "B": [1, 2, 3, 4],
@@ -1324,9 +1465,6 @@ class DataFrameGroupBy(GroupBy):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> data = {"A": [1, 1, 2, 2],
             ...         "B": [1, 2, 3, 4],
@@ -1378,15 +1516,74 @@ class DataFrameGroupBy(GroupBy):
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def corr(
+        self,
+        *,
+        numeric_only: bool = False,
+    ):
+        """
+        Compute pairwise correlation of columns, excluding NA/null values.
+
+        **Examples:**
+
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3],
+            ...                    'B': [400, 500, 600],
+            ...                    'C': [0.8, 0.4, 0.9]})
+            >>> df.corr(numeric_only=True)
+                      A         B         C
+            A       1.0       1.0  0.188982
+            B       1.0       1.0  0.188982
+            C  0.188982  0.188982       1.0
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Args:
+            numeric_only(bool, default False):
+                Include only float, int, boolean, decimal data.
+
+        Returns:
+            bigframes.pandas.DataFrame: Correlation matrix.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def cov(
+        self,
+        *,
+        numeric_only: bool = False,
+    ):
+        """
+        Compute pairwise covariance of columns, excluding NA/null values.
+
+        **Examples:**
+
+
+            >>> df = bpd.DataFrame({'A': [1, 2, 3],
+            ...                    'B': [400, 500, 600],
+            ...                    'C': [0.8, 0.4, 0.9]})
+            >>> df.cov(numeric_only=True)
+                   A        B     C
+            A    1.0    100.0  0.05
+            B  100.0  10000.0   5.0
+            C   0.05      5.0  0.07
+            <BLANKLINE>
+            [3 rows x 3 columns]
+
+        Args:
+            numeric_only(bool, default False):
+                Include only float, int, boolean, decimal data.
+
+        Returns:
+            bigframes.pandas.DataFrame: The covariance matrix of the series of the DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def nunique(self):
         """
         Return DataFrame with counts of unique elements in each position.
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'id': ['spam', 'egg', 'egg', 'spam',
             ...                           'ham', 'ham'],
@@ -1404,5 +1601,101 @@ class DataFrameGroupBy(GroupBy):
         Returns:
             bigframes.pandas.DataFrame:
                 Number of unique values within a BigQuery DataFrame.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def value_counts(
+        self,
+        subset=None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        dropna: bool = True,
+    ):
+        """
+        Return a Series or DataFrame containing counts of unique rows.
+
+        **Examples:**
+
+
+            >>> df = bpd.DataFrame({
+            ...     'gender': ['male', 'male', 'female', 'male', 'female', 'male'],
+            ...     'education': ['low', 'medium', 'high', 'low', 'high', 'low'],
+            ...     'country': ['US', 'FR', 'US', 'FR', 'FR', 'FR']
+            ... })
+
+            >>> df
+               gender education country
+            0    male       low      US
+            1    male    medium      FR
+            2  female      high      US
+            3    male       low      FR
+            4  female      high      FR
+            5    male       low      FR
+            <BLANKLINE>
+            [6 rows x 3 columns]
+
+            >>> df.groupby('gender').value_counts()
+                 gender  education  country
+            female  high       FR         1
+                               US         1
+            male    low        FR         2
+                               US         1
+                    medium     FR         1
+            Name: count, dtype: Int64
+
+            >>> df.groupby('gender').value_counts(ascending=True)
+            gender  education  country
+            female  high       FR         1
+                               US         1
+            male    low        US         1
+                    medium     FR         1
+                    low        FR         2
+            Name: count, dtype: Int64
+
+            >>> df.groupby('gender').value_counts(normalize=True)
+            gender  education  country
+            female  high       FR          0.5
+                               US          0.5
+            male    low        FR          0.5
+                               US         0.25
+                    medium     FR         0.25
+            Name: proportion, dtype: Float64
+
+            >>> df.groupby('gender', as_index=False).value_counts()
+               gender education country  count
+            0  female      high      FR      1
+            1  female      high      US      1
+            2    male       low      FR      2
+            3    male       low      US      1
+            4    male    medium      FR      1
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+            >>> df.groupby('gender', as_index=False).value_counts(normalize=True)
+               gender education country  proportion
+            0  female      high      FR         0.5
+            1  female      high      US         0.5
+            2    male       low      FR         0.5
+            3    male       low      US        0.25
+            4    male    medium      FR        0.25
+            <BLANKLINE>
+            [5 rows x 4 columns]
+
+        Args:
+            subset (list-like, optional):
+                Columns to use when counting unique combinations.
+            normalize (bool, default False):
+                Return proportions rather than frequencies.
+            sort (bool, default True):
+                Sort by frequencies.
+            ascending (bool, default False):
+                Sort in ascending order.
+            dropna (bool, default True):
+                Don't include counts of rows that contain NA values.
+
+        Returns:
+            Series or DataFrame:
+                Series if the groupby as_index is True, otherwise DataFrame.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

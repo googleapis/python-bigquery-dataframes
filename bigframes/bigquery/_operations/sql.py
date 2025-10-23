@@ -21,8 +21,6 @@ from typing import Sequence
 import google.cloud.bigquery
 
 import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
-import bigframes.core.sql
-import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.operations
 import bigframes.series
@@ -38,9 +36,6 @@ def sql_scalar(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
-        >>> import pandas as pd
-        >>> import pyarrow as pa
-        >>> bpd.options.display.progress_bar = None
 
         >>> s = bpd.Series(["1.5", "2.5", "3.5"])
         >>> s = s.astype(pd.ArrowDtype(pa.decimal128(38, 9)))

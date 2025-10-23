@@ -32,8 +32,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3], name='x')
             >>> idx
@@ -63,8 +61,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -86,8 +82,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
             >>> s
@@ -121,8 +115,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         For Series:
 
@@ -156,8 +148,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> bool(bpd.Index([1, 2, 3]).is_monotonic_increasing)
             True
@@ -181,8 +171,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> bool(bpd.Index([3, 2, 1]).is_monotonic_decreasing)
             True
@@ -206,8 +194,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([['HI', 'Temp'], ['HI', 'Precip'],
             ...                     ['NJ', 'Temp'], ['NJ', 'Precip']],
@@ -246,8 +232,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -268,8 +252,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> mi = bpd.MultiIndex.from_arrays([['a'], ['b'], ['c']])
             >>> mi
@@ -290,8 +272,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 5, 7, 7])
             >>> idx.is_unique
@@ -313,8 +293,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 5, 7, 7])
             >>> bool(idx.has_duplicates)
@@ -336,8 +314,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -364,8 +340,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series(['Ant', 'Bear', 'Cow'])
             >>> s
@@ -392,6 +366,36 @@ class Index:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    @property
+    def str(self):
+        """
+        Vectorized string functions for Series and Index.
+
+        NAs stay NA unless handled otherwise by a particular method. Patterned
+        after Python’s string methods, with some inspiration from R’s stringr package.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> s = bpd.Series(["A_Str_Series"])
+            >>> s
+            0    A_Str_Series
+            dtype: string
+
+            >>> s.str.lower()
+            0    a_str_series
+            dtype: string
+
+            >>> s.str.replace("_", "")
+            0    AStrSeries
+            dtype: string
+
+        Returns:
+            bigframes.operations.strings.StringMethods:
+                An accessor containing string methods.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def copy(
         self,
         name=None,
@@ -403,8 +407,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index(['a', 'b', 'c'])
             >>> new_idx = idx.copy()
@@ -438,8 +440,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, 2, 3])
             >>> idx
@@ -487,8 +487,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index(list('abc'))
             >>> idx
@@ -517,8 +515,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index(['Ant', 'Bear', 'Cow'], name='animal')
 
@@ -571,8 +567,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1,2,3])
             >>> idx
@@ -611,8 +605,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         True, because nonzero integers are considered True.
 
@@ -639,8 +631,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> index = bpd.Index([0, 1, 2])
             >>> bool(index.any())
@@ -665,8 +655,6 @@ class Index:
 
          **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([3, 2, 1])
             >>> int(idx.min())
@@ -687,8 +675,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([3, 2, 1])
             >>> int(idx.max())
@@ -713,8 +699,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Consider dataset containing cereal calories
 
@@ -750,8 +734,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> unique_index = bpd.Index(list('abc'))
             >>> unique_index.get_loc('b')
@@ -767,7 +749,7 @@ class Index:
             1     True
             2    False
             3     True
-            Name: nan, dtype: boolean
+            dtype: boolean
 
         Args:
             key: Label to get the location for.
@@ -794,8 +776,6 @@ class Index:
 
         Consider dataset containing cereal calories
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series({'Corn Flakes': 100.0, 'Almond Delight': 110.0,
             ...                'Cinnamon Toast Crunch': 120.0, 'Cocoa Puff': 110.0})
@@ -828,8 +808,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series([1, 3, 5, 7, 7])
             >>> s
@@ -860,8 +838,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([10, 100, 1, 1000])
             >>> idx
@@ -904,9 +880,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> index = bpd.Index([3, 1, 2, 3, 4, np.nan])
             >>> index.value_counts()
@@ -957,17 +930,23 @@ class Index:
 
     def fillna(self, value) -> Index:
         """
-        Fill NA/NaN values with the specified value.
+        Fill NA (NULL in BigQuery) values using the specified method.
+
+        Note that empty strings ``''``, :attr:`numpy.inf`, and
+        :attr:`numpy.nan` are ***not*** considered NA values. This NA/NULL
+        logic differs from numpy, but it is the same as BigQuery and the
+        :class:`pandas.ArrowDtype`.
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
-
-            >>> idx = bpd.Index([np.nan, np.nan, 3])
+            >>> idx = bpd.Index(
+            ...     pa.array([None, np.nan, 3, None], type=pa.float64()),
+            ...     dtype=pd.ArrowDtype(pa.float64()),
+            ... )
+            >>> idx
+            Index([<NA>, nan, 3.0, <NA>], dtype='Float64')
             >>> idx.fillna(0)
-            Index([0.0, 0.0, 3.0], dtype='Float64')
+            Index([0.0, nan, 3.0, 0.0], dtype='Float64')
 
         Args:
             value (scalar):
@@ -992,8 +971,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index(['A', 'C', 'A', 'B'], name='score')
             >>> idx.rename('grade')
@@ -1022,8 +999,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index(['a', 'b', 'c'])
             >>> idx.drop(['a'])
@@ -1042,9 +1017,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> idx = bpd.Index([1, np.nan, 3])
             >>> idx.dropna()
@@ -1071,7 +1043,6 @@ class Index:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             Generate an pandas.Index with duplicate values.
 
@@ -1113,8 +1084,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> idx = bpd.Index([1, 1, 2, 3, 3])
             >>> idx.unique()
             Index([1, 2, 3], dtype='Int64')
@@ -1134,8 +1103,6 @@ class Index:
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series([1], index=['a'])
             >>> s.index.item()
             'a'

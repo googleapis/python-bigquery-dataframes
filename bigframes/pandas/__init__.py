@@ -16,8 +16,8 @@
 
 from __future__ import annotations
 
-from collections import namedtuple
-from datetime import datetime
+import collections
+import datetime
 import inspect
 import sys
 import typing
@@ -87,6 +87,9 @@ def remote_function(
     cloud_function_timeout: Optional[int] = 600,
     cloud_function_max_instances: Optional[int] = None,
     cloud_function_vpc_connector: Optional[str] = None,
+    cloud_function_vpc_connector_egress_settings: Optional[
+        Literal["all", "private-ranges-only", "unspecified"]
+    ] = None,
     cloud_function_memory_mib: Optional[int] = 1024,
     cloud_function_ingress_settings: Literal[
         "all", "internal-only", "internal-and-gclb"
@@ -109,6 +112,7 @@ def remote_function(
         cloud_function_timeout=cloud_function_timeout,
         cloud_function_max_instances=cloud_function_max_instances,
         cloud_function_vpc_connector=cloud_function_vpc_connector,
+        cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
         cloud_function_memory_mib=cloud_function_memory_mib,
         cloud_function_ingress_settings=cloud_function_ingress_settings,
         cloud_build_service_account=cloud_build_service_account,
@@ -194,18 +198,18 @@ def to_datetime(
 
 @typing.overload
 def to_datetime(
-    arg: Union[int, float, str, datetime],
+    arg: Union[int, float, str, datetime.datetime, datetime.date],
     *,
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-) -> Union[pandas.Timestamp, datetime]:
+) -> Union[pandas.Timestamp, datetime.datetime]:
     ...
 
 
 def to_datetime(
     arg: Union[
-        Union[int, float, str, datetime],
+        Union[int, float, str, datetime.datetime, datetime.date],
         vendored_pandas_datetimes.local_iterables,
         bigframes.series.Series,
         bigframes.dataframe.DataFrame,
@@ -214,8 +218,9 @@ def to_datetime(
     utc: bool = False,
     format: Optional[str] = None,
     unit: Optional[str] = None,
-) -> Union[pandas.Timestamp, datetime, bigframes.series.Series]:
-    return bigframes.core.tools.to_datetime(
+) -> Union[pandas.Timestamp, datetime.datetime, bigframes.series.Series]:
+    return global_session.with_default_session(
+        bigframes.session.Session.to_datetime,
         arg,
         utc=utc,
         format=format,
@@ -287,13 +292,14 @@ def clean_up_by_session_id(
             session.bqclient,
             location=location,
             project=project,
+            publisher=session._publisher,
         )
 
     bigframes.session._io.bigquery.delete_tables_matching_session_id(
         session.bqclient, dataset, session_id
     )
 
-    bff_utils._clean_up_by_session_id(
+    bff_utils.clean_up_by_session_id(
         session.bqclient, session.cloudfunctionsclient, dataset, session_id
     )
 
@@ -317,7 +323,7 @@ Series = bigframes.series.Series
 __version__ = bigframes.version.__version__
 
 # Other public pandas attributes
-NamedAgg = namedtuple("NamedAgg", ["column", "aggfunc"])
+NamedAgg = collections.namedtuple("NamedAgg", ["column", "aggfunc"])
 
 options = config.options
 """Global :class:`~bigframes._config.Options` to configure BigQuery DataFrames."""

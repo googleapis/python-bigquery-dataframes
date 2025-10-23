@@ -49,7 +49,6 @@ notebook,
 
 or just remove it.
 
-    >>> bpd.options.display.progress_bar = None
 
 Setting to default value "auto" will detect and show progress bar automatically.
 
@@ -84,6 +83,9 @@ Attributes:
     memory_usage (bool):
         This specifies if the memory usage of a DataFrame should be displayed when
         df.info() is called. Valid values True,False,
+    precision (int):
+        Controls the floating point output precision, similar to
+        `pandas.options.display.precision`.
     blob_display (bool):
         Whether to display the blob content in notebook DataFrame preview. Default True.
     blob_display_width (int or None):

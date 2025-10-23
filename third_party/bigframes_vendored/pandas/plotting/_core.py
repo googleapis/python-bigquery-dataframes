@@ -11,7 +11,6 @@ class PlotAccessor:
     For Series:
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = None
         >>> ser = bpd.Series([1, 2, 3, 3])
         >>> plot = ser.plot(kind='hist', title="My plot")
 
@@ -57,9 +56,6 @@ class PlotAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(np.random.randint(1, 7, 6000), columns=['one'])
             >>> df['two'] = np.random.randint(1, 7, 6000) + np.random.randint(1, 7, 6000)
             >>> ax = df.plot.hist(bins=12, alpha=0.5)
@@ -96,7 +92,6 @@ class PlotAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(
             ...     {
             ...         'one': [1, 2, 3, 4],
@@ -164,7 +159,6 @@ class PlotAccessor:
         Draw an area plot based on basic business metrics:
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame(
             ...     {
             ...         'sales': [3, 2, 3, 9, 10, 6],
@@ -233,7 +227,6 @@ class PlotAccessor:
         Basic plot.
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'lab':['A', 'B', 'C'], 'val':[10, 30, 20]})
             >>> ax = df.plot.bar(x='lab', y='val', rot=0)
 
@@ -275,6 +268,107 @@ class PlotAccessor:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    def barh(
+        self,
+        x: typing.Optional[typing.Hashable] = None,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        """
+        Draw a horizontal bar plot.
+
+        This function calls `pandas.plot` to generate a plot with a random sample
+        of items. For consistent results, the random sampling is reproducible.
+        Use the `sampling_random_state` parameter to modify the sampling seed.
+
+        **Examples:**
+
+        Basic plot.
+
+            >>> import bigframes.pandas as bpd
+            >>> df = bpd.DataFrame({'lab':['A', 'B', 'C'], 'val':[10, 30, 20]})
+            >>> ax = df.plot.barh(x='lab', y='val', rot=0)
+
+        Plot a whole dataframe to a barh plot. Each column is assigned a distinct color,
+        and each row is nested in a group along the horizontal axis.
+
+            >>> speed = [0.1, 17.5, 40, 48, 52, 69, 88]
+            >>> lifespan = [2, 8, 70, 1.5, 25, 12, 28]
+            >>> index = ['snail', 'pig', 'elephant',
+            ...          'rabbit', 'giraffe', 'coyote', 'horse']
+            >>> df = bpd.DataFrame({'speed': speed, 'lifespan': lifespan}, index=index)
+            >>> ax = df.plot.barh(rot=0)
+
+        Plot stacked barh charts for the DataFrame.
+
+            >>> ax = df.plot.barh(stacked=True)
+
+        If you don’t like the default colours, you can specify how you’d like each column
+        to be colored.
+
+            >>> axes = df.plot.barh(
+            ...     rot=0, subplots=True, color={"speed": "red", "lifespan": "green"}
+            ... )
+
+        Args:
+            x (label or position, optional):
+                Allows plotting of one column versus another. If not specified, the index
+                of the DataFrame is used.
+            y (label or position, optional):
+                Allows plotting of one column versus another. If not specified, all numerical
+                columns are used.
+            **kwargs:
+                Additional keyword arguments are documented in
+                :meth:`DataFrame.plot`.
+
+        Returns:
+            matplotlib.axes.Axes or numpy.ndarray:
+                Area plot, or array of area plots if subplots is True.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
+    def pie(
+        self,
+        y: typing.Optional[typing.Hashable] = None,
+        **kwargs,
+    ):
+        """
+        Generate a pie plot.
+
+        A pie plot is a proportional representation of the numerical data in a
+        column. This function wraps :meth:`matplotlib.pyplot.pie` for the
+        specified column. If no column reference is passed and
+        ``subplots=True`` a pie plot is drawn for each numerical column
+        independently.
+
+        **Examples:**
+
+        In the example below we have a DataFrame with the information about
+        planet's mass and radius. We pass the 'mass' column to the
+        pie function to get a pie plot.
+
+            >>> import bigframes.pandas as bpd
+
+            >>> df = bpd.DataFrame({'mass': [0.330, 4.87 , 5.97],
+            ...                    'radius': [2439.7, 6051.8, 6378.1]},
+            ...                   index=['Mercury', 'Venus', 'Earth'])
+            >>> plot = df.plot.pie(y='mass', figsize=(5, 5))
+
+            >>> plot = df.plot.pie(subplots=True, figsize=(11, 6))
+
+        Args:
+            y (int or label, optional):
+                Label or position of the column to plot.
+                If not provided, ``subplots=True`` argument must be passed.
+            **kwargs:
+                Keyword arguments to pass on to :meth:`DataFrame.plot`.
+
+        Returns:
+            matplotlib.axes.Axes or np.ndarray:
+                A NumPy array is returned when `subplots` is True.
+        """
+        raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
+
     def scatter(
         self,
         x: typing.Optional[typing.Hashable] = None,
@@ -296,7 +390,6 @@ class PlotAccessor:
         in a DataFrame's columns.
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame([[5.1, 3.5, 0], [4.9, 3.0, 0], [7.0, 3.2, 1],
             ...                    [6.4, 3.2, 1], [5.9, 3.0, 2]],
             ...                   columns=['length', 'width', 'species'])

@@ -26,16 +26,11 @@ import warnings
 import bigframes_vendored.constants as constants
 import google.api_core.exceptions
 import google.cloud.bigquery as bigquery
+import google.cloud.bigquery.table
 
-import bigframes.clients
-import bigframes.core.compile
-import bigframes.core.compile.default_ordering
-import bigframes.core.sql
-import bigframes.dtypes
+import bigframes.core.events
 import bigframes.exceptions as bfe
 import bigframes.session._io.bigquery
-import bigframes.session.clients
-import bigframes.version
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
@@ -111,31 +106,50 @@ def get_table_metadata(
     bq_time: datetime.datetime,
     cache: Dict[str, Tuple[datetime.datetime, bigquery.Table]],
     use_cache: bool = True,
+    publisher: bigframes.core.events.Publisher,
 ) -> Tuple[datetime.datetime, google.cloud.bigquery.table.Table]:
     """Get the table metadata, either from cache or via REST API."""
 
     cached_table = cache.get(table_id)
     if use_cache and cached_table is not None:
-        snapshot_timestamp, _ = cached_table
+        snapshot_timestamp, table = cached_table
 
-        # Cache hit could be unexpected. See internal issue 329545805.
-        # Raise a warning with more information about how to avoid the
-        # problems with the cache.
-        msg = bfe.format_message(
-            f"Reading cached table from {snapshot_timestamp} to avoid "
-            "incompatibilies with previous reads of this table. To read "
-            "the latest version, set `use_cache=False` or close the "
-            "current session with Session.close() or "
-            "bigframes.pandas.close_session()."
-        )
-        # There are many layers before we get to (possibly) the user's code:
-        # pandas.read_gbq_table
-        # -> with_default_session
-        # -> Session.read_gbq_table
-        # -> _read_gbq_table
-        # -> _get_snapshot_sql_and_primary_key
-        # -> get_snapshot_datetime_and_table_metadata
-        warnings.warn(msg, stacklevel=7)
+        if is_time_travel_eligible(
+            bqclient=bqclient,
+            table=table,
+            columns=None,
+            snapshot_time=snapshot_timestamp,
+            filter_str=None,
+            # Don't warn, because that will already have been taken care of.
+            should_warn=False,
+            should_dry_run=False,
+            publisher=publisher,
+        ):
+            # This warning should only happen if the cached snapshot_time will
+            # have any effect on bigframes (b/437090788). For example, with
+            # cached query results, such as after re-running a query, time
+            # travel won't be applied and thus this check is irrelevent.
+            #
+            # In other cases, such as an explicit read_gbq_table(), Cache hit
+            # could be unexpected. See internal issue 329545805. Raise a
+            # warning with more information about how to avoid the problems
+            # with the cache.
+            msg = bfe.format_message(
+                f"Reading cached table from {snapshot_timestamp} to avoid "
+                "incompatibilies with previous reads of this table. To read "
+                "the latest version, set `use_cache=False` or close the "
+                "current session with Session.close() or "
+                "bigframes.pandas.close_session()."
+            )
+            # There are many layers before we get to (possibly) the user's code:
+            # pandas.read_gbq_table
+            # -> with_default_session
+            # -> Session.read_gbq_table
+            # -> _read_gbq_table
+            # -> _get_snapshot_sql_and_primary_key
+            # -> get_snapshot_datetime_and_table_metadata
+            warnings.warn(msg, category=bfe.TimeTravelCacheWarning, stacklevel=7)
+
         return cached_table
 
     table_id_casefold = table_id.casefold()
@@ -165,40 +179,75 @@ def get_table_metadata(
     return cached_table
 
 
-def validate_table(
+def is_time_travel_eligible(
     bqclient: bigquery.Client,
-    table: bigquery.table.Table,
+    table: google.cloud.bigquery.table.Table,
     columns: Optional[Sequence[str]],
     snapshot_time: datetime.datetime,
     filter_str: Optional[str] = None,
-) -> bool:
-    """Validates that the table can be read, returns True iff snapshot is supported."""
+    *,
+    should_warn: bool,
+    should_dry_run: bool,
+    publisher: bigframes.core.events.Publisher,
+):
+    """Check if a table is eligible to use time-travel.
 
-    time_travel_not_found = False
+
+    Args:
+        table: BigQuery table to check.
+        should_warn:
+            If true, raises a warning when time travel is disabled and the
+            underlying table is likely mutable.
+
+    Return:
+        bool:
+            True if there is a chance that time travel may be supported on this
+            table. If ``should_dry_run`` is True, then this is validated with a
+            ``dry_run`` query.
+    """
+
+    # user code
+    # -> pandas.read_gbq_table
+    # -> with_default_session
+    # -> session.read_gbq_table
+    # -> session._read_gbq_table
+    # -> loader.read_gbq_table
+    # -> is_time_travel_eligible
+    stacklevel = 7
+
     # Anonymous dataset, does not support snapshot ever
     if table.dataset_id.startswith("_"):
-        pass
+        return False
 
     # Only true tables support time travel
-    elif table.table_id.endswith("*"):
-        msg = bfe.format_message(
-            "Wildcard tables do not support FOR SYSTEM_TIME AS OF queries. "
-            "Attempting query without time travel. Be aware that "
-            "modifications to the underlying data may result in errors or "
-            "unexpected behavior."
-        )
-        warnings.warn(msg, category=bfe.TimeTravelDisabledWarning)
+    if table.table_id.endswith("*"):
+        if should_warn:
+            msg = bfe.format_message(
+                "Wildcard tables do not support FOR SYSTEM_TIME AS OF queries. "
+                "Attempting query without time travel. Be aware that "
+                "modifications to the underlying data may result in errors or "
+                "unexpected behavior."
+            )
+            warnings.warn(
+                msg, category=bfe.TimeTravelDisabledWarning, stacklevel=stacklevel
+            )
+        return False
     elif table.table_type != "TABLE":
         if table.table_type == "MATERIALIZED_VIEW":
-            msg = bfe.format_message(
-                "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
-                "Attempting query without time travel. Be aware that as materialized views "
-                "are updated periodically, modifications to the underlying data in the view may "
-                "result in errors or unexpected behavior."
-            )
-            warnings.warn(msg, category=bfe.TimeTravelDisabledWarning)
-    else:
-        # table might support time travel, lets do a dry-run query with time travel
+            if should_warn:
+                msg = bfe.format_message(
+                    "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
+                    "Attempting query without time travel. Be aware that as materialized views "
+                    "are updated periodically, modifications to the underlying data in the view may "
+                    "result in errors or unexpected behavior."
+                )
+                warnings.warn(
+                    msg, category=bfe.TimeTravelDisabledWarning, stacklevel=stacklevel
+                )
+            return False
+
+    # table might support time travel, lets do a dry-run query with time travel
+    if should_dry_run:
         snapshot_sql = bigframes.session._io.bigquery.to_query(
             query_or_table=f"{table.reference.project}.{table.reference.dataset_id}.{table.reference.table_id}",
             columns=columns or (),
@@ -206,43 +255,45 @@ def validate_table(
             time_travel_timestamp=snapshot_time,
         )
         try:
-            # If this succeeds, we don't need to query without time travel, that would surely succeed
-            bqclient.query_and_wait(
-                snapshot_sql, job_config=bigquery.QueryJobConfig(dry_run=True)
+            # If this succeeds, we know that time travel will for sure work.
+            bigframes.session._io.bigquery.start_query_with_client(
+                bq_client=bqclient,
+                sql=snapshot_sql,
+                job_config=bigquery.QueryJobConfig(dry_run=True),
+                location=None,
+                project=None,
+                timeout=None,
+                metrics=None,
+                query_with_job=False,
+                publisher=publisher,
             )
             return True
-        except google.api_core.exceptions.NotFound:
-            # note that a notfound caused by a simple typo will be
-            # caught above when the metadata is fetched, not here
-            time_travel_not_found = True
 
-    # At this point, time travel is known to fail, but can we query without time travel?
-    snapshot_sql = bigframes.session._io.bigquery.to_query(
-        query_or_table=f"{table.reference.project}.{table.reference.dataset_id}.{table.reference.table_id}",
-        columns=columns or (),
-        sql_predicate=filter_str,
-        time_travel_timestamp=None,
-    )
-    # Any errors here should just be raised to user
-    bqclient.query_and_wait(
-        snapshot_sql, job_config=bigquery.QueryJobConfig(dry_run=True)
-    )
-    if time_travel_not_found:
-        msg = bfe.format_message(
-            "NotFound error when reading table with time travel."
-            " Attempting query without time travel. Warning: Without"
-            " time travel, modifications to the underlying table may"
-            " result in errors or unexpected behavior."
-        )
-        warnings.warn(msg, category=bfe.TimeTravelDisabledWarning)
-    return False
+        except google.api_core.exceptions.NotFound:
+            # If system time isn't supported, it returns NotFound error?
+            # Note that a notfound caused by a simple typo will be
+            # caught above when the metadata is fetched, not here.
+            if should_warn:
+                msg = bfe.format_message(
+                    "NotFound error when reading table with time travel."
+                    " Attempting query without time travel. Warning: Without"
+                    " time travel, modifications to the underlying table may"
+                    " result in errors or unexpected behavior."
+                )
+                warnings.warn(
+                    msg, category=bfe.TimeTravelDisabledWarning, stacklevel=stacklevel
+                )
+
+        # If we make it to here, we know for sure that time travel won't work.
+        return False
+    else:
+        # We haven't validated it, but there's a chance that time travel could work.
+        return True
 
 
 def infer_unique_columns(
-    bqclient: bigquery.Client,
-    table: bigquery.table.Table,
+    table: google.cloud.bigquery.table.Table,
     index_cols: List[str],
-    metadata_only: bool = False,
 ) -> Tuple[str, ...]:
     """Return a set of columns that can provide a unique row key or empty if none can be inferred.
 
@@ -256,14 +307,37 @@ def infer_unique_columns(
         # Essentially, just reordering the primary key to match the index col order
         return tuple(index_col for index_col in index_cols if index_col in primary_keys)
 
-    if primary_keys or metadata_only or (not index_cols):
-        # Sometimes not worth scanning data to check uniqueness
+    if primary_keys:
         return primary_keys
+
+    return ()
+
+
+def check_if_index_columns_are_unique(
+    bqclient: bigquery.Client,
+    table: google.cloud.bigquery.table.Table,
+    index_cols: List[str],
+    *,
+    publisher: bigframes.core.events.Publisher,
+) -> Tuple[str, ...]:
+    import bigframes.core.sql
+    import bigframes.session._io.bigquery
+
     # TODO(b/337925142): Avoid a "SELECT *" subquery here by ensuring
     # table_expression only selects just index_cols.
     is_unique_sql = bigframes.core.sql.is_distinct_sql(index_cols, table.reference)
     job_config = bigquery.QueryJobConfig()
-    results = bqclient.query_and_wait(is_unique_sql, job_config=job_config)
+    results, _ = bigframes.session._io.bigquery.start_query_with_client(
+        bq_client=bqclient,
+        sql=is_unique_sql,
+        job_config=job_config,
+        timeout=None,
+        location=None,
+        project=None,
+        metrics=None,
+        query_with_job=False,
+        publisher=publisher,
+    )
     row = next(iter(results))
 
     if row["total_count"] == row["distinct_count"]:
@@ -272,7 +346,7 @@ def infer_unique_columns(
 
 
 def _get_primary_keys(
-    table: bigquery.table.Table,
+    table: google.cloud.bigquery.table.Table,
 ) -> List[str]:
     """Get primary keys from table if they are set."""
 
@@ -290,7 +364,7 @@ def _get_primary_keys(
 
 
 def _is_table_clustered_or_partitioned(
-    table: bigquery.table.Table,
+    table: google.cloud.bigquery.table.Table,
 ) -> bool:
     """Returns True if the table is clustered or partitioned."""
 
@@ -313,7 +387,7 @@ def _is_table_clustered_or_partitioned(
 
 
 def get_index_cols(
-    table: bigquery.table.Table,
+    table: google.cloud.bigquery.table.Table,
     index_col: Iterable[str]
     | str
     | Iterable[int]

@@ -79,7 +79,7 @@ class SQLGlotIR:
             expressions=[
                 sge.ColumnDef(
                     this=sge.to_identifier(field.column, quoted=True),
-                    kind=sgt.SQLGlotType.from_bigframes_dtype(field.dtype),
+                    kind=sgt.from_bigframes_dtype(field.dtype),
                 )
                 for field in schema.items
             ],
@@ -175,7 +175,7 @@ class SQLGlotIR:
         ), f"At least two select expressions must be provided, but got {selects}."
 
         existing_ctes: list[sge.CTE] = []
-        union_selects: list[sge.Select] = []
+        union_selects: list[sge.Expression] = []
         for select in selects:
             assert isinstance(
                 select, sge.Select
@@ -204,10 +204,14 @@ class SQLGlotIR:
                 sge.Select().select(*selections).from_(sge.Table(this=new_cte_name))
             )
 
-        union_expr = sg.union(
-            *union_selects,
-            distinct=False,
-            copy=False,
+        union_expr = typing.cast(
+            sge.Select,
+            functools.reduce(
+                lambda x, y: sge.Union(
+                    this=x, expression=y, distinct=False, copy=False
+                ),
+                union_selects,
+            ),
         )
         final_select_expr = sge.Select().select(sge.Star()).from_(union_expr.subquery())
         final_select_expr.set("with", sge.With(expressions=existing_ctes))
@@ -336,6 +340,68 @@ class SQLGlotIR:
 
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
+    def isin_join(
+        self,
+        right: SQLGlotIR,
+        indicator_col: str,
+        conditions: tuple[typed_expr.TypedExpr, typed_expr.TypedExpr],
+        joins_nulls: bool = True,
+    ) -> SQLGlotIR:
+        """Joins the current query with another SQLGlotIR instance."""
+        left_cte_name = sge.to_identifier(
+            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+        )
+
+        left_select = _select_to_cte(self.expr, left_cte_name)
+        # Prefer subquery over CTE for the IN clause's right side to improve SQL readability.
+        right_select = right.expr
+
+        left_ctes = left_select.args.pop("with", [])
+        right_ctes = right_select.args.pop("with", [])
+        merged_ctes = [*left_ctes, *right_ctes]
+
+        left_condition = typed_expr.TypedExpr(
+            sge.Column(this=conditions[0].expr, table=left_cte_name),
+            conditions[0].dtype,
+        )
+
+        new_column: sge.Expression
+        if joins_nulls:
+            right_table_name = sge.to_identifier(
+                next(self.uid_gen.get_uid_stream("bft_")), quoted=self.quoted
+            )
+            right_condition = typed_expr.TypedExpr(
+                sge.Column(this=conditions[1].expr, table=right_table_name),
+                conditions[1].dtype,
+            )
+            new_column = sge.Exists(
+                this=sge.Select()
+                .select(sge.convert(1))
+                .from_(sge.Alias(this=right_select.subquery(), alias=right_table_name))
+                .where(
+                    _join_condition(left_condition, right_condition, joins_nulls=True)
+                )
+            )
+        else:
+            new_column = sge.In(
+                this=left_condition.expr,
+                expressions=[right_select.subquery()],
+            )
+
+        new_column = sge.Alias(
+            this=new_column,
+            alias=sge.to_identifier(indicator_col, quoted=self.quoted),
+        )
+
+        new_expr = (
+            sge.Select()
+            .select(sge.Column(this=sge.Star(), table=left_cte_name), new_column)
+            .from_(sge.Table(this=left_cte_name))
+        )
+        new_expr.set("with", sge.With(expressions=merged_ctes))
+
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
     def explode(
         self,
         column_names: tuple[str, ...],
@@ -408,6 +474,13 @@ class SQLGlotIR:
         if condition is not None:
             new_expr = new_expr.where(condition, append=False)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+    def window(
+        self,
+        window_op: sge.Expression,
+        output_column_id: str,
+    ) -> SQLGlotIR:
+        return self.project(((output_column_id, window_op),))
 
     def insert(
         self,
@@ -547,7 +620,7 @@ def _select_to_cte(expr: sge.Select, cte_name: sge.Identifier) -> sge.Select:
 
 
 def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
-    sqlglot_type = sgt.SQLGlotType.from_bigframes_dtype(dtype)
+    sqlglot_type = sgt.from_bigframes_dtype(dtype)
     if value is None:
         return _cast(sge.Null(), sqlglot_type)
     elif dtype == dtypes.BYTES_DTYPE:

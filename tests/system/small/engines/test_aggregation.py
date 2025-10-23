@@ -12,11 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from google.cloud import bigquery
 import pytest
 
-from bigframes.core import array_value, expression, identifiers, nodes
+from bigframes.core import (
+    agg_expressions,
+    array_value,
+    events,
+    expression,
+    identifiers,
+    nodes,
+)
 import bigframes.operations.aggregations as agg_ops
-from bigframes.session import polars_executor
+from bigframes.session import direct_gbq_execution, polars_executor
 from bigframes.testing.engine_utils import assert_equivalence_execution
 
 pytest.importorskip("polars")
@@ -37,7 +45,7 @@ def apply_agg_to_all_valid(
             continue
         try:
             _ = op.output_type(array.get_column_type(arg))
-            expr = expression.UnaryAggregation(op, expression.deref(arg))
+            expr = agg_expressions.UnaryAggregation(op, expression.deref(arg))
             name = f"{arg}-{op.name}"
             exprs_by_name.append((expr, name))
         except TypeError:
@@ -45,6 +53,25 @@ def apply_agg_to_all_valid(
     assert len(exprs_by_name) > 0
     new_arr = array.aggregate(exprs_by_name)
     return new_arr
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
+def test_engines_aggregate_post_filter_size(
+    scalars_array_value: array_value.ArrayValue,
+    engine,
+):
+    w_offsets, offsets_id = (
+        scalars_array_value.select_columns(("bool_col", "string_col"))
+        .filter(expression.deref("bool_col"))
+        .promote_offsets()
+    )
+    plan = (
+        w_offsets.select_columns((offsets_id, "bool_col", "string_col"))
+        .row_count()
+        .node
+    )
+
+    assert_equivalence_execution(plan, REFERENCE_ENGINE, engine)
 
 
 @pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
@@ -56,11 +83,11 @@ def test_engines_aggregate_size(
         scalars_array_value.node,
         aggregations=(
             (
-                expression.NullaryAggregation(agg_ops.SizeOp()),
+                agg_expressions.NullaryAggregation(agg_ops.SizeOp()),
                 identifiers.ColumnId("size_op"),
             ),
             (
-                expression.UnaryAggregation(
+                agg_expressions.UnaryAggregation(
                     agg_ops.SizeUnaryOp(), expression.deref("string_col")
                 ),
                 identifiers.ColumnId("unary_size_op"),
@@ -70,7 +97,7 @@ def test_engines_aggregate_size(
     assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
 
 
-@pytest.mark.parametrize("engine", ["polars", "bq"], indirect=True)
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
 @pytest.mark.parametrize(
     "op",
     [agg_ops.min_op, agg_ops.max_op, agg_ops.mean_op, agg_ops.sum_op, agg_ops.count_op],
@@ -82,6 +109,24 @@ def test_engines_unary_aggregates(
 ):
     node = apply_agg_to_all_valid(scalars_array_value, op).node
     assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
+
+
+def test_sql_engines_median_op_aggregates(
+    scalars_array_value: array_value.ArrayValue,
+    bigquery_client: bigquery.Client,
+):
+    node = apply_agg_to_all_valid(
+        scalars_array_value,
+        agg_ops.MedianOp(),
+    ).node
+    publisher = events.Publisher()
+    left_engine = direct_gbq_execution.DirectGbqExecutor(
+        bigquery_client, publisher=publisher
+    )
+    right_engine = direct_gbq_execution.DirectGbqExecutor(
+        bigquery_client, compiler="sqlglot", publisher=publisher
+    )
+    assert_equivalence_execution(node, left_engine, right_engine)
 
 
 @pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
@@ -103,11 +148,11 @@ def test_engines_grouped_aggregate(
         scalars_array_value.node,
         aggregations=(
             (
-                expression.NullaryAggregation(agg_ops.SizeOp()),
+                agg_expressions.NullaryAggregation(agg_ops.SizeOp()),
                 identifiers.ColumnId("size_op"),
             ),
             (
-                expression.UnaryAggregation(
+                agg_expressions.UnaryAggregation(
                     agg_ops.SizeUnaryOp(), expression.deref("string_col")
                 ),
                 identifiers.ColumnId("unary_size_op"),

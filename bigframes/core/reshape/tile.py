@@ -15,11 +15,13 @@
 from __future__ import annotations
 
 import typing
+from typing import Optional, TYPE_CHECKING
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 import pandas as pd
 
+import bigframes
 import bigframes.constants
 import bigframes.core.expression as ex
 import bigframes.core.ordering as order
@@ -30,9 +32,12 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.series
 
+if TYPE_CHECKING:
+    import bigframes.session
+
 
 def cut(
-    x: bigframes.series.Series,
+    x,
     bins: typing.Union[
         int,
         pd.IntervalIndex,
@@ -41,6 +46,7 @@ def cut(
     *,
     right: typing.Optional[bool] = True,
     labels: typing.Union[typing.Iterable[str], bool, None] = None,
+    session: Optional[bigframes.session.Session] = None,
 ) -> bigframes.series.Series:
     if (
         labels is not None
@@ -60,8 +66,11 @@ def cut(
             f"but found {type(list(labels)[0])}. {constants.FEEDBACK_LINK}"
         )
 
-    if x.size == 0:
+    if len(x) == 0:
         raise ValueError("Cannot cut empty array.")
+
+    if not isinstance(x, bigframes.series.Series):
+        x = bigframes.series.Series(x, session=session)
 
     if isinstance(bins, int):
         if bins <= 0:

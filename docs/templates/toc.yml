@@ -218,6 +218,9 @@
   - items:
     - name: BigQuery built-in functions
       uid: bigframes.bigquery
+    - name: BigQuery AI Functions
+      uid: bigframes.bigquery._operations.ai
+      status: beta
     name: bigframes.bigquery
   - items:
     - name: GeoSeries

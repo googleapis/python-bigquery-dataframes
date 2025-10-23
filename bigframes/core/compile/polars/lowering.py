@@ -13,11 +13,21 @@
 # limitations under the License.
 
 import dataclasses
+from typing import cast
+
+import numpy as np
+import pandas as pd
 
 from bigframes import dtypes
 from bigframes.core import bigframe_node, expression
 from bigframes.core.rewrite import op_lowering
-from bigframes.operations import comparison_ops, numeric_ops
+from bigframes.operations import (
+    comparison_ops,
+    datetime_ops,
+    generic_ops,
+    json_ops,
+    numeric_ops,
+)
 import bigframes.operations as ops
 
 # TODO: Would be more precise to actually have separate op set for polars ops (where they diverge from the original ops)
@@ -278,6 +288,65 @@ class LowerModRule(op_lowering.OpLoweringRule):
         return wo_bools
 
 
+class LowerAsTypeRule(op_lowering.OpLoweringRule):
+    @property
+    def op(self) -> type[ops.ScalarOp]:
+        return ops.AsTypeOp
+
+    def lower(self, expr: expression.OpExpression) -> expression.Expression:
+        assert isinstance(expr.op, ops.AsTypeOp)
+        return _lower_cast(expr.op, expr.inputs[0])
+
+
+def invert_bytes(byte_string):
+    inverted_bytes = ~np.frombuffer(byte_string, dtype=np.uint8)
+    return inverted_bytes.tobytes()
+
+
+class LowerInvertOp(op_lowering.OpLoweringRule):
+    @property
+    def op(self) -> type[ops.ScalarOp]:
+        return generic_ops.InvertOp
+
+    def lower(self, expr: expression.OpExpression) -> expression.Expression:
+        assert isinstance(expr.op, generic_ops.InvertOp)
+        arg = expr.children[0]
+        if arg.output_type == dtypes.BYTES_DTYPE:
+            return generic_ops.PyUdfOp(invert_bytes, dtypes.BYTES_DTYPE).as_expr(
+                expr.inputs[0]
+            )
+        return expr
+
+
+class LowerIsinOp(op_lowering.OpLoweringRule):
+    @property
+    def op(self) -> type[ops.ScalarOp]:
+        return generic_ops.IsInOp
+
+    def lower(self, expr: expression.OpExpression) -> expression.Expression:
+        assert isinstance(expr.op, generic_ops.IsInOp)
+        arg = expr.children[0]
+        new_values = []
+        match_nulls = False
+        for val in expr.op.values:
+            # coercible, non-coercible
+            # float NaN/inf should be treated as distinct from 'true' null values
+            if cast(bool, pd.isna(val)) and not isinstance(val, float):
+                if expr.op.match_nulls:
+                    match_nulls = True
+            elif dtypes.is_compatible(val, arg.output_type):
+                new_values.append(val)
+            else:
+                pass
+
+        new_isin = ops.IsInOp(tuple(new_values), match_nulls=False).as_expr(arg)
+        if match_nulls:
+            return ops.coalesce_op.as_expr(new_isin, expression.const(True))
+        else:
+            # polars propagates nulls, so need to coalesce to false
+            return ops.coalesce_op.as_expr(new_isin, expression.const(False))
+
+
 def _coerce_comparables(
     expr1: expression.Expression,
     expr2: expression.Expression,
@@ -299,12 +368,57 @@ def _coerce_comparables(
     return expr1, expr2
 
 
-# TODO: Need to handle bool->string cast to get capitalization correct
 def _lower_cast(cast_op: ops.AsTypeOp, arg: expression.Expression):
+    if arg.output_type == cast_op.to_type:
+        return arg
+
+    if arg.output_type == dtypes.JSON_DTYPE:
+        return json_ops.JSONDecode(cast_op.to_type).as_expr(arg)
+    if (
+        arg.output_type == dtypes.STRING_DTYPE
+        and cast_op.to_type == dtypes.DATETIME_DTYPE
+    ):
+        return datetime_ops.ParseDatetimeOp().as_expr(arg)
+    if (
+        arg.output_type == dtypes.STRING_DTYPE
+        and cast_op.to_type == dtypes.TIMESTAMP_DTYPE
+    ):
+        return datetime_ops.ParseTimestampOp().as_expr(arg)
+    # date -> string casting
+    if (
+        arg.output_type == dtypes.DATETIME_DTYPE
+        and cast_op.to_type == dtypes.STRING_DTYPE
+    ):
+        return datetime_ops.StrftimeOp("%Y-%m-%d %H:%M:%S").as_expr(arg)
+    if arg.output_type == dtypes.TIME_DTYPE and cast_op.to_type == dtypes.STRING_DTYPE:
+        return datetime_ops.StrftimeOp("%H:%M:%S.%6f").as_expr(arg)
+    if (
+        arg.output_type == dtypes.TIMESTAMP_DTYPE
+        and cast_op.to_type == dtypes.STRING_DTYPE
+    ):
+        return datetime_ops.StrftimeOp("%Y-%m-%d %H:%M:%S%.6f%:::z").as_expr(arg)
+    if arg.output_type == dtypes.BOOL_DTYPE and cast_op.to_type == dtypes.STRING_DTYPE:
+        # bool -> decimal needs two-step cast
+        new_arg = ops.AsTypeOp(to_type=dtypes.INT_DTYPE).as_expr(arg)
+        is_true_cond = ops.eq_op.as_expr(arg, expression.const(True))
+        is_false_cond = ops.eq_op.as_expr(arg, expression.const(False))
+        return ops.CaseWhenOp().as_expr(
+            is_true_cond,
+            expression.const("True"),
+            is_false_cond,
+            expression.const("False"),
+        )
     if arg.output_type == dtypes.BOOL_DTYPE and dtypes.is_numeric(cast_op.to_type):
         # bool -> decimal needs two-step cast
         new_arg = ops.AsTypeOp(to_type=dtypes.INT_DTYPE).as_expr(arg)
         return cast_op.as_expr(new_arg)
+    if arg.output_type == dtypes.TIME_DTYPE and dtypes.is_numeric(cast_op.to_type):
+        # polars cast gives nanoseconds, so convert to microseconds
+        return numeric_ops.floordiv_op.as_expr(
+            cast_op.as_expr(arg), expression.const(1000)
+        )
+    if dtypes.is_numeric(arg.output_type) and cast_op.to_type == dtypes.TIME_DTYPE:
+        return cast_op.as_expr(ops.mul_op.as_expr(expression.const(1000), arg))
     return cast_op.as_expr(arg)
 
 
@@ -329,6 +443,9 @@ POLARS_LOWERING_RULES = (
     LowerDivRule(),
     LowerFloorDivRule(),
     LowerModRule(),
+    LowerAsTypeRule(),
+    LowerInvertOp(),
+    LowerIsinOp(),
 )
 
 

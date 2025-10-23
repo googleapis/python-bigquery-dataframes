@@ -15,20 +15,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from bigframes.core import rewrite
-from bigframes.core.compile import compiler
-
 if TYPE_CHECKING:
     import bigframes.core.nodes
 
 
 def test_only_ibis_inferred_schema(node: bigframes.core.nodes.BigFrameNode):
     """Use only for testing paths to ensure ibis inferred schema does not diverge from bigframes inferred schema."""
+    from bigframes.core.compile.ibis_compiler import ibis_compiler
+    import bigframes.core.rewrite
     import bigframes.core.schema
 
-    node = compiler._replace_unsupported_ops(node)
-    node = rewrite.bake_order(node)
-    ir = compiler.compile_node(node)
+    node = ibis_compiler._replace_unsupported_ops(node)
+    node = bigframes.core.rewrite.bake_order(node)
+    ir = ibis_compiler.compile_node(node)
     items = tuple(
         bigframes.core.schema.SchemaItem(name, ir.get_column_type(ibis_id))
         for name, ibis_id in zip(node.schema.names, ir.column_ids)
