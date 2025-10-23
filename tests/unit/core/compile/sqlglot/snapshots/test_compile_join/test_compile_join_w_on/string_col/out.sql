@@ -1,13 +1,11 @@
 WITH `bfcte_1` AS (
   SELECT
-    `rowindex` AS `bfcol_0`,
-    `string_col` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` STRING>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS STRING))])
 ), `bfcte_0` AS (
   SELECT
-    `rowindex` AS `bfcol_2`,
-    `string_col` AS `bfcol_3`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_2` INT64, `bfcol_3` STRING>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS STRING))])
 ), `bfcte_2` AS (
   SELECT
     `bfcol_2` AS `bfcol_4`,

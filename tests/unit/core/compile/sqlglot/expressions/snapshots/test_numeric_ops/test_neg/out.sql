@@ -1,13 +1,15 @@
 WITH `bfcte_0` AS (
   SELECT
-    `float64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` FLOAT64, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS FLOAT64), 0)])
 ), `bfcte_1` AS (
   SELECT
     *,
-    -`bfcol_0` AS `bfcol_1`
+    -`bfcol_0` AS `bfcol_2`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_1` AS `float64_col`
+  `bfcol_2` AS `float64_col`
 FROM `bfcte_1`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST

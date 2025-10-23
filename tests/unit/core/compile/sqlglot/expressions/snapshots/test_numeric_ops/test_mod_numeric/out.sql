@@ -1,15 +1,13 @@
 WITH `bfcte_0` AS (
   SELECT
-    `int64_col` AS `bfcol_0`,
-    `float64_col` AS `bfcol_1`,
-    `rowindex` AS `bfcol_2`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` FLOAT64, `bfcol_2` INT64, `bfcol_3` INT64>>[STRUCT(CAST(NULL AS INT64), CAST(NULL AS FLOAT64), CAST(NULL AS INT64), 0)])
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_2` AS `bfcol_6`,
-    `bfcol_0` AS `bfcol_7`,
-    `bfcol_1` AS `bfcol_8`,
+    `bfcol_2` AS `bfcol_8`,
+    `bfcol_0` AS `bfcol_9`,
+    `bfcol_1` AS `bfcol_10`,
     CASE
       WHEN `bfcol_0` = CAST(0 AS INT64)
       THEN CAST(0 AS INT64) * `bfcol_0`
@@ -28,225 +26,227 @@ WITH `bfcte_0` AS (
         MOD(`bfcol_0`, `bfcol_0`)
       )
       ELSE MOD(`bfcol_0`, `bfcol_0`)
-    END AS `bfcol_9`
+    END AS `bfcol_11`
   FROM `bfcte_0`
 ), `bfcte_2` AS (
   SELECT
     *,
-    `bfcol_6` AS `bfcol_14`,
-    `bfcol_7` AS `bfcol_15`,
-    `bfcol_8` AS `bfcol_16`,
-    `bfcol_9` AS `bfcol_17`,
+    `bfcol_8` AS `bfcol_17`,
+    `bfcol_9` AS `bfcol_18`,
+    `bfcol_10` AS `bfcol_19`,
+    `bfcol_11` AS `bfcol_20`,
     CASE
-      WHEN -`bfcol_7` = CAST(0 AS INT64)
-      THEN CAST(0 AS INT64) * `bfcol_7`
-      WHEN -`bfcol_7` < CAST(0 AS INT64)
+      WHEN -`bfcol_9` = CAST(0 AS INT64)
+      THEN CAST(0 AS INT64) * `bfcol_9`
+      WHEN -`bfcol_9` < CAST(0 AS INT64)
       AND (
-        MOD(`bfcol_7`, -`bfcol_7`)
+        MOD(`bfcol_9`, -`bfcol_9`)
       ) > CAST(0 AS INT64)
-      THEN -`bfcol_7` + (
-        MOD(`bfcol_7`, -`bfcol_7`)
+      THEN -`bfcol_9` + (
+        MOD(`bfcol_9`, -`bfcol_9`)
       )
-      WHEN -`bfcol_7` > CAST(0 AS INT64)
+      WHEN -`bfcol_9` > CAST(0 AS INT64)
       AND (
-        MOD(`bfcol_7`, -`bfcol_7`)
+        MOD(`bfcol_9`, -`bfcol_9`)
       ) < CAST(0 AS INT64)
-      THEN -`bfcol_7` + (
-        MOD(`bfcol_7`, -`bfcol_7`)
+      THEN -`bfcol_9` + (
+        MOD(`bfcol_9`, -`bfcol_9`)
       )
-      ELSE MOD(`bfcol_7`, -`bfcol_7`)
-    END AS `bfcol_18`
+      ELSE MOD(`bfcol_9`, -`bfcol_9`)
+    END AS `bfcol_21`
   FROM `bfcte_1`
 ), `bfcte_3` AS (
   SELECT
     *,
-    `bfcol_14` AS `bfcol_24`,
-    `bfcol_15` AS `bfcol_25`,
-    `bfcol_16` AS `bfcol_26`,
-    `bfcol_17` AS `bfcol_27`,
-    `bfcol_18` AS `bfcol_28`,
+    `bfcol_17` AS `bfcol_28`,
+    `bfcol_18` AS `bfcol_29`,
+    `bfcol_19` AS `bfcol_30`,
+    `bfcol_20` AS `bfcol_31`,
+    `bfcol_21` AS `bfcol_32`,
     CASE
       WHEN 1 = CAST(0 AS INT64)
-      THEN CAST(0 AS INT64) * `bfcol_15`
+      THEN CAST(0 AS INT64) * `bfcol_18`
       WHEN 1 < CAST(0 AS INT64) AND (
-        MOD(`bfcol_15`, 1)
+        MOD(`bfcol_18`, 1)
       ) > CAST(0 AS INT64)
       THEN 1 + (
-        MOD(`bfcol_15`, 1)
+        MOD(`bfcol_18`, 1)
       )
       WHEN 1 > CAST(0 AS INT64) AND (
-        MOD(`bfcol_15`, 1)
+        MOD(`bfcol_18`, 1)
       ) < CAST(0 AS INT64)
       THEN 1 + (
-        MOD(`bfcol_15`, 1)
+        MOD(`bfcol_18`, 1)
       )
-      ELSE MOD(`bfcol_15`, 1)
-    END AS `bfcol_29`
+      ELSE MOD(`bfcol_18`, 1)
+    END AS `bfcol_33`
   FROM `bfcte_2`
 ), `bfcte_4` AS (
   SELECT
     *,
-    `bfcol_24` AS `bfcol_36`,
-    `bfcol_25` AS `bfcol_37`,
-    `bfcol_26` AS `bfcol_38`,
-    `bfcol_27` AS `bfcol_39`,
-    `bfcol_28` AS `bfcol_40`,
-    `bfcol_29` AS `bfcol_41`,
+    `bfcol_28` AS `bfcol_41`,
+    `bfcol_29` AS `bfcol_42`,
+    `bfcol_30` AS `bfcol_43`,
+    `bfcol_31` AS `bfcol_44`,
+    `bfcol_32` AS `bfcol_45`,
+    `bfcol_33` AS `bfcol_46`,
     CASE
       WHEN 0 = CAST(0 AS INT64)
-      THEN CAST(0 AS INT64) * `bfcol_25`
+      THEN CAST(0 AS INT64) * `bfcol_29`
       WHEN 0 < CAST(0 AS INT64) AND (
-        MOD(`bfcol_25`, 0)
+        MOD(`bfcol_29`, 0)
       ) > CAST(0 AS INT64)
       THEN 0 + (
-        MOD(`bfcol_25`, 0)
+        MOD(`bfcol_29`, 0)
       )
       WHEN 0 > CAST(0 AS INT64) AND (
-        MOD(`bfcol_25`, 0)
+        MOD(`bfcol_29`, 0)
       ) < CAST(0 AS INT64)
       THEN 0 + (
-        MOD(`bfcol_25`, 0)
+        MOD(`bfcol_29`, 0)
       )
-      ELSE MOD(`bfcol_25`, 0)
-    END AS `bfcol_42`
+      ELSE MOD(`bfcol_29`, 0)
+    END AS `bfcol_47`
   FROM `bfcte_3`
 ), `bfcte_5` AS (
   SELECT
     *,
-    `bfcol_36` AS `bfcol_50`,
-    `bfcol_37` AS `bfcol_51`,
-    `bfcol_38` AS `bfcol_52`,
-    `bfcol_39` AS `bfcol_53`,
-    `bfcol_40` AS `bfcol_54`,
-    `bfcol_41` AS `bfcol_55`,
-    `bfcol_42` AS `bfcol_56`,
+    `bfcol_41` AS `bfcol_56`,
+    `bfcol_42` AS `bfcol_57`,
+    `bfcol_43` AS `bfcol_58`,
+    `bfcol_44` AS `bfcol_59`,
+    `bfcol_45` AS `bfcol_60`,
+    `bfcol_46` AS `bfcol_61`,
+    `bfcol_47` AS `bfcol_62`,
     CASE
-      WHEN CAST(`bfcol_38` AS BIGNUMERIC) = CAST(0 AS INT64)
-      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_38` AS BIGNUMERIC)
-      WHEN CAST(`bfcol_38` AS BIGNUMERIC) < CAST(0 AS INT64)
+      WHEN CAST(`bfcol_43` AS BIGNUMERIC) = CAST(0 AS INT64)
+      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_43` AS BIGNUMERIC)
+      WHEN CAST(`bfcol_43` AS BIGNUMERIC) < CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_38` AS BIGNUMERIC), CAST(`bfcol_38` AS BIGNUMERIC))
+        MOD(CAST(`bfcol_43` AS BIGNUMERIC), CAST(`bfcol_43` AS BIGNUMERIC))
       ) > CAST(0 AS INT64)
-      THEN CAST(`bfcol_38` AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_38` AS BIGNUMERIC), CAST(`bfcol_38` AS BIGNUMERIC))
+      THEN CAST(`bfcol_43` AS BIGNUMERIC) + (
+        MOD(CAST(`bfcol_43` AS BIGNUMERIC), CAST(`bfcol_43` AS BIGNUMERIC))
       )
-      WHEN CAST(`bfcol_38` AS BIGNUMERIC) > CAST(0 AS INT64)
+      WHEN CAST(`bfcol_43` AS BIGNUMERIC) > CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_38` AS BIGNUMERIC), CAST(`bfcol_38` AS BIGNUMERIC))
+        MOD(CAST(`bfcol_43` AS BIGNUMERIC), CAST(`bfcol_43` AS BIGNUMERIC))
       ) < CAST(0 AS INT64)
-      THEN CAST(`bfcol_38` AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_38` AS BIGNUMERIC), CAST(`bfcol_38` AS BIGNUMERIC))
+      THEN CAST(`bfcol_43` AS BIGNUMERIC) + (
+        MOD(CAST(`bfcol_43` AS BIGNUMERIC), CAST(`bfcol_43` AS BIGNUMERIC))
       )
-      ELSE MOD(CAST(`bfcol_38` AS BIGNUMERIC), CAST(`bfcol_38` AS BIGNUMERIC))
-    END AS `bfcol_57`
+      ELSE MOD(CAST(`bfcol_43` AS BIGNUMERIC), CAST(`bfcol_43` AS BIGNUMERIC))
+    END AS `bfcol_63`
   FROM `bfcte_4`
 ), `bfcte_6` AS (
   SELECT
     *,
-    `bfcol_50` AS `bfcol_66`,
-    `bfcol_51` AS `bfcol_67`,
-    `bfcol_52` AS `bfcol_68`,
-    `bfcol_53` AS `bfcol_69`,
-    `bfcol_54` AS `bfcol_70`,
-    `bfcol_55` AS `bfcol_71`,
-    `bfcol_56` AS `bfcol_72`,
-    `bfcol_57` AS `bfcol_73`,
+    `bfcol_56` AS `bfcol_73`,
+    `bfcol_57` AS `bfcol_74`,
+    `bfcol_58` AS `bfcol_75`,
+    `bfcol_59` AS `bfcol_76`,
+    `bfcol_60` AS `bfcol_77`,
+    `bfcol_61` AS `bfcol_78`,
+    `bfcol_62` AS `bfcol_79`,
+    `bfcol_63` AS `bfcol_80`,
     CASE
-      WHEN CAST(-`bfcol_52` AS BIGNUMERIC) = CAST(0 AS INT64)
-      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_52` AS BIGNUMERIC)
-      WHEN CAST(-`bfcol_52` AS BIGNUMERIC) < CAST(0 AS INT64)
+      WHEN CAST(-`bfcol_58` AS BIGNUMERIC) = CAST(0 AS INT64)
+      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_58` AS BIGNUMERIC)
+      WHEN CAST(-`bfcol_58` AS BIGNUMERIC) < CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_52` AS BIGNUMERIC), CAST(-`bfcol_52` AS BIGNUMERIC))
+        MOD(CAST(`bfcol_58` AS BIGNUMERIC), CAST(-`bfcol_58` AS BIGNUMERIC))
       ) > CAST(0 AS INT64)
-      THEN CAST(-`bfcol_52` AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_52` AS BIGNUMERIC), CAST(-`bfcol_52` AS BIGNUMERIC))
+      THEN CAST(-`bfcol_58` AS BIGNUMERIC) + (
+        MOD(CAST(`bfcol_58` AS BIGNUMERIC), CAST(-`bfcol_58` AS BIGNUMERIC))
       )
-      WHEN CAST(-`bfcol_52` AS BIGNUMERIC) > CAST(0 AS INT64)
+      WHEN CAST(-`bfcol_58` AS BIGNUMERIC) > CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_52` AS BIGNUMERIC), CAST(-`bfcol_52` AS BIGNUMERIC))
+        MOD(CAST(`bfcol_58` AS BIGNUMERIC), CAST(-`bfcol_58` AS BIGNUMERIC))
       ) < CAST(0 AS INT64)
-      THEN CAST(-`bfcol_52` AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_52` AS BIGNUMERIC), CAST(-`bfcol_52` AS BIGNUMERIC))
+      THEN CAST(-`bfcol_58` AS BIGNUMERIC) + (
+        MOD(CAST(`bfcol_58` AS BIGNUMERIC), CAST(-`bfcol_58` AS BIGNUMERIC))
       )
-      ELSE MOD(CAST(`bfcol_52` AS BIGNUMERIC), CAST(-`bfcol_52` AS BIGNUMERIC))
-    END AS `bfcol_74`
+      ELSE MOD(CAST(`bfcol_58` AS BIGNUMERIC), CAST(-`bfcol_58` AS BIGNUMERIC))
+    END AS `bfcol_81`
   FROM `bfcte_5`
 ), `bfcte_7` AS (
   SELECT
     *,
-    `bfcol_66` AS `bfcol_84`,
-    `bfcol_67` AS `bfcol_85`,
-    `bfcol_68` AS `bfcol_86`,
-    `bfcol_69` AS `bfcol_87`,
-    `bfcol_70` AS `bfcol_88`,
-    `bfcol_71` AS `bfcol_89`,
-    `bfcol_72` AS `bfcol_90`,
-    `bfcol_73` AS `bfcol_91`,
-    `bfcol_74` AS `bfcol_92`,
+    `bfcol_73` AS `bfcol_92`,
+    `bfcol_74` AS `bfcol_93`,
+    `bfcol_75` AS `bfcol_94`,
+    `bfcol_76` AS `bfcol_95`,
+    `bfcol_77` AS `bfcol_96`,
+    `bfcol_78` AS `bfcol_97`,
+    `bfcol_79` AS `bfcol_98`,
+    `bfcol_80` AS `bfcol_99`,
+    `bfcol_81` AS `bfcol_100`,
     CASE
       WHEN CAST(1 AS BIGNUMERIC) = CAST(0 AS INT64)
-      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_68` AS BIGNUMERIC)
+      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_75` AS BIGNUMERIC)
       WHEN CAST(1 AS BIGNUMERIC) < CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_68` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_75` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
       ) > CAST(0 AS INT64)
       THEN CAST(1 AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_68` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_75` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
       )
       WHEN CAST(1 AS BIGNUMERIC) > CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_68` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_75` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
       ) < CAST(0 AS INT64)
       THEN CAST(1 AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_68` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_75` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
       )
-      ELSE MOD(CAST(`bfcol_68` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
-    END AS `bfcol_93`
+      ELSE MOD(CAST(`bfcol_75` AS BIGNUMERIC), CAST(1 AS BIGNUMERIC))
+    END AS `bfcol_101`
   FROM `bfcte_6`
 ), `bfcte_8` AS (
   SELECT
     *,
-    `bfcol_84` AS `bfcol_104`,
-    `bfcol_85` AS `bfcol_105`,
-    `bfcol_86` AS `bfcol_106`,
-    `bfcol_87` AS `bfcol_107`,
-    `bfcol_88` AS `bfcol_108`,
-    `bfcol_89` AS `bfcol_109`,
-    `bfcol_90` AS `bfcol_110`,
-    `bfcol_91` AS `bfcol_111`,
-    `bfcol_92` AS `bfcol_112`,
-    `bfcol_93` AS `bfcol_113`,
+    `bfcol_92` AS `bfcol_113`,
+    `bfcol_93` AS `bfcol_114`,
+    `bfcol_94` AS `bfcol_115`,
+    `bfcol_95` AS `bfcol_116`,
+    `bfcol_96` AS `bfcol_117`,
+    `bfcol_97` AS `bfcol_118`,
+    `bfcol_98` AS `bfcol_119`,
+    `bfcol_99` AS `bfcol_120`,
+    `bfcol_100` AS `bfcol_121`,
+    `bfcol_101` AS `bfcol_122`,
     CASE
       WHEN CAST(0 AS BIGNUMERIC) = CAST(0 AS INT64)
-      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_86` AS BIGNUMERIC)
+      THEN CAST('NaN' AS FLOAT64) * CAST(`bfcol_94` AS BIGNUMERIC)
       WHEN CAST(0 AS BIGNUMERIC) < CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_86` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_94` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
       ) > CAST(0 AS INT64)
       THEN CAST(0 AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_86` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_94` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
       )
       WHEN CAST(0 AS BIGNUMERIC) > CAST(0 AS INT64)
       AND (
-        MOD(CAST(`bfcol_86` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_94` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
       ) < CAST(0 AS INT64)
       THEN CAST(0 AS BIGNUMERIC) + (
-        MOD(CAST(`bfcol_86` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
+        MOD(CAST(`bfcol_94` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
       )
-      ELSE MOD(CAST(`bfcol_86` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
-    END AS `bfcol_114`
+      ELSE MOD(CAST(`bfcol_94` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
+    END AS `bfcol_123`
   FROM `bfcte_7`
 )
 SELECT
-  `bfcol_104` AS `rowindex`,
-  `bfcol_105` AS `int64_col`,
-  `bfcol_106` AS `float64_col`,
-  `bfcol_107` AS `int_mod_int`,
-  `bfcol_108` AS `int_mod_int_neg`,
-  `bfcol_109` AS `int_mod_1`,
-  `bfcol_110` AS `int_mod_0`,
-  `bfcol_111` AS `float_mod_float`,
-  `bfcol_112` AS `float_mod_float_neg`,
-  `bfcol_113` AS `float_mod_1`,
-  `bfcol_114` AS `float_mod_0`
+  `bfcol_113` AS `rowindex`,
+  `bfcol_114` AS `int64_col`,
+  `bfcol_115` AS `float64_col`,
+  `bfcol_116` AS `int_mod_int`,
+  `bfcol_117` AS `int_mod_int_neg`,
+  `bfcol_118` AS `int_mod_1`,
+  `bfcol_119` AS `int_mod_0`,
+  `bfcol_120` AS `float_mod_float`,
+  `bfcol_121` AS `float_mod_float_neg`,
+  `bfcol_122` AS `float_mod_1`,
+  `bfcol_123` AS `float_mod_0`
 FROM `bfcte_8`
+ORDER BY
+  `bfcol_3` ASC NULLS LAST

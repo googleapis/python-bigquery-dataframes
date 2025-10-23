@@ -1,7 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
-    `bool_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN>>[STRUCT(CAST(NULL AS BOOLEAN))])
 ), `bfcte_1` AS (
   SELECT
     COALESCE(LOGICAL_AND(`bfcol_0`), TRUE) AS `bfcol_1`

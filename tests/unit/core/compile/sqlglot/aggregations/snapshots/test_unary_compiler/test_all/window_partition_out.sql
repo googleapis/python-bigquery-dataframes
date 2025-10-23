@@ -1,8 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
-    `bool_col` AS `bfcol_0`,
-    `string_col` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN, `bfcol_1` STRING, `bfcol_2` INT64>>[STRUCT(CAST(NULL AS BOOLEAN), CAST(NULL AS STRING), 0)])
 ), `bfcte_1` AS (
   SELECT
     *,
@@ -10,9 +9,11 @@ WITH `bfcte_0` AS (
       WHEN `bfcol_0` IS NULL
       THEN NULL
       ELSE COALESCE(LOGICAL_AND(`bfcol_0`) OVER (PARTITION BY `bfcol_1`), TRUE)
-    END AS `bfcol_2`
+    END AS `bfcol_3`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_2` AS `agg_bool`
+  `bfcol_3` AS `agg_bool`
 FROM `bfcte_1`
+ORDER BY
+  `bfcol_2` ASC NULLS LAST

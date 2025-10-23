@@ -1,21 +1,23 @@
 WITH `bfcte_0` AS (
   SELECT
-    `bool_col` AS `bfcol_0`,
-    `bytes_col` AS `bfcol_1`,
-    `date_col` AS `bfcol_2`,
-    `datetime_col` AS `bfcol_3`,
-    `geography_col` AS `bfcol_4`,
-    `int64_col` AS `bfcol_5`,
-    `int64_too` AS `bfcol_6`,
-    `numeric_col` AS `bfcol_7`,
-    `float64_col` AS `bfcol_8`,
-    `rowindex` AS `bfcol_9`,
-    `rowindex_2` AS `bfcol_10`,
-    `string_col` AS `bfcol_11`,
-    `time_col` AS `bfcol_12`,
-    `timestamp_col` AS `bfcol_13`,
-    `duration_col` AS `bfcol_14`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN, `bfcol_1` BYTES, `bfcol_2` DATE, `bfcol_3` DATETIME, `bfcol_4` GEOGRAPHY, `bfcol_5` INT64, `bfcol_6` INT64, `bfcol_7` NUMERIC, `bfcol_8` FLOAT64, `bfcol_9` INT64, `bfcol_10` INT64, `bfcol_11` STRING, `bfcol_12` TIME, `bfcol_13` TIMESTAMP, `bfcol_14` INT64>>[STRUCT(
+    CAST(NULL AS BOOLEAN),
+    CAST(NULL AS BYTES),
+    CAST(NULL AS DATE),
+    CAST(NULL AS DATETIME),
+    CAST(NULL AS GEOGRAPHY),
+    CAST(NULL AS INT64),
+    CAST(NULL AS INT64),
+    CAST(NULL AS NUMERIC),
+    CAST(NULL AS FLOAT64),
+    CAST(NULL AS INT64),
+    CAST(NULL AS INT64),
+    CAST(NULL AS STRING),
+    CAST(NULL AS TIME),
+    CAST(NULL AS TIMESTAMP),
+    CAST(NULL AS INT64)
+  )])
 ), `bfcte_1` AS (
   SELECT
     COUNT(1) AS `bfcol_32`

@@ -1,13 +1,15 @@
 WITH `bfcte_0` AS (
   SELECT
-    `int64_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS INT64), 0)])
 ), `bfcte_1` AS (
   SELECT
     *,
-    `bfcol_0` - LAG(`bfcol_0`, 1) OVER (ORDER BY `bfcol_0` ASC NULLS LAST) AS `bfcol_1`
+    `bfcol_0` - LAG(`bfcol_0`, 1) OVER (ORDER BY `bfcol_0` ASC NULLS LAST, `bfcol_1` ASC NULLS LAST) AS `bfcol_2`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_1` AS `diff_int`
+  `bfcol_2` AS `diff_int`
 FROM `bfcte_1`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST

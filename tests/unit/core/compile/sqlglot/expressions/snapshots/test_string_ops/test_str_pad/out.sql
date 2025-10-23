@@ -1,12 +1,12 @@
 WITH `bfcte_0` AS (
   SELECT
-    `string_col` AS `bfcol_0`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` STRING, `bfcol_1` INT64>>[STRUCT(CAST(NULL AS STRING), 0)])
 ), `bfcte_1` AS (
   SELECT
     *,
-    LPAD(`bfcol_0`, GREATEST(LENGTH(`bfcol_0`), 10), '-') AS `bfcol_1`,
-    RPAD(`bfcol_0`, GREATEST(LENGTH(`bfcol_0`), 10), '-') AS `bfcol_2`,
+    LPAD(`bfcol_0`, GREATEST(LENGTH(`bfcol_0`), 10), '-') AS `bfcol_2`,
+    RPAD(`bfcol_0`, GREATEST(LENGTH(`bfcol_0`), 10), '-') AS `bfcol_3`,
     RPAD(
       LPAD(
         `bfcol_0`,
@@ -15,11 +15,13 @@ WITH `bfcte_0` AS (
       ),
       GREATEST(LENGTH(`bfcol_0`), 10),
       '-'
-    ) AS `bfcol_3`
+    ) AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_1` AS `left`,
-  `bfcol_2` AS `right`,
-  `bfcol_3` AS `both`
+  `bfcol_2` AS `left`,
+  `bfcol_3` AS `right`,
+  `bfcol_4` AS `both`
 FROM `bfcte_1`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST
