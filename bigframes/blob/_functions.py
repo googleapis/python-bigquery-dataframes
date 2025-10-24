@@ -255,9 +255,6 @@ def image_blur_to_bytes_func(
     import base64
     import json
 
-    status = ""
-    content = b""
-
     try:
         import cv2 as cv  # type: ignore
         import numpy as np
@@ -288,15 +285,21 @@ def image_blur_to_bytes_func(
             raise ValueError(f"Failed to encode image with extension {ext}")
         content = encoded.tobytes()
 
-    except Exception as e:
-        status = str(e)
+        encoded_content = base64.b64encode(content).decode("utf-8")
+        result_dict = {"status": "", "content": encoded_content}
+        if verbose:
+            return json.dumps(result_dict)
+        else:
+            return result_dict["content"]
 
-    encoded_content = base64.b64encode(content).decode("utf-8")
-    result_dict = {"status": status, "content": encoded_content}
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+    except Exception as e:
+        status = f"Error: {type(e).__name__}: {str(e)}"
+        encoded_content = base64.b64encode(b"").decode("utf-8")
+        result_dict = {"status": status, "content": encoded_content}
+        if verbose:
+            return json.dumps(result_dict)
+        else:
+            return result_dict["content"]
 
 
 image_blur_to_bytes_def = FunctionDef(
@@ -398,9 +401,6 @@ def image_resize_to_bytes_func(
     import base64
     import json
 
-    status = ""
-    content = b""
-
     try:
         import cv2 as cv  # type: ignore
         import numpy as np
@@ -431,15 +431,21 @@ def image_resize_to_bytes_func(
             raise ValueError(f"Failed to encode image with extension {ext}")
         content = encoded.tobytes()
 
-    except Exception as e:
-        status = str(e)
+        encoded_content = base64.b64encode(content).decode("utf-8")
+        result_dict = {"status": "", "content": encoded_content}
+        if verbose:
+            return json.dumps(result_dict)
+        else:
+            return result_dict["content"]
 
-    encoded_content = base64.b64encode(content).decode("utf-8")
-    result_dict = {"status": status, "content": encoded_content}
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+    except Exception as e:
+        status = f"Error: {type(e).__name__}: {str(e)}"
+        encoded_content = base64.b64encode(b"").decode("utf-8")
+        result_dict = {"status": status, "content": encoded_content}
+        if verbose:
+            return json.dumps(result_dict)
+        else:
+            return result_dict["content"]
 
 
 image_resize_to_bytes_def = FunctionDef(
@@ -548,9 +554,6 @@ def image_normalize_to_bytes_func(
     import base64
     import json
 
-    status = ""
-    content = b""
-
     try:
         import cv2 as cv  # type: ignore
         import numpy as np
@@ -590,16 +593,22 @@ def image_normalize_to_bytes_func(
             raise ValueError(f"Failed to encode image with extension {ext}")
         content = encoded.tobytes()
 
+        encoded_content = base64.b64encode(content).decode("utf-8")
+        result_dict = {"status": "", "content": encoded_content}
+
+        if verbose:
+            return json.dumps(result_dict)
+        else:
+            return result_dict["content"]
+
     except Exception as e:
-        status = str(e)
-
-    encoded_content = base64.b64encode(content).decode("utf-8")
-    result_dict = {"status": status, "content": encoded_content}
-
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+        status = f"Error: {type(e).__name__}: {str(e)}"
+        encoded_content = base64.b64encode(b"").decode("utf-8")
+        result_dict = {"status": status, "content": encoded_content}
+        if verbose:
+            return json.dumps(result_dict)
+        else:
+            return result_dict["content"]
 
 
 image_normalize_to_bytes_def = FunctionDef(
