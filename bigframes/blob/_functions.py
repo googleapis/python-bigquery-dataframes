@@ -120,43 +120,50 @@ AS r\"\"\"
 
 
 def exif_func(src_obj_ref_rt: str, verbose: bool) -> str:
-    import io
-    import json
-
-    from PIL import ExifTags, Image
-    import requests
-    from requests import adapters
-
-    result_dict = {"status": "", "content": "{}"}
     try:
+        import io
+        import json
+
+        from PIL import ExifTags, Image
+        import requests
+        from requests import adapters
+
         session = requests.Session()
         session.mount("https://", adapters.HTTPAdapter(max_retries=3))
 
         src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-
         src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()
         bts = response.content
 
         image = Image.open(io.BytesIO(bts))
         exif_data = image.getexif()
         exif_dict = {}
+
         if exif_data:
             for tag, value in exif_data.items():
                 tag_name = ExifTags.TAGS.get(tag, tag)
-                # Pillow might return bytes, which are not serializable.
-                if isinstance(value, bytes):
-                    value = value.decode("utf-8", "replace")
-                exif_dict[tag_name] = value
-        result_dict["content"] = json.dumps(exif_dict)
-    except Exception as e:
-        result_dict["status"] = str(e)
+                # Convert non-serializable types to strings
+                try:
+                    json.dumps(value)
+                    exif_dict[tag_name] = value
+                except (TypeError, ValueError):
+                    exif_dict[tag_name] = str(value)
 
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+        if verbose:
+            return json.dumps({"status": "", "content": json.dumps(exif_dict)})
+        else:
+            return json.dumps(exif_dict)
+
+    except Exception as e:
+        # Return error as JSON with error field
+        error_result = {"status": f"{type(e).__name__}: {str(e)}", "content": "{}"}
+        if verbose:
+            return json.dumps(error_result)
+        else:
+            return "{}"
 
 
 exif_func_def = FunctionDef(exif_func, ["pillow", "requests"])
@@ -171,11 +178,9 @@ def image_blur_func(
     ext: str,
     verbose: bool,
 ) -> str:
-    import json
-
-    result_dict = {"status": "", "content": dst_obj_ref_rt}
-
     try:
+        import json
+
         import cv2 as cv  # type: ignore
         import numpy as np
         import requests
@@ -193,35 +198,52 @@ def image_blur_func(
         dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()  # Raise exception for HTTP errors
         bts = response.content
 
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+
+        if img is None:
+            raise ValueError(
+                "Failed to decode image - possibly corrupted or unsupported format"
+            )
+
         img_blurred = cv.blur(img, ksize=(ksize_x, ksize_y))
 
-        bts = cv.imencode(ext, img_blurred)[1].tobytes()
+        success, encoded = cv.imencode(ext, img_blurred)
+        if not success:
+            raise ValueError(f"Failed to encode image with extension {ext}")
+
+        bts = encoded.tobytes()
 
         ext = ext.replace(".", "")
         ext_mappings = {"jpg": "jpeg", "tif": "tiff"}
         ext = ext_mappings.get(ext, ext)
         content_type = "image/" + ext
 
-        session.put(
+        put_response = session.put(
             url=dst_url,
             data=bts,
-            headers={
-                "Content-Type": content_type,
-            },
+            headers={"Content-Type": content_type},
             timeout=30,
         )
+        put_response.raise_for_status()
+
+        if verbose:
+            return json.dumps({"status": "", "content": dst_obj_ref_rt})
+        else:
+            return dst_obj_ref_rt
 
     except Exception as e:
-        result_dict["status"] = str(e)
-
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+        # Return error in structured format
+        error_result = {"status": f"Error: {type(e).__name__}: {str(e)}", "content": ""}
+        if verbose:
+            return json.dumps(error_result)
+        else:
+            # The calling function expects a json string that can be parsed as a blob ref
+            # Return a valid blob ref json string with empty values.
+            return '{"access_urls": {"read_url": "", "write_url": ""}, "authorizer": "", "generation": "", "uri": ""}'
 
 
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
@@ -251,12 +273,20 @@ def image_blur_to_bytes_func(
         src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()
         bts = response.content
 
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(
+                "Failed to decode image - possibly corrupted or unsupported format"
+            )
         img_blurred = cv.blur(img, ksize=(ksize_x, ksize_y))
-        content = cv.imencode(ext, img_blurred)[1].tobytes()
+        success, encoded = cv.imencode(ext, img_blurred)
+        if not success:
+            raise ValueError(f"Failed to encode image with extension {ext}")
+        content = encoded.tobytes()
 
     except Exception as e:
         status = str(e)
@@ -284,11 +314,9 @@ def image_resize_func(
     ext: str,
     verbose: bool,
 ) -> str:
-    import json
-
-    result_dict = {"status": "", "content": dst_obj_ref_rt}
-
     try:
+        import json
+
         import cv2 as cv  # type: ignore
         import numpy as np
         import requests
@@ -306,20 +334,28 @@ def image_resize_func(
         dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()
         bts = response.content
 
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(
+                "Failed to decode image - possibly corrupted or unsupported format"
+            )
         img_resized = cv.resize(img, dsize=(dsize_x, dsize_y), fx=fx, fy=fy)
 
-        bts = cv.imencode(ext, img_resized)[1].tobytes()
+        success, encoded = cv.imencode(ext, img_resized)
+        if not success:
+            raise ValueError(f"Failed to encode image with extension {ext}")
+        bts = encoded.tobytes()
 
         ext = ext.replace(".", "")
         ext_mappings = {"jpg": "jpeg", "tif": "tiff"}
         ext = ext_mappings.get(ext, ext)
         content_type = "image/" + ext
 
-        session.put(
+        put_response = session.put(
             url=dst_url,
             data=bts,
             headers={
@@ -327,14 +363,22 @@ def image_resize_func(
             },
             timeout=30,
         )
+        put_response.raise_for_status()
+
+        if verbose:
+            return json.dumps({"status": "", "content": dst_obj_ref_rt})
+        else:
+            return dst_obj_ref_rt
 
     except Exception as e:
-        result_dict["status"] = str(e)
-
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+        # Return error in structured format
+        error_result = {"status": f"Error: {type(e).__name__}: {str(e)}", "content": ""}
+        if verbose:
+            return json.dumps(error_result)
+        else:
+            # The calling function expects a json string that can be parsed as a blob ref
+            # Return a valid blob ref json string with empty values.
+            return '{"access_urls": {"read_url": "", "write_url": ""}, "authorizer": "", "generation": "", "uri": ""}'
 
 
 image_resize_def = FunctionDef(
@@ -372,12 +416,20 @@ def image_resize_to_bytes_func(
         src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()
         bts = response.content
 
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(
+                "Failed to decode image - possibly corrupted or unsupported format"
+            )
         img_resized = cv.resize(img, dsize=(dsize_x, dsize_y), fx=fx, fy=fy)
-        content = cv.imencode(".jpeg", img_resized)[1].tobytes()
+        success, encoded = cv.imencode(ext, img_resized)
+        if not success:
+            raise ValueError(f"Failed to encode image with extension {ext}")
+        content = encoded.tobytes()
 
     except Exception as e:
         status = str(e)
@@ -404,11 +456,9 @@ def image_normalize_func(
     ext: str,
     verbose: bool,
 ) -> str:
-    import json
-
-    result_dict = {"status": "", "content": dst_obj_ref_rt}
-
     try:
+        import json
+
         import cv2 as cv  # type: ignore
         import numpy as np
         import requests
@@ -433,22 +483,30 @@ def image_normalize_func(
         dst_url = dst_obj_ref_rt_json["access_urls"]["write_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()
         bts = response.content
 
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(
+                "Failed to decode image - possibly corrupted or unsupported format"
+            )
         img_normalized = cv.normalize(
             img, None, alpha=alpha, beta=beta, norm_type=norm_type_mapping[norm_type]
         )
 
-        bts = cv.imencode(ext, img_normalized)[1].tobytes()
+        success, encoded = cv.imencode(ext, img_normalized)
+        if not success:
+            raise ValueError(f"Failed to encode image with extension {ext}")
+        bts = encoded.tobytes()
 
         ext = ext.replace(".", "")
         ext_mappings = {"jpg": "jpeg", "tif": "tiff"}
         ext = ext_mappings.get(ext, ext)
         content_type = "image/" + ext
 
-        session.put(
+        put_response = session.put(
             url=dst_url,
             data=bts,
             headers={
@@ -456,14 +514,22 @@ def image_normalize_func(
             },
             timeout=30,
         )
+        put_response.raise_for_status()
+
+        if verbose:
+            return json.dumps({"status": "", "content": dst_obj_ref_rt})
+        else:
+            return dst_obj_ref_rt
 
     except Exception as e:
-        result_dict["status"] = str(e)
-
-    if verbose:
-        return json.dumps(result_dict)
-    else:
-        return result_dict["content"]
+        # Return error in structured format
+        error_result = {"status": f"Error: {type(e).__name__}: {str(e)}", "content": ""}
+        if verbose:
+            return json.dumps(error_result)
+        else:
+            # The calling function expects a json string that can be parsed as a blob ref
+            # Return a valid blob ref json string with empty values.
+            return '{"access_urls": {"read_url": "", "write_url": ""}, "authorizer": "", "generation": "", "uri": ""}'
 
 
 image_normalize_def = FunctionDef(
@@ -482,7 +548,8 @@ def image_normalize_to_bytes_func(
     import base64
     import json
 
-    result_dict = {"status": "", "content": ""}
+    status = ""
+    content = b""
 
     try:
         import cv2 as cv  # type: ignore
@@ -506,20 +573,28 @@ def image_normalize_to_bytes_func(
         src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
 
         response = session.get(src_url, timeout=30)
+        response.raise_for_status()
         bts = response.content
 
         nparr = np.frombuffer(bts, np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_UNCHANGED)
+        if img is None:
+            raise ValueError(
+                "Failed to decode image - possibly corrupted or unsupported format"
+            )
         img_normalized = cv.normalize(
             img, None, alpha=alpha, beta=beta, norm_type=norm_type_mapping[norm_type]
         )
-        bts = cv.imencode(".jpeg", img_normalized)[1].tobytes()
-
-        content_b64 = base64.b64encode(bts).decode("utf-8")
-        result_dict["content"] = content_b64
+        success, encoded = cv.imencode(ext, img_normalized)
+        if not success:
+            raise ValueError(f"Failed to encode image with extension {ext}")
+        content = encoded.tobytes()
 
     except Exception as e:
-        result_dict["status"] = str(e)
+        status = str(e)
+
+    encoded_content = base64.b64encode(content).decode("utf-8")
+    result_dict = {"status": status, "content": encoded_content}
 
     if verbose:
         return json.dumps(result_dict)
