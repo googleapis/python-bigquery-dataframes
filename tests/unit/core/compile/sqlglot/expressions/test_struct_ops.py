@@ -34,3 +34,11 @@ def test_struct_field(nested_structs_types_df: bpd.DataFrame, snapshot):
     sql = utils._apply_unary_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
 
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_struct_op(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["bool_col", "int64_col", "float64_col", "string_col"]]
+    op = ops.StructOp(column_names=tuple(bf_df.columns.tolist()))
+    sql = utils._apply_nary_op(bf_df, op, *bf_df.columns.tolist())
+
+    snapshot.assert_match(sql, "out.sql")
