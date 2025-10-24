@@ -78,12 +78,6 @@ class TableWidget(WIDGET_BASE):
 
         super().__init__()
 
-        # This flag prevents observers from firing during initialization.
-        # When traitlets like `page` and `page_size` are set in `__init__`, we
-        # don't want their corresponding `_..._changed` methods to execute
-        # until the widget is fully constructed.
-        self._initializing = True
-
         # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
@@ -111,8 +105,10 @@ class TableWidget(WIDGET_BASE):
 
         # get the initial page
         self._set_table_html()
+
+        # Signals to the frontend that the initial data load is complete.
+        # Also used as a guard to prevent observers from firing during initialization.
         self._initial_load_complete = True
-        self._initializing = False
 
     @functools.cached_property
     def _esm(self):
@@ -242,14 +238,14 @@ class TableWidget(WIDGET_BASE):
     @traitlets.observe("page")
     def _page_changed(self, _change: Dict[str, Any]) -> None:
         """Handler for when the page number is changed from the frontend."""
-        if self._initializing:
+        if not self._initial_load_complete:
             return
         self._set_table_html()
 
     @traitlets.observe("page_size")
     def _page_size_changed(self, _change: Dict[str, Any]) -> None:
         """Handler for when the page size is changed from the frontend."""
-        if self._initializing:
+        if not self._initial_load_complete:
             return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
