@@ -926,10 +926,10 @@ class BlobAccessor:
                 ) from e
 
             res_df = bpd.DataFrame({"status": status_series, "content": content_series})
-            struct_series = bbq.struct(res_df)
+            struct_series = bbq.struct(res_df).rename("extracted_results")
             return struct_series
         else:
-            return res
+            return res.rename("extracted_content")
 
     def pdf_chunk(
         self,
@@ -1115,4 +1115,4 @@ class BlobAccessor:
             results_struct = bbq.struct(results_df).rename("transcription_results")
             return results_struct
         else:
-            return transcribed_content_series
+            return transcribed_content_series.rename("transcribed_content")
