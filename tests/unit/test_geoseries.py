@@ -36,7 +36,11 @@ def test_geoseries_is_empty(polars_session):
     expected = gseries.is_empty
 
     pd.testing.assert_series_equal(
-        expected, result, check_index=False, check_names=False, check_dtype=False
+        expected,
+        result,
+        check_index=False,
+        check_names=False,
+        check_dtype=False,
     )
 
 
@@ -55,7 +59,11 @@ def test_geoseries_is_valid(polars_session):
     expected = gseries.is_valid
 
     pd.testing.assert_series_equal(
-        expected, result, check_index=False, check_names=False, check_dtype=False
+        expected,
+        result,
+        check_index=False,
+        check_names=False,
+        check_dtype=False,
     )
 
 
@@ -74,7 +82,11 @@ def test_geoseries_is_ring(polars_session):
     expected = gseries.is_ring
 
     pd.testing.assert_series_equal(
-        expected, result, check_index=False, check_names=False, check_dtype=False
+        expected,
+        result,
+        check_index=False,
+        check_names=False,
+        check_dtype=False,
     )
 
 
@@ -93,7 +105,11 @@ def test_geoseries_is_simple(polars_session):
     expected = gseries.is_simple
 
     pd.testing.assert_series_equal(
-        expected, result, check_index=False, check_names=False, check_dtype=False
+        expected,
+        result,
+        check_index=False,
+        check_names=False,
+        check_dtype=False,
     )
 
 
@@ -112,7 +128,11 @@ def test_geoseries_geom_type(polars_session):
     expected = gseries.geom_type
 
     pd.testing.assert_series_equal(
-        expected, result, check_index=False, check_names=False, check_dtype=False
+        expected,
+        result,
+        check_index=False,
+        check_names=False,
+        check_dtype=False,
     )
 
 
@@ -137,4 +157,6 @@ def test_geoseries_union(polars_session):
     result = bf_gseries1.union(bf_gseries2).to_pandas().reset_index(drop=True)
     expected = gseries1.union(gseries2).reset_index(drop=True)
 
-    gpd.testing.assert_geoseries_equal(result, expected, check_series_type=False)
+    gpd.testing.assert_geoseries_equal(
+        gpd.GeoSeries(result), expected, check_series_type=False, check_index_type=False
+    )

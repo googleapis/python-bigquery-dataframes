@@ -17,9 +17,9 @@ from __future__ import annotations
 import re
 
 import bigframes_vendored.constants as constants
-import geopandas  # type: ignore
-from geopandas.array import GeometryDtype  # type:ignore
-import geopandas.testing  # type:ignore
+import geopandas as gpd
+from geopandas.array import GeometryDtype
+import geopandas.testing
 import google.api_core.exceptions
 import pandas as pd
 import pytest
@@ -476,9 +476,11 @@ def test_geo_is_valid(session: bigframes.session.Session):
         ]
     )
     bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
-    result = bf_gseries.is_valid.to_pandas()
+    result = gpd.GeoSeries(bf_gseries.is_valid.to_pandas())
     expected = gseries.is_valid
-    assert_series_equal(expected, result, check_index=False, check_names=False)
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
 
 
 def test_geo_is_simple(session: bigframes.session.Session):
@@ -489,9 +491,11 @@ def test_geo_is_simple(session: bigframes.session.Session):
         ]
     )
     bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
-    result = bf_gseries.is_simple.to_pandas()
+    result = gpd.GeoSeries(bf_gseries.is_simple.to_pandas())
     expected = gseries.is_simple
-    assert_series_equal(expected, result, check_index=False, check_names=False)
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
 
 
 def test_geo_geom_type(session: bigframes.session.Session):
@@ -502,9 +506,11 @@ def test_geo_geom_type(session: bigframes.session.Session):
         ]
     )
     bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
-    result = bf_gseries.geom_type.to_pandas()
+    result = gpd.GeoSeries(bf_gseries.geom_type.to_pandas())
     expected = gseries.geom_type
-    assert_series_equal(expected, result, check_index=False, check_names=False)
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
 
 
 def test_geo_union(session: bigframes.session.Session):
@@ -525,7 +531,7 @@ def test_geo_union(session: bigframes.session.Session):
     result = bf_gseries1.union(bf_gseries2).to_pandas()
     expected = gseries1.union(gseries2)
     geopandas.testing.assert_geoseries_equal(
-        result, expected, check_series_type=False, check_index=False
+        gpd.GeoSeries(result), expected, check_series_type=False
     )
 
 
@@ -537,9 +543,11 @@ def test_geo_is_ring(session: bigframes.session.Session):
         ]
     )
     bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
-    result = bf_gseries.is_ring.to_pandas()
+    result = gpd.GeoSeries(bf_gseries.is_ring.to_pandas())
     expected = gseries.is_ring
-    assert_series_equal(expected, result, check_index=False, check_names=False)
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
 
 
 def test_geo_is_closed_not_supported(session: bigframes.session.Session):

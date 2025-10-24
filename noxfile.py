@@ -285,6 +285,8 @@ def mypy(session):
                 "types-PyYAML",
                 "polars",
                 "anywidget",
+                "types-shapely",
+                "types-geopandas",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)
