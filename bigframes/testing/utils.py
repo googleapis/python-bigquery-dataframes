@@ -467,21 +467,20 @@ def _apply_unary_ops(
     return sql
 
 
-def _apply_binary_op(
+def _apply_nary_op(
     obj: bpd.DataFrame,
-    op: ops.BinaryOp,
-    l_arg: str,
-    r_arg: Union[str, ex.Expression],
+    op: Union[ops.BinaryOp, ops.NaryOp],
+    *args: Union[str, ex.Expression],
 ) -> str:
-    """Applies a binary op to the given DataFrame and return the SQL representing
+    """Applies a nary op to the given DataFrame and return the SQL representing
     the resulting DataFrame."""
     array_value = obj._block.expr
-    op_expr = op.as_expr(l_arg, r_arg)
+    op_expr = op.as_expr(*args)
     result, col_ids = array_value.compute_values([op_expr])
 
     # Rename columns for deterministic golden SQL results.
     assert len(col_ids) == 1
-    result = result.rename_columns({col_ids[0]: l_arg}).select_columns([l_arg])
+    result = result.rename_columns({col_ids[0]: args[0]}).select_columns([args[0]])
 
     sql = result.session._executor.to_sql(result, enable_cache=False)
     return sql

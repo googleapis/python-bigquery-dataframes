@@ -46,7 +46,7 @@ def test_is_in(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_eq_null_match(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col", "bool_col"]]
-    sql = utils._apply_binary_op(bf_df, ops.eq_null_match_op, "int64_col", "bool_col")
+    sql = utils._apply_nary_op(bf_df, ops.eq_null_match_op, "int64_col", "bool_col")
     snapshot.assert_match(sql, "out.sql")
 
 
