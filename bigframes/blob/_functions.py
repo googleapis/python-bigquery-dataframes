@@ -13,14 +13,11 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-import datetime
 import inspect
 from typing import Callable, Iterable, Union
-import warnings
 
 import google.cloud.bigquery as bigquery
 
-import bigframes.exceptions as bfe
 import bigframes.session
 import bigframes.session._io.bigquery as bf_io_bigquery
 
@@ -31,9 +28,6 @@ _PYTHON_TO_BQ_TYPES = {
     bytes: "BYTES",
     bool: "BOOL",
 }
-# UDFs older than this many days are considered stale and will be deleted
-# from the anonymous dataset before creating a new UDF.
-_UDF_CLEANUP_THRESHOLD_DAYS = 3
 
 
 @dataclass(frozen=True)
@@ -78,42 +72,11 @@ class TransformFunction:
         sig = inspect.signature(self._func)
         return _PYTHON_TO_BQ_TYPES[sig.return_annotation]
 
-    def _cleanup_old_udfs(self):
-        """Clean up old UDFs in the anonymous dataset."""
-        dataset = self._session._anon_dataset_manager.dataset
-        routines = list(self._session.bqclient.list_routines(dataset))
-        cleanup_cutoff_time = datetime.datetime.now(
-            datetime.timezone.utc
-        ) - datetime.timedelta(days=_UDF_CLEANUP_THRESHOLD_DAYS)
-
-        for routine in routines:
-            if (
-                routine.created < cleanup_cutoff_time
-                and routine._properties["routineType"] == "SCALAR_FUNCTION"
-            ):
-                try:
-                    self._session.bqclient.delete_routine(routine.reference)
-                except Exception:
-                    pass
-
     def _create_udf(self):
         """Create Python UDF in BQ. Return name of the UDF."""
         udf_name = str(
             self._session._anon_dataset_manager.generate_unique_resource_id()
         )
-
-        try:
-            # Before creating a new UDF, attempt to clean up any uncollected,
-            # old Python UDFs residing in the anonymous dataset. These UDFs
-            # accumulate over time and can eventually exceed resource limits.
-            # See more from b/450913424.
-            self._cleanup_old_udfs()
-        except Exception as e:
-            # Log a warning on the failure, do not interrupt the workflow.
-            msg = bfe.format_message(
-                f"Failed to clean up the old Python UDFs before creating {udf_name}: {e}"
-            )
-            warnings.warn(msg, category=bfe.CleanupFailedWarning)
 
         func_body = inspect.getsource(self._func)
         func_name = self._func.__name__
