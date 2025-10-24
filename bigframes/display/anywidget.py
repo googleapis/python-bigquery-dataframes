@@ -23,7 +23,7 @@ import uuid
 import pandas as pd
 
 import bigframes
-from bigframes.core.blocks import PandasBatches
+from bigframes.core import blocks
 import bigframes.dataframe
 import bigframes.display.html
 
@@ -58,7 +58,10 @@ class TableWidget(WIDGET_BASE):
     row_count = traitlets.Int(0).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
     _initial_load_complete = traitlets.Bool(False).tag(sync=True)
-    _batches: PandasBatches
+    _batches: Optional[blocks.PandasBatches] = None
+    _error_message = traitlets.Unicode(allow_none=True, default_value=None).tag(
+        sync=True
+    )
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """Initialize the TableWidget.
@@ -100,7 +103,11 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/452747934): Allow row_count to be None and check to see if
         # there are multiple pages and show "page 1 of many" in this case
         self._reset_batches_for_new_page_size()
-        self.row_count = self._batches.total_rows or 0
+        if self._batches is None or self._batches.total_rows is None:
+            self._error_message = "Could not determine total row count. Data might be unavailable or an error occurred."
+            self.row_count = 0
+        else:
+            self.row_count = self._batches.total_rows
 
         # get the initial page
         self._set_table_html()
@@ -183,7 +190,10 @@ class TableWidget(WIDGET_BASE):
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
         if self._batch_iter is None:
-            self._batch_iter = iter(self._batches)
+            if self._batches is None:
+                self._batch_iter = iter([])
+            else:
+                self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
@@ -203,6 +213,12 @@ class TableWidget(WIDGET_BASE):
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
+        if self._error_message:
+            self.table_html = (
+                f"<div class='bigframes-error-message'>{self._error_message}</div>"
+            )
+            return
+
         start = self.page * self.page_size
         end = start + self.page_size
 

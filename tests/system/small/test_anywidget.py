@@ -491,7 +491,7 @@ def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
 ):
     """
     Given an internal component fails to return valid execution data,
-    when the TableWidget is created, its row_count should safely fall back to 0.
+    when the TableWidget is created, its error_message should be set and displayed.
     """
     # Patch the executor's 'execute' method to simulate an error.
     monkeypatch.setattr(
@@ -508,8 +508,11 @@ def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
         # The widget should handle the faulty data from the mock without crashing.
         widget = TableWidget(paginated_bf_df)
 
-    # The widget safely defaults to 0 rows.
+    # The widget should have an error message and display it in the HTML.
     assert widget.row_count == 0
+    assert widget._error_message is not None
+    assert "Could not determine total row count" in widget._error_message
+    assert widget._error_message in widget.table_html
 
 
 def test_widget_row_count_reflects_actual_data_available(
