@@ -245,7 +245,7 @@ def test_geo_boundary(session: bigframes.session.Session):
     bf_result = bf_s.geo.boundary.to_pandas()
     pd_result = pd_s.boundary
 
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         bf_result,
         pd_result,
         check_series_type=False,
@@ -530,7 +530,7 @@ def test_geo_union(session: bigframes.session.Session):
     bf_gseries2 = bigframes.geopandas.GeoSeries(gseries2, session=session)
     result = bf_gseries1.union(bf_gseries2).to_pandas()
     expected = gseries1.union(gseries2)
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         gpd.GeoSeries(result), expected, check_series_type=False
     )
 
@@ -613,7 +613,7 @@ def test_geo_centroid(session: bigframes.session.Session):
     # https://gis.stackexchange.com/a/401815/275289
     pd_result = pd_s.to_crs("+proj=cea").centroid.to_crs("WGS84")
 
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         bf_result,
         pd_result,
         check_series_type=False,
@@ -651,7 +651,7 @@ def test_geo_convex_hull(session: bigframes.session.Session):
     bf_result = bf_s.geo.convex_hull.to_pandas()
     pd_result = pd_s.convex_hull
 
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         bf_result,
         pd_result,
         check_series_type=False,

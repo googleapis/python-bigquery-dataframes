@@ -38,7 +38,6 @@ import bigframes.operations.date_ops as date_ops
 import bigframes.operations.datetime_ops as dt_ops
 import bigframes.operations.frequency_ops as freq_ops
 import bigframes.operations.generic_ops as gen_ops
-import bigframes.operations.geo_ops as geo_ops
 import bigframes.operations.json_ops as json_ops
 import bigframes.operations.numeric_ops as num_ops
 import bigframes.operations.string_ops as string_ops
@@ -438,83 +437,7 @@ if polars_installed:
                     f"Haven't implemented array aggregation: {op.aggregation}"
                 )
 
-        @compile_op.register(geo_ops.GeoStIsemptyOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.str.contains("EMPTY", literal=True)
 
-        @compile_op.register(geo_ops.GeoStGeometrytypeOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.str.extract(r"^(\w+)", 1).str.to_titlecase()
-
-        @compile_op.register(geo_ops.GeoStIsringOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            from shapely.errors import WKTReadingError
-            import shapely.wkt
-
-            def is_ring(s: str | None) -> bool | None:
-                if not s:
-                    return None
-                try:
-                    geom = shapely.wkt.loads(s)
-                    return getattr(geom, "is_ring", False)
-                except WKTReadingError:
-                    return None
-
-            return input.map_elements(is_ring, return_dtype=pl.Boolean())
-
-        @compile_op.register(geo_ops.GeoStIssimpleOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            from shapely.errors import WKTReadingError
-            import shapely.wkt
-
-            def is_simple(s: str | None) -> bool | None:
-                if not s:
-                    return None
-                try:
-                    geom = shapely.wkt.loads(s)
-                    return getattr(geom, "is_simple", False)
-                except WKTReadingError:
-                    return None
-
-            return input.map_elements(is_simple, return_dtype=pl.Boolean())
-
-        @compile_op.register(geo_ops.GeoStIsvalidOp)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            from shapely.errors import WKTReadingError
-            import shapely.wkt
-
-            def is_valid(s: str | None) -> bool | None:
-                if not s:
-                    return None
-                try:
-                    geom = shapely.wkt.loads(s)
-                    return getattr(geom, "is_valid", False)
-                except WKTReadingError:
-                    return None
-
-            return input.map_elements(is_valid, return_dtype=pl.Boolean())
-
-        @compile_op.register(geo_ops.GeoStUnionOp)
-        def _(self, op: ops.ScalarOp, left: pl.Expr, right: pl.Expr) -> pl.Expr:
-            from shapely.errors import WKTReadingError
-            import shapely.wkt
-
-            def union(struct_val: dict[str, str | None]) -> str | None:
-                # The fields in the struct are not guaranteed to be named.
-                # Let's get them by order.
-                s1, s2 = list(struct_val.values())
-                if not s1 or not s2:
-                    return None
-                try:
-                    g1 = shapely.wkt.loads(s1)
-                    g2 = shapely.wkt.loads(s2)
-                    return g1.union(g2).wkt
-                except WKTReadingError:
-                    return None
-
-            return pl.struct([left, right]).map_elements(
-                union, return_dtype=pl.String()
-            )
 
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:
