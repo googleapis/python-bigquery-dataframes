@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import functools
 import typing
-from typing import Dict, List, Sequence
+from typing import Dict, List
 
 import google.cloud.bigquery
 import pyarrow
@@ -35,7 +35,7 @@ class SchemaItem:
 
 @dataclass(frozen=True)
 class ArraySchema:
-    items: Sequence[SchemaItem]
+    items: tuple[SchemaItem, ...]
 
     def __iter__(self):
         yield from self.items
