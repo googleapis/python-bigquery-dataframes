@@ -58,7 +58,7 @@ LINT_PATHS = [
     "setup.py",
 ]
 
-DEFAULT_PYTHON_VERSION = "3.10"
+DEFAULT_PYTHON_VERSION = "3.12"
 
 # Cloud Run Functions supports Python versions up to 3.12
 # https://cloud.google.com/run/docs/runtimes/python
@@ -288,6 +288,8 @@ def mypy(session):
                 "types-PyYAML",
                 "polars",
                 "anywidget",
+                "types-shapely",
+                "types-geopandas",
             ]
         )
         | set(SYSTEM_TEST_STANDARD_DEPENDENCIES)

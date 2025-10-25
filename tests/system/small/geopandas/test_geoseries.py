@@ -17,9 +17,9 @@ from __future__ import annotations
 import re
 
 import bigframes_vendored.constants as constants
-import geopandas  # type: ignore
-from geopandas.array import GeometryDtype  # type:ignore
-import geopandas.testing  # type:ignore
+import geopandas as gpd
+from geopandas.array import GeometryDtype
+import geopandas.testing
 import google.api_core.exceptions
 import pandas as pd
 import pytest
@@ -245,7 +245,7 @@ def test_geo_boundary(session: bigframes.session.Session):
     bf_result = bf_s.geo.boundary.to_pandas()
     pd_result = pd_s.boundary
 
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         bf_result,
         pd_result,
         check_series_type=False,
@@ -468,6 +468,88 @@ def test_geo_intersection_with_similar_geometry_objects(
     assert expected.iloc[2].equals(bf_result.iloc[2])
 
 
+def test_geo_is_valid(session: bigframes.session.Session):
+    gseries = geopandas.GeoSeries.from_wkt(
+        [
+            "POLYGON ((0 0, 1 1, 0 1, 0 0))",
+            "POLYGON ((0 0, 1 1, 1 0, 0 1, 0 0))",
+        ]
+    )
+    bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
+    result = gpd.GeoSeries(bf_gseries.is_valid.to_pandas())
+    expected = gseries.is_valid
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
+
+
+def test_geo_is_simple(session: bigframes.session.Session):
+    gseries = geopandas.GeoSeries.from_wkt(
+        [
+            "LINESTRING (0 0, 1 1)",
+            "LINESTRING (0 0, 1 1, 0 1, 1 0)",
+        ]
+    )
+    bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
+    result = gpd.GeoSeries(bf_gseries.is_simple.to_pandas())
+    expected = gseries.is_simple
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
+
+
+def test_geo_geom_type(session: bigframes.session.Session):
+    gseries = geopandas.GeoSeries.from_wkt(
+        [
+            "POINT (0 0)",
+            "POLYGON ((0 0, 1 1, 0 1, 0 0))",
+        ]
+    )
+    bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
+    result = gpd.GeoSeries(bf_gseries.geom_type.to_pandas())
+    expected = gseries.geom_type
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
+
+
+def test_geo_union(session: bigframes.session.Session):
+    gseries1 = geopandas.GeoSeries.from_wkt(
+        [
+            "POINT (0 0)",
+            "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+        ]
+    )
+    gseries2 = geopandas.GeoSeries.from_wkt(
+        [
+            "POINT (1 1)",
+            "POLYGON ((2 0, 3 0, 3 1, 2 1, 2 0))",
+        ]
+    )
+    bf_gseries1 = bigframes.geopandas.GeoSeries(gseries1, session=session)
+    bf_gseries2 = bigframes.geopandas.GeoSeries(gseries2, session=session)
+    result = bf_gseries1.union(bf_gseries2).to_pandas()
+    expected = gseries1.union(gseries2)
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
+        gpd.GeoSeries(result), expected, check_series_type=False
+    )
+
+
+def test_geo_is_ring(session: bigframes.session.Session):
+    gseries = geopandas.GeoSeries.from_wkt(
+        [
+            "LINESTRING (0 0, 1 0, 1 1, 0 1, 0 0)",
+            "LINESTRING (0 0, 1 1, 1 0, 0 1)",
+        ]
+    )
+    bf_gseries = bigframes.geopandas.GeoSeries(gseries, session=session)
+    result = gpd.GeoSeries(bf_gseries.is_ring.to_pandas())
+    expected = gseries.is_ring
+    assert_series_equal(
+        expected, result, check_index=False, check_names=False, check_dtype=False
+    )
+
+
 def test_geo_is_closed_not_supported(session: bigframes.session.Session):
     s = bigframes.series.Series(
         [
@@ -531,7 +613,7 @@ def test_geo_centroid(session: bigframes.session.Session):
     # https://gis.stackexchange.com/a/401815/275289
     pd_result = pd_s.to_crs("+proj=cea").centroid.to_crs("WGS84")
 
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         bf_result,
         pd_result,
         check_series_type=False,
@@ -569,7 +651,7 @@ def test_geo_convex_hull(session: bigframes.session.Session):
     bf_result = bf_s.geo.convex_hull.to_pandas()
     pd_result = pd_s.convex_hull
 
-    geopandas.testing.assert_geoseries_equal(
+    geopandas.testing.assert_geoseries_equal(  # type: ignore
         bf_result,
         pd_result,
         check_series_type=False,

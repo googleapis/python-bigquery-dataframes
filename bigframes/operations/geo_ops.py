@@ -84,6 +84,51 @@ GeoStIsclosedOp = base_ops.create_unary_op(
 )
 geo_st_isclosed_op = GeoStIsclosedOp()
 
+GeoStIsemptyOp = base_ops.create_unary_op(
+    name="geo_st_isempty",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.BOOL_DTYPE, description="geo-like"
+    ),
+)
+geo_st_isempty_op = GeoStIsemptyOp()
+
+GeoStGeometrytypeOp = base_ops.create_unary_op(
+    name="geo_st_geometrytype",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.STRING_DTYPE, description="geo-like"
+    ),
+)
+geo_st_geometrytype_op = GeoStGeometrytypeOp()
+
+GeoStIsringOp = base_ops.create_unary_op(
+    name="geo_st_isring",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.BOOL_DTYPE, description="geo-like"
+    ),
+)
+geo_st_isring_op = GeoStIsringOp()
+
+GeoStIssimpleOp = base_ops.create_unary_op(
+    name="geo_st_issimple",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.BOOL_DTYPE, description="geo-like"
+    ),
+)
+geo_st_issimple_op = GeoStIssimpleOp()
+
+GeoStIsvalidOp = base_ops.create_unary_op(
+    name="geo_st_isvalid",
+    type_signature=op_typing.FixedOutputType(
+        dtypes.is_geo_like, dtypes.BOOL_DTYPE, description="geo-like"
+    ),
+)
+geo_st_isvalid_op = GeoStIsvalidOp()
+
+GeoStUnionOp = base_ops.create_binary_op(
+    name="geo_st_union", type_signature=op_typing.BinaryGeo()
+)
+geo_st_union_op = GeoStUnionOp()
+
 GeoXOp = base_ops.create_unary_op(
     name="geo_x",
     type_signature=op_typing.FixedOutputType(
