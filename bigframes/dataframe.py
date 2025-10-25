@@ -783,7 +783,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
+
+        # anywidget mode uses the same display logic as the "deferred" mode
         # for faster execution
         if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
@@ -851,9 +852,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if opts.repr_mode == "anywidget":
             try:
+                import anywidget  # noqa: F401
                 from IPython.display import display as ipython_display
+                import traitlets  # noqa: F401
 
                 from bigframes import display
+
+                # The anywidget frontend doesn't support the db_dtypes JSON type, so
+                # convert to strings for display.
+                json_cols = [
+                    series_name
+                    for series_name, series in df.items()
+                    if bigframes.dtypes.contains_db_dtypes_json_dtype(series.dtype)
+                ]
+                if json_cols:
+                    warnings.warn(
+                        "Converting JSON columns to strings for display. "
+                        "This is temporary and will be removed when the frontend supports JSON types."
+                    )
+                    for col in json_cols:
+                        df[col] = df[col]._apply_unary_op(ops.json_ops.ToJSONString())
 
                 # Always create a new widget instance for each display call
                 # This ensures that each cell gets its own widget and prevents
@@ -862,7 +880,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 ipython_display(widget)
                 return ""  # Return empty string since we used display()
-
             except (AttributeError, ValueError, ImportError):
                 # Fallback if anywidget is not available
                 warnings.warn(

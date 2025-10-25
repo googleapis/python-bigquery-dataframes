@@ -62,7 +62,20 @@ class TableWidget(WIDGET_BASE):
             )
 
         super().__init__()
-        self._dataframe = dataframe
+        # Workaround for Arrow bug https://github.com/apache/arrow/issues/45262
+        # JSON columns are not supported in `to_pandas_batches` and will be converted to string.
+        json_cols = [
+            col
+            for col, dtype in dataframe.dtypes.items()
+            if dtype == bigframes.dtypes.JSON_DTYPE
+        ]
+        if json_cols:
+            df_copy = dataframe.copy()
+            for col in json_cols:
+                df_copy[str(col)] = df_copy[str(col)].astype("string")
+            self._dataframe = df_copy
+        else:
+            self._dataframe = dataframe
 
         # Initialize attributes that might be needed by observers FIRST
         self._table_id = str(uuid.uuid4())
@@ -76,9 +89,6 @@ class TableWidget(WIDGET_BASE):
         # Initialize data fetching attributes.
         self._batches = dataframe._to_pandas_batches(page_size=initial_page_size)
 
-        # set traitlets properties that trigger observers
-        self.page_size = initial_page_size
-
         # len(dataframe) is expensive, since it will trigger a
         # SELECT COUNT(*) query. It is a must have however.
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
@@ -86,6 +96,9 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/452747934): Allow row_count to be None and check to see if
         # there are multiple pages and show "page 1 of many" in this case.
         self.row_count = self._batches.total_rows or 0
+
+        # set traitlets properties that trigger observers
+        self.page_size = initial_page_size
 
         # get the initial page
         self._set_table_html()
@@ -220,9 +233,6 @@ class TableWidget(WIDGET_BASE):
         """Handler for when the page size is changed from the frontend."""
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
-
-        # Reset batches to use new page size for future data fetching
-        self._reset_batches_for_new_page_size()
 
         # Update the table display
         self._set_table_html()

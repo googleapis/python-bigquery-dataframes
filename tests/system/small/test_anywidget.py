@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+from unittest import mock
+
 import pandas as pd
 import pytest
 
 import bigframes as bf
 
-pytest.importorskip("anywidget")
-
 # Test constants to avoid change detector tests
 EXPECTED_ROW_COUNT = 6
 EXPECTED_PAGE_SIZE = 2
-EXPECTED_TOTAL_PAGES = 3
 
 
 @pytest.fixture(scope="module")
@@ -61,11 +62,11 @@ def table_widget(paginated_bf_df: bf.dataframe.DataFrame):
     Helper fixture to create a TableWidget instance with a fixed page size.
     This reduces duplication across tests that use the same widget configuration.
     """
-    from bigframes import display
+    from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         # Delay context manager cleanup of `max_rows` until after tests finish.
-        yield display.TableWidget(paginated_bf_df)
+        yield TableWidget(paginated_bf_df)
 
 
 @pytest.fixture(scope="module")
@@ -90,10 +91,10 @@ def small_bf_df(
 @pytest.fixture
 def small_widget(small_bf_df):
     """Helper fixture for tests using a DataFrame smaller than the page size."""
-    from bigframes import display
+    from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
-        yield display.TableWidget(small_bf_df)
+        yield TableWidget(small_bf_df)
 
 
 @pytest.fixture(scope="module")
@@ -107,6 +108,21 @@ def empty_bf_df(
     session: bf.Session, empty_pandas_df: pd.DataFrame
 ) -> bf.dataframe.DataFrame:
     return session.read_pandas(empty_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def json_df(session: bf.Session) -> bf.dataframe.DataFrame:
+    """Create a DataFrame with a JSON column for testing."""
+    import bigframes.dtypes
+
+    pandas_df = pd.DataFrame(
+        {
+            "a": [1],
+            "b": ['{"c": 2, "d": 3}'],
+        }
+    )
+    pandas_df["b"] = pandas_df["b"].astype(bigframes.dtypes.JSON_DTYPE)
+    return session.read_pandas(pandas_df)
 
 
 def _assert_html_matches_pandas_slice(
@@ -135,10 +151,10 @@ def test_widget_initialization_should_calculate_total_row_count(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
     """A TableWidget should correctly calculate the total row count on creation."""
-    from bigframes import display
+    from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = display.TableWidget(paginated_bf_df)
+        widget = TableWidget(paginated_bf_df)
 
     assert widget.row_count == EXPECTED_ROW_COUNT
 
@@ -249,7 +265,7 @@ def test_widget_pagination_should_work_with_custom_page_size(
     A widget should paginate correctly with a custom page size of 3.
     """
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(paginated_bf_df)
         assert widget.page_size == 3
@@ -295,7 +311,7 @@ def test_widget_page_size_should_be_immutable_after_creation(
     by subsequent changes to global options.
     """
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(paginated_bf_df)
         assert widget.page_size == 2
@@ -314,7 +330,7 @@ def test_widget_page_size_should_be_immutable_after_creation(
 def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataFrame):
     """Given an empty DataFrame, the widget's row count should be 0."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(empty_bf_df)
 
@@ -324,7 +340,7 @@ def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataF
 def test_empty_widget_should_render_table_headers(empty_bf_df: bf.dataframe.DataFrame):
     """Given an empty DataFrame, the widget should still render table headers."""
     with bf.option_context("display.repr_mode", "anywidget"):
-        from bigframes.display import TableWidget
+        from bigframes.display.anywidget import TableWidget
 
         widget = TableWidget(empty_bf_df)
 
@@ -419,21 +435,95 @@ def test_setting_page_size_above_max_should_be_clamped(table_widget):
     assert table_widget.page_size == expected_clamped_size
 
 
+@mock.patch("bigframes.display.TableWidget")
+def test_sql_anywidget_mode(mock_table_widget, session: bf.Session):
+    """
+    Test that a SQL query runs in anywidget mode.
+    """
+    sql = "SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current` LIMIT 5"
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        df = session.read_gbq(sql)
+        # In a real environment, this would display a widget.
+        # For testing, we just want to make sure we're in the anywidget code path.
+        df._repr_html_()
+        mock_table_widget.assert_called_once()
+
+
+@mock.patch("IPython.display.display")
+def test_struct_column_anywidget_mode(mock_display, session: bf.Session):
+    """
+    Test that a DataFrame with a STRUCT column is displayed in anywidget mode
+    and does not fall back to the deferred representation. This confirms that
+    anywidget can handle complex types without raising an exception that would
+    trigger the fallback mechanism.
+    """
+    pandas_df = pd.DataFrame(
+        {
+            "a": [1],
+            "b": [{"c": 2, "d": 3}],
+        }
+    )
+    bf_df = session.read_pandas(pandas_df)
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        with mock.patch(
+            "bigframes.dataframe.formatter.repr_query_job"
+        ) as mock_repr_query_job:
+            # Trigger the display logic.
+            result = bf_df._repr_html_()
+
+            # Assert that we did NOT fall back to the deferred representation.
+            mock_repr_query_job.assert_not_called()
+
+            widget = mock_display.call_args[0][0]
+            from bigframes.display.anywidget import TableWidget
+
+            assert isinstance(widget, TableWidget)
+
+            # Assert that the widget's html contains the struct
+            html = widget.table_html
+            assert "{&#x27;c&#x27;: 2, &#x27;d&#x27;: 3}" in html
+
+            # Assert that _repr_html_ returns an empty string
+            assert result == ""
+
+
 def test_widget_creation_should_load_css_for_rendering(table_widget):
     """
-    Given a TableWidget is created, when its resources are accessed,
-    it should contain the CSS content required for styling.
+    Test that the widget's CSS is loaded correctly.
     """
-    # The table_widget fixture creates the widget.
-    # No additional setup is needed.
-
-    # Access the CSS content.
     css_content = table_widget._css
-
-    # The content is a non-empty string containing a known selector.
-    assert isinstance(css_content, str)
-    assert len(css_content) > 0
     assert ".bigframes-widget .footer" in css_content
+
+
+@mock.patch("IPython.display.display")
+def test_json_column_anywidget_mode(mock_display, json_df: bf.dataframe.DataFrame):
+    """
+    Test that a DataFrame with a JSON column is displayed in anywidget mode
+    by converting JSON to string, and does not fall back to deferred representation.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        with mock.patch(
+            "bigframes.dataframe.formatter.repr_query_job"
+        ) as mock_repr_query_job:
+            result = json_df._repr_html_()
+
+            # Assert no fallback
+            mock_repr_query_job.assert_not_called()
+
+            # Assert TableWidget was created and displayed
+            mock_display.assert_called_once()
+            widget = mock_display.call_args[0][0]
+            from bigframes.display.anywidget import TableWidget
+
+            assert isinstance(widget, TableWidget)
+
+            # Assert JSON was converted to string in the HTML
+            html = widget.table_html
+            assert "{&quot;c&quot;:2,&quot;d&quot;:3}" in html
+
+            assert result == ""
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
