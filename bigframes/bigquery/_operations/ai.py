@@ -575,7 +575,7 @@ def forecast(
 
     Args:
         df (DataFrame):
-            The dataframe that contains the data that you want to forecast. It could be either a BigFrames Dataframe or 
+            The dataframe that contains the data that you want to forecast. It could be either a BigFrames Dataframe or
             a pandas DataFrame. If it's a pandas DataFrame, the global BigQuery session will be used to load the data.
         data_col (str):
             A str value that specifies the name of the data column. The data column contains the data to forecast.
