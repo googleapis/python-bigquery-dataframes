@@ -243,9 +243,11 @@ def image_blur_func(
             return dst_obj_ref_rt
 
     except Exception as e:
-        # Return error in structured format
-        error_result = {"status": f"Error: {type(e).__name__}: {str(e)}", "content": ""}
         if verbose:
+            error_result = {
+                "status": f"Error: {type(e).__name__}: {str(e)}",
+                "content": "",
+            }
             return json.dumps(error_result)
         else:
             return None
@@ -379,9 +381,11 @@ def image_resize_func(
             return dst_obj_ref_rt
 
     except Exception as e:
-        # Return error in structured format
-        error_result = {"status": f"Error: {type(e).__name__}: {str(e)}", "content": ""}
         if verbose:
+            error_result = {
+                "status": f"Error: {type(e).__name__}: {str(e)}",
+                "content": "",
+            }
             return json.dumps(error_result)
         else:
             return None
@@ -531,9 +535,11 @@ def image_normalize_func(
             return dst_obj_ref_rt
 
     except Exception as e:
-        # Return error in structured format
-        error_result = {"status": f"Error: {type(e).__name__}: {str(e)}", "content": ""}
         if verbose:
+            error_result = {
+                "status": f"Error: {type(e).__name__}: {str(e)}",
+                "content": "",
+            }
             return json.dumps(error_result)
         else:
             return None
