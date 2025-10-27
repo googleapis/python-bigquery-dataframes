@@ -61,6 +61,15 @@ def test_dataframe_groupby_head(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
 
 
+def test_dataframe_groupby_len(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
+
+    bf_result = len(scalars_df_index[col_names].groupby("bool_col"))
+    pd_result = len(scalars_pandas_df_index[col_names].groupby("bool_col"))
+
+    assert bf_result == pd_result
+
+
 def test_dataframe_groupby_median(scalars_df_index, scalars_pandas_df_index):
     col_names = ["int64_too", "float64_col", "int64_col", "bool_col", "string_col"]
     bf_result = (
@@ -159,6 +168,26 @@ def test_dataframe_groupby_aggregate(
     bf_result_computed = bf_result.to_pandas()
 
     pd.testing.assert_frame_equal(pd_result, bf_result_computed, check_dtype=False)
+
+
+def test_dataframe_groupby_corr(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col"]
+    bf_result = scalars_df_index[col_names].groupby("bool_col").corr().to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].groupby("bool_col").corr()
+
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_dataframe_groupby_cov(scalars_df_index, scalars_pandas_df_index):
+    col_names = ["int64_too", "float64_col", "int64_col", "bool_col"]
+    bf_result = scalars_df_index[col_names].groupby("bool_col").cov().to_pandas()
+    pd_result = scalars_pandas_df_index[col_names].groupby("bool_col").cov()
+
+    pd.testing.assert_frame_equal(
+        pd_result, bf_result, check_dtype=False, check_index_type=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -666,6 +695,13 @@ def test_dataframe_groupby_last(
 # ==============
 # Series.groupby
 # ==============
+
+
+def test_series_groupby_len(scalars_df_index, scalars_pandas_df_index):
+    bf_result = len(scalars_df_index.groupby("bool_col")["int64_col"])
+    pd_result = len(scalars_pandas_df_index.groupby("bool_col")["int64_col"])
+
+    assert bf_result == pd_result
 
 
 @pytest.mark.parametrize(
