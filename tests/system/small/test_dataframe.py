@@ -2406,13 +2406,19 @@ def test_set_index_key_error(scalars_dfs):
     ("na_position",),
     (("first",), ("last",)),
 )
-def test_sort_index(scalars_dfs, ascending, na_position):
+@pytest.mark.parametrize(
+    ("axis",),
+    ((0,), ("columns",)),
+)
+def test_sort_index(scalars_dfs, ascending, na_position, axis):
     index_column = "int64_col"
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df.set_index(index_column)
-    bf_result = df.sort_index(ascending=ascending, na_position=na_position).to_pandas()
+    bf_result = df.sort_index(
+        ascending=ascending, na_position=na_position, axis=axis
+    ).to_pandas()
     pd_result = scalars_pandas_df.set_index(index_column).sort_index(
-        ascending=ascending, na_position=na_position
+        ascending=ascending, na_position=na_position, axis=axis
     )
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
@@ -2450,6 +2456,16 @@ def test_df_neg(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (-scalars_df[["int64_col", "numeric_col"]]).to_pandas()
     pd_result = -scalars_pandas_df[["int64_col", "numeric_col"]]
+
+    assert_pandas_df_equal(pd_result, bf_result)
+
+
+def test_df__abs__(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (
+        abs(scalars_df[["int64_col", "numeric_col", "float64_col"]])
+    ).to_pandas()
+    pd_result = abs(scalars_pandas_df[["int64_col", "numeric_col", "float64_col"]])
 
     assert_pandas_df_equal(pd_result, bf_result)
 

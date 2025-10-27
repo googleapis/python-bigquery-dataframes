@@ -15,17 +15,17 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional, Union
+from typing import Generic, Hashable, Literal, Optional, TypeVar, Union
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.core.strings.accessor as vendorstr
 
 from bigframes.core import log_adapter
+import bigframes.core.indexes.base as indices
 import bigframes.dataframe as df
 import bigframes.operations as ops
 from bigframes.operations._op_converters import convert_index, convert_slice
 import bigframes.operations.aggregations as agg_ops
-import bigframes.operations.base
 import bigframes.series as series
 
 # Maps from python to re2
@@ -35,16 +35,21 @@ REGEXP_FLAGS = {
     re.DOTALL: "s",
 }
 
+T = TypeVar("T", series.Series, indices.Index)
+
 
 @log_adapter.class_logger
-class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMethods):
+class StringMethods(vendorstr.StringMethods, Generic[T]):
     __doc__ = vendorstr.StringMethods.__doc__
 
-    def __getitem__(self, key: Union[int, slice]) -> series.Series:
+    def __init__(self, data: T):
+        self._data: T = data
+
+    def __getitem__(self, key: Union[int, slice]) -> T:
         if isinstance(key, int):
-            return self._apply_unary_op(convert_index(key))
+            return self._data._apply_unary_op(convert_index(key))
         elif isinstance(key, slice):
-            return self._apply_unary_op(convert_slice(key))
+            return self._data._apply_unary_op(convert_slice(key))
         else:
             raise ValueError(f"key must be an int or slice, got {type(key).__name__}")
 
@@ -53,24 +58,24 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         sub: str,
         start: Optional[int] = None,
         end: Optional[int] = None,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.StrFindOp(substr=sub, start=start, end=end))
+    ) -> T:
+        return self._data._apply_unary_op(
+            ops.StrFindOp(substr=sub, start=start, end=end)
+        )
 
-    def len(self) -> series.Series:
-        return self._apply_unary_op(ops.len_op)
+    def len(self) -> T:
+        return self._data._apply_unary_op(ops.len_op)
 
-    def lower(self) -> series.Series:
-        return self._apply_unary_op(ops.lower_op)
+    def lower(self) -> T:
+        return self._data._apply_unary_op(ops.lower_op)
 
-    def reverse(self) -> series.Series:
+    def reverse(self) -> T:
         """Reverse strings in the Series.
 
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
-            >>> s = bpd.Series(["apple", "banana", "", bpd.NA])
+            >>> s = bpd.Series(["apple", "banana", "", pd.NA])
             >>> s.str.reverse()
             0     elppa
             1    ananab
@@ -83,118 +88,118 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
                 pattern matches the start of each string element.
         """
         # reverse method is in ibis, not pandas.
-        return self._apply_unary_op(ops.reverse_op)
+        return self._data._apply_unary_op(ops.reverse_op)
 
     def slice(
         self,
         start: Optional[int] = None,
         stop: Optional[int] = None,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.StrSliceOp(start=start, end=stop))
+    ) -> T:
+        return self._data._apply_unary_op(ops.StrSliceOp(start=start, end=stop))
 
-    def strip(self, to_strip: Optional[str] = None) -> series.Series:
-        return self._apply_unary_op(
+    def strip(self, to_strip: Optional[str] = None) -> T:
+        return self._data._apply_unary_op(
             ops.StrStripOp(to_strip=" \n\t" if to_strip is None else to_strip)
         )
 
-    def upper(self) -> series.Series:
-        return self._apply_unary_op(ops.upper_op)
+    def upper(self) -> T:
+        return self._data._apply_unary_op(ops.upper_op)
 
-    def isnumeric(self) -> series.Series:
-        return self._apply_unary_op(ops.isnumeric_op)
+    def isnumeric(self) -> T:
+        return self._data._apply_unary_op(ops.isnumeric_op)
 
     def isalpha(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.isalpha_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.isalpha_op)
 
     def isdigit(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.isdigit_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.isdigit_op)
 
     def isdecimal(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.isdecimal_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.isdecimal_op)
 
     def isalnum(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.isalnum_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.isalnum_op)
 
     def isspace(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.isspace_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.isspace_op)
 
     def islower(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.islower_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.islower_op)
 
     def isupper(
         self,
-    ) -> series.Series:
-        return self._apply_unary_op(ops.isupper_op)
+    ) -> T:
+        return self._data._apply_unary_op(ops.isupper_op)
 
-    def rstrip(self, to_strip: Optional[str] = None) -> series.Series:
-        return self._apply_unary_op(
+    def rstrip(self, to_strip: Optional[str] = None) -> T:
+        return self._data._apply_unary_op(
             ops.StrRstripOp(to_strip=" \n\t" if to_strip is None else to_strip)
         )
 
-    def lstrip(self, to_strip: Optional[str] = None) -> series.Series:
-        return self._apply_unary_op(
+    def lstrip(self, to_strip: Optional[str] = None) -> T:
+        return self._data._apply_unary_op(
             ops.StrLstripOp(to_strip=" \n\t" if to_strip is None else to_strip)
         )
 
-    def repeat(self, repeats: int) -> series.Series:
-        return self._apply_unary_op(ops.StrRepeatOp(repeats=repeats))
+    def repeat(self, repeats: int) -> T:
+        return self._data._apply_unary_op(ops.StrRepeatOp(repeats=repeats))
 
-    def capitalize(self) -> series.Series:
-        return self._apply_unary_op(ops.capitalize_op)
+    def capitalize(self) -> T:
+        return self._data._apply_unary_op(ops.capitalize_op)
 
-    def match(self, pat, case=True, flags=0) -> series.Series:
+    def match(self, pat, case=True, flags=0) -> T:
         # \A anchors start of entire string rather than start of any line in multiline mode
         adj_pat = rf"\A{pat}"
         return self.contains(pat=adj_pat, case=case, flags=flags)
 
-    def fullmatch(self, pat, case=True, flags=0) -> series.Series:
+    def fullmatch(self, pat, case=True, flags=0) -> T:
         # \A anchors start of entire string rather than start of any line in multiline mode
         # \z likewise anchors to the end of the entire multiline string
         adj_pat = rf"\A{pat}\z"
         return self.contains(pat=adj_pat, case=case, flags=flags)
 
-    def get(self, i: int) -> series.Series:
-        return self._apply_unary_op(ops.StrGetOp(i=i))
+    def get(self, i: int) -> T:
+        return self._data._apply_unary_op(ops.StrGetOp(i=i))
 
-    def pad(self, width, side="left", fillchar=" ") -> series.Series:
-        return self._apply_unary_op(
+    def pad(self, width, side="left", fillchar=" ") -> T:
+        return self._data._apply_unary_op(
             ops.StrPadOp(length=width, fillchar=fillchar, side=side)
         )
 
-    def ljust(self, width, fillchar=" ") -> series.Series:
-        return self._apply_unary_op(
+    def ljust(self, width, fillchar=" ") -> T:
+        return self._data._apply_unary_op(
             ops.StrPadOp(length=width, fillchar=fillchar, side="right")
         )
 
-    def rjust(self, width, fillchar=" ") -> series.Series:
-        return self._apply_unary_op(
+    def rjust(self, width, fillchar=" ") -> T:
+        return self._data._apply_unary_op(
             ops.StrPadOp(length=width, fillchar=fillchar, side="left")
         )
 
     def contains(
         self, pat, case: bool = True, flags: int = 0, *, regex: bool = True
-    ) -> series.Series:
+    ) -> T:
         if not case:
             return self.contains(pat=pat, flags=flags | re.IGNORECASE, regex=True)
         if regex:
             re2flags = _parse_flags(flags)
             if re2flags:
                 pat = re2flags + pat
-            return self._apply_unary_op(ops.StrContainsRegexOp(pat=pat))
+            return self._data._apply_unary_op(ops.StrContainsRegexOp(pat=pat))
         else:
-            return self._apply_unary_op(ops.StrContainsOp(pat=pat))
+            return self._data._apply_unary_op(ops.StrContainsOp(pat=pat))
 
     def extract(self, pat: str, flags: int = 0) -> df.DataFrame:
         re2flags = _parse_flags(flags)
@@ -204,23 +209,19 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         if compiled.groups == 0:
             raise ValueError("No capture groups in 'pat'")
 
-        results: list[str] = []
-        block = self._block
+        results: dict[Hashable, series.Series] = {}
         for i in range(compiled.groups):
             labels = [
                 label
                 for label, groupn in compiled.groupindex.items()
                 if i + 1 == groupn
             ]
-            label = labels[0] if labels else str(i)
-            block, id = block.apply_unary_op(
-                self._value_column,
+            label = labels[0] if labels else i
+            result = self._data._apply_unary_op(
                 ops.StrExtractOp(pat=pat, n=i + 1),
-                result_label=label,
             )
-            results.append(id)
-        block = block.select_columns(results)
-        return df.DataFrame(block)
+            results[label] = series.Series(result)
+        return df.DataFrame(results)
 
     def replace(
         self,
@@ -230,7 +231,7 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
         case: Optional[bool] = None,
         flags: int = 0,
         regex: bool = False,
-    ) -> series.Series:
+    ) -> T:
         if isinstance(pat, re.Pattern):
             assert isinstance(pat.pattern, str)
             pat_str = pat.pattern
@@ -244,64 +245,66 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
             re2flags = _parse_flags(flags)
             if re2flags:
                 pat_str = re2flags + pat_str
-            return self._apply_unary_op(ops.RegexReplaceStrOp(pat=pat_str, repl=repl))
+            return self._data._apply_unary_op(
+                ops.RegexReplaceStrOp(pat=pat_str, repl=repl)
+            )
         else:
             if isinstance(pat, re.Pattern):
                 raise ValueError(
                     "Must set 'regex'=True if using compiled regex pattern."
                 )
-            return self._apply_unary_op(ops.ReplaceStrOp(pat=pat_str, repl=repl))
+            return self._data._apply_unary_op(ops.ReplaceStrOp(pat=pat_str, repl=repl))
 
     def startswith(
         self,
         pat: Union[str, tuple[str, ...]],
-    ) -> series.Series:
+    ) -> T:
         if not isinstance(pat, tuple):
             pat = (pat,)
-        return self._apply_unary_op(ops.StartsWithOp(pat=pat))
+        return self._data._apply_unary_op(ops.StartsWithOp(pat=pat))
 
     def endswith(
         self,
         pat: Union[str, tuple[str, ...]],
-    ) -> series.Series:
+    ) -> T:
         if not isinstance(pat, tuple):
             pat = (pat,)
-        return self._apply_unary_op(ops.EndsWithOp(pat=pat))
+        return self._data._apply_unary_op(ops.EndsWithOp(pat=pat))
 
     def split(
         self,
         pat: str = " ",
         regex: Union[bool, None] = None,
-    ) -> series.Series:
+    ) -> T:
         if regex is True or (regex is None and len(pat) > 1):
             raise NotImplementedError(
                 "Regular expressions aren't currently supported. Please set "
                 + f"`regex=False` and try again. {constants.FEEDBACK_LINK}"
             )
-        return self._apply_unary_op(ops.StringSplitOp(pat=pat))
+        return self._data._apply_unary_op(ops.StringSplitOp(pat=pat))
 
-    def zfill(self, width: int) -> series.Series:
-        return self._apply_unary_op(ops.ZfillOp(width=width))
+    def zfill(self, width: int) -> T:
+        return self._data._apply_unary_op(ops.ZfillOp(width=width))
 
-    def center(self, width: int, fillchar: str = " ") -> series.Series:
-        return self._apply_unary_op(
+    def center(self, width: int, fillchar: str = " ") -> T:
+        return self._data._apply_unary_op(
             ops.StrPadOp(length=width, fillchar=fillchar, side="both")
         )
 
     def cat(
         self,
-        others: Union[str, series.Series],
+        others: Union[str, indices.Index, series.Series],
         *,
         join: Literal["outer", "left"] = "left",
-    ) -> series.Series:
-        return self._apply_binary_op(others, ops.strconcat_op, alignment=join)
+    ) -> T:
+        return self._data._apply_binary_op(others, ops.strconcat_op, alignment=join)
 
-    def join(self, sep: str) -> series.Series:
-        return self._apply_unary_op(
+    def join(self, sep: str) -> T:
+        return self._data._apply_unary_op(
             ops.ArrayReduceOp(aggregation=agg_ops.StringAggOp(sep=sep))
         )
 
-    def to_blob(self, connection: Optional[str] = None) -> series.Series:
+    def to_blob(self, connection: Optional[str] = None) -> T:
         """Create a BigFrames Blob series from a series of URIs.
 
         .. note::
@@ -321,9 +324,9 @@ class StringMethods(bigframes.operations.base.SeriesMethods, vendorstr.StringMet
             bigframes.series.Series: Blob Series.
 
         """
-        session = self._block.session
+        session = self._data._block.session
         connection = session._create_bq_connection(connection=connection)
-        return self._apply_binary_op(connection, ops.obj_make_ref_op)
+        return self._data._apply_binary_op(connection, ops.obj_make_ref_op)
 
 
 def _parse_flags(flags: int) -> Optional[str]:
