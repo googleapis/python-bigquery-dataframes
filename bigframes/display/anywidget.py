@@ -74,21 +74,7 @@ class TableWidget(WIDGET_BASE):
                 "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use TableWidget."
             )
 
-        super().__init__()
-        # Workaround for Arrow bug https://github.com/apache/arrow/issues/45262
-        # JSON columns are not supported in `to_pandas_batches` and will be converted to string.
-        json_cols = [
-            col
-            for col, dtype in dataframe.dtypes.items()
-            if dtype == bigframes.dtypes.JSON_DTYPE
-        ]
-        if json_cols:
-            df_copy = dataframe.copy()
-            for col in json_cols:
-                df_copy[str(col)] = df_copy[str(col)].astype("string")
-            self._dataframe = df_copy
-        else:
-            self._dataframe = dataframe
+        self._dataframe = dataframe
 
         super().__init__()
 
