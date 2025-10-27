@@ -61,7 +61,8 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 # Helpers
 def dayofweek_op_impl(expr: TypedExpr) -> sge.Expression:
-    # Adjust the 1-based day-of-week index (from SQL) to a 0-based index.
+    # BigQuery SQL Extract(DAYOFWEEK) returns 1 for Sunday through 7 for Saturday.
+    # We want 0 for Monday through 6 for Sunday to be compatible with Pandas.
     extract_expr = sge.Extract(
         this=sge.Identifier(this="DAYOFWEEK"), expression=expr.expr
     )
