@@ -45,13 +45,13 @@ import bigframes.operations.string_ops as string_ops
 polars_installed = True
 if TYPE_CHECKING:
     import polars as pl
+    import pyarrow as pa
 else:
     try:
         import bigframes._importing
 
-        # Use import_polars() instead of importing directly so that we check
-        # the version numbers.
         pl = bigframes._importing.import_polars()
+        import pyarrow as pa
     except Exception:
         polars_installed = False
 
@@ -409,11 +409,13 @@ if polars_installed:
 
         @compile_op.register(json_ops.ToJSONString)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.str.json_decode(pl.String())
+            # Convert JSON to string representation
+            return input.cast(pl.String())
 
         @compile_op.register(json_ops.ParseJSON)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            return input.str.json_decode(pl.String())
+            # Parse string as JSON - this should decode, not encode
+            return input.str.json_decode()
 
         @compile_op.register(json_ops.JSONExtract)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
@@ -599,9 +601,35 @@ if polars_installed:
                 scan_item.source_id: scan_item.id.sql
                 for scan_item in node.scan_list.items
             }
-            lazy_frame = cast(
-                pl.DataFrame, pl.from_arrow(node.local_data_source.data)
-            ).lazy()
+
+            # Workaround for PyArrow bug https://github.com/apache/arrow/issues/45262
+            # Convert JSON columns to strings before Polars processing
+            arrow_data = node.local_data_source.data
+            schema = arrow_data.schema
+
+            # Check if any columns are JSON type
+            json_field_indices = [
+                i
+                for i, field in enumerate(schema)
+                if pa.types.is_extension_type(field.type)
+                and field.type.extension_name == "google:sqlType:json"
+            ]
+
+            if json_field_indices:
+                # Convert JSON columns to string columns
+                new_arrays = []
+                new_fields = []
+                for i, field in enumerate(schema):
+                    if i in json_field_indices:
+                        # Cast JSON to string
+                        new_arrays.append(arrow_data.column(i).cast(pa.string()))
+                        new_fields.append(pa.field(field.name, pa.string()))
+                    else:
+                        new_arrays.append(arrow_data.column(i))
+                        new_fields.append(field)
+                arrow_data = pa.table(new_arrays, schema=pa.schema(new_fields))
+
+            lazy_frame = cast(pl.DataFrame, pl.from_arrow(arrow_data)).lazy()
             lazy_frame = lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
             if node.offsets_col:
                 lazy_frame = lazy_frame.with_columns(

@@ -1965,7 +1965,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         allow_large_results: Optional[bool] = None,
     ) -> blocks.PandasBatches:
-        return self._block.to_pandas_batches(
+        # Workaround for PyArrow bug https://github.com/apache/arrow/issues/45262
+        # JSON columns are not supported in to_pandas_batches
+        json_cols = [
+            str(col_name)  # Cast to string
+            for col_name, dtype in self.dtypes.items()
+            if bigframes.dtypes.contains_db_dtypes_json_dtype(dtype)
+        ]
+
+        df = self
+        if json_cols:
+            # Convert JSON columns to strings before materialization
+            df = df.copy()
+            for col in json_cols:
+                df[col] = df[col].astype("string")
+
+        return df._block.to_pandas_batches(
             page_size=page_size,
             max_results=max_results,
             allow_large_results=allow_large_results,
