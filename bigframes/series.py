@@ -2722,6 +2722,20 @@ class Series(vendored_pandas_series.Series):
             block, result_id = self._block.project_expr(expr, name)
             return Series(block.select_column(result_id))
 
+    def _apply_ternary_op(
+        self,
+        other1: typing.Any,
+        other2: typing.Any,
+        op: ops.TernaryOp,
+    ) -> bigframes.dataframe.DataFrame:
+        """Applies a ternary operator to the series and others."""
+        (self_col, other1_col, other2_col, block) = self._align3(other1, other2)
+        name = self._name
+        block, result_id = block.project_expr(
+            op.as_expr(self_col, other1_col, other2_col), name
+        )
+        return bigframes.dataframe.DataFrame(block.select_column(result_id))
+
     def _apply_nary_op(
         self,
         op: ops.NaryOp,

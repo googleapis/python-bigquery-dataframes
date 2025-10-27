@@ -26,7 +26,7 @@ import bigframes_vendored.ibis.expr.types as ibis_types
 from bigframes.core import agg_expressions, ordering
 import bigframes.core.compile.ibis_types
 import bigframes.core.expression as ex
-from bigframes.operations import numeric_ops
+from bigframes.operations import geo_ops, numeric_ops
 
 if TYPE_CHECKING:
     import bigframes.operations as ops
@@ -159,7 +159,9 @@ class ExpressionCompiler:
         return decorator
 
     def register_ternary_op(
-        self, op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]]
+        self,
+        op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]],
+        pass_op: bool = False,
     ):
         """
         Decorator to register a ternary op implementation.
@@ -172,7 +174,10 @@ class ExpressionCompiler:
 
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
             def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                return impl(args[0], args[1], args[2])
+                if pass_op:
+                    return impl(args[0], args[1], args[2], op)
+                else:
+                    return impl(args[0], args[1], args[2])
 
             self._register(key, normalized_impl)
             return impl
@@ -278,3 +283,18 @@ def isnanornull(arg):
 @scalar_op_compiler.register_unary_op(numeric_ops.isfinite_op)
 def isfinite(arg):
     return arg.isinf().negate() & arg.isnan().negate()
+
+
+@scalar_op_compiler.register_ternary_op(geo_ops.StRegionStatsOp, pass_op=True)
+def st_regionstats(
+    geography: ibis_types.Value,
+    raster: ibis_types.Value,
+    band: ibis_types.Value,
+    op: geo_ops.StRegionStatsOp,
+):
+    args = [geography, raster, band]
+    if op.options:
+        args.append(bigframes_vendored.ibis.literal(op.options, type="json"))
+    return bigframes_vendored.ibis.remote_function(
+        "st_regionstats", args, output_type="struct<min: float, max: float, sum: float, count: int, mean: float>"  # type: ignore
+    )

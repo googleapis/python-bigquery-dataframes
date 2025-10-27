@@ -22,6 +22,7 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.expression as ex
 import bigframes.operations as ops
+import bigframes.operations.geo_ops as geo_ops
 
 
 class ScalarOpCompiler:
@@ -121,7 +122,9 @@ class ScalarOpCompiler:
         return decorator
 
     def register_ternary_op(
-        self, op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]]
+        self,
+        op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]],
+        pass_op: bool = False,
     ):
         """
         Decorator to register a ternary op implementation.
@@ -129,12 +132,18 @@ class ScalarOpCompiler:
         Args:
             op_ref (TernaryOp or TernaryOp type):
                 Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
         """
         key = typing.cast(str, op_ref.name)
 
         def decorator(impl: typing.Callable[..., sge.Expression]):
             def normalized_impl(args: typing.Sequence[TypedExpr], op: ops.RowOp):
-                return impl(args[0], args[1], args[2])
+                if pass_op:
+                    return impl(args[0], args[1], args[2], op)
+                else:
+                    return impl(args[0], args[1], args[2])
 
             self._register(key, normalized_impl)
             return impl
@@ -180,3 +189,23 @@ class ScalarOpCompiler:
 
 # Singleton compiler
 scalar_op_compiler = ScalarOpCompiler()
+
+
+@scalar_op_compiler.register_ternary_op(geo_ops.StRegionStatsOp, pass_op=True)
+def compile_st_regionstats(
+    geography: TypedExpr,
+    raster: TypedExpr,
+    band: TypedExpr,
+    op: geo_ops.StRegionStatsOp,
+):
+    args = [geography.expr, raster.expr, band.expr]
+    if op.options:
+        args.append(
+            sge.EQ(
+                this=sge.Identifier(this="OPTIONS"),
+                expression=sge.Anonymous(
+                    this="JSON", expressions=[sge.convert(op.options)]
+                ),
+            )
+        )
+    return sge.func("ST_REGIONSTATS", *args)

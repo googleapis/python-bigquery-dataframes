@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import dataclasses
+import typing
 
 from bigframes import dtypes
 from bigframes.operations import base_ops
@@ -124,6 +125,25 @@ class GeoStDistanceOp(base_ops.BinaryOp):
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.FLOAT_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class StRegionStatsOp(base_ops.TernaryOp):
+    """See: https://cloud.google.com/bigquery/docs/reference/standard-sql/geography_functions#st_regionstats"""
+
+    name = "st_regionstats"
+    options: typing.Optional[str] = None
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.struct_type(
+            [
+                ("min", dtypes.FLOAT_DTYPE),
+                ("max", dtypes.FLOAT_DTYPE),
+                ("sum", dtypes.FLOAT_DTYPE),
+                ("count", dtypes.INT_DTYPE),
+                ("mean", dtypes.FLOAT_DTYPE),
+            ]
+        )
 
 
 @dataclasses.dataclass(frozen=True)

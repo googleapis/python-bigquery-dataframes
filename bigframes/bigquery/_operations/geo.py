@@ -14,11 +14,13 @@
 
 from __future__ import annotations
 
-from typing import Union
+import json
+from typing import Mapping, Union
 
 import shapely  # type: ignore
 
 from bigframes import operations as ops
+import bigframes.dataframe
 import bigframes.geopandas
 import bigframes.series
 
@@ -675,3 +677,38 @@ def st_length(
     series = series._apply_unary_op(ops.GeoStLengthOp(use_spheroid=use_spheroid))
     series.name = None
     return series
+
+
+def st_regionstats(
+    geography: bigframes.geopandas.GeoSeries,
+    raster: bigframes.series.Series,
+    band: str,
+    *,
+    options: Mapping[str, Union[str, int, float]] = {},
+) -> bigframes.dataframe.DataFrame:
+    """Computes statistics for a raster band within a given geography.
+
+    See: https://cloud.google.com/bigquery/docs/reference/standard-sql/geography_functions#st_regionstats
+
+    .. warning::
+        This function requires the Earth Engine API to be enabled.
+
+    Args:
+        geography (bigframes.geopandas.GeoSeries):
+            A series of geography objects.
+        raster (bigframes.series.Series):
+            A series of raster URIs. This can be a Google Cloud Storage URI,
+            or an Earth Engine asset ID.
+        band (str):
+            The name of the raster band to compute statistics for.
+        options (Mapping[str, Union[str, int, float]], optional):
+            A dictionary of options to pass to the function. See the BigQuery
+            documentation for a list of available options.
+
+    Returns:
+        bigframes.dataframe.DataFrame:
+            A dataframe containing the computed statistics.
+    """
+    op = ops.StRegionStatsOp(options=json.dumps(options) if options else None)
+    df = geography._apply_ternary_op(raster, band, op)
+    return df[df.columns[0]].struct.explode()
