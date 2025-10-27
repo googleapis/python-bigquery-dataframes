@@ -29,7 +29,7 @@ import bigframes.session._io.bigquery as bf_io_bigquery
 _TEMP_TABLE_ID_FORMAT = "bqdf{date}_{session_id}_{random_id}"
 # UDFs older than this many days are considered stale and will be deleted
 # from the anonymous dataset before creating a new UDF.
-_UDF_CLEANUP_THRESHOLD_DAYS = 30
+_UDF_CLEANUP_THRESHOLD_DAYS = 3
 
 
 class AnonymousDatasetManager(temporary_storage.TemporaryStorageManager):
@@ -151,15 +151,13 @@ class AnonymousDatasetManager(temporary_storage.TemporaryStorageManager):
         ) - datetime.timedelta(days=_UDF_CLEANUP_THRESHOLD_DAYS)
 
         for routine in routines:
-            print("Routine: ", routine.routine_id, routine.created)
             if (
                 routine.created < cleanup_cutoff_time
                 and routine._properties["routineType"] == "SCALAR_FUNCTION"
             ):
                 try:
-                    self.bqclient.delete_routine(routine.reference)
-                    print(">>>> This routine gets deleted!")
-                except Exception:
+                    self.bqclient.delete_routine(routine.reference, not_found_ok=True)
+                except Exception as e:
                     pass
 
     def close(self):
