@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass
 import inspect
+import typing
 from typing import Callable, Iterable, Union
 
 import google.cloud.bigquery as bigquery
@@ -70,6 +71,12 @@ class TransformFunction:
 
     def _output_bq_type(self):
         sig = inspect.signature(self._func)
+        return_annotation = sig.return_annotation
+        origin = typing.get_origin(return_annotation)
+        if origin is Union:
+            args = typing.get_args(return_annotation)
+            if len(args) == 2 and args[1] is type(None):
+                return _PYTHON_TO_BQ_TYPES[args[0]]
         return _PYTHON_TO_BQ_TYPES[sig.return_annotation]
 
     def _create_udf(self):
@@ -177,7 +184,7 @@ def image_blur_func(
     ksize_y: int,
     ext: str,
     verbose: bool,
-) -> str:
+) -> typing.Optional[str]:
     try:
         import json
 
@@ -241,9 +248,7 @@ def image_blur_func(
         if verbose:
             return json.dumps(error_result)
         else:
-            # The calling function expects a json string that can be parsed as a blob ref
-            # Return a valid blob ref json string with empty values.
-            return '{"access_urls": {"read_url": "", "write_url": ""}, "authorizer": "", "generation": "", "uri": ""}'
+            return None
 
 
 image_blur_def = FunctionDef(image_blur_func, ["opencv-python", "numpy", "requests"])
@@ -316,7 +321,7 @@ def image_resize_func(
     fy: float,
     ext: str,
     verbose: bool,
-) -> str:
+) -> typing.Optional[str]:
     try:
         import json
 
@@ -379,9 +384,7 @@ def image_resize_func(
         if verbose:
             return json.dumps(error_result)
         else:
-            # The calling function expects a json string that can be parsed as a blob ref
-            # Return a valid blob ref json string with empty values.
-            return '{"access_urls": {"read_url": "", "write_url": ""}, "authorizer": "", "generation": "", "uri": ""}'
+            return None
 
 
 image_resize_def = FunctionDef(
@@ -461,7 +464,7 @@ def image_normalize_func(
     norm_type: str,
     ext: str,
     verbose: bool,
-) -> str:
+) -> typing.Optional[str]:
     try:
         import json
 
@@ -533,9 +536,7 @@ def image_normalize_func(
         if verbose:
             return json.dumps(error_result)
         else:
-            # The calling function expects a json string that can be parsed as a blob ref
-            # Return a valid blob ref json string with empty values.
-            return '{"access_urls": {"read_url": "", "write_url": ""}, "authorizer": "", "generation": "", "uri": ""}'
+            return None
 
 
 image_normalize_def = FunctionDef(
