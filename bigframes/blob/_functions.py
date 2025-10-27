@@ -85,7 +85,7 @@ class TransformFunction:
             self._session._anon_dataset_manager.generate_unique_resource_id()
         )
 
-        func_body = inspect.getsource(self._func)
+        func_body = "import typing\n" + inspect.getsource(self._func)
         func_name = self._func.__name__
         packages = str(list(self._requirements))
 
