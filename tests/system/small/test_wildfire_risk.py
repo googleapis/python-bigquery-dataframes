@@ -68,9 +68,13 @@ def test_wildfire_risk(session):
 
     # Step 4: Compute a simple composite index of relative wildfire risk.
     relative_risk = (
-        wildfire_risk["wildfire_likelihood"].rank(pct=True)
-        + wildfire_risk["wildfire_consequence"].rank(pct=True)
-        + wildfire_risk["average_wind_speed"].rank(pct=True)
-    ) / 3 * 100
+        (
+            wildfire_risk["wildfire_likelihood"].rank(pct=True)
+            + wildfire_risk["wildfire_consequence"].rank(pct=True)
+            + wildfire_risk["average_wind_speed"].rank(pct=True)
+        )
+        / 3
+        * 100
+    )
     wildfire_risk = wildfire_risk.assign(relative_risk=relative_risk)
     assert wildfire_risk is not None
