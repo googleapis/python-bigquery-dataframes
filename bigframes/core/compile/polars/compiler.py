@@ -437,8 +437,6 @@ if polars_installed:
                     f"Haven't implemented array aggregation: {op.aggregation}"
                 )
 
-
-
     @dataclasses.dataclass(frozen=True)
     class PolarsAggregateCompiler:
         scalar_compiler = PolarsExpressionCompiler()
