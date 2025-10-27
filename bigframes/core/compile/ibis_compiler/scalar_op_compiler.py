@@ -169,6 +169,9 @@ class ExpressionCompiler:
         Args:
             op_ref (TernaryOp or TernaryOp type):
                 Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
         """
         key = typing.cast(str, op_ref.name)
 
@@ -296,5 +299,7 @@ def st_regionstats(
     if op.options:
         args.append(bigframes_vendored.ibis.literal(op.options, type="json"))
     return bigframes_vendored.ibis.remote_function(
-        "st_regionstats", args, output_type="struct<min: float, max: float, sum: float, count: int, mean: float>"  # type: ignore
+        "st_regionstats",
+        args,
+        output_type="struct<min: float, max: float, sum: float, count: int, mean: float, area: float>",  # type: ignore
     )

@@ -142,6 +142,7 @@ class StRegionStatsOp(base_ops.TernaryOp):
                 ("sum", dtypes.FLOAT_DTYPE),
                 ("count", dtypes.INT_DTYPE),
                 ("mean", dtypes.FLOAT_DTYPE),
+                ("area", dtypes.FLOAT_DTYPE),
             ]
         )
 

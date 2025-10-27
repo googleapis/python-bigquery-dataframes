@@ -683,7 +683,6 @@ def st_regionstats(
     geography: bigframes.geopandas.GeoSeries,
     raster: bigframes.series.Series,
     band: str,
-    *,
     options: Mapping[str, Union[str, int, float]] = {},
 ) -> bigframes.dataframe.DataFrame:
     """Computes statistics for a raster band within a given geography.

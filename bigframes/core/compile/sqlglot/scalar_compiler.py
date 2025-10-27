@@ -201,11 +201,14 @@ def compile_st_regionstats(
     args = [geography.expr, raster.expr, band.expr]
     if op.options:
         args.append(
-            sge.EQ(
-                this=sge.Identifier(this="OPTIONS"),
-                expression=sge.Anonymous(
-                    this="JSON", expressions=[sge.convert(op.options)]
-                ),
+            sge.Anonymous(
+                this="_",
+                expressions=[
+                    sge.Identifier(this="OPTIONS"),
+                    sge.Anonymous(
+                        this="JSON", expressions=[sge.convert(op.options)]
+                    ),
+                ],
             )
         )
     return sge.func("ST_REGIONSTATS", *args)

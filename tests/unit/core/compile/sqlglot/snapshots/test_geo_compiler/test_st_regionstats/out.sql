@@ -21,7 +21,7 @@ WITH `bfcte_1` AS (
 ), `bfcte_4` AS (
   SELECT
     *,
-    ST_REGIONSTATS(`bfcol_1`, `bfcol_5`, 'band1', OPTIONS = JSON('{"scale": 100}')) AS `bfcol_8`
+    ST_REGIONSTATS(`bfcol_1`, `bfcol_5`, 'band1', _(OPTIONS, JSON('{"scale": 100}'))) AS `bfcol_8`
   FROM `bfcte_3`
 ), `bfcte_5` AS (
   SELECT
@@ -30,7 +30,8 @@ WITH `bfcte_1` AS (
     `bfcol_8`.`max` AS `bfcol_11`,
     `bfcol_8`.`sum` AS `bfcol_12`,
     `bfcol_8`.`count` AS `bfcol_13`,
-    `bfcol_8`.`mean` AS `bfcol_14`
+    `bfcol_8`.`mean` AS `bfcol_14`,
+    `bfcol_8`.`area` AS `bfcol_15`
   FROM `bfcte_4`
 )
 SELECT
@@ -38,5 +39,6 @@ SELECT
   `bfcol_11` AS `max`,
   `bfcol_12` AS `sum`,
   `bfcol_13` AS `count`,
-  `bfcol_14` AS `mean`
+  `bfcol_14` AS `mean`,
+  `bfcol_15` AS `area`
 FROM `bfcte_5`

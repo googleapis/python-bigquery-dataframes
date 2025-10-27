@@ -21,9 +21,9 @@ import bigframes.pandas as bpd
 pytest.importorskip("pytest_snapshot")
 
 
-class TestGeoCompiler:
-    def test_st_regionstats(self, compiler_session, snapshot):
-        geos = gpd.GeoSeries(["POINT(1 1)"], session=compiler_session)
-        rasters = bpd.Series(["raster_uri"], dtype="string", session=compiler_session)
-        df = bbq.st_regionstats(geos, rasters, "band1", options={"scale": 100})
-        snapshot.assert_match(df.sql, "out.sql")
+def test_st_regionstats(compiler_session, snapshot):
+    geos = gpd.GeoSeries(["POINT(1 1)"], session=compiler_session)
+    rasters = bpd.Series(["raster_uri"], dtype="string", session=compiler_session)
+    df = bbq.st_regionstats(geos, rasters, "band1", {"scale": 100})
+    assert "area" in df.columns
+    snapshot.assert_match(df.sql, "out.sql")
