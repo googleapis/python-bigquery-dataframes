@@ -12,13 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import pytest
 
 from bigframes import operations as ops
+from bigframes.core import expression as ex
 import bigframes.pandas as bpd
 from bigframes.testing import utils
 
 pytest.importorskip("pytest_snapshot")
+
+
+def _apply_nary_op(
+    obj: bpd.DataFrame,
+    op: ops.NaryOp,
+    *args: typing.Union[str, ex.Expression],
+) -> str:
+    """Applies a nary op to the given DataFrame and return the SQL representing
+    the resulting DataFrame."""
+    array_value = obj._block.expr
+    op_expr = op.as_expr(*args)
+    result, col_ids = array_value.compute_values([op_expr])
+
+    # Rename columns for deterministic golden SQL results.
+    assert len(col_ids) == 1
+    result = result.rename_columns({col_ids[0]: "result_col"}).select_columns(
+        ["result_col"]
+    )
+
+    sql = result.session._executor.to_sql(result, enable_cache=False)
+    return sql
 
 
 def test_struct_field(nested_structs_types_df: bpd.DataFrame, snapshot):
@@ -39,6 +63,6 @@ def test_struct_field(nested_structs_types_df: bpd.DataFrame, snapshot):
 def test_struct_op(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["bool_col", "int64_col", "float64_col", "string_col"]]
     op = ops.StructOp(column_names=tuple(bf_df.columns.tolist()))
-    sql = utils._apply_nary_op(bf_df, op, *bf_df.columns.tolist())
+    sql = _apply_nary_op(bf_df, op, *bf_df.columns.tolist())
 
     snapshot.assert_match(sql, "out.sql")

@@ -102,7 +102,7 @@ def test_to_json_string(json_types_df: bpd.DataFrame, snapshot):
 
 def test_json_set(json_types_df: bpd.DataFrame, snapshot):
     bf_df = json_types_df[["json_col"]]
-    sql = utils._apply_nary_op(
+    sql = utils._apply_binary_op(
         bf_df, ops.JSONSet(json_path="$.a"), "json_col", ex.const(100)
     )
 

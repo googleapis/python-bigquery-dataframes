@@ -17,5 +17,5 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_4` AS `bool_col`
+  `bfcol_4` AS `result_col`
 FROM `bfcte_1`

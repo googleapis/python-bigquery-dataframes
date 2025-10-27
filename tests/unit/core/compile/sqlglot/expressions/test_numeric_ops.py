@@ -221,7 +221,7 @@ def test_add_numeric(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_add_string(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["string_col"]]
-    sql = utils._apply_nary_op(bf_df, ops.add_op, "string_col", ex.const("a"))
+    sql = utils._apply_binary_op(bf_df, ops.add_op, "string_col", ex.const("a"))
 
     snapshot.assert_match(sql, "out.sql")
 
@@ -241,10 +241,10 @@ def test_add_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_add_unsupported_raises(scalar_types_df: bpd.DataFrame):
     with pytest.raises(TypeError):
-        utils._apply_nary_op(scalar_types_df, ops.add_op, "timestamp_col", "date_col")
+        utils._apply_binary_op(scalar_types_df, ops.add_op, "timestamp_col", "date_col")
 
     with pytest.raises(TypeError):
-        utils._apply_nary_op(scalar_types_df, ops.add_op, "int64_col", "string_col")
+        utils._apply_binary_op(scalar_types_df, ops.add_op, "int64_col", "string_col")
 
 
 def test_div_numeric(scalar_types_df: bpd.DataFrame, snapshot):
@@ -361,7 +361,7 @@ def test_sub_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
 
 def test_sub_unsupported_raises(scalar_types_df: bpd.DataFrame):
     with pytest.raises(TypeError):
-        utils._apply_nary_op(scalar_types_df, ops.sub_op, "string_col", "string_col")
+        utils._apply_binary_op(scalar_types_df, ops.sub_op, "string_col", "string_col")
 
     with pytest.raises(TypeError):
-        utils._apply_nary_op(scalar_types_df, ops.sub_op, "int64_col", "string_col")
+        utils._apply_binary_op(scalar_types_df, ops.sub_op, "int64_col", "string_col")
