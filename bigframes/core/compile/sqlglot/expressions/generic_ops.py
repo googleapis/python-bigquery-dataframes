@@ -83,7 +83,6 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 @register_nary_op(ops.SqlScalarOp, pass_op=True)
 def _(*operands: TypedExpr, op: ops.SqlScalarOp) -> sge.Expression:
-    # TODO: can we include a string in the sqlglot expression without parsing?
     return sg.parse_one(
         op.sql_template.format(
             *[operand.expr.sql(dialect="bigquery") for operand in operands]
