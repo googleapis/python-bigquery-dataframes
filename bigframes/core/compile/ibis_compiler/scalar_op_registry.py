@@ -1036,7 +1036,7 @@ def astype_op_impl(x: ibis_types.Value, op: ops.AsTypeOp):
         if to_type == ibis_dtypes.bool:
             return cast_json_to_bool_in_safe(x) if op.safe else cast_json_to_bool(x)
         if to_type == ibis_dtypes.string:
-            return to_json_string(x)
+            return cast_json_to_string_in_safe(x) if op.safe else cast_json_to_string(x)
 
     # TODO: either inline this function, or push rest of this op into the function
     return bigframes.core.compile.ibis_types.cast_ibis_value(x, to_type, safe=op.safe)
