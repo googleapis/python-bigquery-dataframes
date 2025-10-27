@@ -574,13 +574,16 @@ def forecast(
         (https://cloud.google.com/products#product-launch-stages).
 
     Args:
+        df (DataFrame):
+            The dataframe that contains the data that you want to forecast. It could be either a BigFrames Dataframe or 
+            a pandas DataFrame. If it's a pandas DataFrame, the global BigQuery session will be used to load the data.
+        data_col (str):
+            A str value that specifies the name of the data column. The data column contains the data to forecast.
+            The data column must use one of the following data types: INT64, NUMERIC and FLOAT64
         timestamp_col (str):
             A str value that specified the name of the time points column.
             The time points column provides the time points used to generate the forecast.
             The time points column must use one of the following data types: TIMESTAMP, DATE and DATETIME
-        data_col (str):
-            A str value that specifies the name of the data column. The data column contains the data to forecast.
-            The data column must use one of the following data types: INT64, NUMERIC and FLOAT64
         model (str, default "TimesFM 2.0"):
             A str value that specifies the name of the model. TimesFM 2.0 is the only supported value, and is the default value.
         id_cols (Iterable[str], optional):
