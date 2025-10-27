@@ -852,9 +852,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         if opts.repr_mode == "anywidget":
             try:
-                import anywidget  # noqa: F401
                 from IPython.display import display as ipython_display
-                import traitlets  # noqa: F401
 
                 from bigframes import display
 
