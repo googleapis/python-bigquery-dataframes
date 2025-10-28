@@ -680,7 +680,7 @@ def st_length(
 
 
 def st_regionstats(
-    geography: bigframes.geopandas.GeoSeries,
+    geography: Union[bigframes.series.Series, bigframes.geopandas.GeoSeries],
     raster: bigframes.series.Series,
     band: str,
     options: Mapping[str, Union[str, int, float]] = {},
@@ -693,7 +693,7 @@ def st_regionstats(
         This function requires the Earth Engine API to be enabled.
 
     Args:
-        geography (bigframes.geopandas.GeoSeries):
+        geography (bigframes.series.Series | bigframes.geopandas.GeoSeries):
             A series of geography objects.
         raster (bigframes.series.Series):
             A series of raster URIs. This can be a Google Cloud Storage URI,

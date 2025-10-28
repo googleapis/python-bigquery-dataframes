@@ -14,6 +14,8 @@
 
 # Inspired by the SQL at https://cloud.google.com/blog/products/data-analytics/a-closer-look-at-earth-engine-in-bigquery
 
+import typing
+
 import bigframes.bigquery as bbq
 import bigframes.pandas as bpd
 
@@ -40,8 +42,11 @@ def test_wildfire_risk(session):
     ) ** 0.5
     weather_forecast = weather_forecast.assign(wind_speed=wind_speed)
     weather_forecast = weather_forecast[weather_forecast["forecast"]["hours"] < 24]
-    weather_forecast = weather_forecast.merge(
-        places, how="inner", left_on="geography_polygon", right_on="geo"
+    weather_forecast = typing.cast(
+        bpd.DataFrame,
+        weather_forecast.merge(
+            places, how="inner", left_on="geography_polygon", right_on="geo"
+        ),
     )
     weather_forecast = weather_forecast.groupby("place_id").agg(
         place_name=("place_name", "first"),
@@ -68,13 +73,9 @@ def test_wildfire_risk(session):
 
     # Step 4: Compute a simple composite index of relative wildfire risk.
     relative_risk = (
-        (
-            wildfire_risk["wildfire_likelihood"].rank(pct=True)
-            + wildfire_risk["wildfire_consequence"].rank(pct=True)
-            + wildfire_risk["average_wind_speed"].rank(pct=True)
-        )
-        / 3
-        * 100
-    )
+        wildfire_risk["wildfire_likelihood"].rank(pct=True)
+        + wildfire_risk["wildfire_consequence"].rank(pct=True)
+        + wildfire_risk["average_wind_speed"].rank(pct=True)
+    ) / 3 * 100
     wildfire_risk = wildfire_risk.assign(relative_risk=relative_risk)
     assert wildfire_risk is not None

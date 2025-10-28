@@ -23,14 +23,13 @@ import uuid
 import pandas as pd
 
 import bigframes
-from bigframes.core import blocks
 import bigframes.dataframe
 import bigframes.display.html
 
-# anywidget and traitlets are optional dependencies. We don't want the import of
-# this module to fail if they aren't installed, though. Instead, we try to
-# limit the surface that these packages could affect. This makes unit testing
-# easier and ensures we don't accidentally make these required packages.
+# anywidget and traitlets are optional dependencies. We don't want the import of this
+# module to fail if they aren't installed, though. Instead, we try to limit the surface that
+# these packages could affect. This makes unit testing easier and ensures we don't
+# accidentally make these required packages.
 try:
     import anywidget
     import traitlets
@@ -47,21 +46,9 @@ else:
 
 
 class TableWidget(WIDGET_BASE):
-    """An interactive, paginated table widget for BigFrames DataFrames.
-
-    This widget provides a user-friendly way to display and navigate through
-    large BigQuery DataFrames within a Jupyter environment.
     """
-
-    page = traitlets.Int(0).tag(sync=True)
-    page_size = traitlets.Int(0).tag(sync=True)
-    row_count = traitlets.Int(0).tag(sync=True)
-    table_html = traitlets.Unicode().tag(sync=True)
-    _initial_load_complete = traitlets.Bool(False).tag(sync=True)
-    _batches: Optional[blocks.PandasBatches] = None
-    _error_message = traitlets.Unicode(allow_none=True, default_value=None).tag(
-        sync=True
-    )
+    An interactive, paginated table widget for BigFrames DataFrames.
+    """
 
     def __init__(self, dataframe: bigframes.dataframe.DataFrame):
         """Initialize the TableWidget.
@@ -74,11 +61,10 @@ class TableWidget(WIDGET_BASE):
                 "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use TableWidget."
             )
 
+        super().__init__()
         self._dataframe = dataframe
 
-        super().__init__()
-
-        # Initialize attributes that might be needed by observers first
+        # Initialize attributes that might be needed by observers FIRST
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
@@ -86,6 +72,9 @@ class TableWidget(WIDGET_BASE):
 
         # respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
+
+        # Initialize data fetching attributes.
+        self._batches = dataframe._to_pandas_batches(page_size=initial_page_size)
 
         # set traitlets properties that trigger observers
         self.page_size = initial_page_size
@@ -95,20 +84,11 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
         # TODO(b/452747934): Allow row_count to be None and check to see if
-        # there are multiple pages and show "page 1 of many" in this case
-        self._reset_batches_for_new_page_size()
-        if self._batches is None or self._batches.total_rows is None:
-            self._error_message = "Could not determine total row count. Data might be unavailable or an error occurred."
-            self.row_count = 0
-        else:
-            self.row_count = self._batches.total_rows
+        # there are multiple pages and show "page 1 of many" in this case.
+        self.row_count = self._batches.total_rows or 0
 
         # get the initial page
         self._set_table_html()
-
-        # Signals to the frontend that the initial data load is complete.
-        # Also used as a guard to prevent observers from firing during initialization.
-        self._initial_load_complete = True
 
     @functools.cached_property
     def _esm(self):
@@ -119,6 +99,11 @@ class TableWidget(WIDGET_BASE):
     def _css(self):
         """Load CSS code from external file."""
         return resources.read_text(bigframes.display, "table_widget.css")
+
+    page = traitlets.Int(0).tag(sync=True)
+    page_size = traitlets.Int(25).tag(sync=True)
+    row_count = traitlets.Int(0).tag(sync=True)
+    table_html = traitlets.Unicode().tag(sync=True)
 
     @traitlets.validate("page")
     def _validate_page(self, proposal: Dict[str, Any]) -> int:
@@ -186,10 +171,7 @@ class TableWidget(WIDGET_BASE):
     def _batch_iterator(self) -> Iterator[pd.DataFrame]:
         """Lazily initializes and returns the batch iterator."""
         if self._batch_iter is None:
-            if self._batches is None:
-                self._batch_iter = iter([])
-            else:
-                self._batch_iter = iter(self._batches)
+            self._batch_iter = iter(self._batches)
         return self._batch_iter
 
     @property
@@ -199,22 +181,15 @@ class TableWidget(WIDGET_BASE):
             return pd.DataFrame(columns=self._dataframe.columns)
         return pd.concat(self._cached_batches, ignore_index=True)
 
-    def _reset_batches_for_new_page_size(self) -> None:
+    def _reset_batches_for_new_page_size(self):
         """Reset the batch iterator when page size changes."""
         self._batches = self._dataframe._to_pandas_batches(page_size=self.page_size)
-
         self._cached_batches = []
         self._batch_iter = None
         self._all_data_loaded = False
 
-    def _set_table_html(self) -> None:
+    def _set_table_html(self):
         """Sets the current html data based on the current page and page size."""
-        if self._error_message:
-            self.table_html = (
-                f"<div class='bigframes-error-message'>{self._error_message}</div>"
-            )
-            return
-
         start = self.page * self.page_size
         end = start + self.page_size
 
@@ -236,17 +211,13 @@ class TableWidget(WIDGET_BASE):
         )
 
     @traitlets.observe("page")
-    def _page_changed(self, _change: Dict[str, Any]) -> None:
+    def _page_changed(self, _change: Dict[str, Any]):
         """Handler for when the page number is changed from the frontend."""
-        if not self._initial_load_complete:
-            return
         self._set_table_html()
 
     @traitlets.observe("page_size")
-    def _page_size_changed(self, _change: Dict[str, Any]) -> None:
+    def _page_size_changed(self, _change: Dict[str, Any]):
         """Handler for when the page size is changed from the frontend."""
-        if not self._initial_load_complete:
-            return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
 
