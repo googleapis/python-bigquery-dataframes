@@ -527,6 +527,137 @@ def test_json_column_anywidget_mode(mock_display, json_df: bf.dataframe.DataFram
             assert result == ""
 
 
+def mock_execute_result_with_params(
+    self, schema, total_rows_val, arrow_batches_val, *args, **kwargs
+):
+    """
+    Mocks an execution result with configurable total_rows and arrow_batches.
+    """
+    from bigframes.session.executor import ExecuteResult
+
+    return ExecuteResult(
+        iter(arrow_batches_val),
+        schema=schema,
+        query_job=None,
+        total_bytes=None,
+        total_rows=total_rows_val,
+    )
+
+
+def test_widget_row_count_should_be_immutable_after_creation(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a widget created with a specific configuration when global display
+    options are changed later, the widget's original row_count should remain
+    unchanged.
+    """
+    from bigframes.display.anywidget import TableWidget
+
+    # Use a context manager to ensure the option is reset
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(paginated_bf_df)
+        initial_row_count = widget.row_count
+
+    # Change a global option that could influence row count
+    bf.options.display.max_rows = 10
+
+    # Verify the row count remains immutable.
+    assert widget.row_count == initial_row_count
+
+
+class FaultyIterator:
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise ValueError("Simulated read error")
+
+
+def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
+    paginated_bf_df: bf.dataframe.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """
+    Given an internal component fails to return valid execution data,
+    when the TableWidget is created, its error_message should be set and displayed.
+    """
+    # Patch the executor's 'execute' method to simulate an error.
+    monkeypatch.setattr(
+        "bigframes.session.bq_caching_executor.BigQueryCachingExecutor.execute",
+        lambda self, *args, **kwargs: mock_execute_result_with_params(
+            self, paginated_bf_df._block.expr.schema, None, [], *args, **kwargs
+        ),
+    )
+
+    # Create the TableWidget under the error condition.
+    with bf.option_context("display.repr_mode", "anywidget"):
+        from bigframes.display.anywidget import TableWidget
+
+        # The widget should handle the faulty data from the mock without crashing.
+        widget = TableWidget(paginated_bf_df)
+
+    # The widget should have an error message and display it in the HTML.
+    assert widget.row_count == 0
+    assert widget._error_message is not None
+    assert "Could not determine total row count" in widget._error_message
+    assert widget._error_message in widget.table_html
+
+
+def test_widget_row_count_reflects_actual_data_available(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Test that widget row_count reflects the actual data available,
+    regardless of theoretical limits.
+    """
+    from bigframes.display.anywidget import TableWidget
+
+    # Set up display options that define a page size.
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(paginated_bf_df)
+
+        # The widget should report the total rows in the DataFrame,
+        # not limited by page_size (which only affects pagination)
+        assert widget.row_count == EXPECTED_ROW_COUNT
+        assert widget.page_size == 2  # Respects the display option
+
+
 # TODO(shuowei): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
+
+
+@pytest.fixture(scope="module")
+def empty_json_df(session: bf.Session) -> bf.dataframe.DataFrame:
+    """Create an empty DataFrame with a JSON column for testing."""
+    import bigframes.dtypes
+
+    pandas_df = pd.DataFrame(
+        {
+            "a": pd.Series(dtype="int64"),
+            "b": pd.Series(dtype=bigframes.dtypes.JSON_DTYPE),
+        }
+    )
+    return session.read_pandas(pandas_df)
+
+
+def test_empty_widget_with_json_column(empty_json_df: bf.dataframe.DataFrame):
+    """Given an empty DataFrame with a JSON column, the widget should render table headers."""
+    with bf.option_context("display.repr_mode", "anywidget"):
+        from bigframes.display.anywidget import TableWidget
+
+        widget = TableWidget(empty_json_df)
+        html = widget.table_html
+
+        assert widget.row_count == 0
+        assert "<table" in html
+        assert "a" in html
+        assert "b" in html
+
+
+def test_json_column_conversion_warning(json_df: bf.dataframe.DataFrame):
+    """Test that a warning is shown when converting JSON columns."""
+    with bf.option_context("display.repr_mode", "anywidget"):
+        with pytest.warns(UserWarning, match="Converting JSON columns to strings"):
+            json_df._repr_html_()

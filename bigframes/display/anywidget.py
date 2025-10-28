@@ -231,6 +231,8 @@ class TableWidget(WIDGET_BASE):
                 cached_data = self._cached_data
             else:
                 break
+
+        # Get the data for the current page
         page_data = cached_data.iloc[start:end]
 
         # Generate HTML table
