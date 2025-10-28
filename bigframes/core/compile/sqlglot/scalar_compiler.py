@@ -244,7 +244,9 @@ def compile_st_regionstats(
                 this="_",
                 expressions=[
                     sge.Identifier(this="OPTIONS"),
-                    sge.Anonymous(this="JSON", expressions=[sge.convert(op.options)]),
+                    sge.Anonymous(
+                        this="JSON", expressions=[sge.convert(op.options)]
+                    ),
                 ],
             )
         )
