@@ -622,32 +622,11 @@ if polars_installed:
                 for scan_item in node.scan_list.items
             }
 
-            # Workaround for PyArrow bug https://github.com/apache/arrow/issues/45262
-            # Convert JSON columns to strings before Polars processing
-            arrow_data = node.local_data_source.data
-            schema = arrow_data.schema
-
-            # Check if any columns are JSON type
-            json_field_indices = [
-                i
-                for i, field in enumerate(schema)
-                if pa.types.is_extension_type(field.type)
-                and field.type.extension_name == "google:sqlType:json"
-            ]
-
-            if json_field_indices:
-                # Convert JSON columns to string columns
-                new_arrays = []
-                new_fields = []
-                for i, field in enumerate(schema):
-                    if i in json_field_indices:
-                        # Cast JSON to string
-                        new_arrays.append(arrow_data.column(i).cast(pa.string()))
-                        new_fields.append(pa.field(field.name, pa.string()))
-                    else:
-                        new_arrays.append(arrow_data.column(i))
-                        new_fields.append(field)
-                arrow_data = pa.table(new_arrays, schema=pa.schema(new_fields))
+            if hasattr(node.local_data_source, "to_arrow"):
+                schema, batches = node.local_data_source.to_arrow(json_type="string")
+                arrow_data = pa.Table.from_batches(batches, schema)
+            else:
+                arrow_data = node.local_data_source.data
 
             lazy_frame = cast(pl.DataFrame, pl.from_arrow(arrow_data)).lazy()
             lazy_frame = lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
