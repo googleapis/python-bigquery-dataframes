@@ -31,5 +31,5 @@ SELECT
   `bfcol_3` AS `bfuid_col_1`,
   `bfcol_4` AS `int64_col`,
   `bfcol_5` AS `float64_col`,
-  `bfcol_7` AS `bfuid_col_2`
+  `bfcol_7` AS `bfuid_col_1114`
 FROM `bfcte_2`
