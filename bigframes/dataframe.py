@@ -1306,6 +1306,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __neg__(self) -> DataFrame:
         return self._apply_unary_op(ops.neg_op)
 
+    def __abs__(self) -> DataFrame:
+        return self._apply_unary_op(ops.abs_op)
+
+    __abs__.__doc__ = abs.__doc__
+
     def align(
         self,
         other: typing.Union[DataFrame, bigframes.series.Series],
@@ -1770,8 +1775,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col': [4, 2, 2]})
 
         Download the data from BigQuery and convert it into an in-memory pandas DataFrame.
@@ -1892,8 +1895,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col': [4, 3, 2, 2, 3]})
 
         Iterate through the results in batches, limiting the total rows yielded
@@ -1934,6 +1935,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 form the original dataframe. Results stream from bigquery,
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
         """
+        return self._to_pandas_batches(
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
+        )
+
+    def _to_pandas_batches(
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> blocks.PandasBatches:
         return self._block.to_pandas_batches(
             page_size=page_size,
             max_results=max_results,
@@ -2555,25 +2569,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> None:
         ...
 
-    @validations.requires_index
     def sort_index(
         self,
         *,
+        axis: Union[int, str] = 0,
         ascending: bool = True,
         inplace: bool = False,
         na_position: Literal["first", "last"] = "last",
     ) -> Optional[DataFrame]:
-        if na_position not in ["first", "last"]:
-            raise ValueError("Param na_position must be one of 'first' or 'last'")
-        na_last = na_position == "last"
-        index_columns = self._block.index_columns
-        ordering = [
-            order.ascending_over(column, na_last)
-            if ascending
-            else order.descending_over(column, na_last)
-            for column in index_columns
-        ]
-        block = self._block.order_by(ordering)
+        if utils.get_axis_number(axis) == 0:
+            if na_position not in ["first", "last"]:
+                raise ValueError("Param na_position must be one of 'first' or 'last'")
+            na_last = na_position == "last"
+            index_columns = self._block.index_columns
+            ordering = [
+                order.ascending_over(column, na_last)
+                if ascending
+                else order.descending_over(column, na_last)
+                for column in index_columns
+            ]
+            block = self._block.order_by(ordering)
+        else:  # axis=1
+            _, indexer = self.columns.sort_values(
+                return_indexer=True, ascending=ascending, na_position=na_position  # type: ignore
+            )
+            block = self._block.select_columns(
+                [self._block.value_columns[i] for i in indexer]
+            )
         if inplace:
             self._set_block(block)
             return None
@@ -4252,9 +4274,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> import pandas as pd
-        >>> bpd.options.display.progress_bar = None
-
         >>> data = {
         ...     "timestamp_col": pd.date_range(
         ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
@@ -5309,7 +5328,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def semantics(self):
         msg = bfe.format_message(
-            "The 'semantics' property will be removed. Please use 'ai' instead."
+            "The 'semantics' property will be removed. Please use 'bigframes.bigquery.ai' instead."
         )
         warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.semantics.Semantics(self)
@@ -5317,4 +5336,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def ai(self):
         """Returns the accessor for AI operators."""
+        msg = bfe.format_message(
+            "The 'ai' property will be removed. Please use 'bigframes.bigquery.ai' instead."
+        )
+        warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.ai.AIAccessor(self)

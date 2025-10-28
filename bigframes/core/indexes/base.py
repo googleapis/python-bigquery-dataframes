@@ -43,6 +43,7 @@ import bigframes.session.execution_spec as ex_spec
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
+    import bigframes.operations.strings
     import bigframes.series
 
 
@@ -254,6 +255,12 @@ class Index(vendored_pandas_index.Index):
             self._query_job = query_job
         return self._query_job
 
+    @property
+    def str(self) -> bigframes.operations.strings.StringMethods:
+        import bigframes.operations.strings
+
+        return bigframes.operations.strings.StringMethods(self)
+
     def get_loc(self, key) -> typing.Union[int, slice, "bigframes.series.Series"]:
         """Get integer location, slice or boolean mask for requested label.
 
@@ -325,7 +332,9 @@ class Index(vendored_pandas_index.Index):
             result_series = bigframes.series.Series(mask_block)
             return result_series.astype("boolean")
 
-    def _get_monotonic_slice(self, filtered_block, offsets_id: str) -> slice:
+    def _get_monotonic_slice(
+        self, filtered_block, offsets_id: __builtins__.str
+    ) -> slice:
         """Helper method to get a slice for monotonic duplicates with an optimized query."""
         # Combine min and max aggregations into a single query for efficiency
         min_max_aggs = [
@@ -355,7 +364,7 @@ class Index(vendored_pandas_index.Index):
         # Create slice (stop is exclusive)
         return slice(min_pos, max_pos + 1)
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> __builtins__.str:
         # Protect against errors with uninitialized Series. See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
         if not hasattr(self, "_block"):
@@ -396,13 +405,13 @@ class Index(vendored_pandas_index.Index):
         name = self.name if name is None else name
         if index is None:
             return bigframes.series.Series(
-                data=self, index=self, name=name, session=self._session
+                data=self, index=self, name=str(name), session=self._session
             )
         else:
             return bigframes.series.Series(
                 data=self,
                 index=Index(index, session=self._session),
-                name=name,
+                name=str(name),
                 session=self._session,
             )
 
@@ -429,7 +438,7 @@ class Index(vendored_pandas_index.Index):
         *,
         inplace: bool = False,
         ascending: bool = True,
-        na_position: str = "last",
+        na_position: __builtins__.str = "last",
     ) -> Index:
         if na_position not in ["first", "last"]:
             raise ValueError("Param na_position must be one of 'first' or 'last'")
@@ -616,7 +625,7 @@ class Index(vendored_pandas_index.Index):
         result = block_ops.dropna(self._block, self._block.index_columns, how=how)
         return Index(result)
 
-    def drop_duplicates(self, *, keep: str = "first") -> Index:
+    def drop_duplicates(self, *, keep: __builtins__.str = "first") -> Index:
         if keep is not False:
             validations.enforce_ordered(self, "drop_duplicates")
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
@@ -667,6 +676,9 @@ class Index(vendored_pandas_index.Index):
         match_expr_final = functools.reduce(ops.and_op.as_expr, match_exprs)
         block, match_col = self._block.project_expr(match_expr_final)
         return cast(bool, block.get_stat(match_col, agg_ops.AnyOp()))
+
+    def _apply_unary_op(self, op: ops.UnaryOp) -> Index:
+        return self._apply_unary_expr(op.as_expr(ex.free_var("input")))
 
     def _apply_unary_expr(
         self,
@@ -774,9 +786,15 @@ class Index(vendored_pandas_index.Index):
         return self.to_series().peek(2).item()
 
     def __eq__(self, other) -> Index:  # type: ignore
-        return self._apply_binop(other, ops.eq_op)
+        return self._apply_binary_op(other, ops.eq_op)
 
-    def _apply_binop(self, other, op: ops.BinaryOp) -> Index:
+    def _apply_binary_op(
+        self,
+        other,
+        op: ops.BinaryOp,
+        alignment: typing.Literal["outer", "left"] = "outer",
+    ) -> Index:
+        # Note: alignment arg is for compatibility with accessors, is ignored as irrelevant for implicit joins.
         # TODO: Handle local objects, or objects not implicitly alignable? Gets ambiguous with partial ordering though
         if isinstance(other, (bigframes.series.Series, Index)):
             other = Index(other)
@@ -797,12 +815,13 @@ class Index(vendored_pandas_index.Index):
                     for lid, rid in zip(lexpr.column_ids, rexpr.column_ids)
                 ]
             )
+            labels = self.names if self.names == other.names else [None] * len(res_ids)
             return Index(
                 blocks.Block(
                     expr.select_columns(res_ids),
                     index_columns=res_ids,
                     column_labels=[],
-                    index_labels=[None] * len(res_ids),
+                    index_labels=labels,
                 )
             )
         elif (
@@ -811,7 +830,7 @@ class Index(vendored_pandas_index.Index):
             block, id = self._block.project_expr(
                 op.as_expr(self._block.index_columns[0], ex.const(other))
             )
-            return Index(block.select_column(id))
+            return Index(block.set_index([id], index_labels=self.names))
         elif isinstance(other, tuple) and len(other) == self.nlevels:
             block = self._block.project_exprs(
                 [
@@ -821,7 +840,7 @@ class Index(vendored_pandas_index.Index):
                 labels=[None] * self.nlevels,
                 drop=True,
             )
-            return Index(block.set_index(block.value_columns))
+            return Index(block.set_index(block.value_columns, index_labels=self.names))
         else:
             return NotImplemented
 
