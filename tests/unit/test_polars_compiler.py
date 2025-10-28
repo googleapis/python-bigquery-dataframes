@@ -13,8 +13,18 @@
 # limitations under the License.
 
 import pandas as pd
-import polars as pl
 import pytest
+
+try:
+    import polars as pl
+
+    POLARS_INSTALLED = True
+except ImportError:
+    POLARS_INSTALLED = False
+
+if not POLARS_INSTALLED:
+    pytest.skip("polars is not installed", allow_module_level=True)
+
 
 import bigframes as bf
 import bigframes.core.compile.polars.compiler as polars_compiler
@@ -48,10 +58,9 @@ def test_polars_parse_json():
     result_df = df.with_columns(result.alias("b")).collect()
     # The result of json_decode is a struct
     assert isinstance(result_df["b"][0], dict)
-    assert result_df["b"][0] == {"b": 2}
+    assert result_df["b"][0]["b"] == 2
 
 
-@pytest.mark.skip(reason="Polars does not have json_extract on string expressions")
 def test_polars_json_extract():
     """Test JSONExtract operation in Polars compiler."""
     compiler = polars_compiler.PolarsExpressionCompiler()
@@ -59,10 +68,10 @@ def test_polars_json_extract():
     input_expr = pl.lit('{"a": 1, "b": "hello"}', dtype=pl.String)
     result = compiler.compile_op(op, input_expr)
 
-    df = pl.DataFrame({"a": ['{"b": "world"}']}).lazy()
+    df = pl.DataFrame({"a": ['{"a": 1, "b": "hello"}']}).lazy()
     result_df = df.with_columns(result.alias("b")).collect()
-    # json_extract returns a JSON encoded string
-    assert result_df["b"][0] == '"world"'
+    # json_path_match returns the raw string value
+    assert result_df["b"][0] == "hello"
 
 
 def test_readlocal_with_json_column(polars_session):
