@@ -611,14 +611,6 @@ class Series(vendored_pandas_series.Series):
             raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
         dtype = bigframes.dtypes.bigframes_type(dtype)
 
-        # BigQuery doesn't support CAST(json_col AS STRING), but it does support
-        # TO_JSON_STRING(json_col).
-        if (
-            self.dtype == bigframes.dtypes.JSON_DTYPE
-            and dtype == bigframes.dtypes.STRING_DTYPE
-        ):
-            return self._apply_unary_op(ops.json_ops.ToJSONString())
-
         return self._apply_unary_op(
             bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
         )

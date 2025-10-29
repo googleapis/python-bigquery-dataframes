@@ -6142,3 +6142,15 @@ def test_agg_with_dict_containing_non_existing_col_raise_key_error(scalars_dfs):
 
     with pytest.raises(KeyError):
         bf_df.agg(agg_funcs)
+
+
+def test_to_pandas_batches_with_json_columns(session):
+    """Test that JSON columns are properly handled in to_pandas_batches."""
+    # Create a DataFrame with JSON column
+    df = session.read_gbq('SELECT JSON \'{"key": "value"}\' as json_col')
+
+    # This should not raise an error
+    batches = df._to_pandas_batches(page_size=10)
+    next(batches)
+
+    # TODO
