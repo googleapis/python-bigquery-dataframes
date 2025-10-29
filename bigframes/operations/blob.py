@@ -193,6 +193,20 @@ class BlobAccessor:
 
         return s
 
+    def _apply_udf_or_raise_error(
+        self, df: bigframes.dataframe.DataFrame, udf, operation_name: str
+    ) -> bigframes.series.Series:
+        """Helper to apply UDF with consistent error handling."""
+        try:
+            res = self._df_apply_udf(df, udf)
+        except Exception as e:
+            raise RuntimeError(f"{operation_name} UDF execution failed: {e}") from e
+
+        if res is None:
+            raise RuntimeError(f"{operation_name} returned None result")
+
+        return res
+
     def read_url(self) -> bigframes.series.Series:
         """Retrieve the read URL of the Blob.
 
@@ -368,13 +382,7 @@ class BlobAccessor:
             container_memory=container_memory,
         ).udf()
 
-        try:
-            res = self._df_apply_udf(df, exif_udf)
-        except Exception as e:
-            raise RuntimeError(f"EXIF extraction UDF execution failed: {e}") from e
-
-        if res is None:
-            raise RuntimeError("EXIF extraction returned None result")
+        res = self._apply_udf_or_raise_error(df, exif_udf, "EXIF extraction")
 
         if verbose:
             try:
@@ -457,13 +465,7 @@ class BlobAccessor:
             df["ksize_x"], df["ksize_y"] = ksize
             df["ext"] = ext  # type: ignore
             df["verbose"] = verbose
-            try:
-                res = self._df_apply_udf(df, image_blur_udf)
-            except Exception as e:
-                raise RuntimeError(f"Image blur UDF execution failed: {e}") from e
-
-            if res is None:
-                raise RuntimeError("Image blur returned None result")
+            res = self._apply_udf_or_raise_error(df, image_blur_udf, "Image blur")
 
             if verbose:
                 blurred_content_b64_series = res._apply_unary_op(
@@ -512,13 +514,7 @@ class BlobAccessor:
         df["ext"] = ext  # type: ignore
         df["verbose"] = verbose
 
-        try:
-            res = self._df_apply_udf(df, image_blur_udf)
-        except Exception as e:
-            raise RuntimeError(f"Image blur UDF execution failed: {e}") from e
-
-        if res is None:
-            raise RuntimeError("Image blur returned None result")
+        res = self._apply_udf_or_raise_error(df, image_blur_udf, "Image blur")
         res.cache()  # to execute the udf
 
         if verbose:
@@ -610,13 +606,7 @@ class BlobAccessor:
             df["fx"], df["fy"] = fx, fy
             df["ext"] = ext  # type: ignore
             df["verbose"] = verbose
-            try:
-                res = self._df_apply_udf(df, image_resize_udf)
-            except Exception as e:
-                raise RuntimeError(f"Image resize UDF execution failed: {e}") from e
-
-            if res is None:
-                raise RuntimeError("Image resize returned None result")
+            res = self._apply_udf_or_raise_error(df, image_resize_udf, "Image resize")
 
             if verbose:
                 resized_content_b64_series = res._apply_unary_op(
@@ -667,13 +657,7 @@ class BlobAccessor:
         df["ext"] = ext  # type: ignore
         df["verbose"] = verbose
 
-        try:
-            res = self._df_apply_udf(df, image_resize_udf)
-        except Exception as e:
-            raise RuntimeError(f"Image resize UDF execution failed: {e}") from e
-
-        if res is None:
-            raise RuntimeError("Image resize returned None result")
+        res = self._apply_udf_or_raise_error(df, image_resize_udf, "Image resize")
         res.cache()  # to execute the udf
 
         if verbose:
@@ -759,13 +743,9 @@ class BlobAccessor:
             df["norm_type"] = norm_type
             df["ext"] = ext  # type: ignore
             df["verbose"] = verbose
-            try:
-                res = self._df_apply_udf(df, image_normalize_udf)
-            except Exception as e:
-                raise RuntimeError(f"Image normalize UDF execution failed: {e}") from e
-
-            if res is None:
-                raise RuntimeError("Image normalize returned None result")
+            res = self._apply_udf_or_raise_error(
+                df, image_normalize_udf, "Image normalize"
+            )
 
             if verbose:
                 normalized_content_b64_series = res._apply_unary_op(
@@ -816,13 +796,7 @@ class BlobAccessor:
         df["ext"] = ext  # type: ignore
         df["verbose"] = verbose
 
-        try:
-            res = self._df_apply_udf(df, image_normalize_udf)
-        except Exception as e:
-            raise RuntimeError(f"Image normalize UDF execution failed: {e}") from e
-
-        if res is None:
-            raise RuntimeError("Image normalize returned None result")
+        res = self._apply_udf_or_raise_error(df, image_normalize_udf, "Image normalize")
         res.cache()  # to execute the udf
 
         if verbose:
@@ -899,14 +873,7 @@ class BlobAccessor:
         df = self.get_runtime_json_str(mode="R").to_frame()
         df["verbose"] = verbose
 
-        try:
-            res = self._df_apply_udf(df, pdf_extract_udf)
-        except Exception as e:
-            raise RuntimeError(f"PDF extraction UDF failed: {e}") from e
-
-        # Validate result is not None
-        if res is None:
-            raise RuntimeError("PDF extraction returned None result")
+        res = self._apply_udf_or_raise_error(df, pdf_extract_udf, "PDF extraction")
 
         if verbose:
             # Extract content with error handling
@@ -1005,13 +972,7 @@ class BlobAccessor:
         df["overlap_size"] = overlap_size
         df["verbose"] = verbose
 
-        try:
-            res = self._df_apply_udf(df, pdf_chunk_udf)
-        except Exception as e:
-            raise RuntimeError(f"PDF chunking UDF failed: {e}") from e
-
-        if res is None:
-            raise RuntimeError("PDF chunking returned None result")
+        res = self._apply_udf_or_raise_error(df, pdf_chunk_udf, "PDF chunking")
 
         try:
             content_series = bbq.json_extract_string_array(res, "$.content")
