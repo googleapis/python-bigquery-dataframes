@@ -230,14 +230,12 @@ class ScalarOpCompiler:
 scalar_op_compiler = ScalarOpCompiler()
 
 
-@scalar_op_compiler.register_ternary_op(geo_ops.StRegionStatsOp, pass_op=True)
+@scalar_op_compiler.register_unary_op(geo_ops.StRegionStatsOp, pass_op=True)
 def compile_st_regionstats(
     geography: TypedExpr,
-    raster: TypedExpr,
-    band: TypedExpr,
     op: geo_ops.StRegionStatsOp,
 ):
-    args = [geography.expr, raster.expr, band.expr]
+    args = [geography.expr]  # TODO: get raster, band, include from op.
     if op.options:
         args.append(
             sge.Anonymous(

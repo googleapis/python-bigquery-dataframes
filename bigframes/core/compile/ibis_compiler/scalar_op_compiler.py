@@ -288,16 +288,15 @@ def isfinite(arg):
     return arg.isinf().negate() & arg.isnan().negate()
 
 
-@scalar_op_compiler.register_ternary_op(geo_ops.StRegionStatsOp, pass_op=True)
+@scalar_op_compiler.register_unary_op(geo_ops.StRegionStatsOp, pass_op=True)
 def st_regionstats(
     geography: ibis_types.Value,
-    raster: ibis_types.Value,
-    band: ibis_types.Value,
     op: geo_ops.StRegionStatsOp,
 ):
-    args = [geography, raster, band]
+    args = [geography]  # TODO: get band, include, and other properies from op.
     if op.options:
         args.append(bigframes_vendored.ibis.literal(op.options, type="json"))
+    # TODO: We may need a custom ibis op so that we can pass arguments by name instead of position.
     return bigframes_vendored.ibis.remote_function(
         "st_regionstats",
         args,
