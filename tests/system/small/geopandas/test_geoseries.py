@@ -30,6 +30,7 @@ from shapely.geometry import (  # type: ignore
     Polygon,
 )
 
+import bigframes.bigquery
 import bigframes.geopandas
 import bigframes.pandas
 import bigframes.series
@@ -557,9 +558,8 @@ def test_st_regionstats(session: bigframes.session.Session):
         ]
     )
     geos = bigframes.geopandas.GeoSeries([polygon], session=session)
-    rasters = bigframes.pandas.Series([raster], dtype="string", session=session)
     result = bigframes.bigquery.st_regionstats(
-        geos, rasters, "loss", options={"scale": 1000}
+        geos, raster, "loss", options={"scale": 1000}
     ).to_pandas()
     assert result is not None
     assert "mean" in result.columns
