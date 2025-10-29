@@ -16,14 +16,18 @@ import pytest
 
 import bigframes.bigquery as bbq
 import bigframes.geopandas as gpd
-import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
 
 def test_st_regionstats(compiler_session, snapshot):
     geos = gpd.GeoSeries(["POINT(1 1)"], session=compiler_session)
-    rasters = bpd.Series(["raster_uri"], dtype="string", session=compiler_session)
-    df = bbq.st_regionstats(geos, rasters, "band1", {"scale": 100})
-    assert "area" in df.columns
-    snapshot.assert_match(df.sql, "out.sql")
+    result = bbq.st_regionstats(
+        geos,
+        "ee://some/raster/uri",
+        band="band1",
+        include="some equation",
+        options={"scale": 100},
+    )
+    assert "area" in result.struct.dtypes.index
+    snapshot.assert_match(result.struct.explode().sql, "out.sql")

@@ -89,15 +89,11 @@ def _(
     geography: TypedExpr,
     op: ops.StRegionStatsOp,
 ):
-    args = [geography.expr]  # TODO: get raster, band, include from op.
+    args = [geography.expr, sge.convert(op.raster_id)]
+    if op.band:
+        args.append(sge.Kwarg(this="band", expression=sge.convert(op.band)))
+    if op.include:
+        args.append(sge.Kwarg(this="include", expression=sge.convert(op.include)))
     if op.options:
-        args.append(
-            sge.Anonymous(
-                this="_",
-                expressions=[
-                    sge.Identifier(this="OPTIONS"),
-                    sge.Anonymous(this="JSON", expressions=[sge.convert(op.options)]),
-                ],
-            )
-        )
+        args.append(sge.Kwarg(this="options", expression=sge.convert(op.options)))
     return sge.func("ST_REGIONSTATS", *args)

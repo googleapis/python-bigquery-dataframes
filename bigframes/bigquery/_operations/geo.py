@@ -685,7 +685,7 @@ def st_regionstats(
     band: Optional[str] = None,
     include: Optional[str] = None,
     options: Optional[Mapping[str, Union[str, int, float]]] = None,
-) -> bigframes.dataframe.DataFrame:
+) -> bigframes.series.Series:
     """Returns statistics summarizing the pixel values of the raster image
     referenced by raster_id that intersect with geography.
 
@@ -726,8 +726,8 @@ def st_regionstats(
             documentation for a list of available options.
 
     Returns:
-        bigframes.dataframe.DataFrame:
-            A dataframe containing the computed statistics.
+        bigframes.pandas.Series:
+            A STRUCT Series containing the computed statistics.
     """
     op = ops.StRegionStatsOp(
         raster_id=raster_id,
@@ -735,5 +735,4 @@ def st_regionstats(
         include=include,
         options=json.dumps(options) if options else None,
     )
-    df = geography._apply_unary_op(op)
-    return df[df.columns[0]].struct.explode()
+    return geography._apply_unary_op(op)
