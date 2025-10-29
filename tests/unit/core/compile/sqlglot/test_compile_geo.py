@@ -31,3 +31,13 @@ def test_st_regionstats(compiler_session, snapshot):
     )
     assert "area" in result.struct.dtypes.index
     snapshot.assert_match(result.struct.explode().sql, "out.sql")
+
+
+def test_st_regionstats_without_optional_args(compiler_session, snapshot):
+    geos = gpd.GeoSeries(["POINT(1 1)"], session=compiler_session)
+    result = bbq.st_regionstats(
+        geos,
+        "ee://some/raster/uri",
+    )
+    assert "area" in result.struct.dtypes.index
+    snapshot.assert_match(result.struct.explode().sql, "out.sql")
