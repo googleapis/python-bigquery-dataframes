@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,21 +21,37 @@ from bigframes.functions import function_typing
 
 
 def test_unsupported_type_error_init_with_dict():
-    err = function_typing.UnsupportedTypeError(
-        decimal.Decimal, {int: "INT64", float: "FLOAT64"}
-    )
+    # Arrange
+    unsupported_type = decimal.Decimal
+    supported_types = {int: "INT64", float: "FLOAT64"}
+
+    # Act
+    err = function_typing.UnsupportedTypeError(unsupported_type, supported_types)
+
+    # Assert
     assert "Decimal" in str(err)
     assert "float, int" in str(err)
 
 
 def test_unsupported_type_error_init_with_set():
-    err = function_typing.UnsupportedTypeError(decimal.Decimal, {int, float})
+    # Arrange
+    unsupported_type = decimal.Decimal
+    supported_types = {int, float}
+
+    # Act
+    err = function_typing.UnsupportedTypeError(unsupported_type, supported_types)
+
+    # Assert
     assert "Decimal" in str(err)
     assert "float, int" in str(err)
 
 
 def test_sdk_type_from_python_type_raises_unsupported_type_error():
+    # Arrange
+    unsupported_type = datetime.datetime
+
+    # Act & Assert
     with pytest.raises(function_typing.UnsupportedTypeError) as excinfo:
-        function_typing.sdk_type_from_python_type(datetime.datetime)
+        function_typing.sdk_type_from_python_type(unsupported_type)
     assert "datetime" in str(excinfo.value)
     assert "bool, bytes, float, int, str" in str(excinfo.value)
