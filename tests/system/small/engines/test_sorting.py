@@ -61,11 +61,38 @@ def test_engines_double_reverse(
         "timestamp_col",
     ],
 )
-def test_engines_sort_over_column(
+def test_engines_sort_over_column_descending_nulls_first(
     scalars_array_value: array_value.ArrayValue, engine, sort_col
 ):
     node = apply_reverse(scalars_array_value.node)
     ORDER_EXPRESSIONS = (ordering.descending_over(sort_col, nulls_last=False),)
+    node = nodes.OrderByNode(node, ORDER_EXPRESSIONS)
+    assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
+
+
+@pytest.mark.parametrize("engine", ["polars", "bq", "bq-sqlglot"], indirect=True)
+@pytest.mark.parametrize(
+    "sort_col",
+    [
+        "bool_col",
+        "int64_col",
+        "bytes_col",
+        "date_col",
+        "datetime_col",
+        "int64_col",
+        "int64_too",
+        "numeric_col",
+        "float64_col",
+        "string_col",
+        "time_col",
+        "timestamp_col",
+    ],
+)
+def test_engines_sort_over_column_descending_nulls_last(
+    scalars_array_value: array_value.ArrayValue, engine, sort_col
+):
+    node = apply_reverse(scalars_array_value.node)
+    ORDER_EXPRESSIONS = (ordering.descending_over(sort_col, nulls_last=True),)
     node = nodes.OrderByNode(node, ORDER_EXPRESSIONS)
     assert_equivalence_execution(node, REFERENCE_ENGINE, engine)
 
