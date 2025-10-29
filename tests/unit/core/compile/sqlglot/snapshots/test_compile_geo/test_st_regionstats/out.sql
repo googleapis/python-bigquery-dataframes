@@ -10,7 +10,7 @@ WITH `bfcte_0` AS (
       'ee://some/raster/uri',
       band => 'band1',
       include => 'some equation',
-      options => '{"scale": 100}'
+      options => JSON '{"scale": 100}'
     ) AS `bfcol_2`
   FROM `bfcte_0`
 ), `bfcte_2` AS (

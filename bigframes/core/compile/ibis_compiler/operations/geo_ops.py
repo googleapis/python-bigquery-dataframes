@@ -42,7 +42,7 @@ def st_regionstats(
         include = None
 
     if op.options:
-        options = ibis.literal(op.options, type=ibis_dtypes.string())
+        options = ibis.literal(op.options, type=ibis_dtypes.json())
     else:
         options = None
 
@@ -52,4 +52,4 @@ def st_regionstats(
         band=band,
         include=include,
         options=options,
-    )
+    ).to_expr()

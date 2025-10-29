@@ -350,7 +350,7 @@ class GeoRegionStats(GeoSpatialUnOp):
     raster_id: Value[dt.String]
     band: Value[dt.String]
     include: Value[dt.String]
-    options: Value[dt.String]
+    options: Value[dt.JSON]
 
     dtype = dt.Struct(
         fields={

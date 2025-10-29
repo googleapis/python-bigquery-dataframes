@@ -95,5 +95,7 @@ def _(
     if op.include:
         args.append(sge.Kwarg(this="include", expression=sge.convert(op.include)))
     if op.options:
-        args.append(sge.Kwarg(this="options", expression=sge.convert(op.options)))
+        args.append(
+            sge.Kwarg(this="options", expression=sge.JSON(this=sge.convert(op.options)))
+        )
     return sge.func("ST_REGIONSTATS", *args)
