@@ -55,3 +55,14 @@ def test_sdk_type_from_python_type_raises_unsupported_type_error():
         function_typing.sdk_type_from_python_type(unsupported_type)
     assert "datetime" in str(excinfo.value)
     assert "bool, bytes, float, int, str" in str(excinfo.value)
+
+
+def test_sdk_type_from_python_type_with_generic_type_raises_unsupported_type_error():
+    # Arrange
+    unsupported_type = list[str]
+
+    # Act & Assert
+    with pytest.raises(function_typing.UnsupportedTypeError) as excinfo:
+        function_typing.sdk_type_from_python_type(unsupported_type)
+    assert "list[str]" in str(excinfo.value)
+    assert "bool, bytes, float, int, str" in str(excinfo.value)
