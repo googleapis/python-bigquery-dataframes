@@ -82,3 +82,22 @@ def _(expr: TypedExpr) -> sge.Expression:
 @register_unary_op(ops.geo_y_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("SAFE.ST_Y", expr.expr)
+
+
+@register_unary_op(ops.StRegionStatsOp, pass_op=True)
+def _(
+    geography: TypedExpr,
+    op: ops.StRegionStatsOp,
+):
+    args = [geography.expr]  # TODO: get raster, band, include from op.
+    if op.options:
+        args.append(
+            sge.Anonymous(
+                this="_",
+                expressions=[
+                    sge.Identifier(this="OPTIONS"),
+                    sge.Anonymous(this="JSON", expressions=[sge.convert(op.options)]),
+                ],
+            )
+        )
+    return sge.func("ST_REGIONSTATS", *args)

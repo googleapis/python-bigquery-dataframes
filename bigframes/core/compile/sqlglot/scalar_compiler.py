@@ -22,7 +22,6 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.expression as ex
 import bigframes.operations as ops
-import bigframes.operations.geo_ops as geo_ops
 
 
 class ScalarOpCompiler:
@@ -228,22 +227,3 @@ class ScalarOpCompiler:
 
 # Singleton compiler
 scalar_op_compiler = ScalarOpCompiler()
-
-
-@scalar_op_compiler.register_unary_op(geo_ops.StRegionStatsOp, pass_op=True)
-def compile_st_regionstats(
-    geography: TypedExpr,
-    op: geo_ops.StRegionStatsOp,
-):
-    args = [geography.expr]  # TODO: get raster, band, include from op.
-    if op.options:
-        args.append(
-            sge.Anonymous(
-                this="_",
-                expressions=[
-                    sge.Identifier(this="OPTIONS"),
-                    sge.Anonymous(this="JSON", expressions=[sge.convert(op.options)]),
-                ],
-            )
-        )
-    return sge.func("ST_REGIONSTATS", *args)
