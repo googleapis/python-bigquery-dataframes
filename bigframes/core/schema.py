@@ -95,16 +95,16 @@ class ArraySchema:
             for item in self.items
         )
 
-    def to_pyarrow(self, use_storage_type: bool = False) -> pyarrow.Schema:
+    def to_pyarrow(self, use_storage_types: bool = False) -> pyarrow.Schema:
         fields = []
         for item in self.items:
             pa_type = bigframes.dtypes.bigframes_dtype_to_arrow_dtype(item.dtype)
+            if use_storage_types:
+                pa_type = bigframes.dtypes.to_storage_type(pa_type)
             fields.append(
                 pyarrow.field(
                     item.column,
-                    pa_type.storage_type
-                    if use_storage_type and isinstance(pa_type, pyarrow.ExtensionType)
-                    else pa_type,
+                    type=pa_type,
                     nullable=not pyarrow.types.is_list(pa_type),
                 )
             )

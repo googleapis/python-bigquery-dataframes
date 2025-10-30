@@ -30,6 +30,7 @@ import bigframes
 import bigframes.core
 from bigframes.core import bq_data, local_data, pyarrow_utils
 import bigframes.core.schema
+import bigframes.dtypes
 import bigframes.session._io.pandas as io_pandas
 import bigframes.session.execution_spec as ex_spec
 
@@ -103,7 +104,8 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
             try:
                 return self._schema.to_pyarrow().empty_table()
             except pa.ArrowNotImplementedError:
-                return self._schema.to_pyarrow(use_storage_type=True).empty_table()
+                # Bug with some pyarrow versions, empty_table only supports base storage types, not extension types.
+                return self._schema.to_pyarrow(use_storage_types=True).empty_table()
 
     def to_pandas(self) -> pd.DataFrame:
         return io_pandas.arrow_to_pandas(self.to_arrow_table(), self._schema)
