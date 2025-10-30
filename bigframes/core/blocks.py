@@ -731,6 +731,12 @@ class Block:
         # To reduce the number of edge cases to consider when working with the
         # results of this, always return at least one DataFrame. See:
         # b/428918844.
+        empty_val = pd.DataFrame(
+            {
+                col: pd.Series([], dtype=self.expr.get_column_type(col))
+                for col in itertools.chain(self.value_columns, self.index_columns)
+            }
+        )
         series_map = {}
         for col in itertools.chain(self.value_columns, self.index_columns):
             dtype = self.expr.get_column_type(col)
@@ -746,7 +752,9 @@ class Block:
                 # MyPy doesn't automatically narrow the type of 'dtype' here,
                 # so we add an explicit check.
                 if isinstance(dtype, pd.ArrowDtype):
-                    safe_pa_type = _replace_json_arrow_with_string(dtype.pyarrow_dtype)
+                    safe_pa_type = bigframes.dtypes._replace_json_arrow_with_string(
+                        dtype.pyarrow_dtype
+                    )
                     safe_dtype = pd.ArrowDtype(safe_pa_type)
                     series_map[col] = pd.Series([], dtype=safe_dtype).astype(dtype)
                 else:
