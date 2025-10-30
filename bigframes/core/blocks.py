@@ -1985,6 +1985,11 @@ class Block:
             Literal["epoch", "start", "start_day", "end", "end_day"],
         ] = "start_day",
     ) -> Block:
+        if not isinstance(rule, str):
+            raise NotImplementedError(
+                f"Only offset strings are currently supported for rule, but got {repr(rule)}. {constants.FEEDBACK_LINK}"
+            )
+
         # Validate and resolve the index or column to use for grouping
         if on is None:
             if len(self.index_columns) == 0:

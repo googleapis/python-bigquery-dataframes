@@ -4256,10 +4256,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return [DataFrame(block) for block in blocks]
 
     @validations.requires_ordering()
-    def _resample(
+    def resample(
         self,
         rule: str,
         *,
+        closed: Optional[Literal["right", "left"]] = None,
+        label: Optional[Literal["right", "left"]] = None,
         on: blocks.Label = None,
         level: Optional[LevelsType] = None,
         origin: Union[
@@ -4269,7 +4271,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             Literal["epoch", "start", "start_day", "end", "end_day"],
         ] = "start_day",
     ) -> bigframes.core.groupby.DataFrameGroupBy:
-        """Internal function to support resample. Resample time-series data.
+        """Resample time-series data.
 
         **Examples:**
 
@@ -4285,7 +4287,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Resample on a DataFrame with index:
 
         >>> df = bpd.DataFrame(data).set_index("timestamp_col")
-        >>> df._resample(rule="7s").min()
+        >>> df.resample(rule="7s").min()
                              int64_col  int64_too
         2021-01-01 12:59:55          0         10
         2021-01-01 13:00:02          2         12
@@ -4298,7 +4300,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Resample with column and origin set to 'start':
 
         >>> df = bpd.DataFrame(data)
-        >>> df._resample(rule="7s", on = "timestamp_col", origin="start").min()
+        >>> df.resample(rule="7s", on = "timestamp_col", origin="start").min()
                              int64_col  int64_too
         2021-01-01 13:00:00          0         10
         2021-01-01 13:00:07          7         17
@@ -4311,6 +4313,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Args:
             rule (str):
                 The offset string representing target conversion.
+            closed (Literal['right'] | Literal['left'] | None):
+                Which side of bin interval is closed. The default is 'left' for
+                all frequency offsets except for 'ME', 'YE', 'QE', 'BME', 'BA',
+                'BQE', and 'W' which all have a default of 'right'.
+            label (Literal['right'] | Literal['left'] | None):
+                Which bin edge label to label bucket with. The default is 'left'
+                for all frequency offsets except for 'ME', 'YE', 'QE', 'BME',
+                'BA', 'BQE', and 'W' which all have a default of 'right'.
             on (str, default None):
                 For a DataFrame, column to use instead of index for resampling. Column
                 must be datetime-like.
@@ -4327,6 +4337,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         block = self._block._generate_resample_label(
             rule=rule,
+            closed=closed,
+            label=label,
             on=on,
             level=level,
             origin=origin,
