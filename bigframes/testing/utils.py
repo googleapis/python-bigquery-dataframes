@@ -486,5 +486,5 @@ def _apply_nary_op(
     """Applies a nary op to the given DataFrame and return the SQL representing
     the resulting DataFrame."""
     op_expr = op.as_expr(*args)
-    sql = _apply_ops_to_sql(obj, [op_expr], [args[0]])
+    sql = _apply_ops_to_sql(obj, [op_expr], [args[0]])  # type: ignore
     return sql
