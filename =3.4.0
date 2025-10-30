@@ -1,0 +1,13 @@
+Collecting pypdf[crypto]
+  Downloading pypdf-6.0.0-py3-none-any.whl (310 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 310.5/310.5 kB 11.5 MB/s eta 0:00:00
+Requirement already satisfied: typing_extensions>=4.0 in ./venv/lib/python3.10/site-packages (from pypdf[crypto]) (4.14.1)
+Collecting cryptography
+  Downloading cryptography-45.0.6-cp37-abi3-manylinux_2_34_x86_64.whl (4.4 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 78.9 MB/s eta 0:00:00
+Collecting cffi>=1.14
+  Using cached cffi-1.17.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (446 kB)
+Collecting pycparser
+  Using cached pycparser-2.22-py3-none-any.whl (117 kB)
+Installing collected packages: pypdf, pycparser, cffi, cryptography
+Successfully installed cffi-1.17.1 cryptography-45.0.6 pycparser-2.22 pypdf-6.0.0
