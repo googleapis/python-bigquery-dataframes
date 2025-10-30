@@ -84,7 +84,8 @@ class BigqueryDataSource:
     """
 
     def __post_init__(self):
-        assert [field.name for field in self.table.physical_schema] == list(
+        # not all columns need be in schema, eg so can exclude unsupported column types (eg RANGE)
+        assert set(field.name for field in self.table.physical_schema).issuperset(
             self.schema.names
         )
 

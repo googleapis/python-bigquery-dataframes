@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import functools
 import typing
-from typing import Dict, List
+from typing import Dict, List, Optional, Sequence
 
 import google.cloud.bigquery
 import pyarrow
@@ -44,21 +44,26 @@ class ArraySchema:
     def from_bq_table(
         cls,
         table: google.cloud.bigquery.Table,
-        column_type_overrides: typing.Optional[
+        column_type_overrides: Optional[
             typing.Dict[str, bigframes.dtypes.Dtype]
         ] = None,
+        columns: Optional[Sequence[str]] = None,
     ):
+        if not columns:
+            fields = table.schema
+        else:
+            lookup = {field.name: field for field in table.schema}
+            fields = [lookup[col] for col in columns]
+
         return ArraySchema.from_bq_schema(
-            table.schema, column_type_overrides=column_type_overrides
+            fields, column_type_overrides=column_type_overrides
         )
 
     @classmethod
     def from_bq_schema(
         cls,
         schema: List[google.cloud.bigquery.SchemaField],
-        column_type_overrides: typing.Optional[
-            Dict[str, bigframes.dtypes.Dtype]
-        ] = None,
+        column_type_overrides: Optional[Dict[str, bigframes.dtypes.Dtype]] = None,
     ):
         if column_type_overrides is None:
             column_type_overrides = {}
@@ -90,14 +95,16 @@ class ArraySchema:
             for item in self.items
         )
 
-    def to_pyarrow(self) -> pyarrow.Schema:
+    def to_pyarrow(self, use_storage_type: bool = False) -> pyarrow.Schema:
         fields = []
         for item in self.items:
             pa_type = bigframes.dtypes.bigframes_dtype_to_arrow_dtype(item.dtype)
             fields.append(
                 pyarrow.field(
                     item.column,
-                    pa_type,
+                    pa_type.storage_type
+                    if use_storage_type and isinstance(pa_type, pyarrow.ExtensionType)
+                    else pa_type,
                     nullable=not pyarrow.types.is_list(pa_type),
                 )
             )

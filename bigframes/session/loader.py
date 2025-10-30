@@ -811,12 +811,10 @@ class GbqDataLoader:
                     bigframes.core.events.ExecutionFinished(),
                 )
 
-        schema = schemata.ArraySchema.from_bq_table(table)
-        if not include_all_columns:
-            schema = schema.select(index_cols + columns)
+        selected_cols = None if include_all_columns else index_cols + columns
         array_value = core.ArrayValue.from_table(
             table,
-            schema=schema,
+            columns=selected_cols,
             predicate=filter_str,
             at_time=time_travel_timestamp if enable_snapshot else None,
             primary_key=primary_key,

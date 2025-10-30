@@ -100,7 +100,10 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
                 itertools.chain(peek_value, batches),  # reconstruct
             )
         else:
-            return self._schema.to_pyarrow().empty_table()
+            try:
+                return self._schema.to_pyarrow().empty_table()
+            except pa.ArrowNotImplementedError:
+                return self._schema.to_pyarrow(use_storage_type=True).empty_table()
 
     def to_pandas(self) -> pd.DataFrame:
         return io_pandas.arrow_to_pandas(self.to_arrow_table(), self._schema)
