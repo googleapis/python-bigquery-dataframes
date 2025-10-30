@@ -24,7 +24,9 @@ pytest.importorskip("pytest_snapshot")
 def test_geo_area(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "geography_col"
     bf_df = scalar_types_df[[col_name]]
-    sql = utils._apply_ops_to_sql(bf_df, [ops.geo_area_op.as_expr(col_name)], [col_name])
+    sql = utils._apply_ops_to_sql(
+        bf_df, [ops.geo_area_op.as_expr(col_name)], [col_name]
+    )
 
     snapshot.assert_match(sql, "out.sql")
 
