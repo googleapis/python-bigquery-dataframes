@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 import datetime
 import decimal
+import typing
 
 import pytest
 
@@ -59,10 +60,10 @@ def test_sdk_type_from_python_type_raises_unsupported_type_error():
 
 def test_sdk_type_from_python_type_with_generic_type_raises_unsupported_type_error():
     # Arrange
-    unsupported_type = list[str]
+    unsupported_type = typing.Sequence[int]
 
     # Act & Assert
     with pytest.raises(function_typing.UnsupportedTypeError) as excinfo:
         function_typing.sdk_type_from_python_type(unsupported_type)
-    assert "list[str]" in str(excinfo.value)
+    assert "typing.Sequence[int]" in str(excinfo.value)
     assert "bool, bytes, float, int, str" in str(excinfo.value)
