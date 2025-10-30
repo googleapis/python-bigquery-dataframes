@@ -209,12 +209,6 @@ class TableWidget(WIDGET_BASE):
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
-        # For empty dataframe, render empty table with headers.
-        if self.row_count == 0:
-            page_data = self._cached_data
-        else:
-            start = self.page * self.page_size
-            end = start + self.page_size
         if self._error_message:
             self.table_html = (
                 f"<div class='bigframes-error-message'>{self._error_message}</div>"
@@ -255,6 +249,9 @@ class TableWidget(WIDGET_BASE):
             return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
+
+        # Reset batches to use new page size for future data fetching
+        self._reset_batches_for_new_page_size()
 
         # Update the table display
         self._set_table_html()

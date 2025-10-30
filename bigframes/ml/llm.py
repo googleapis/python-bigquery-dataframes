@@ -731,17 +731,8 @@ class GeminiTextGenerator(base.RetriableRemotePredictor):
             "ground_with_google_search": ground_with_google_search,
         }
         if output_schema:
-            supported_dtypes = (
-                "int64",
-                "float64",
-                "bool",
-                "string",
-                "array<type>",
-                "struct<column type>",
-            )
             output_schema = {
-                k: utils.standardize_type(v, supported_dtypes=supported_dtypes)
-                for k, v in output_schema.items()
+                k: utils.standardize_type(v) for k, v in output_schema.items()
             }
             options["output_schema"] = output_schema
             return self._predict_and_retry(

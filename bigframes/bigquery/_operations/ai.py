@@ -123,13 +123,6 @@ def generate(
     if output_schema is None:
         output_schema_str = None
     else:
-        # Validate output schema types
-        for col_name, col_type in output_schema.items():
-            if col_type.upper() == "JSON":
-                raise ValueError(
-                    "JSON type is not supported in output_schema. "
-                    "Supported types are: STRING, INT64, FLOAT64, BOOL, ARRAY, and STRUCT."
-                )
         output_schema_str = ", ".join(
             [f"{name} {sql_type}" for name, sql_type in output_schema.items()]
         )

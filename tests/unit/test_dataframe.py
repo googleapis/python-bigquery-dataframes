@@ -181,26 +181,3 @@ def test_dataframe_ai_property_future_warning(
 
     with pytest.warns(FutureWarning):
         dataframe.ai
-
-
-@pytest.fixture()
-def json_df(polars_session: bigframes.session.Session) -> bigframes.dataframe.DataFrame:
-    """Create a DataFrame with a JSON column for testing."""
-    import bigframes.dtypes
-
-    pandas_df = pd.DataFrame(
-        {
-            "a": [1],
-            "b": ['{"c": 2, "d": 3}'],
-        }
-    )
-    pandas_df["b"] = pandas_df["b"].astype(bigframes.dtypes.JSON_DTYPE)
-    return polars_session.read_pandas(pandas_df)
-
-
-def test_to_pandas_batches_with_json_column(json_df: bigframes.dataframe.DataFrame):
-    """Test that JSON columns are converted to strings in to_pandas_batches."""
-    batches = list(json_df._to_pandas_batches(page_size=10))
-    assert len(batches) > 0
-    # Verify the JSON column is now string type
-    assert batches[0]["b"].dtype == pd.StringDtype(storage="pyarrow")

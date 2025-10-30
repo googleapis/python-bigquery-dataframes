@@ -45,13 +45,13 @@ import bigframes.operations.string_ops as string_ops
 polars_installed = True
 if TYPE_CHECKING:
     import polars as pl
-    import pyarrow as pa
 else:
     try:
         import bigframes._importing
 
+        # Use import_polars() instead of importing directly so that we check
+        # the version numbers.
         pl = bigframes._importing.import_polars()
-        import pyarrow as pa
     except Exception:
         polars_installed = False
 
@@ -427,21 +427,6 @@ if polars_installed:
             assert isinstance(op, json_ops.JSONDecode)
             return input.str.json_decode(_DTYPE_MAPPING[op.to_type])
 
-        @compile_op.register(json_ops.ToJSONString)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            # Convert JSON to string representation
-            return input.cast(pl.String())
-
-        @compile_op.register(json_ops.ParseJSON)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            # In Polars, JSON is stored as string, so no decoding needed
-            return input
-
-        @compile_op.register(json_ops.JSONExtract)
-        def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
-            assert isinstance(op, json_ops.JSONExtract)
-            return input.str.json_path_match(op.json_path)
-
         @compile_op.register(arr_ops.ToArrayOp)
         def _(self, op: ops.ToArrayOp, *inputs: pl.Expr) -> pl.Expr:
             return pl.concat_list(*inputs)
@@ -621,14 +606,9 @@ if polars_installed:
                 scan_item.source_id: scan_item.id.sql
                 for scan_item in node.scan_list.items
             }
-
-            if hasattr(node.local_data_source, "to_arrow"):
-                schema, batches = node.local_data_source.to_arrow(json_type="string")
-                arrow_data = pa.Table.from_batches(batches, schema)
-            else:
-                arrow_data = node.local_data_source.data
-
-            lazy_frame = cast(pl.DataFrame, pl.from_arrow(arrow_data)).lazy()
+            lazy_frame = cast(
+                pl.DataFrame, pl.from_arrow(node.local_data_source.data)
+            ).lazy()
             lazy_frame = lazy_frame.select(cols_to_read.keys()).rename(cols_to_read)
             if node.offsets_col:
                 lazy_frame = lazy_frame.with_columns(

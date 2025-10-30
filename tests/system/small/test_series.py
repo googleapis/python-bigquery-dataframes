@@ -4077,6 +4077,7 @@ def test_json_astype_others(data, to_type, errors):
         pytest.param(["10.2", None], dtypes.INT_DTYPE, id="to_int"),
         pytest.param(["false", None], dtypes.FLOAT_DTYPE, id="to_float"),
         pytest.param(["10.2", None], dtypes.BOOL_DTYPE, id="to_bool"),
+        pytest.param(["true", None], dtypes.STRING_DTYPE, id="to_string"),
     ],
 )
 def test_json_astype_others_raise_error(data, to_type):

@@ -610,7 +610,6 @@ class Series(vendored_pandas_series.Series):
         if errors not in ["raise", "null"]:
             raise ValueError("Argument 'errors' must be one of 'raise' or 'null'")
         dtype = bigframes.dtypes.bigframes_type(dtype)
-
         return self._apply_unary_op(
             bigframes.operations.AsTypeOp(to_type=dtype, safe=(errors == "null"))
         )
