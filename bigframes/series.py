@@ -2505,7 +2505,7 @@ class Series(vendored_pandas_series.Series):
         )
 
     @validations.requires_ordering()
-    def _resample(
+    def resample(
         self,
         rule: str,
         *,
@@ -2531,7 +2531,7 @@ class Series(vendored_pandas_series.Series):
         ...     "int64_col": range(30),
         ... }
         >>> s = bpd.DataFrame(data).set_index("timestamp_col")
-        >>> s._resample(rule="7s", origin="epoch").min()
+        >>> s.resample(rule="7s", origin="epoch").min()
                              int64_col
         2021-01-01 12:59:56          0
         2021-01-01 13:00:03          3

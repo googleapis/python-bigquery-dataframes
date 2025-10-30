@@ -42,6 +42,17 @@ def test_dataframe_repr_with_uninitialized_object():
     assert "DataFrame" in got
 
 
+@pytest.mark.parametrize("rule", [pd.DateOffset(weeks=1), pd.Timedelta(hours=8)])
+def test_dataframe_rule_not_implememented(
+    monkeypatch: pytest.MonkeyPatch,
+    rule,
+):
+    dataframe = mocks.create_dataframe(monkeypatch)
+
+    with pytest.raises(NotImplementedError, match="rule"):
+        dataframe.resample(rule=rule)
+
+
 def test_dataframe_setattr_with_uninitialized_object():
     """Ensures DataFrame can be subclassed without trying to set attributes as columns."""
     # Avoid calling __init__ since it might be called later in a subclass.
