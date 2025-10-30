@@ -715,6 +715,12 @@ class Block:
         # To reduce the number of edge cases to consider when working with the
         # results of this, always return at least one DataFrame. See:
         # b/428918844.
+        empty_val = pd.DataFrame(
+            {
+                col: pd.Series([], dtype=self.expr.get_column_type(col))
+                for col in itertools.chain(self.value_columns, self.index_columns)
+            }
+        )
         series_map = {}
         for col in itertools.chain(self.value_columns, self.index_columns):
             dtype = self.expr.get_column_type(col)

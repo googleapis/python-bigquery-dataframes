@@ -376,6 +376,83 @@ def test_to_pandas_batches_w_empty_dataframe(session):
     pandas.testing.assert_series_equal(results[0].dtypes, empty.dtypes)
 
 
+def test_to_pandas_batches_w_empty_dataframe_json_in_list(session):
+    """Tests to_pandas_batches() with an empty DataFrame containing a list of JSON.
+
+    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+    """
+    import db_dtypes
+
+    json_list_dtype = pd.ArrowDtype(pa.list_(db_dtypes.JSONArrowType()))
+    empty_df_with_json_list = bpd.DataFrame(
+        {
+            "idx": pd.Series([], dtype="Int64"),
+            "json_list_col": pd.Series([], dtype=json_list_dtype),
+        },
+        session=session,
+    ).set_index("idx", drop=True)
+
+    results = list(empty_df_with_json_list.to_pandas_batches())
+
+    assert len(results) == 1
+    assert list(results[0].columns) == ["json_list_col"]
+    assert results[0].dtypes["json_list_col"] == json_list_dtype
+    assert len(results[0]) == 0
+
+
+# --- Behavior 2: JSON in Struct ---
+
+
+def test_to_pandas_batches_w_empty_dataframe_json_in_struct(session):
+    """Tests to_pandas_batches() with an empty DataFrame containing a struct of JSON.
+
+    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+    """
+    import db_dtypes
+
+    json_struct_dtype = pd.ArrowDtype(
+        pa.struct([("json_field", db_dtypes.JSONArrowType())])
+    )
+    empty_df_with_json_struct = bpd.DataFrame(
+        {
+            "idx": pd.Series([], dtype="Int64"),
+            "json_struct_col": pd.Series([], dtype=json_struct_dtype),
+        },
+        session=session,
+    ).set_index("idx", drop=True)
+
+    results = list(empty_df_with_json_struct.to_pandas_batches())
+
+    assert len(results) == 1
+    assert list(results[0].columns) == ["json_struct_col"]
+    assert results[0].dtypes["json_struct_col"] == json_struct_dtype
+    assert len(results[0]) == 0
+
+
+# --- Behavior 3: Simple JSON ---
+
+
+def test_to_pandas_batches_w_empty_dataframe_simple_json(session):
+    """Tests to_pandas_batches() with an empty DataFrame containing a simple JSON column.
+
+    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+    """
+    empty_df_with_json = bpd.DataFrame(
+        {
+            "idx": pd.Series([], dtype="Int64"),
+            "json_col": pd.Series([], dtype=dtypes.JSON_DTYPE),
+        },
+        session=session,
+    ).set_index("idx", drop=True)
+
+    results = list(empty_df_with_json.to_pandas_batches())
+
+    assert len(results) == 1
+    assert list(results[0].columns) == ["json_col"]
+    assert results[0].dtypes["json_col"] == dtypes.JSON_DTYPE
+    assert len(results[0]) == 0
+
+
 @pytest.mark.parametrize("allow_large_results", (True, False))
 def test_to_pandas_batches_w_page_size_and_max_results(session, allow_large_results):
     """Verify to_pandas_batches() APIs returns the expected page size.
