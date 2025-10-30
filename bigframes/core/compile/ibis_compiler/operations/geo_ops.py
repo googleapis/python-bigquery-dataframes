@@ -167,7 +167,7 @@ def st_isclosed(a: ibis_dtypes.geography) -> ibis_dtypes.boolean:  # type: ignor
 
 @ibis_udf.scalar.builtin
 def st_simplify(
-    geography: ibis_dtypes.geography,
-    tolerance_meters: ibis_dtypes.float,
+    geography: ibis_dtypes.geography,  # type: ignore
+    tolerance_meters: ibis_dtypes.float,  # type: ignore
 ) -> ibis_dtypes.geography:  # type: ignore
     ...
