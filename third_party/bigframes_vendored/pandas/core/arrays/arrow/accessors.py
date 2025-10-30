@@ -19,8 +19,6 @@ class ListAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         [1, 2, 3],
@@ -45,8 +43,6 @@ class ListAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         [1, 2, 3],
@@ -83,8 +79,6 @@ class StructAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
@@ -129,8 +123,6 @@ class StructAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
@@ -158,6 +150,7 @@ class StructAccessor:
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
+    @property
     def dtypes(self):
         """
         Return the dtype object of each child field of the struct.
@@ -165,8 +158,6 @@ class StructAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> s = bpd.Series(
             ...     [
             ...         {"version": 1, "project": "pandas"},
@@ -177,8 +168,8 @@ class StructAccessor:
             ...         [("version", pa.int64()), ("project", pa.string())]
             ...     ))
             ... )
-            >>> s.struct.dtypes()
-            version              Int64
+            >>> s.struct.dtypes
+            version     int64[pyarrow]
             project    string[pyarrow]
             dtype: object
 
@@ -200,8 +191,6 @@ class StructFrameAccessor:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> import pyarrow as pa
-            >>> bpd.options.display.progress_bar = None
             >>> countries = bpd.Series(["cn", "es", "us"])
             >>> files = bpd.Series(
             ...     [

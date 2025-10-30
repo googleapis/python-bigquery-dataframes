@@ -24,14 +24,6 @@ pytest.importorskip("polars")
 pytest.importorskip("pandas", minversion="2.0.0")
 
 
-# All tests in this file require polars to be installed to pass.
-@pytest.fixture(scope="module")
-def polars_session():
-    from bigframes.testing import polars_session
-
-    return polars_session.TestSession()
-
-
 @pytest.fixture(scope="module")
 def small_inline_frame() -> pd.DataFrame:
     df = pd.DataFrame(
@@ -48,6 +40,14 @@ def small_inline_frame() -> pd.DataFrame:
     )
     df.index = df.index.astype("Int64")
     return df
+
+
+def test_polars_local_engine_series(polars_session: bigframes.Session):
+    bf_series = bpd.Series([1, 2, 3], session=polars_session)
+    pd_series = pd.Series([1, 2, 3], dtype=bf_series.dtype)
+    bf_result = bf_series.to_pandas()
+    pd_result = pd_series
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_polars_local_engine_add(

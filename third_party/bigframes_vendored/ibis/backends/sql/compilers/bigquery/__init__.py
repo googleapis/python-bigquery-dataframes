@@ -1104,10 +1104,30 @@ class BigQueryCompiler(SQLGlotCompiler):
             expr = arg
         return self.agg.string_agg(expr, sep, where=where)
 
-    def visit_AIGenerateBool(self, op, **kwargs):
-        func_name = "AI.GENERATE_BOOL"
+    def visit_AIGenerate(self, op, **kwargs):
+        return sge.func("AI.GENERATE", *self._compile_ai_args(**kwargs))
 
+    def visit_AIGenerateBool(self, op, **kwargs):
+        return sge.func("AI.GENERATE_BOOL", *self._compile_ai_args(**kwargs))
+
+    def visit_AIGenerateInt(self, op, **kwargs):
+        return sge.func("AI.GENERATE_INT", *self._compile_ai_args(**kwargs))
+
+    def visit_AIGenerateDouble(self, op, **kwargs):
+        return sge.func("AI.GENERATE_DOUBLE", *self._compile_ai_args(**kwargs))
+
+    def visit_AIIf(self, op, **kwargs):
+        return sge.func("AI.IF", *self._compile_ai_args(**kwargs))
+
+    def visit_AIClassify(self, op, **kwargs):
+        return sge.func("AI.CLASSIFY", *self._compile_ai_args(**kwargs))
+
+    def visit_AIScore(self, op, **kwargs):
+        return sge.func("AI.SCORE", *self._compile_ai_args(**kwargs))
+
+    def _compile_ai_args(self, **kwargs):
         args = []
+
         for key, val in kwargs.items():
             if val is None:
                 continue
@@ -1117,7 +1137,7 @@ class BigQueryCompiler(SQLGlotCompiler):
 
             args.append(sge.Kwarg(this=sge.Identifier(this=key), expression=val))
 
-        return sge.func(func_name, *args)
+        return args
 
     def visit_FirstNonNullValue(self, op, *, arg):
         return sge.IgnoreNulls(this=sge.FirstValue(this=arg))

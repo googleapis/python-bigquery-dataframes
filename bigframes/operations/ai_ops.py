@@ -21,14 +21,41 @@ import pandas as pd
 import pyarrow as pa
 
 from bigframes import dtypes
-from bigframes.operations import base_ops
+from bigframes.operations import base_ops, output_schemas
+
+
+@dataclasses.dataclass(frozen=True)
+class AIGenerate(base_ops.NaryOp):
+    name: ClassVar[str] = "ai_generate"
+
+    prompt_context: Tuple[str | None, ...]
+    connection_id: str
+    endpoint: str | None
+    request_type: Literal["dedicated", "shared", "unspecified"]
+    model_params: str | None
+    output_schema: str | None
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        if self.output_schema is None:
+            output_fields = (pa.field("result", pa.string()),)
+        else:
+            output_fields = output_schemas.parse_sql_fields(self.output_schema)
+
+        return pd.ArrowDtype(
+            pa.struct(
+                (
+                    *output_fields,
+                    pa.field("full_response", dtypes.JSON_ARROW_TYPE),
+                    pa.field("status", pa.string()),
+                )
+            )
+        )
 
 
 @dataclasses.dataclass(frozen=True)
 class AIGenerateBool(base_ops.NaryOp):
     name: ClassVar[str] = "ai_generate_bool"
 
-    # None are the placeholders for column references.
     prompt_context: Tuple[str | None, ...]
     connection_id: str
     endpoint: str | None
@@ -40,8 +67,86 @@ class AIGenerateBool(base_ops.NaryOp):
             pa.struct(
                 (
                     pa.field("result", pa.bool_()),
-                    pa.field("full_response", pa.string()),
+                    pa.field("full_response", dtypes.JSON_ARROW_TYPE),
                     pa.field("status", pa.string()),
                 )
             )
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class AIGenerateInt(base_ops.NaryOp):
+    name: ClassVar[str] = "ai_generate_int"
+
+    prompt_context: Tuple[str | None, ...]
+    connection_id: str
+    endpoint: str | None
+    request_type: Literal["dedicated", "shared", "unspecified"]
+    model_params: str | None
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return pd.ArrowDtype(
+            pa.struct(
+                (
+                    pa.field("result", pa.int64()),
+                    pa.field("full_response", dtypes.JSON_ARROW_TYPE),
+                    pa.field("status", pa.string()),
+                )
+            )
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class AIGenerateDouble(base_ops.NaryOp):
+    name: ClassVar[str] = "ai_generate_double"
+
+    prompt_context: Tuple[str | None, ...]
+    connection_id: str
+    endpoint: str | None
+    request_type: Literal["dedicated", "shared", "unspecified"]
+    model_params: str | None
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return pd.ArrowDtype(
+            pa.struct(
+                (
+                    pa.field("result", pa.float64()),
+                    pa.field("full_response", dtypes.JSON_ARROW_TYPE),
+                    pa.field("status", pa.string()),
+                )
+            )
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class AIIf(base_ops.NaryOp):
+    name: ClassVar[str] = "ai_if"
+
+    prompt_context: Tuple[str | None, ...]
+    connection_id: str
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.BOOL_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class AIClassify(base_ops.NaryOp):
+    name: ClassVar[str] = "ai_classify"
+
+    prompt_context: Tuple[str | None, ...]
+    categories: tuple[str, ...]
+    connection_id: str
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.STRING_DTYPE
+
+
+@dataclasses.dataclass(frozen=True)
+class AIScore(base_ops.NaryOp):
+    name: ClassVar[str] = "ai_score"
+
+    prompt_context: Tuple[str | None, ...]
+    connection_id: str
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.FLOAT_DTYPE

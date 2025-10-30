@@ -25,6 +25,7 @@ import bigframes.core.ordering as ordering_spec
 def apply_window_if_present(
     value: sge.Expression,
     window: typing.Optional[window_spec.WindowSpec] = None,
+    include_framing_clauses: bool = True,
 ) -> sge.Expression:
     if window is None:
         return value
@@ -39,14 +40,9 @@ def apply_window_if_present(
         # Unbound grouping window.
         order_by = None
     elif window.is_range_bounded:
-        # Note that, when the window is range-bounded, we only need one ordering key.
-        # There are two reasons:
-        # 1. Manipulating null positions requires more than one ordering key, which
-        #  is forbidden by SQL window syntax for range rolling.
-        # 2. Pandas does not allow range rolling on timeseries with nulls.
-        order_by = get_window_order_by((window.ordering[0],), override_null_order=False)
+        order_by = get_window_order_by((window.ordering[0],))
     else:
-        order_by = get_window_order_by(window.ordering, override_null_order=True)
+        order_by = get_window_order_by(window.ordering)
 
     order = sge.Order(expressions=order_by) if order_by else None
 
@@ -64,8 +60,11 @@ def apply_window_if_present(
     if not window.bounds and not order:
         return sge.Window(this=value, partition_by=group_by)
 
+    if not window.bounds and not include_framing_clauses:
+        return sge.Window(this=value, partition_by=group_by, order=order)
+
     kind = (
-        "ROWS" if isinstance(window.bounds, window_spec.RowsWindowBounds) else "RANGE"
+        "RANGE" if isinstance(window.bounds, window_spec.RangeWindowBounds) else "ROWS"
     )
 
     start: typing.Union[int, float, None] = None
@@ -98,7 +97,15 @@ def get_window_order_by(
     ordering: typing.Tuple[ordering_spec.OrderingExpression, ...],
     override_null_order: bool = False,
 ) -> typing.Optional[tuple[sge.Ordered, ...]]:
-    """Returns the SQL order by clause for a window specification."""
+    """Returns the SQL order by clause for a window specification.
+    Args:
+        ordering (Tuple[ordering_spec.OrderingExpression, ...]):
+            A tuple of ordering specification objects.
+        override_null_order (bool):
+            If True, overrides BigQuery's default null ordering behavior, which
+            is sometimes incompatible with ordered aggregations. The generated SQL
+            will include extra expressions to correctly enforce NULL FIRST/LAST.
+    """
     if not ordering:
         return None
 
@@ -111,8 +118,6 @@ def get_window_order_by(
         nulls_first = not ordering_spec_item.na_last
 
         if override_null_order:
-            # Bigquery SQL considers NULLS to be "smallest" values, but we need
-            # to override in these cases.
             is_null_expr = sge.Is(this=expr, expression=sge.Null())
             if nulls_first and desc:
                 order_by.append(
@@ -122,7 +127,7 @@ def get_window_order_by(
                         nulls_first=nulls_first,
                     )
                 )
-            elif not nulls_first and not desc:
+            elif (not nulls_first) and (not desc):
                 order_by.append(
                     sge.Ordered(
                         this=is_null_expr,

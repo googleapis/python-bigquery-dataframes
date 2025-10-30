@@ -28,6 +28,7 @@ import typing
 from typing import (
     Any,
     Callable,
+    cast,
     Dict,
     Hashable,
     Iterable,
@@ -94,8 +95,12 @@ if typing.TYPE_CHECKING:
 
     import bigframes.session
 
-    SingleItemValue = Union[bigframes.series.Series, int, float, str, Callable]
-    MultiItemValue = Union["DataFrame", Sequence[int | float | str | Callable]]
+    SingleItemValue = Union[
+        bigframes.series.Series, int, float, str, pandas.Timedelta, Callable
+    ]
+    MultiItemValue = Union[
+        "DataFrame", Sequence[int | float | str | pandas.Timedelta | Callable]
+    ]
 
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
@@ -316,7 +321,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     @property
     def dtypes(self) -> pandas.Series:
-        return pandas.Series(data=self._block.dtypes, index=self._block.column_labels)
+        dtypes = self._block.dtypes
+        bigframes.dtypes.warn_on_db_dtypes_json_dtype(dtypes)
+        return pandas.Series(data=dtypes, index=self._block.column_labels)
 
     @property
     def columns(self) -> pandas.Index:
@@ -489,7 +496,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             column_sizes = pandas.concat([index_size, column_sizes])
         return column_sizes
 
-    @validations.requires_index
     def info(
         self,
         verbose: Optional[bool] = None,
@@ -512,12 +518,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         obuf.write(f"{type(self)}\n")
 
-        index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
+        if self._block.has_index:
+            index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
 
-        # These accessses are kind of expensive, maybe should try to skip?
-        first_indice = self.index[0]
-        last_indice = self.index[-1]
-        obuf.write(f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n")
+            # These accessses are kind of expensive, maybe should try to skip?
+            first_indice = self.index[0]
+            last_indice = self.index[-1]
+            obuf.write(
+                f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n"
+            )
+        else:
+            obuf.write("NullIndex\n")
 
         dtype_strings = self.dtypes.astype("string")
         if show_all_columns:
@@ -577,11 +588,51 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
+    @overload
+    def __getitem__(
+        self,
+        key: bigframes.series.Series,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: slice,
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: List[str],
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: List[blocks.Label],
+    ) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(self, key: pandas.Index) -> DataFrame:
+        ...
+
+    @overload
+    def __getitem__(
+        self,
+        key: blocks.Label,
+    ) -> bigframes.series.Series:
+        ...
+
     def __getitem__(
         self,
         key: Union[
             blocks.Label,
-            Sequence[blocks.Label],
+            List[str],
+            List[blocks.Label],
             # Index of column labels can be treated the same as a sequence of column labels.
             pandas.Index,
             bigframes.series.Series,
@@ -597,32 +648,26 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if isinstance(key, slice):
             return self.iloc[key]
 
-        if isinstance(key, typing.Hashable):
+        # TODO(tswast): Fix this pylance warning: Class overlaps "Hashable"
+        # unsafely and could produce a match at runtime
+        if isinstance(key, blocks.Label):
             return self._getitem_label(key)
-        # Select a subset of columns or re-order columns.
-        # In Ibis after you apply a projection, any column objects from the
-        # table before the projection can't be combined with column objects
-        # from the table after the projection. This is because the table after
-        # a projection is considered a totally separate table expression.
-        #
-        # This is unexpected behavior for a pandas user, who expects their old
-        # Series objects to still work with the new / mutated DataFrame. We
-        # avoid applying a projection in Ibis until it's absolutely necessary
-        # to provide pandas-like semantics.
-        # TODO(swast): Do we need to apply implicit join when doing a
-        # projection?
 
-        # Select a number of columns as DF.
-        key = key if utils.is_list_like(key) else [key]  # type:ignore
+        if utils.is_list_like(key):
+            return self._getitem_columns(key)
+        else:
+            # TODO(tswast): What case is this supposed to be handling?
+            return self._getitem_columns([cast(Hashable, key)])
 
+    __getitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__getitem__)
+
+    def _getitem_columns(self, key: Sequence[blocks.Label]) -> DataFrame:
         selected_ids: Tuple[str, ...] = ()
         for label in key:
             col_ids = self._block.label_to_col_id[label]
             selected_ids = (*selected_ids, *col_ids)
 
         return DataFrame(self._block.select_columns(selected_ids))
-
-    __getitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__getitem__)
 
     def _getitem_label(self, key: blocks.Label):
         col_ids = self._block.cols_matching_label(key)
@@ -1261,6 +1306,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __neg__(self) -> DataFrame:
         return self._apply_unary_op(ops.neg_op)
 
+    def __abs__(self) -> DataFrame:
+        return self._apply_unary_op(ops.abs_op)
+
+    __abs__.__doc__ = abs.__doc__
+
     def align(
         self,
         other: typing.Union[DataFrame, bigframes.series.Series],
@@ -1725,8 +1775,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col': [4, 2, 2]})
 
         Download the data from BigQuery and convert it into an in-memory pandas DataFrame.
@@ -1847,8 +1895,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.DataFrame({'col': [4, 3, 2, 2, 3]})
 
         Iterate through the results in batches, limiting the total rows yielded
@@ -1889,6 +1935,19 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 form the original dataframe. Results stream from bigquery,
                 see https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.table.RowIterator#google_cloud_bigquery_table_RowIterator_to_arrow_iterable
         """
+        return self._to_pandas_batches(
+            page_size=page_size,
+            max_results=max_results,
+            allow_large_results=allow_large_results,
+        )
+
+    def _to_pandas_batches(
+        self,
+        page_size: Optional[int] = None,
+        max_results: Optional[int] = None,
+        *,
+        allow_large_results: Optional[bool] = None,
+    ) -> blocks.PandasBatches:
         return self._block.to_pandas_batches(
             page_size=page_size,
             max_results=max_results,
@@ -2002,6 +2061,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         self._set_block(block)
 
+    @overload
     def drop(
         self,
         labels: typing.Any = None,
@@ -2010,7 +2070,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         index: typing.Any = None,
         columns: Union[blocks.Label, Sequence[blocks.Label]] = None,
         level: typing.Optional[LevelType] = None,
+        inplace: Literal[False] = False,
     ) -> DataFrame:
+        ...
+
+    @overload
+    def drop(
+        self,
+        labels: typing.Any = None,
+        *,
+        axis: typing.Union[int, str] = 0,
+        index: typing.Any = None,
+        columns: Union[blocks.Label, Sequence[blocks.Label]] = None,
+        level: typing.Optional[LevelType] = None,
+        inplace: Literal[True],
+    ) -> None:
+        ...
+
+    def drop(
+        self,
+        labels: typing.Any = None,
+        *,
+        axis: typing.Union[int, str] = 0,
+        index: typing.Any = None,
+        columns: Union[blocks.Label, Sequence[blocks.Label]] = None,
+        level: typing.Optional[LevelType] = None,
+        inplace: bool = False,
+    ) -> Optional[DataFrame]:
         if labels:
             if index or columns:
                 raise ValueError("Cannot specify both 'labels' and 'index'/'columns")
@@ -2052,7 +2138,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         inverse_condition_id, ops.invert_op
                     )
             elif isinstance(index, indexes.Index):
-                return self._drop_by_index(index)
+                dropped_block = self._drop_by_index(index)._get_block()
+                if inplace:
+                    self._set_block(dropped_block)
+                    return None
+                return DataFrame(dropped_block)
             else:
                 block, condition_id = block.project_expr(
                     ops.ne_op.as_expr(level_id, ex.const(index))
@@ -2064,7 +2154,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = block.drop_columns(self._sql_names(columns))
         if index is None and not columns:
             raise ValueError("Must specify 'labels' or 'index'/'columns")
-        return DataFrame(block)
+
+        if inplace:
+            self._set_block(block)
+            return None
+        else:
+            return DataFrame(block)
 
     def _drop_by_index(self, index: indexes.Index) -> DataFrame:
         block = index._block
@@ -2474,25 +2569,33 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> None:
         ...
 
-    @validations.requires_index
     def sort_index(
         self,
         *,
+        axis: Union[int, str] = 0,
         ascending: bool = True,
         inplace: bool = False,
         na_position: Literal["first", "last"] = "last",
     ) -> Optional[DataFrame]:
-        if na_position not in ["first", "last"]:
-            raise ValueError("Param na_position must be one of 'first' or 'last'")
-        na_last = na_position == "last"
-        index_columns = self._block.index_columns
-        ordering = [
-            order.ascending_over(column, na_last)
-            if ascending
-            else order.descending_over(column, na_last)
-            for column in index_columns
-        ]
-        block = self._block.order_by(ordering)
+        if utils.get_axis_number(axis) == 0:
+            if na_position not in ["first", "last"]:
+                raise ValueError("Param na_position must be one of 'first' or 'last'")
+            na_last = na_position == "last"
+            index_columns = self._block.index_columns
+            ordering = [
+                order.ascending_over(column, na_last)
+                if ascending
+                else order.descending_over(column, na_last)
+                for column in index_columns
+            ]
+            block = self._block.order_by(ordering)
+        else:  # axis=1
+            _, indexer = self.columns.sort_values(
+                return_indexer=True, ascending=ascending, na_position=na_position  # type: ignore
+            )
+            block = self._block.select_columns(
+                [self._block.value_columns[i] for i in indexer]
+            )
         if inplace:
             self._set_block(block)
             return None
@@ -3640,7 +3743,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def join(
         self,
         other: Union[DataFrame, bigframes.series.Series],
-        *,
         on: Optional[str] = None,
         how: str = "left",
         lsuffix: str = "",
@@ -3909,11 +4011,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         as_index: bool = True,
         dropna: bool = True,
     ):
+        if utils.is_list_like(level):
+            by_key_is_singular = False
+        else:
+            by_key_is_singular = True
+
         return groupby.DataFrameGroupBy(
             self._block,
             by_col_ids=self._resolve_levels(level),
             as_index=as_index,
             dropna=dropna,
+            by_key_is_singular=by_key_is_singular,
         )
 
     def _groupby_series(
@@ -3926,10 +4034,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         as_index: bool = True,
         dropna: bool = True,
     ):
+        # Pandas makes a distinction between groupby with a list of keys
+        # versus groupby with a single item in some methods, like __iter__.
         if not isinstance(by, bigframes.series.Series) and utils.is_list_like(by):
             by = list(by)
+            by_key_is_singular = False
         else:
             by = [typing.cast(typing.Union[blocks.Label, bigframes.series.Series], by)]
+            by_key_is_singular = True
 
         block = self._block
         col_ids: typing.Sequence[str] = []
@@ -3959,6 +4071,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             by_col_ids=col_ids,
             as_index=as_index,
             dropna=dropna,
+            by_key_is_singular=by_key_is_singular,
         )
 
     def abs(self) -> DataFrame:
@@ -4161,9 +4274,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> import pandas as pd
-        >>> bpd.options.display.progress_bar = None
-
         >>> data = {
         ...     "timestamp_col": pd.date_range(
         ...         start="2021-01-01 13:00:00", periods=30, freq="1s"
@@ -4579,24 +4689,24 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> str | None:
         return self.to_pandas(allow_large_results=allow_large_results).to_string(
             buf,
-            columns,  # type: ignore
-            col_space,
-            header,  # type: ignore
-            index,
-            na_rep,
-            formatters,
-            float_format,
-            sparsify,
-            index_names,
-            justify,
-            max_rows,
-            max_cols,
-            show_dimensions,
-            decimal,
-            line_width,
-            min_rows,
-            max_colwidth,
-            encoding,
+            columns=columns,  # type: ignore
+            col_space=col_space,
+            header=header,  # type: ignore
+            index=index,
+            na_rep=na_rep,
+            formatters=formatters,
+            float_format=float_format,
+            sparsify=sparsify,
+            index_names=index_names,
+            justify=justify,
+            max_rows=max_rows,
+            max_cols=max_cols,
+            show_dimensions=show_dimensions,
+            decimal=decimal,
+            line_width=line_width,
+            min_rows=min_rows,
+            max_colwidth=max_colwidth,
+            encoding=encoding,
         )
 
     def to_html(
@@ -4629,28 +4739,28 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> str:
         return self.to_pandas(allow_large_results=allow_large_results).to_html(
             buf,
-            columns,  # type: ignore
-            col_space,
-            header,
-            index,
-            na_rep,
-            formatters,
-            float_format,
-            sparsify,
-            index_names,
-            justify,  # type: ignore
-            max_rows,
-            max_cols,
-            show_dimensions,
-            decimal,
-            bold_rows,
-            classes,
-            escape,
-            notebook,
-            border,
-            table_id,
-            render_links,
-            encoding,
+            columns=columns,  # type: ignore
+            col_space=col_space,
+            header=header,
+            index=index,
+            na_rep=na_rep,
+            formatters=formatters,
+            float_format=float_format,
+            sparsify=sparsify,
+            index_names=index_names,
+            justify=justify,  # type: ignore
+            max_rows=max_rows,
+            max_cols=max_cols,
+            show_dimensions=show_dimensions,
+            decimal=decimal,
+            bold_rows=bold_rows,
+            classes=classes,
+            escape=escape,
+            notebook=notebook,
+            border=border,
+            table_id=table_id,
+            render_links=render_links,
+            encoding=encoding,
         )
 
     def to_markdown(
@@ -4662,7 +4772,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         allow_large_results: Optional[bool] = None,
         **kwargs,
     ) -> str | None:
-        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode, index, **kwargs)  # type: ignore
+        return self.to_pandas(allow_large_results=allow_large_results).to_markdown(buf, mode=mode, index=index, **kwargs)  # type: ignore
 
     def to_pickle(self, path, *, allow_large_results=None, **kwargs) -> None:
         return self.to_pandas(allow_large_results=allow_large_results).to_pickle(
@@ -5218,7 +5328,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def semantics(self):
         msg = bfe.format_message(
-            "The 'semantics' property will be removed. Please use 'ai' instead."
+            "The 'semantics' property will be removed. Please use 'bigframes.bigquery.ai' instead."
         )
         warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.semantics.Semantics(self)
@@ -5226,4 +5336,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     @property
     def ai(self):
         """Returns the accessor for AI operators."""
+        msg = bfe.format_message(
+            "The 'ai' property will be removed. Please use 'bigframes.bigquery.ai' instead."
+        )
+        warnings.warn(msg, category=FutureWarning)
         return bigframes.operations.ai.AIAccessor(self)

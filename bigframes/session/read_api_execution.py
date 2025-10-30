@@ -46,6 +46,9 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
         if node.explicitly_ordered and ordered:
             return None
 
+        if not node.source.table.is_physically_stored:
+            return None
+
         if limit is not None:
             if peek is None or limit < peek:
                 peek = limit
@@ -102,7 +105,7 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
         if peek:
             batches = pyarrow_utils.truncate_pyarrow_iterable(batches, max_results=peek)
 
-        rows = node.source.n_rows
+        rows = node.source.n_rows or session.estimated_row_count
         if peek and rows:
             rows = min(peek, rows)
 

@@ -993,6 +993,12 @@ def test_filter_df(scalars_dfs):
     assert_pandas_df_equal(bf_result, pd_result)
 
 
+def test_read_gbq_direct_to_batches_row_count(unordered_session):
+    df = unordered_session.read_gbq("bigquery-public-data.usa_names.usa_1910_2013")
+    iter = df.to_pandas_batches()
+    assert iter.total_rows == 5552452
+
+
 def test_df_to_pandas_batches(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -2400,13 +2406,19 @@ def test_set_index_key_error(scalars_dfs):
     ("na_position",),
     (("first",), ("last",)),
 )
-def test_sort_index(scalars_dfs, ascending, na_position):
+@pytest.mark.parametrize(
+    ("axis",),
+    ((0,), ("columns",)),
+)
+def test_sort_index(scalars_dfs, ascending, na_position, axis):
     index_column = "int64_col"
     scalars_df, scalars_pandas_df = scalars_dfs
     df = scalars_df.set_index(index_column)
-    bf_result = df.sort_index(ascending=ascending, na_position=na_position).to_pandas()
+    bf_result = df.sort_index(
+        ascending=ascending, na_position=na_position, axis=axis
+    ).to_pandas()
     pd_result = scalars_pandas_df.set_index(index_column).sort_index(
-        ascending=ascending, na_position=na_position
+        ascending=ascending, na_position=na_position, axis=axis
     )
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
@@ -2444,6 +2456,16 @@ def test_df_neg(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     bf_result = (-scalars_df[["int64_col", "numeric_col"]]).to_pandas()
     pd_result = -scalars_pandas_df[["int64_col", "numeric_col"]]
+
+    assert_pandas_df_equal(pd_result, bf_result)
+
+
+def test_df__abs__(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_result = (
+        abs(scalars_df[["int64_col", "numeric_col", "float64_col"]])
+    ).to_pandas()
+    pd_result = abs(scalars_pandas_df[["int64_col", "numeric_col", "float64_col"]])
 
     assert_pandas_df_equal(pd_result, bf_result)
 
@@ -3129,8 +3151,6 @@ all_joins = pytest.mark.parametrize(
 @all_joins
 def test_join_same_table(scalars_dfs_maybe_ordered, how):
     bf_df, pd_df = scalars_dfs_maybe_ordered
-    if not bf_df._session._strictly_ordered and how == "cross":
-        pytest.skip("Cross join not supported in partial ordering mode.")
 
     bf_df_a = bf_df.set_index("int64_too")[["string_col", "int64_col"]]
     bf_df_a = bf_df_a.sort_index()
@@ -3151,6 +3171,21 @@ def test_join_same_table(scalars_dfs_maybe_ordered, how):
     pd_result = pd_df_a.join(pd_df_b, how=how)
 
     assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+
+
+def test_join_incompatible_key_type_error(scalars_dfs):
+    bf_df, _ = scalars_dfs
+
+    bf_df_a = bf_df.set_index("int64_too")[["string_col", "int64_col"]]
+    bf_df_a = bf_df_a.sort_index()
+
+    bf_df_b = bf_df.set_index("date_col")[["float64_col"]]
+    bf_df_b = bf_df_b[bf_df_b.float64_col > 0]
+    bf_df_b = bf_df_b.sort_values("float64_col")
+
+    with pytest.raises(TypeError):
+        # joining incompatible date, int columns
+        bf_df_a.join(bf_df_b, how="left")
 
 
 @all_joins
@@ -5518,6 +5553,23 @@ def test_df_cached(scalars_df_index):
     pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
 
 
+def test_df_cached_many_index_cols(scalars_df_index):
+    index_cols = [
+        "int64_too",
+        "time_col",
+        "int64_col",
+        "bool_col",
+        "date_col",
+        "timestamp_col",
+        "string_col",
+    ]
+    df = scalars_df_index.set_index(index_cols)
+    df = df[df["rowindex_2"] % 2 == 0]
+
+    df_cached_copy = df.cache()
+    pandas.testing.assert_frame_equal(df.to_pandas(), df_cached_copy.to_pandas())
+
+
 def test_assign_after_binop_row_joins():
     pd_df = pd.DataFrame(
         {
@@ -6015,7 +6067,7 @@ def test_df_astype_python_types(scalars_dfs):
 def test_astype_invalid_type_fail(scalars_dfs):
     bf_df, _ = scalars_dfs
 
-    with pytest.raises(TypeError, match=r".*Share your usecase with.*"):
+    with pytest.raises(TypeError, match=r".*Share your use case with.*"):
         bf_df.astype(123)
 
 

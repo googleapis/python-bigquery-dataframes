@@ -79,7 +79,7 @@ class SQLGlotIR:
             expressions=[
                 sge.ColumnDef(
                     this=sge.to_identifier(field.column, quoted=True),
-                    kind=sgt.SQLGlotType.from_bigframes_dtype(field.dtype),
+                    kind=sgt.from_bigframes_dtype(field.dtype),
                 )
                 for field in schema.items
             ],
@@ -175,7 +175,7 @@ class SQLGlotIR:
         ), f"At least two select expressions must be provided, but got {selects}."
 
         existing_ctes: list[sge.CTE] = []
-        union_selects: list[sge.Select] = []
+        union_selects: list[sge.Expression] = []
         for select in selects:
             assert isinstance(
                 select, sge.Select
@@ -204,10 +204,14 @@ class SQLGlotIR:
                 sge.Select().select(*selections).from_(sge.Table(this=new_cte_name))
             )
 
-        union_expr = sg.union(
-            *union_selects,
-            distinct=False,
-            copy=False,
+        union_expr = typing.cast(
+            sge.Select,
+            functools.reduce(
+                lambda x, y: sge.Union(
+                    this=x, expression=y, distinct=False, copy=False
+                ),
+                union_selects,
+            ),
         )
         final_select_expr = sge.Select().select(sge.Star()).from_(union_expr.subquery())
         final_select_expr.set("with", sge.With(expressions=existing_ctes))
@@ -616,7 +620,7 @@ def _select_to_cte(expr: sge.Select, cte_name: sge.Identifier) -> sge.Select:
 
 
 def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
-    sqlglot_type = sgt.SQLGlotType.from_bigframes_dtype(dtype)
+    sqlglot_type = sgt.from_bigframes_dtype(dtype)
     if value is None:
         return _cast(sge.Null(), sqlglot_type)
     elif dtype == dtypes.BYTES_DTYPE:

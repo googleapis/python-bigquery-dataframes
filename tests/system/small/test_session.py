@@ -511,8 +511,6 @@ def test_read_gbq_twice_with_same_timestamp(session, penguins_table_id):
     [
         # Wildcard tables
         "bigquery-public-data.noaa_gsod.gsod194*",
-        # Linked datasets
-        "bigframes-dev.thelook_ecommerce.orders",
         # Materialized views
         "bigframes-dev.bigframes_tests_sys.base_table_mat_view",
     ],
@@ -2173,6 +2171,22 @@ def test_read_gbq_query_dry_run(scalars_table_id, session):
 
     assert isinstance(result, pd.Series)
     _assert_query_dry_run_stats_are_valid(result)
+
+
+def test_block_dry_run_includes_local_data(session):
+    df1 = bigframes.dataframe.DataFrame({"col_1": [1, 2, 3]}, session=session)
+    df2 = bigframes.dataframe.DataFrame({"col_2": [1, 2, 3]}, session=session)
+
+    result = df1.merge(df2, how="cross").to_pandas(dry_run=True)
+
+    assert isinstance(result, pd.Series)
+    _assert_query_dry_run_stats_are_valid(result)
+    assert result["totalBytesProcessed"] > 0
+    assert (
+        df1.to_pandas(dry_run=True)["totalBytesProcessed"]
+        + df2.to_pandas(dry_run=True)["totalBytesProcessed"]
+        == result["totalBytesProcessed"]
+    )
 
 
 def _assert_query_dry_run_stats_are_valid(result: pd.Series):

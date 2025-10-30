@@ -67,23 +67,20 @@ import bigframes.clients
 import bigframes.constants
 import bigframes.core
 from bigframes.core import blocks, log_adapter, utils
+import bigframes.core.events
+import bigframes.core.indexes
+import bigframes.core.indexes.multi
 import bigframes.core.pyformat
-
-# Even though the ibis.backends.bigquery import is unused, it's needed
-# to register new and replacement ops with the Ibis BigQuery backend.
+import bigframes.formatting_helpers
 import bigframes.functions._function_session as bff_session
 import bigframes.functions.function as bff
 from bigframes.session import bigquery_session, bq_caching_executor, executor
 import bigframes.session._io.bigquery as bf_io_bigquery
-import bigframes.session.anonymous_dataset
 import bigframes.session.clients
-import bigframes.session.loader
-import bigframes.session.metrics
 import bigframes.session.validation
 
 # Avoid circular imports.
 if typing.TYPE_CHECKING:
-    import bigframes.core.indexes
     import bigframes.dataframe as dataframe
     import bigframes.series
     import bigframes.streaming.dataframe as streaming_dataframe
@@ -139,6 +136,11 @@ class Session(
         from bigframes.session import anonymous_dataset, clients, loader, metrics
 
         _warn_if_bf_version_is_obsolete()
+
+        # Publisher needs to be created before the other objects, especially
+        # the executors, because they access it.
+        self._publisher = bigframes.core.events.Publisher()
+        self._publisher.subscribe(bigframes.formatting_helpers.progress_callback)
 
         if context is None:
             context = bigquery_options.BigQueryOptions()
@@ -232,12 +234,14 @@ class Session(
             location=self._location,
             session_id=self._session_id,
             kms_key=self._bq_kms_key_name,
+            publisher=self._publisher,
         )
         # Session temp tables don't support specifying kms key, so use anon dataset if kms key specified
         self._session_resource_manager = (
             bigquery_session.SessionResourceManager(
                 self.bqclient,
                 self._location,
+                publisher=self._publisher,
             )
             if (self._bq_kms_key_name is None)
             else None
@@ -254,6 +258,7 @@ class Session(
             scan_index_uniqueness=self._strictly_ordered,
             force_total_order=self._strictly_ordered,
             metrics=self._metrics,
+            publisher=self._publisher,
         )
         self._executor: executor.Executor = bq_caching_executor.BigQueryCachingExecutor(
             bqclient=self._clients_provider.bqclient,
@@ -263,6 +268,7 @@ class Session(
             strictly_ordered=self._strictly_ordered,
             metrics=self._metrics,
             enable_polars_execution=context.enable_polars_execution,
+            publisher=self._publisher,
         )
 
     def __del__(self):
@@ -314,6 +320,15 @@ class Session(
                 self.bqconnectionclient, self.resourcemanagerclient
             )
         return self._bq_connection_manager
+
+    @property
+    def options(self) -> bigframes._config.Options:
+        """Options for configuring BigQuery DataFrames.
+
+        Included for compatibility between bpd and Session.
+        """
+        # TODO(tswast): Consider making a separate session-level options object.
+        return bigframes._config.options
 
     @property
     def session_id(self):
@@ -373,8 +388,14 @@ class Session(
 
         remote_function_session = getattr(self, "_function_session", None)
         if remote_function_session:
-            self._function_session.clean_up(
+            remote_function_session.clean_up(
                 self.bqclient, self.cloudfunctionsclient, self.session_id
+            )
+
+        publisher_session = getattr(self, "_publisher", None)
+        if publisher_session:
+            publisher_session.publish(
+                bigframes.core.events.SessionClosed(self.session_id)
             )
 
     @overload
@@ -596,11 +617,9 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Simple query input:
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.read_gbq_query('''
             ...    SELECT
             ...       pitcherFirstName,
@@ -752,11 +771,9 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Read a whole table, with arbitrary ordering or ordering corresponding to the primary key(s).
 
+            >>> import bigframes.pandas as bpd
             >>> df = bpd.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
         See also: :meth:`Session.read_gbq`.
@@ -831,8 +848,6 @@ class Session(
         **Examples:**
 
             >>> import bigframes.streaming as bst
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> sdf = bst.read_gbq_table("bigquery-public-data.ml_datasets.penguins")
 
@@ -860,11 +875,9 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Read an existing BigQuery ML model.
 
+            >>> import bigframes.pandas as bpd
             >>> model_name = "bigframes-dev.bqml_tutorial.penguins_model"
             >>> model = bpd.read_gbq_model(model_name)
 
@@ -930,9 +943,6 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import pandas as pd
-            >>> bpd.options.display.progress_bar = None
 
             >>> d = {'col1': [1, 2], 'col2': [3, 4]}
             >>> pandas_df = pd.DataFrame(data=d)
@@ -1808,14 +1818,12 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
             >>> import datetime
-            >>> bpd.options.display.progress_bar = None
 
         Turning an arbitrary python function into a BigQuery managed python udf:
 
             >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
-            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)
+            >>> @bpd.udf(dataset="bigfranes_testing", name=bq_name)  # doctest: +SKIP
             ... def minutes_to_hours(x: int) -> float:
             ...     return x/60
 
@@ -1828,8 +1836,8 @@ class Session(
             4    120
             dtype: Int64
 
-            >>> hours = minutes.apply(minutes_to_hours)
-            >>> hours
+            >>> hours = minutes.apply(minutes_to_hours)  # doctest: +SKIP
+            >>> hours  # doctest: +SKIP
             0    0.0
             1    0.5
             2    1.0
@@ -1842,7 +1850,7 @@ class Session(
         packages (optionally with the package version) via `packages` param.
 
             >>> bq_name = datetime.datetime.now().strftime("bigframes_%Y%m%d%H%M%S%f")
-            >>> @bpd.udf(
+            >>> @bpd.udf(  # doctest: +SKIP
             ...     dataset="bigfranes_testing",
             ...     name=bq_name,
             ...     packages=["cryptography"]
@@ -1859,14 +1867,14 @@ class Session(
             ...     return f.encrypt(input.encode()).decode()
 
             >>> names = bpd.Series(["Alice", "Bob"])
-            >>> hashes = names.apply(get_hash)
+            >>> hashes = names.apply(get_hash)  # doctest: +SKIP
 
         You can clean-up the BigQuery functions created above using the BigQuery
         client from the BigQuery DataFrames session:
 
-            >>> session = bpd.get_global_session()
-            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)
-            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)
+            >>> session = bpd.get_global_session()  # doctest: +SKIP
+            >>> session.bqclient.delete_routine(minutes_to_hours.bigframes_bigquery_function)  # doctest: +SKIP
+            >>> session.bqclient.delete_routine(get_hash.bigframes_bigquery_function)  # doctest: +SKIP
 
         Args:
             input_types (type or sequence(type), Optional):
@@ -1972,12 +1980,10 @@ class Session(
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
         Use the [cw_lower_case_ascii_only](https://github.com/GoogleCloudPlatform/bigquery-utils/blob/master/udfs/community/README.md#cw_lower_case_ascii_onlystr-string)
         function from Community UDFs.
 
+            >>> import bigframes.pandas as bpd
             >>> func = bpd.read_gbq_function("bqutil.fn.cw_lower_case_ascii_only")
 
         You can run it on scalar input. Usually you would do so to verify that
@@ -2037,13 +2043,13 @@ class Session(
         Another use case is to define your own remote function and use it later.
         For example, define the remote function:
 
-            >>> @bpd.remote_function(cloud_function_service_account="default")
+            >>> @bpd.remote_function(cloud_function_service_account="default")  # doctest: +SKIP
             ... def tenfold(num: int) -> float:
             ...     return num * 10
 
         Then, read back the deployed BQ remote function:
 
-            >>> tenfold_ref = bpd.read_gbq_function(
+            >>> tenfold_ref = bpd.read_gbq_function(  # doctest: +SKIP
             ...     tenfold.bigframes_remote_function,
             ... )
 
@@ -2055,7 +2061,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> df['a'].apply(tenfold_ref)
+            >>> df['a'].apply(tenfold_ref)  # doctest: +SKIP
             0    10.0
             1    20.0
             Name: a, dtype: Float64
@@ -2064,11 +2070,11 @@ class Session(
         note, row processor implies that the function has only one input
         parameter.
 
-            >>> @bpd.remote_function(cloud_function_service_account="default")
-            ... def row_sum(s: bpd.Series) -> float:
+            >>> @bpd.remote_function(cloud_function_service_account="default")  # doctest: +SKIP
+            ... def row_sum(s: pd.Series) -> float:
             ...     return s['a'] + s['b'] + s['c']
 
-            >>> row_sum_ref = bpd.read_gbq_function(
+            >>> row_sum_ref = bpd.read_gbq_function(  # doctest: +SKIP
             ...     row_sum.bigframes_remote_function,
             ...     is_row_processor=True,
             ... )
@@ -2081,7 +2087,7 @@ class Session(
             <BLANKLINE>
             [2 rows x 3 columns]
 
-            >>> df.apply(row_sum_ref, axis=1)
+            >>> df.apply(row_sum_ref, axis=1)  # doctest: +SKIP
             0     9.0
             1    12.0
             dtype: Float64
@@ -2153,6 +2159,7 @@ class Session(
             timeout=None,
             query_with_job=True,
             job_retry=third_party_gcb_retry.DEFAULT_ML_JOB_RETRY,
+            publisher=self._publisher,
         )
         return iterator, query_job
 
@@ -2180,6 +2187,7 @@ class Session(
             project=None,
             timeout=None,
             query_with_job=True,
+            publisher=self._publisher,
         )
 
         return table
@@ -2282,6 +2290,104 @@ class Session(
 
         s = self._loader.read_gbq_table(object_table)["uri"].str.to_blob(connection)
         return s.rename(name).to_frame()
+
+    # =========================================================================
+    # bigframes.pandas attributes
+    #
+    # These are included so that Session and bigframes.pandas can be used
+    # interchangeably.
+    # =========================================================================
+    def cut(self, *args, **kwargs) -> bigframes.series.Series:
+        """Cuts a BigQuery DataFrames object.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.cut` for full documentation.
+        """
+        import bigframes.core.reshape.tile
+
+        return bigframes.core.reshape.tile.cut(
+            *args,
+            session=self,
+            **kwargs,
+        )
+
+    def DataFrame(self, *args, **kwargs):
+        """Constructs a DataFrame.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.DataFrame` for full documentation.
+        """
+        import bigframes.dataframe
+
+        return bigframes.dataframe.DataFrame(*args, session=self, **kwargs)
+
+    @property
+    def MultiIndex(self) -> bigframes.core.indexes.multi.MultiIndexAccessor:
+        """Constructs a MultiIndex.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.MulitIndex` for full documentation.
+        """
+        import bigframes.core.indexes.multi
+
+        return bigframes.core.indexes.multi.MultiIndexAccessor(self)
+
+    def Index(self, *args, **kwargs):
+        """Constructs a Index.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.Index` for full documentation.
+        """
+        import bigframes.core.indexes
+
+        return bigframes.core.indexes.Index(*args, session=self, **kwargs)
+
+    def Series(self, *args, **kwargs):
+        """Constructs a Series.
+
+        Included for compatibility between bpd and Session.
+
+        See :class:`bigframes.pandas.Series` for full documentation.
+        """
+        import bigframes.series
+
+        return bigframes.series.Series(*args, session=self, **kwargs)
+
+    def to_datetime(
+        self, *args, **kwargs
+    ) -> Union[pandas.Timestamp, datetime.datetime, bigframes.series.Series]:
+        """Converts a BigQuery DataFrames object to datetime dtype.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.to_datetime` for full documentation.
+        """
+        import bigframes.core.tools
+
+        return bigframes.core.tools.to_datetime(
+            *args,
+            session=self,
+            **kwargs,
+        )
+
+    def to_timedelta(self, *args, **kwargs):
+        """Converts a BigQuery DataFrames object to timedelta/duration dtype.
+
+        Included for compatibility between bpd and Session.
+
+        See :func:`bigframes.pandas.to_timedelta` for full documentation.
+        """
+        import bigframes.pandas.core.tools.timedeltas
+
+        return bigframes.pandas.core.tools.timedeltas.to_timedelta(
+            *args,
+            session=self,
+            **kwargs,
+        )
 
 
 def connect(context: Optional[bigquery_options.BigQueryOptions] = None) -> Session:

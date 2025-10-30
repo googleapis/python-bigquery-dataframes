@@ -17,6 +17,9 @@ class NDFrame(indexing.IndexingMixin):
     size-mutable, labeled data structure
     """
 
+    # Explicitly mark the class as unhashable
+    __hash__ = None  # type: ignore
+
     # ----------------------------------------------------------------------
     # Axis
 
@@ -35,8 +38,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> s = bpd.Series({'a': 1, 'b': 2, 'c': 3})
             >>> s.size
@@ -62,8 +63,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({
             ...     'A': [1, 2, 3],
@@ -102,9 +101,6 @@ class NDFrame(indexing.IndexingMixin):
         Cast a pandas object to a specified dtype ``dtype``.
 
         **Examples:**
-
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Create a DataFrame:
 
@@ -149,7 +145,7 @@ class NDFrame(indexing.IndexingMixin):
 
         Note that this is equivalent of using ``to_datetime`` with ``unit='us'``:
 
-            >>> bpd.to_datetime(ser, unit='us', utc=True)
+            >>> bpd.to_datetime(ser, unit='us', utc=True)  # doctest: +SKIP
             0    2034-02-08 11:13:20.246789+00:00
             1    2021-06-19 17:20:44.123101+00:00
             2    2003-06-05 17:30:34.120101+00:00
@@ -347,8 +343,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame(
             ...     [
@@ -458,8 +452,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'animal': ['alligator', 'bee', 'falcon', 'lion',
             ...                     'monkey', 'parrot', 'shark', 'whale', 'zebra']})
@@ -559,8 +551,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> df = bpd.DataFrame({'num_legs': [2, 4, 8, 0],
             ...                     'num_wings': [2, 0, 0, 0],
             ...                     'num_specimen_seen': [10, 2, 1, 8]},
@@ -640,8 +630,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame({'float': [1.0], 'int': [1], 'string': ['foo']})
             >>> df.dtypes
@@ -665,8 +653,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
 
         Modification in the original Series will not affect the copy Series:
 
@@ -738,9 +724,6 @@ class NDFrame(indexing.IndexingMixin):
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> df = bpd.DataFrame([[np.nan, 2, np.nan, 0],
             ...                     [3, 4, np.nan, 1],
@@ -813,67 +796,80 @@ class NDFrame(indexing.IndexingMixin):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def isna(self) -> NDFrame:
-        """Detect missing values.
+        """Detect missing (NULL) values.
 
-        Return a boolean same-sized object indicating if the values are NA.
-        NA values get mapped to True values. Everything else gets mapped to
-        False values. Characters such as empty strings ``''`` or
-        :attr:`numpy.inf` are not considered NA values.
+        Return a boolean same-sized object indicating if the values are NA
+        (NULL in BigQuery). NA/NULL values get mapped to True values.
+        Everything else gets mapped to False values.
+
+        Note that empty strings ``''``, :attr:`numpy.inf`, and
+        :attr:`numpy.nan` are ***not*** considered NA values. This NA/NULL
+        logic differs from numpy, but it is the same as BigQuery and the
+        :class:`pandas.ArrowDtype`.
 
         **Examples:**
 
-            >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-            >>> import numpy as np
-
             >>> df = bpd.DataFrame(dict(
-            ...         age=[5, 6, np.nan],
-            ...         born=[bpd.NA, "1940-04-25", "1940-04-25"],
-            ...         name=['Alfred', 'Batman', ''],
-            ...         toy=[None, 'Batmobile', 'Joker'],
+            ...         age=pd.Series(pa.array(
+            ...             [5, 6, None, 4],
+            ...             type=pa.int64(),
+            ...         ), dtype=pd.ArrowDtype(pa.int64())),
+            ...         born=pd.to_datetime([pd.NA, "1940-04-25", "1940-04-25", "1941-08-25"]),
+            ...         name=['Alfred', 'Batman', '', 'Plastic Man'],
+            ...         toy=[None, 'Batmobile', 'Joker', 'Play dough'],
+            ...         height=pd.Series(pa.array(
+            ...             [6.1, 5.9, None, np.nan],
+            ...             type=pa.float64(),
+            ...         ), dtype=pd.ArrowDtype(pa.float64())),
             ... ))
             >>> df
-                age        born    name        toy
-            0   5.0        <NA>  Alfred       <NA>
-            1   6.0  1940-04-25  Batman  Batmobile
-            2  <NA>  1940-04-25              Joker
+                age                 born         name         toy  height
+            0     5                 <NA>       Alfred        <NA>     6.1
+            1     6  1940-04-25 00:00:00       Batman   Batmobile     5.9
+            2  <NA>  1940-04-25 00:00:00                    Joker    <NA>
+            3     4  1941-08-25 00:00:00  Plastic Man  Play dough     NaN
             <BLANKLINE>
-            [3 rows x 4 columns]
+            [4 rows x 5 columns]
 
-        Show which entries in a DataFrame are NA:
+        Show which entries in a DataFrame are NA (NULL in BigQuery):
 
             >>> df.isna()
-                age   born   name    toy
-            0  False   True  False   True
-            1  False  False  False  False
-            2   True  False  False  False
+                 age   born   name    toy  height
+            0  False   True  False   True   False
+            1  False  False  False  False   False
+            2   True  False  False  False    True
+            3  False  False  False  False   False
             <BLANKLINE>
-            [3 rows x 4 columns]
+            [4 rows x 5 columns]
 
             >>> df.isnull()
-                age   born   name    toy
-            0  False   True  False   True
-            1  False  False  False  False
-            2   True  False  False  False
+                 age   born   name    toy  height
+            0  False   True  False   True   False
+            1  False  False  False  False   False
+            2   True  False  False  False    True
+            3  False  False  False  False   False
             <BLANKLINE>
-            [3 rows x 4 columns]
+            [4 rows x 5 columns]
 
-        Show which entries in a Series are NA:
+        Show which entries in a Series are NA (NULL in BigQuery):
 
-            >>> ser = bpd.Series([5, None, 6, np.nan, bpd.NA])
+            >>> ser = bpd.Series(pa.array(
+            ...     [5, None, 6, np.nan, None],
+            ...     type=pa.float64(),
+            ... ), dtype=pd.ArrowDtype(pa.float64()))
             >>> ser
-            0       5
+            0     5.0
             1    <NA>
-            2       6
-            3    <NA>
+            2     6.0
+            3     NaN
             4    <NA>
-            dtype: Int64
+            dtype: Float64
 
             >>> ser.isna()
             0    False
             1     True
             2    False
-            3     True
+            3    False
             4     True
             dtype: boolean
 
@@ -881,7 +877,7 @@ class NDFrame(indexing.IndexingMixin):
             0    False
             1     True
             2    False
-            3     True
+            3    False
             4     True
             dtype: boolean
 
@@ -1065,8 +1061,6 @@ class NDFrame(indexing.IndexingMixin):
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.display.progress_bar = None
-
             >>> s = bpd.Series([0,1,2,3,4])
             >>> s.rolling(window=3).min()
             0    <NA>
@@ -1151,9 +1145,6 @@ class NDFrame(indexing.IndexingMixin):
 
         Constructing a income DataFrame from a dictionary.
 
-            >>> import bigframes.pandas as bpd
-            >>> import numpy as np
-            >>> bpd.options.display.progress_bar = None
 
             >>> data = [[8000, 1000], [9500, np.nan], [5000, 2000]]
             >>> df = bpd.DataFrame(data, columns=['Salary', 'Others'])
