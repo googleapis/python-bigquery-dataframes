@@ -43,6 +43,7 @@ from typing import (
 import warnings
 
 import bigframes_vendored.constants as constants
+import db_dtypes
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas as pd
@@ -132,6 +133,21 @@ class MaterializationOptions:
     )
     allow_large_results: Optional[bool] = None
     ordered: bool = True
+
+
+def _replace_json_arrow_with_string(pa_type: pa.DataType) -> pa.DataType:
+    """Recursively replace JSONArrowType with string type."""
+    if isinstance(pa_type, db_dtypes.JSONArrowType):
+        return pa.string()
+    if isinstance(pa_type, pa.ListType):
+        return pa.list_(_replace_json_arrow_with_string(pa_type.value_type))
+    if isinstance(pa_type, pa.StructType):
+        new_fields = [
+            field.with_type(_replace_json_arrow_with_string(field.type))
+            for field in pa_type
+        ]
+        return pa.struct(new_fields)
+    return pa_type
 
 
 class Block:
@@ -715,12 +731,32 @@ class Block:
         # To reduce the number of edge cases to consider when working with the
         # results of this, always return at least one DataFrame. See:
         # b/428918844.
-        empty_val = pd.DataFrame(
-            {
-                col: pd.Series([], dtype=self.expr.get_column_type(col))
-                for col in itertools.chain(self.value_columns, self.index_columns)
-            }
-        )
+        series_map = {}
+        for col in itertools.chain(self.value_columns, self.index_columns):
+            dtype = self.expr.get_column_type(col)
+            if bigframes.dtypes.contains_db_dtypes_json_dtype(dtype):
+                # Due to a limitation in Apache Arrow (#45262), JSON columns are not
+                # natively supported by the to_pandas_batches() method, which is
+                # used by the anywidget backend.
+                # Workaround for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+                # PyArrow doesn't support creating an empty array with db_dtypes.JSONArrowType,
+                # especially when nested.
+                # Create with string type and then cast.
+
+                # MyPy doesn't automatically narrow the type of 'dtype' here,
+                # so we add an explicit check.
+                if isinstance(dtype, pd.ArrowDtype):
+                    safe_pa_type = _replace_json_arrow_with_string(dtype.pyarrow_dtype)
+                    safe_dtype = pd.ArrowDtype(safe_pa_type)
+                    series_map[col] = pd.Series([], dtype=safe_dtype).astype(dtype)
+                else:
+                    # This branch should ideally not be reached if
+                    # contains_db_dtypes_json_dtype is accurate,
+                    # but it's here for MyPy's sake.
+                    series_map[col] = pd.Series([], dtype=dtype)
+            else:
+                series_map[col] = pd.Series([], dtype=dtype)
+        empty_val = pd.DataFrame(series_map)
         dfs = map(
             lambda a: a[0],
             itertools.zip_longest(
