@@ -52,8 +52,6 @@ class ExecuteResult:
         result_rows = 0
 
         for batch in self._arrow_batches:
-            # Convert JSON columns to strings before casting
-            batch = self._convert_json_to_string(batch)
             batch = pyarrow_utils.cast_batch(batch, self.schema.to_pyarrow())
             result_rows += batch.num_rows
 
@@ -68,38 +66,6 @@ class ExecuteResult:
                 raise bigframes.exceptions.MaximumResultRowsExceeded(message)
 
             yield batch
-
-    def _convert_json_to_string(
-        self, batch: pyarrow.RecordBatch
-    ) -> pyarrow.RecordBatch:
-        """Convert JSON arrow extension types to string to avoid PyArrow compatibility issues."""
-        import logging
-
-        new_arrays = []
-        new_fields = []
-
-        for i, field in enumerate(batch.schema):
-            array = batch.column(i)
-
-            # Check if this column should be JSON based on our schema
-            schema_item = next(
-                (item for item in self.schema.items if item.column == field.name), None
-            )
-
-            if schema_item and schema_item.dtype == bigframes.dtypes.JSON_DTYPE:
-                logging.info(f"Converting JSON column: {field.name}")
-                # Convert JSONArrowType to string
-                if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
-                    array = array.cast(pyarrow.string())
-                new_fields.append(pyarrow.field(field.name, pyarrow.string()))
-            else:
-                new_fields.append(field)
-
-            new_arrays.append(array)
-
-        return pyarrow.RecordBatch.from_arrays(
-            new_arrays, schema=pyarrow.schema(new_fields)
-        )
 
     def to_arrow_table(self) -> pyarrow.Table:
         # Need to provide schema if no result rows, as arrow can't infer
