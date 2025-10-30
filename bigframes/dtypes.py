@@ -954,6 +954,21 @@ def contains_db_dtypes_json_dtype(dtype):
     return contains_db_dtypes_json_arrow_type(dtype.pyarrow_dtype)
 
 
+def _replace_json_arrow_with_string(pa_type: pa.DataType) -> pa.DataType:
+    """Recursively replace JSONArrowType with string type."""
+    if isinstance(pa_type, db_dtypes.JSONArrowType):
+        return pa.string()
+    if isinstance(pa_type, pa.ListType):
+        return pa.list_(_replace_json_arrow_with_string(pa_type.value_type))
+    if isinstance(pa_type, pa.StructType):
+        new_fields = [
+            field.with_type(_replace_json_arrow_with_string(field.type))
+            for field in pa_type
+        ]
+        return pa.struct(new_fields)
+    return pa_type
+
+
 def warn_on_db_dtypes_json_dtype(dtypes):
     """Warn that the JSON dtype is changing.
 
