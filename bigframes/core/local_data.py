@@ -253,9 +253,16 @@ def _iter_table(
         value_generator = iter_array(
             array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
         )
-        for (start, end) in _pairwise(array.offsets):
-            arr_size = end.as_py() - start.as_py()
-            yield list(itertools.islice(value_generator, arr_size))
+        offset_generator = iter_array(array.offsets, bigframes.dtypes.INT_DTYPE)
+        is_null_generator = iter_array(array.is_null(), bigframes.dtypes.BOOL_DTYPE)
+        previous_offset = next(offset_generator)
+        for is_null, offset in zip(is_null_generator, offset_generator):
+            arr_size = offset - previous_offset
+            previous_offset = offset
+            if is_null:
+                yield None
+            else:
+                yield list(itertools.islice(value_generator, arr_size))
 
     @iter_array.register
     def _(
@@ -267,8 +274,14 @@ def _iter_table(
             sub_generators[field_name] = iter_array(array.field(field_name), dtype)
 
         keys = list(sub_generators.keys())
-        for row_values in zip(*sub_generators.values()):
-            yield {key: value for key, value in zip(keys, row_values)}
+        row_values_iter = zip(*sub_generators.values())
+        is_null_iter = array.is_null()
+
+        for is_row_null, row_values in zip(is_null_iter, row_values_iter):
+            if not is_row_null:
+                yield {key: value for key, value in zip(keys, row_values)}
+            else:
+                yield None
 
     for batch in table.to_batches():
         sub_generators: dict[str, Generator[Any, None, None]] = {}
@@ -354,7 +367,7 @@ def _adapt_arrow_array(array: pa.Array) -> tuple[pa.Array, bigframes.dtypes.Dtyp
         new_value = pa.ListArray.from_arrays(
             array.offsets, values, mask=array.is_null()
         )
-        return new_value.fill_null([]), bigframes.dtypes.list_type(values_type)
+        return new_value, bigframes.dtypes.list_type(values_type)
     if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
         return _canonicalize_json(array), bigframes.dtypes.JSON_DTYPE
     target_type = logical_type_replacements(array.type)
