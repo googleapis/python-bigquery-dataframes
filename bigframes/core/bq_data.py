@@ -110,12 +110,14 @@ def _iter_stream(
 ):
     reader = storage_read_client.read_rows(stream_name)
     for page in reader.rows().pages:
-        try:
-            result_queue.put(page.to_arrow(), timeout=_WORKER_TIME_INCREMENT)
-        except queue.Full:
-            continue
-        if stop_event.is_set():
-            return
+        while True:  # Alternate between put attempt and checking stop event
+            try:
+                result_queue.put(page.to_arrow(), timeout=_WORKER_TIME_INCREMENT)
+                break
+            except queue.Full:
+                if stop_event.is_set():
+                    return
+                continue
 
 
 def _iter_streams(
@@ -129,32 +131,32 @@ def _iter_streams(
 
     in_progress: list[concurrent.futures.Future] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(streams)) as pool:
-        for stream in streams:
-            in_progress.append(
-                pool.submit(
-                    _iter_stream,
-                    stream.name,
-                    storage_read_client,
-                    result_queue,
-                    stop_event,
+        try:
+            for stream in streams:
+                in_progress.append(
+                    pool.submit(
+                        _iter_stream,
+                        stream.name,
+                        storage_read_client,
+                        result_queue,
+                        stop_event,
+                    )
                 )
-            )
 
-        while in_progress:
-            try:
-                yield result_queue.get(timeout=0.1)
-            except queue.Empty:
-                new_in_progress = []
-                for future in in_progress:
-                    if future.done():
-                        try:
+            while in_progress:
+                try:
+                    yield result_queue.get(timeout=0.1)
+                except queue.Empty:
+                    new_in_progress = []
+                    for future in in_progress:
+                        if future.done():
+                            # Call to raise any exceptions
                             future.result()
-                        except Exception:
-                            stop_event.set()
-                            raise
-                    else:
-                        new_in_progress.append(future)
-                in_progress = new_in_progress
+                        else:
+                            new_in_progress.append(future)
+                    in_progress = new_in_progress
+        finally:
+            stop_event.set()
 
 
 @dataclasses.dataclass
