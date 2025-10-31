@@ -43,7 +43,6 @@ from typing import (
 import warnings
 
 import bigframes_vendored.constants as constants
-import db_dtypes
 import google.cloud.bigquery as bigquery
 import numpy
 import pandas as pd
@@ -133,21 +132,6 @@ class MaterializationOptions:
     )
     allow_large_results: Optional[bool] = None
     ordered: bool = True
-
-
-def _replace_json_arrow_with_string(pa_type: pa.DataType) -> pa.DataType:
-    """Recursively replace JSONArrowType with string type."""
-    if isinstance(pa_type, db_dtypes.JSONArrowType):
-        return pa.string()
-    if isinstance(pa_type, pa.ListType):
-        return pa.list_(_replace_json_arrow_with_string(pa_type.value_type))
-    if isinstance(pa_type, pa.StructType):
-        new_fields = [
-            field.with_type(_replace_json_arrow_with_string(field.type))
-            for field in pa_type
-        ]
-        return pa.struct(new_fields)
-    return pa_type
 
 
 class Block:
