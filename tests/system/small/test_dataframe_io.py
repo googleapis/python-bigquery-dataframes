@@ -400,9 +400,6 @@ def test_to_pandas_batches_w_empty_dataframe_json_in_list(session):
     assert len(results[0]) == 0
 
 
-# --- Behavior 2: JSON in Struct ---
-
-
 def test_to_pandas_batches_w_empty_dataframe_json_in_struct(session):
     """Tests to_pandas_batches() with an empty DataFrame containing a struct of JSON.
 
@@ -427,9 +424,6 @@ def test_to_pandas_batches_w_empty_dataframe_json_in_struct(session):
     assert list(results[0].columns) == ["json_struct_col"]
     assert results[0].dtypes["json_struct_col"] == json_struct_dtype
     assert len(results[0]) == 0
-
-
-# --- Behavior 3: Simple JSON ---
 
 
 def test_to_pandas_batches_w_empty_dataframe_simple_json(session):
