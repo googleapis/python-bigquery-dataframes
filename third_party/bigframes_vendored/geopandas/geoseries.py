@@ -521,6 +521,6 @@ class GeoSeries:
 
         Raises:
             NotImplementedError:
-                GeoSeries.area is not supported. Use bigframes.bigquery.st_area(series), instead.
+                GeoSeries.simplify is not supported. Use bigframes.bigquery.st_simplify(series, tolerance_meters), instead.
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)

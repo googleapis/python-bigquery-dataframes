@@ -293,7 +293,7 @@ Raster functions: Functions for analyzing geospatial rasters using geographies.
               coordinate system rather than meters that BigQuery uses, raise a
               `NotImplementedError` with a helpful message. Likewise, if a
               required parameter takes a value in terms of the coordinate
-              system, but BigQuery uses meters, rais a `NotImplementedError`.
+              system, but BigQuery uses meters, raise a `NotImplementedError`.
         - [ ] Otherwise, call `series._apply_unary_op` or `series._apply_binary_op`, passing the operation dataclass.
         - [ ] Add a comprehensive docstring with examples to the superclass in
               `third_party/bigframes_vendored/geopandas/geoseries.py`.
