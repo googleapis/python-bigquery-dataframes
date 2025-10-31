@@ -711,12 +711,6 @@ class Block:
         # To reduce the number of edge cases to consider when working with the
         # results of this, always return at least one DataFrame. See:
         # b/428918844.
-        empty_val = pd.DataFrame(
-            {
-                col: pd.Series([], dtype=self.expr.get_column_type(col))
-                for col in itertools.chain(self.value_columns, self.index_columns)
-            }
-        )
         series_map = {}
         for col in itertools.chain(self.value_columns, self.index_columns):
             dtype = self.expr.get_column_type(col)
@@ -733,10 +727,8 @@ class Block:
                     safe_dtype = pd.ArrowDtype(safe_pa_type)
                     series_map[col] = pd.Series([], dtype=safe_dtype).astype(dtype)
                 else:
-                    # This branch should ideally not be reached if
-                    # contains_db_dtypes_json_dtype is accurate,
-                    # but it's here for MyPy's sake.
-                    series_map[col] = pd.Series([], dtype=dtype)
+                    # Fallback for other types that might error
+                    series_map[col] = pd.Series([], dtype="object").astype(dtype)
         empty_val = pd.DataFrame(series_map)
         dfs = map(
             lambda a: a[0],
