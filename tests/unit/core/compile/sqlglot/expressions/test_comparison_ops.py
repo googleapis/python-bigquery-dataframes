@@ -40,7 +40,7 @@ def test_is_in(scalar_types_df: bpd.DataFrame, snapshot):
         "float_in_ints": ops.IsInOp(values=(1, 2, 3, None)).as_expr(float_col),
     }
 
-    sql = utils._apply_unary_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
     snapshot.assert_match(sql, "out.sql")
 
 
@@ -108,6 +108,13 @@ def test_le_numeric(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df["bool_le_int"] = bf_df["bool_col"] <= bf_df["int64_col"]
 
     snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_minimum_op(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "float64_col"]]
+    sql = utils._apply_binary_op(bf_df, ops.minimum_op, "int64_col", "float64_col")
+
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_ne_numeric(scalar_types_df: bpd.DataFrame, snapshot):

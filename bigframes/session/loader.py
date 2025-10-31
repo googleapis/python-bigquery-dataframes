@@ -47,7 +47,17 @@ from google.cloud.bigquery_storage_v1 import types as bq_storage_types
 import pandas
 import pyarrow as pa
 
-from bigframes.core import guid, identifiers, local_data, nodes, ordering, utils
+import bigframes._tools
+import bigframes._tools.strings
+from bigframes.core import (
+    bq_data,
+    guid,
+    identifiers,
+    local_data,
+    nodes,
+    ordering,
+    utils,
+)
 import bigframes.core as core
 import bigframes.core.blocks as blocks
 import bigframes.core.events
@@ -272,9 +282,7 @@ class GbqDataLoader:
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
         self._force_total_order = force_total_order
-        self._df_snapshot: Dict[
-            bigquery.TableReference, Tuple[datetime.datetime, bigquery.Table]
-        ] = {}
+        self._df_snapshot: Dict[str, Tuple[datetime.datetime, bigquery.Table]] = {}
         self._metrics = metrics
         self._publisher = publisher
         # Unfortunate circular reference, but need to pass reference when constructing objects
@@ -324,9 +332,7 @@ class GbqDataLoader:
             source=gbq_source,
             scan_list=nodes.ScanList(
                 tuple(
-                    nodes.ScanItem(
-                        identifiers.ColumnId(item.column), item.dtype, item.column
-                    )
+                    nodes.ScanItem(identifiers.ColumnId(item.column), item.column)
                     for item in data.schema.items
                 )
             ),
@@ -337,7 +343,7 @@ class GbqDataLoader:
         self,
         data: local_data.ManagedArrowTable,
         offsets_col: str,
-    ) -> nodes.BigqueryDataSource:
+    ) -> bq_data.BigqueryDataSource:
         """Load managed data into bigquery"""
 
         # JSON support incomplete
@@ -379,8 +385,9 @@ class GbqDataLoader:
         self._start_generic_job(load_job)
         # must get table metadata after load job for accurate metadata
         destination_table = self._bqclient.get_table(load_table_destination)
-        return nodes.BigqueryDataSource(
-            nodes.GbqTable.from_table(destination_table),
+        return bq_data.BigqueryDataSource(
+            bq_data.GbqTable.from_table(destination_table),
+            schema=schema_w_offsets,
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
             n_rows=data.metadata.row_count,
         )
@@ -389,7 +396,7 @@ class GbqDataLoader:
         self,
         data: local_data.ManagedArrowTable,
         offsets_col: str,
-    ) -> nodes.BigqueryDataSource:
+    ) -> bq_data.BigqueryDataSource:
         """Load managed data into bigquery"""
         schema_w_offsets = data.schema.append(
             schemata.SchemaItem(offsets_col, bigframes.dtypes.INT_DTYPE)
@@ -415,8 +422,9 @@ class GbqDataLoader:
                     f"Problem loading at least one row from DataFrame: {errors}. {constants.FEEDBACK_LINK}"
                 )
         destination_table = self._bqclient.get_table(load_table_destination)
-        return nodes.BigqueryDataSource(
-            nodes.GbqTable.from_table(destination_table),
+        return bq_data.BigqueryDataSource(
+            bq_data.GbqTable.from_table(destination_table),
+            schema=schema_w_offsets,
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
             n_rows=data.metadata.row_count,
         )
@@ -425,7 +433,7 @@ class GbqDataLoader:
         self,
         data: local_data.ManagedArrowTable,
         offsets_col: str,
-    ) -> nodes.BigqueryDataSource:
+    ) -> bq_data.BigqueryDataSource:
         """Load managed data into bigquery"""
         schema_w_offsets = data.schema.append(
             schemata.SchemaItem(offsets_col, bigframes.dtypes.INT_DTYPE)
@@ -469,8 +477,9 @@ class GbqDataLoader:
         assert response.row_count == data.data.num_rows
 
         destination_table = self._bqclient.get_table(bq_table_ref)
-        return nodes.BigqueryDataSource(
-            nodes.GbqTable.from_table(destination_table),
+        return bq_data.BigqueryDataSource(
+            bq_data.GbqTable.from_table(destination_table),
+            schema=schema_w_offsets,
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
             n_rows=data.metadata.row_count,
         )
@@ -629,10 +638,6 @@ class GbqDataLoader:
 
         _check_duplicates("columns", columns)
 
-        table_ref = google.cloud.bigquery.table.TableReference.from_string(
-            table_id, default_project=self._bqclient.project
-        )
-
         columns = list(columns)
         include_all_columns = columns is None or len(columns) == 0
         filters = typing.cast(list, list(filters))
@@ -643,7 +648,8 @@ class GbqDataLoader:
 
         time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
             self._bqclient,
-            table_ref=table_ref,
+            table_id=table_id,
+            default_project=self._bqclient.project,
             bq_time=self._clock.get_time(),
             cache=self._df_snapshot,
             use_cache=use_cache,
@@ -706,18 +712,23 @@ class GbqDataLoader:
         # Optionally, execute the query
         # -----------------------------
 
-        # max_results introduces non-determinism and limits the cost on
-        # clustered tables, so fallback to a query. We do this here so that
-        # the index is consistent with tables that have primary keys, even
-        # when max_results is set.
-        if max_results is not None:
+        if (
+            # max_results introduces non-determinism and limits the cost on
+            # clustered tables, so fallback to a query. We do this here so that
+            # the index is consistent with tables that have primary keys, even
+            # when max_results is set.
+            max_results is not None
+            # Views such as INFORMATION_SCHEMA can introduce non-determinism.
+            # They can update frequently and don't support time travel.
+            or bf_read_gbq_table.is_information_schema(table_id)
+        ):
             # TODO(b/338111344): If we are running a query anyway, we might as
             # well generate ROW_NUMBER() at the same time.
             all_columns: Iterable[str] = (
                 itertools.chain(index_cols, columns) if columns else ()
             )
             query = bf_io_bigquery.to_query(
-                table_id,
+                f"{table.project}.{table.dataset_id}.{table.table_id}",
                 columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters
@@ -802,12 +813,10 @@ class GbqDataLoader:
                     bigframes.core.events.ExecutionFinished(),
                 )
 
-        schema = schemata.ArraySchema.from_bq_table(table)
-        if not include_all_columns:
-            schema = schema.select(index_cols + columns)
+        selected_cols = None if include_all_columns else index_cols + columns
         array_value = core.ArrayValue.from_table(
             table,
-            schema=schema,
+            columns=selected_cols,
             predicate=filter_str,
             at_time=time_travel_timestamp if enable_snapshot else None,
             primary_key=primary_key,
