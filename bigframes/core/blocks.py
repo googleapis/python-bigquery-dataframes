@@ -721,9 +721,7 @@ class Block:
                 # db_dtypes.JSONArrowType, especially when nested.
                 # Create with string type and then cast.
                 if isinstance(dtype, pd.ArrowDtype):
-                    safe_pa_type = bigframes.dtypes._replace_json_arrow_with_string(
-                        dtype.pyarrow_dtype
-                    )
+                    safe_pa_type = bigframes.dtypes.to_storage_type(dtype.pyarrow_dtype)
                     # Create empty array with safe type, but preserve original dtype metadata
                     empty_array = pa.array([], type=safe_pa_type)
                     series_map[col] = pd.Series(
