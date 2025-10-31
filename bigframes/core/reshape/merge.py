@@ -18,7 +18,7 @@ Functions for Merging Data Structures in BigFrames.
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Sequence, Union
+from typing import Literal, Sequence
 
 import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 
@@ -36,10 +36,10 @@ def merge(
         "right",
         "cross",
     ] = "inner",
-    on: Optional[str] = None,
+    on: blocks.Label | Sequence[blocks.Label] | None = None,
     *,
-    left_on: Optional[str] = None,
-    right_on: Optional[str] = None,
+    left_on: blocks.Label | Sequence[blocks.Label] | None = None,
+    right_on: blocks.Label | Sequence[blocks.Label] | None = None,
     sort: bool = False,
     suffixes: tuple[str, str] = ("_x", "_y"),
 ) -> dataframe.DataFrame:
@@ -60,7 +60,7 @@ def merge(
         return dataframe.DataFrame(result_block)
 
     left_on, right_on = _validate_left_right_on(
-        right, on, left_on=left_on, right_on=right_on
+        left, right, on, left_on=left_on, right_on=right_on
     )
 
     if utils.is_list_like(left_on):
@@ -123,10 +123,10 @@ def _validate_operand(
 def _validate_left_right_on(
     left: dataframe.DataFrame,
     right: dataframe.DataFrame,
-    on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+    on: blocks.Label | Sequence[blocks.Label] | None = None,
     *,
-    left_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
-    right_on: Union[blocks.Label, Sequence[blocks.Label], None] = None,
+    left_on: blocks.Label | Sequence[blocks.Label] | None = None,
+    right_on: blocks.Label | Sequence[blocks.Label] | None = None,
 ):
     if on is not None:
         if left_on is not None or right_on is not None:
