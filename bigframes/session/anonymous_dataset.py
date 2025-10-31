@@ -18,6 +18,7 @@ from typing import List, Optional, Sequence
 import uuid
 import warnings
 
+from google.api_core import retry as api_core_retry
 import google.cloud.bigquery as bigquery
 
 from bigframes import constants
@@ -157,9 +158,11 @@ class AnonymousDatasetManager(temporary_storage.TemporaryStorageManager):
             ):
                 try:
                     self.bqclient.delete_routine(
-                        routine.reference, not_found_ok=True, retry=None
+                        routine.reference,
+                        not_found_ok=True,
+                        retry=api_core_retry.Retry(timeout=0),
                     )
-                except Exception as e:
+                except Exception:
                     pass
 
     def close(self):
