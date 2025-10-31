@@ -25,6 +25,7 @@ from typing import Any, Callable, cast, Generator, Iterable, Literal, Optional, 
 import uuid
 
 import geopandas  # type: ignore
+import numpy
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -124,12 +125,20 @@ class ManagedArrowTable:
         geo_format: Literal["wkb", "wkt"] = "wkt",
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
+        sample_rate: Optional[float] = None,
     ) -> tuple[pa.Schema, Iterable[pa.RecordBatch]]:
         if geo_format != "wkt":
             raise NotImplementedError(f"geo format {geo_format} not yet implemented")
         assert json_type == "string"
 
-        batches = self.data.to_batches()
+        data = self.data
+
+        # This exists for symmetry with remote sources, but sampling local data like this shouldn't really happen
+        if sample_rate is not None:
+            to_take = numpy.random.rand(data.num_rows) < sample_rate
+            data = data.filter(to_take)
+
+        batches = data.to_batches()
         schema = self.data.schema
         if duration_type == "int":
             schema = _schema_durations_to_ints(schema)
