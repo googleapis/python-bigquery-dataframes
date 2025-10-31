@@ -711,27 +711,14 @@ class Block:
         # To reduce the number of edge cases to consider when working with the
         # results of this, always return at least one DataFrame. See:
         # b/428918844.
-        series_map = {}
-        for col in itertools.chain(self.value_columns, self.index_columns):
-            dtype = self.expr.get_column_type(col)
-            try:
-                series_map[col] = pd.Series([], dtype=dtype)
-            except pa.ArrowNotImplementedError:
-                # PyArrow doesn't support creating an empty array with
-                # db_dtypes.JSONArrowType, especially when nested.
-                # Create with string type and then cast.
-                if isinstance(dtype, pd.ArrowDtype):
-                    safe_pa_type = bigframes.dtypes.to_storage_type(dtype.pyarrow_dtype)
-                    # Create empty array with safe type, but preserve original dtype metadata
-                    empty_array = pa.array([], type=safe_pa_type)
-                    series_map[col] = pd.Series(
-                        empty_array,
-                        dtype=dtype,  # Use original dtype directly
-                    )
-                else:
-                    # Fallback for other types that might error
-                    series_map[col] = pd.Series([], dtype="object").astype(dtype)
-        empty_val = pd.DataFrame(series_map)
+        try:
+            empty_arrow_table = self.expr.schema.to_pyarrow().empty_table()
+        except pa.ArrowNotImplementedError:
+            # Bug with some pyarrow versions, empty_table only supports base storage types, not extension types.
+            empty_arrow_table = self.expr.schema.to_pyarrow(
+                use_storage_types=True
+            ).empty_table()
+        empty_val = empty_arrow_table.to_pandas()
         dfs = map(
             lambda a: a[0],
             itertools.zip_longest(
