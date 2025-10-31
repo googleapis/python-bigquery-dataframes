@@ -724,8 +724,12 @@ class Block:
                     safe_pa_type = bigframes.dtypes._replace_json_arrow_with_string(
                         dtype.pyarrow_dtype
                     )
-                    safe_dtype = pd.ArrowDtype(safe_pa_type)
-                    series_map[col] = pd.Series([], dtype=safe_dtype).astype(dtype)
+                    # Create empty array with safe type, but preserve original dtype metadata
+                    empty_array = pa.array([], type=safe_pa_type)
+                    series_map[col] = pd.Series(
+                        empty_array,
+                        dtype=dtype,  # Use original dtype directly
+                    )
                 else:
                     # Fallback for other types that might error
                     series_map[col] = pd.Series([], dtype="object").astype(dtype)
