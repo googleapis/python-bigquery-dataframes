@@ -2303,6 +2303,8 @@ class Block:
         right_join_ids: typing.Sequence[str],
         sort: bool,
         suffixes: tuple[str, str] = ("_x", "_y"),
+        left_index: bool = False,
+        right_index: bool = False,
     ) -> Block:
         conditions = tuple(
             (lid, rid) for lid, rid in zip(left_join_ids, right_join_ids)
@@ -2324,9 +2326,8 @@ class Block:
             if col_id in left_join_ids:
                 key_part = left_join_ids.index(col_id)
                 matching_right_id = right_join_ids[key_part]
-                if (
-                    self.col_id_to_label[col_id]
-                    == other.col_id_to_label[matching_right_id]
+                if self.col_id_to_label[col_id] == other.col_id_to_label.get(
+                    matching_right_id, None
                 ):
                     matching_join_labels.append(self.col_id_to_label[col_id])
                     result_columns.append(coalesced_ids[key_part])
@@ -2371,13 +2372,15 @@ class Block:
             or other.index.is_null
             or self.session._default_index_type == bigframes.enums.DefaultIndexKind.NULL
         ):
-            expr = joined_expr
-            index_columns = []
+            return Block(joined_expr, index_columns=[], column_labels=labels)
+        elif left_index:
+            return Block(joined_expr, index_columns=[left_post_join_ids], column_labels=labels)
+        elif right_index:
+            return Block(joined_expr, index_columns=[right_post_join_ids], column_labels=labels)
         else:
             expr, offset_index_id = joined_expr.promote_offsets()
             index_columns = [offset_index_id]
-
-        return Block(expr, index_columns=index_columns, column_labels=labels)
+            return Block(expr, index_columns=index_columns, column_labels=labels)
 
     def _align_both_axes(
         self, other: Block, how: str
