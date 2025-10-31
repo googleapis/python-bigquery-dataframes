@@ -717,6 +717,34 @@ class Block:
                 for col in itertools.chain(self.value_columns, self.index_columns)
             }
         )
+        series_map = {}
+        for col in itertools.chain(self.value_columns, self.index_columns):
+            dtype = self.expr.get_column_type(col)
+            if bigframes.dtypes.contains_db_dtypes_json_dtype(dtype):
+                # Due to a limitation in Apache Arrow (#45262), JSON columns are not
+                # natively supported by the to_pandas_batches() method, which is
+                # used by the anywidget backend.
+                # Workaround for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+                # PyArrow doesn't support creating an empty array with db_dtypes.JSONArrowType,
+                # especially when nested.
+                # Create with string type and then cast.
+
+                # MyPy doesn't automatically narrow the type of 'dtype' here,
+                # so we add an explicit check.
+                if isinstance(dtype, pd.ArrowDtype):
+                    safe_pa_type = bigframes.dtypes._replace_json_arrow_with_string(
+                        dtype.pyarrow_dtype
+                    )
+                    safe_dtype = pd.ArrowDtype(safe_pa_type)
+                    series_map[col] = pd.Series([], dtype=safe_dtype).astype(dtype)
+                else:
+                    # This branch should ideally not be reached if
+                    # contains_db_dtypes_json_dtype is accurate,
+                    # but it's here for MyPy's sake.
+                    series_map[col] = pd.Series([], dtype=dtype)
+            else:
+                series_map[col] = pd.Series([], dtype=dtype)
+        empty_val = pd.DataFrame(series_map)
         dfs = map(
             lambda a: a[0],
             itertools.zip_longest(
