@@ -30,6 +30,7 @@ from shapely.geometry import (  # type: ignore
     Polygon,
 )
 
+import bigframes.bigquery
 import bigframes.geopandas
 import bigframes.pandas
 import bigframes.series
@@ -540,6 +541,29 @@ def test_geo_centroid(session: bigframes.session.Session):
         # slightly different.
         check_less_precise=True,
     )
+
+
+def test_st_regionstats(session: bigframes.session.Session):
+    # This raster is a global image of forest cover.
+    # See: https://developers.google.com/earth-engine/datasets/catalog/UMD_hansen_global_forest_change_2022_v1_10
+    raster = "projects/earthengine-public/assets/images/UMD/hansen/global_forest_change_2022_v1_10"
+    # A small polygon over a forested area in Brazil.
+    polygon = Polygon(
+        [
+            (-49.8, -10.3),
+            (-49.8, -10.0),
+            (-49.5, -10.0),
+            (-49.5, -10.3),
+            (-49.8, -10.3),
+        ]
+    )
+    geos = bigframes.geopandas.GeoSeries([polygon], session=session)
+    result = bigframes.bigquery.st_regionstats(
+        geos, raster, "loss", options={"scale": 1000}
+    ).to_pandas()
+    assert result is not None
+    assert "mean" in result.columns
+    assert result["mean"][0] > 0
 
 
 def test_geo_convex_hull(session: bigframes.session.Session):

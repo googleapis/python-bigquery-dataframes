@@ -159,7 +159,9 @@ class ExpressionCompiler:
         return decorator
 
     def register_ternary_op(
-        self, op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]]
+        self,
+        op_ref: typing.Union[ops.TernaryOp, type[ops.TernaryOp]],
+        pass_op: bool = False,
     ):
         """
         Decorator to register a ternary op implementation.
@@ -167,12 +169,18 @@ class ExpressionCompiler:
         Args:
             op_ref (TernaryOp or TernaryOp type):
                 Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
         """
         key = typing.cast(str, op_ref.name)
 
         def decorator(impl: typing.Callable[..., ibis_types.Value]):
             def normalized_impl(args: typing.Sequence[ibis_types.Value], op: ops.RowOp):
-                return impl(args[0], args[1], args[2])
+                if pass_op:
+                    return impl(args[0], args[1], args[2], op)
+                else:
+                    return impl(args[0], args[1], args[2])
 
             self._register(key, normalized_impl)
             return impl
