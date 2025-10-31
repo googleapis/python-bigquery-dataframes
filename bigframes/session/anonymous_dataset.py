@@ -156,7 +156,9 @@ class AnonymousDatasetManager(temporary_storage.TemporaryStorageManager):
                 and routine._properties["routineType"] == "SCALAR_FUNCTION"
             ):
                 try:
-                    self.bqclient.delete_routine(routine.reference, not_found_ok=True)
+                    self.bqclient.delete_routine(
+                        routine.reference, not_found_ok=True, retry=None
+                    )
                 except Exception as e:
                     pass
 
