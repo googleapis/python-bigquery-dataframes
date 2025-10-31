@@ -37,3 +37,13 @@ def test_compile_isin_not_nullable(scalar_types_df: bpd.DataFrame, snapshot):
         scalar_types_df["rowindex_2"].isin(scalar_types_df["rowindex_2"]).to_frame()
     )
     snapshot.assert_match(bf_isin.sql, "out.sql")
+
+
+def test_compile_isin_for_array_value(scalar_types_df: bpd.DataFrame, snapshot):
+    scalars_array_value = scalar_types_df[["int64_col", "float64_col"]]._block.expr
+    result, _ = scalars_array_value.isin(
+        scalars_array_value, lcol="int64_col", rcol="float64_col"
+    )
+    sql = result.session._executor.to_sql(result, enable_cache=False)
+
+    snapshot.assert_match(sql, "out.sql")
