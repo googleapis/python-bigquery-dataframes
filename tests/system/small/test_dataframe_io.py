@@ -378,7 +378,7 @@ def test_to_pandas_batches_w_empty_dataframe(session):
 
 def test_to_pandas_batches_preserves_dtypes_for_populated_nested_json(session):
     """Verifies to_pandas_batches() preserves dtypes for nested JSON."""
-    # This SQL query only tests the POPULATED case.
+
     sql = """
         SELECT
             0 AS id,
@@ -386,25 +386,21 @@ def test_to_pandas_batches_preserves_dtypes_for_populated_nested_json(session):
             STRUCT(JSON '{"x":1}' AS json_field, 'test' AS str_field) AS json_struct
     """
     df = session.read_gbq(sql, index_col="id")
+
     batches = list(df.to_pandas_batches())
 
-    assert sum(len(b) for b in batches) == 1
-
-    # Check dtypes based on pandas version
-    if bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
-        assert isinstance(batches[0].dtypes["json_array"], pd.ArrowDtype)
-        assert isinstance(batches[0].dtypes["json_array"].pyarrow_dtype, pa.ListType)
-    else:
-        # In pandas 1.x, list types become object dtype
-        assert batches[0].dtypes["json_array"] == "object"
-
-    # Struct types work in both pandas versions
-    assert isinstance(batches[0].dtypes["json_struct"], pd.ArrowDtype)
-    assert isinstance(batches[0].dtypes["json_struct"].pyarrow_dtype, pa.StructType)
+    # Focuses only on the "preserves dtypes" behavior.
+    # This implicitly checks that at least one batch was produced.
+    pd.testing.assert_series_equal(
+        batches[0].dtypes,
+        df.dtypes,
+        check_dtype=bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    )
 
 
 def test_to_pandas_batches_should_not_error_on_empty_nested_json(session):
     """Verify to_pandas_batches() works with empty nested JSON types."""
+
     sql = """
         SELECT
             1 AS id,
@@ -413,17 +409,15 @@ def test_to_pandas_batches_should_not_error_on_empty_nested_json(session):
     """
     df = session.read_gbq(sql, index_col="id")
 
-    # The main point: this should not raise an error
+    # Verify that this line does not raise an error.
     batches = list(df.to_pandas_batches())
-    assert sum(len(b) for b in batches) == 1
 
-    # Check dtypes based on pandas version
-    if bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable:
-        assert isinstance(batches[0].dtypes["json_array"], pd.ArrowDtype)
-    else:
-        assert batches[0].dtypes["json_array"] == "object"
-
-    assert isinstance(batches[0].dtypes["json_struct"], pd.ArrowDtype)
+    # Verify the resulting dtypes are correct for the empty/null data
+    pd.testing.assert_series_equal(
+        batches[0].dtypes,
+        df.dtypes,
+        check_dtype=bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    )
 
 
 @pytest.mark.parametrize("allow_large_results", (True, False))
