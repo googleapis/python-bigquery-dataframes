@@ -376,6 +376,50 @@ def test_to_pandas_batches_w_empty_dataframe(session):
     pandas.testing.assert_series_equal(results[0].dtypes, empty.dtypes)
 
 
+def test_to_pandas_batches_preserves_dtypes_for_populated_nested_json(session):
+    """Verifies to_pandas_batches() preserves dtypes for nested JSON."""
+
+    sql = """
+        SELECT
+            0 AS id,
+            [JSON '{"a":1}', JSON '{"b":2}'] AS json_array,
+            STRUCT(JSON '{"x":1}' AS json_field, 'test' AS str_field) AS json_struct
+    """
+    df = session.read_gbq(sql, index_col="id")
+
+    batches = list(df.to_pandas_batches())
+
+    # Focuses only on the "preserves dtypes" behavior.
+    # This implicitly checks that at least one batch was produced.
+    pd.testing.assert_series_equal(
+        batches[0].dtypes,
+        df.dtypes,
+        check_dtype=bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    )
+
+
+def test_to_pandas_batches_should_not_error_on_empty_nested_json(session):
+    """Verify to_pandas_batches() works with empty nested JSON types."""
+
+    sql = """
+        SELECT
+            1 AS id,
+            [] AS json_array,
+            STRUCT(NULL AS json_field, 'test2' AS str_field) AS json_struct
+    """
+    df = session.read_gbq(sql, index_col="id")
+
+    # Verify that this line does not raise an error.
+    batches = list(df.to_pandas_batches())
+
+    # Verify the resulting dtypes are correct for the empty/null data
+    pd.testing.assert_series_equal(
+        batches[0].dtypes,
+        df.dtypes,
+        check_dtype=bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    )
+
+
 @pytest.mark.parametrize("allow_large_results", (True, False))
 def test_to_pandas_batches_w_page_size_and_max_results(session, allow_large_results):
     """Verify to_pandas_batches() APIs returns the expected page size.
