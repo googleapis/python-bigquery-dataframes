@@ -68,6 +68,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 from bigframes.session import dry_runs, execution_spec
 from bigframes.session import executor as executors
+from bigframes.session._io import pandas as io_pandas
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -718,7 +719,7 @@ class Block:
             empty_arrow_table = self.expr.schema.to_pyarrow(
                 use_storage_types=True
             ).empty_table()
-        empty_val = empty_arrow_table.to_pandas()
+        empty_val = io_pandas.arrow_to_pandas(empty_arrow_table, self.expr.schema)
         dfs = map(
             lambda a: a[0],
             itertools.zip_longest(
