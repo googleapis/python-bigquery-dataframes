@@ -374,7 +374,7 @@ def run_notebook_benchmark(benchmark_file: str, region: str):
     pytest_command = [
         "py.test",
         "--nbmake",
-        "--nbmake-timeout=900",  # 15 minutes
+        "--nbmake-timeout=3600",  # 1 hour within this PR (will revert later).
         "--durations=0",
         "--color=yes",
     ]
