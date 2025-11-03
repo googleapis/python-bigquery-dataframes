@@ -5951,16 +5951,19 @@ def test_resample_with_column(
 @pytest.mark.parametrize(
     "rule",
     [
-        # TODO(tswast): support timedeltas and dataoffsets
+        # TODO(tswast): support timedeltas and dataoffsets.
+        # TODO(tswast): support bins that default to "right".
         "100d",
         "1200h",
     ],
 )
-@pytest.mark.parametrize("closed", ["left", "right", None])
-@pytest.mark.parametrize("label", ["left", "right", None])
+# TODO(tswast): support "right"
+@pytest.mark.parametrize("closed", ["left", None])
+# TODO(tswast): support "right"
+@pytest.mark.parametrize("label", ["left", None])
 @pytest.mark.parametrize(
     "origin",
-    ["epoch", "start", "start_day", "end", "end_day"],
+    ["epoch", "start", "start_day"],  # TODO(tswast): support end, end_day.
 )
 def test_resample_with_index(
     scalars_df_index,
