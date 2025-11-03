@@ -715,7 +715,8 @@ class Block:
         try:
             empty_arrow_table = self.expr.schema.to_pyarrow().empty_table()
         except pa.ArrowNotImplementedError:
-            # Bug with some pyarrow versions, empty_table only supports base storage types, not extension types.
+            # Bug with some pyarrow versions(https://github.com/apache/arrow/issues/45262),
+            # empty_table only supports base storage types, not extension types.
             empty_arrow_table = self.expr.schema.to_pyarrow(
                 use_storage_types=True
             ).empty_table()
