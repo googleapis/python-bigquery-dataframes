@@ -6,9 +6,11 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    COALESCE(`bfcol_0`, `bfcol_1`) AS `bfcol_2`
+    `bfcol_0` AS `bfcol_2`,
+    COALESCE(`bfcol_1`, `bfcol_0`) AS `bfcol_3`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_2` AS `int64_col`
+  `bfcol_2` AS `int64_col`,
+  `bfcol_3` AS `int64_too`
 FROM `bfcte_1`
