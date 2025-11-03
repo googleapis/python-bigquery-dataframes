@@ -274,10 +274,11 @@ def _iter_table(
             sub_generators[field_name] = iter_array(array.field(field_name), dtype)
 
         keys = list(sub_generators.keys())
-        row_values_iter = zip(*sub_generators.values())
-        is_null_iter = array.is_null()
+        is_null_generator = iter_array(array.is_null(), bigframes.dtypes.BOOL_DTYPE)
 
-        for is_row_null, row_values in zip(is_null_iter, row_values_iter):
+        for values in zip(is_null_generator, *sub_generators.values()):
+            is_row_null = values[0]
+            row_values = values[1:]
             if not is_row_null:
                 yield {key: value for key, value in zip(keys, row_values)}
             else:
