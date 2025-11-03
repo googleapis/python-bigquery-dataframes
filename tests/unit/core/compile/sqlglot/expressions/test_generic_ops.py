@@ -215,7 +215,7 @@ def test_coalesce(scalar_types_df: bpd.DataFrame, snapshot):
     sql = utils._apply_ops_to_sql(
         bf_df,
         [
-            ops.coalesce_op.as_expr("int64_col", "int64_col"), 
+            ops.coalesce_op.as_expr("int64_col", "int64_col"),
             ops.coalesce_op.as_expr("int64_too", "int64_col"),
         ],
         ["int64_col", "int64_too"],
