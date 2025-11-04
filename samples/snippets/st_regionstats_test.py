@@ -15,7 +15,7 @@
 """Code sample for https://docs.cloud.google.com/bigquery/docs/raster-data#analytics-hub-source"""
 
 
-def test_st_regionstats():
+def test_st_regionstats() -> None:
     project_id = "bigframes-dev"
 
     # [START bigquery_dataframes_st_regionstats]
