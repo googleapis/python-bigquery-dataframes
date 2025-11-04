@@ -376,75 +376,90 @@ def test_to_pandas_batches_w_empty_dataframe(session):
     pandas.testing.assert_series_equal(results[0].dtypes, empty.dtypes)
 
 
-def test_to_pandas_batches_w_empty_dataframe_json_in_list(session):
-    """Tests to_pandas_batches() with an empty DataFrame containing a list of JSON.
-
-    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+@pytest.mark.skipif(
+    bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    reason="Test for pandas 1.x behavior only",
+)
+def test_to_pandas_batches_preserves_dtypes_for_populated_nested_json_pandas1(session):
+    """Verifies to_pandas_batches() preserves dtypes for nested JSON in pandas 1.x."""
+    sql = """
+        SELECT
+            0 AS id,
+            [JSON '{"a":1}', JSON '{"b":2}'] AS json_array,
+            STRUCT(JSON '{"x":1}' AS json_field, 'test' AS str_field) AS json_struct
     """
-    import db_dtypes
+    df = session.read_gbq(sql, index_col="id")
+    batches = list(df.to_pandas_batches())
 
-    json_list_dtype = pd.ArrowDtype(pa.list_(db_dtypes.JSONArrowType()))
-    empty_df_with_json_list = bpd.DataFrame(
-        {
-            "idx": pd.Series([], dtype="Int64"),
-            "json_list_col": pd.Series([], dtype=json_list_dtype),
-        },
-        session=session,
-    ).set_index("idx", drop=True)
-
-    results = list(empty_df_with_json_list.to_pandas_batches())
-
-    assert len(results) == 1
-    assert list(results[0].columns) == ["json_list_col"]
-    assert results[0].dtypes["json_list_col"] == json_list_dtype
-    assert len(results[0]) == 0
+    assert batches[0].dtypes["json_array"] == "object"
+    assert isinstance(batches[0].dtypes["json_struct"], pd.ArrowDtype)
 
 
-def test_to_pandas_batches_w_empty_dataframe_json_in_struct(session):
-    """Tests to_pandas_batches() with an empty DataFrame containing a struct of JSON.
-
-    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+@pytest.mark.skipif(
+    not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    reason="Test for pandas 2.x behavior only",
+)
+def test_to_pandas_batches_preserves_dtypes_for_populated_nested_json_pandas2(session):
+    """Verifies to_pandas_batches() preserves dtypes for nested JSON in pandas 2.x."""
+    sql = """
+        SELECT
+            0 AS id,
+            [JSON '{"a":1}', JSON '{"b":2}'] AS json_array,
+            STRUCT(JSON '{"x":1}' AS json_field, 'test' AS str_field) AS json_struct
     """
-    import db_dtypes
+    df = session.read_gbq(sql, index_col="id")
+    batches = list(df.to_pandas_batches())
 
-    json_struct_dtype = pd.ArrowDtype(
-        pa.struct([("json_field", db_dtypes.JSONArrowType())])
-    )
-    empty_df_with_json_struct = bpd.DataFrame(
-        {
-            "idx": pd.Series([], dtype="Int64"),
-            "json_struct_col": pd.Series([], dtype=json_struct_dtype),
-        },
-        session=session,
-    ).set_index("idx", drop=True)
-
-    results = list(empty_df_with_json_struct.to_pandas_batches())
-
-    assert len(results) == 1
-    assert list(results[0].columns) == ["json_struct_col"]
-    assert results[0].dtypes["json_struct_col"] == json_struct_dtype
-    assert len(results[0]) == 0
+    assert isinstance(batches[0].dtypes["json_array"], pd.ArrowDtype)
+    assert isinstance(batches[0].dtypes["json_array"].pyarrow_dtype, pa.ListType)
+    assert isinstance(batches[0].dtypes["json_struct"], pd.ArrowDtype)
 
 
-def test_to_pandas_batches_w_empty_dataframe_simple_json(session):
-    """Tests to_pandas_batches() with an empty DataFrame containing a simple JSON column.
+@pytest.mark.skipif(
+    bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    reason="Test for pandas 1.x behavior only",
+)
+def test_to_pandas_batches_should_not_error_on_empty_nested_json_pandas1(session):
+    """Verify to_pandas_batches() works with empty nested JSON types in pandas 1.x."""
 
-    Regression test for https://github.com/googleapis/python-bigquery-dataframes/issues/1273
+    sql = """
+        SELECT
+            1 AS id,
+            [] AS json_array,
+            STRUCT(NULL AS json_field, 'test2' AS str_field) AS json_struct
     """
-    empty_df_with_json = bpd.DataFrame(
-        {
-            "idx": pd.Series([], dtype="Int64"),
-            "json_col": pd.Series([], dtype=dtypes.JSON_DTYPE),
-        },
-        session=session,
-    ).set_index("idx", drop=True)
+    df = session.read_gbq(sql, index_col="id")
 
-    results = list(empty_df_with_json.to_pandas_batches())
+    # The main point: this should not raise an error
+    batches = list(df.to_pandas_batches())
+    assert sum(len(b) for b in batches) == 1
 
-    assert len(results) == 1
-    assert list(results[0].columns) == ["json_col"]
-    assert results[0].dtypes["json_col"] == dtypes.JSON_DTYPE
-    assert len(results[0]) == 0
+    assert batches[0].dtypes["json_array"] == "object"
+    assert isinstance(batches[0].dtypes["json_struct"], pd.ArrowDtype)
+
+
+@pytest.mark.skipif(
+    not bigframes.features.PANDAS_VERSIONS.is_arrow_list_dtype_usable,
+    reason="Test for pandas 2.x behavior only",
+)
+def test_to_pandas_batches_should_not_error_on_empty_nested_json_pandas2(session):
+    """Verify to_pandas_batches() works with empty nested JSON types in pandas 2.x."""
+
+    sql = """
+        SELECT
+            1 AS id,
+            [] AS json_array,
+            STRUCT(NULL AS json_field, 'test2' AS str_field) AS json_struct
+    """
+    df = session.read_gbq(sql, index_col="id")
+
+    # The main point: this should not raise an error
+    batches = list(df.to_pandas_batches())
+    assert sum(len(b) for b in batches) == 1
+
+    assert isinstance(batches[0].dtypes["json_array"], pd.ArrowDtype)
+    assert isinstance(batches[0].dtypes["json_struct"], pd.ArrowDtype)
+    assert isinstance(batches[0].dtypes["json_struct"].pyarrow_dtype, pa.StructType)
 
 
 @pytest.mark.parametrize("allow_large_results", (True, False))
