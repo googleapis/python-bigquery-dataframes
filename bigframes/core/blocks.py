@@ -68,6 +68,7 @@ import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 from bigframes.session import dry_runs, execution_spec
 from bigframes.session import executor as executors
+from bigframes.session._io import pandas as io_pandas
 
 # Type constraint for wherever column labels are used
 Label = typing.Hashable
@@ -711,12 +712,15 @@ class Block:
         # To reduce the number of edge cases to consider when working with the
         # results of this, always return at least one DataFrame. See:
         # b/428918844.
-        empty_val = pd.DataFrame(
-            {
-                col: pd.Series([], dtype=self.expr.get_column_type(col))
-                for col in itertools.chain(self.value_columns, self.index_columns)
-            }
-        )
+        try:
+            empty_arrow_table = self.expr.schema.to_pyarrow().empty_table()
+        except pa.ArrowNotImplementedError:
+            # Bug with some pyarrow versions(https://github.com/apache/arrow/issues/45262),
+            # empty_table only supports base storage types, not extension types.
+            empty_arrow_table = self.expr.schema.to_pyarrow(
+                use_storage_types=True
+            ).empty_table()
+        empty_val = io_pandas.arrow_to_pandas(empty_arrow_table, self.expr.schema)
         dfs = map(
             lambda a: a[0],
             itertools.zip_longest(
@@ -1992,6 +1996,31 @@ class Block:
             Literal["epoch", "start", "start_day", "end", "end_day"],
         ] = "start_day",
     ) -> Block:
+        if not isinstance(rule, str):
+            raise NotImplementedError(
+                f"Only offset strings are currently supported for rule, but got {repr(rule)}. {constants.FEEDBACK_LINK}"
+            )
+
+        if rule in ("ME", "YE", "QE", "BME", "BA", "BQE", "W"):
+            raise NotImplementedError(
+                f"Offset strings 'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', 'W' are not currently supported for rule, but got {repr(rule)}. {constants.FEEDBACK_LINK}"
+            )
+
+        if closed == "right":
+            raise NotImplementedError(
+                f"Only closed='left' is currently supported. {constants.FEEDBACK_LINK}",
+            )
+
+        if label == "right":
+            raise NotImplementedError(
+                f"Only label='left' is currently supported. {constants.FEEDBACK_LINK}",
+            )
+
+        if origin not in ("epoch", "start", "start_day"):
+            raise NotImplementedError(
+                f"Only origin='epoch', 'start', 'start_day' are currently supported, but got {repr(origin)}. {constants.FEEDBACK_LINK}"
+            )
+
         # Validate and resolve the index or column to use for grouping
         if on is None:
             if len(self.index_columns) == 0:
