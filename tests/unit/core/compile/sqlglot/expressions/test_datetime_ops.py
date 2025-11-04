@@ -270,3 +270,11 @@ def test_sub_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df["timedelta_sub_timedelta"] = bf_df["duration_col"] - bf_df["duration_col"]
 
     snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_timestamp_diff(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col", "date_col"]]
+    sql = utils._apply_binary_op(
+        bf_df, ops.timestamp_diff_op, "timestamp_col", "timestamp_col"
+    )
+    snapshot.assert_match(sql, "out.sql")
