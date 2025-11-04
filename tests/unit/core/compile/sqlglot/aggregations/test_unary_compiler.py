@@ -502,3 +502,25 @@ def test_time_series_diff(scalar_types_df: bpd.DataFrame, snapshot):
     )
     sql = _apply_unary_window_op(bf_df, op, window, "diff_time")
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_var(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["int64_col", "bool_col"]
+    bf_df = scalar_types_df[col_names]
+
+    agg_ops_map = {
+        "int64_col": agg_ops.VarOp().as_expr("int64_col"),
+        "bool_col": agg_ops.VarOp().as_expr("bool_col"),
+    }
+    sql = _apply_unary_agg_ops(
+        bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
+    )
+    snapshot.assert_match(sql, "out.sql")
+
+    # Window tests
+    col_name = "int64_col"
+    bf_df_int = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.VarOp().as_expr(col_name)
+    window = window_spec.WindowSpec(ordering=(ordering.descending_over(col_name),))
+    sql_window = _apply_unary_window_op(bf_df_int, agg_expr, window, "agg_int64")
+    snapshot.assert_match(sql_window, "window_out.sql")

@@ -347,3 +347,17 @@ def _(
         expression=shifted,
         unit=sge.Identifier(this="MICROSECOND"),
     )
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.VarOp)
+def _(
+    op: agg_ops.VarOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    expr = column.expr
+    if column.dtype == dtypes.BOOL_DTYPE:
+        expr = sge.Cast(this=expr, to="INT64")
+
+    expr = sge.func("VAR_SAMP", expr)
+    return apply_window_if_present(expr, window)
