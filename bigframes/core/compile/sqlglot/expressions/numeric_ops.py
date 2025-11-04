@@ -77,6 +77,11 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("ASINH", expr.expr)
 
 
+@register_binary_op(ops.arctan2_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.func("ATAN2", left.expr, right.expr)
+
+
 @register_unary_op(ops.arctan_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("ATAN", expr.expr)
