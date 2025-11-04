@@ -370,6 +370,28 @@ def test_min(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
 
 
+def test_pop_var(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["int64_col", "bool_col"]
+    bf_df = scalar_types_df[col_names]
+
+    agg_ops_map = {
+        "int64_col": agg_ops.PopVarOp().as_expr("int64_col"),
+        "bool_col": agg_ops.PopVarOp().as_expr("bool_col"),
+    }
+    sql = _apply_unary_agg_ops(
+        bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
+    )
+    snapshot.assert_match(sql, "out.sql")
+
+    # Window tests
+    col_name = "int64_col"
+    bf_df_int = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.PopVarOp().as_expr(col_name)
+    window = window_spec.WindowSpec(ordering=(ordering.descending_over(col_name),))
+    sql_window = _apply_unary_window_op(bf_df_int, agg_expr, window, "agg_int64")
+    snapshot.assert_match(sql_window, "window_out.sql")
+
+
 def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
