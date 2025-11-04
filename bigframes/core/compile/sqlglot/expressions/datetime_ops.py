@@ -21,6 +21,7 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 
 
 @register_unary_op(ops.FloorDtOp, pass_op=True)
@@ -77,6 +78,20 @@ def _(expr: TypedExpr) -> sge.Expression:
 @register_unary_op(ops.second_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="SECOND"), expression=expr.expr)
+
+
+@register_binary_op(ops.timestamp_diff_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.TimestampDiff(
+        this=left.expr, expression=right.expr, unit=sge.Var(this="MICROSECOND")
+    )
+
+
+@register_binary_op(ops.timestamp_add_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.TimestampAdd(
+        this=left.expr, expression=right.expr, unit=sge.Var(this="MICROSECOND")
+    )
 
 
 @register_unary_op(ops.StrftimeOp, pass_op=True)
