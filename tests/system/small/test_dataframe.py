@@ -5915,12 +5915,6 @@ def test_dataframe_explode_xfail(col_names):
         pytest.param("datetime_col", "5M", "epoch"),
         pytest.param("datetime_col", "3Q", "start_day"),
         pytest.param("datetime_col", "3YE", "start"),
-        pytest.param(
-            "int64_col", "100D", "start", marks=pytest.mark.xfail(raises=TypeError)
-        ),
-        pytest.param(
-            "datetime_col", "100D", "end", marks=pytest.mark.xfail(raises=ValueError)
-        ),
     ],
 )
 def test_resample_with_column(
@@ -5929,7 +5923,7 @@ def test_resample_with_column(
     # TODO: supply a reason why this isn't compatible with pandas 1.x
     pytest.importorskip("pandas", minversion="2.0.0")
     bf_result = (
-        scalars_df_index._resample(rule=rule, on=on, origin=origin)[
+        scalars_df_index.resample(rule=rule, on=on, origin=origin)[
             ["int64_col", "int64_too"]
         ]
         .max()
@@ -6042,7 +6036,7 @@ def test_resample_start_time(rule, origin, data):
     scalars_pandas_df_index = pd.DataFrame(data).set_index(col)
     scalars_pandas_df_index.index.name = None
 
-    bf_result = scalars_df_index._resample(rule=rule, origin=origin).min().to_pandas()
+    bf_result = scalars_df_index.resample(rule=rule, origin=origin).min().to_pandas()
 
     pd_result = scalars_pandas_df_index.resample(rule=rule, origin=origin).min()
 
