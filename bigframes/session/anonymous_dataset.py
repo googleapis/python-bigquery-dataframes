@@ -162,8 +162,11 @@ class AnonymousDatasetManager(temporary_storage.TemporaryStorageManager):
                         not_found_ok=True,
                         retry=api_core_retry.Retry(timeout=0),
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    msg = bfe.format_message(
+                        f"Unable to clean this old UDF '{routine.reference}': {e}"
+                    )
+                    warnings.warn(msg, category=bfe.CleanupFailedWarning)
 
     def close(self):
         """Delete tables that were created with this session's session_id."""
