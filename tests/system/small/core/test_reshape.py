@@ -57,6 +57,7 @@ def test_join_with_index(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
 
+
 @pytest.mark.parametrize(
     ("left_on", "right_on", "left_index", "right_index"),
     [
@@ -68,8 +69,8 @@ def test_join_with_index(
 def test_join_with_multiindex(
     session: session.Session, left_on, right_on, left_index, right_index
 ):
-    multi_idx = pd.MultiIndex.from_tuples([(1,2), (2, 3), (3,4)])
-    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]},  index=multi_idx)
+    multi_idx = pd.MultiIndex.from_tuples([(1, 2), (2, 3), (3, 4)])
+    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]}, index=multi_idx)
     bf1 = session.read_pandas(df1)
     df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]}, index=multi_idx)
     bf2 = session.read_pandas(df2)

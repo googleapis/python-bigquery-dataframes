@@ -2341,8 +2341,6 @@ class Block:
         joined_expr, (get_column_left, get_column_right) = self.expr.relational_join(
             other.expr, type=how, conditions=conditions
         )
-        result_columns = []
-        matching_join_labels = []
 
         left_post_join_ids = tuple(get_column_left[id] for id in left_join_ids)
         right_post_join_ids = tuple(get_column_right[id] for id in right_join_ids)
@@ -2351,6 +2349,9 @@ class Block:
             joined_expr, left_post_join_ids, right_post_join_ids, how=how, drop=False
         )
 
+        result_columns = []
+        matching_join_labels = []
+        # Select left value columns
         for col_id in self.value_columns:
             if col_id in left_join_ids:
                 key_part = left_join_ids.index(col_id)
@@ -2382,7 +2383,13 @@ class Block:
                 ],
             )
 
-        joined_expr = joined_expr.select_columns(result_columns)
+        left_idx_id_post_join = [get_column_left[id] for id in self.index_columns]
+        right_idx_id_post_join = [get_column_right[id] for id in other.index_columns]
+        index_cols = _resolve_index_col(
+            left_idx_id_post_join, right_idx_id_post_join, left_index, right_index, how
+        )
+
+        joined_expr = joined_expr.select_columns(result_columns + index_cols)
         labels = utils.merge_column_labels(
             self.column_labels,
             other.column_labels,
@@ -2402,10 +2409,8 @@ class Block:
             or self.session._default_index_type == bigframes.enums.DefaultIndexKind.NULL
         ):
             return Block(joined_expr, index_columns=[], column_labels=labels)
-        elif left_index:
-            return Block(joined_expr, index_columns=[left_post_join_ids], column_labels=labels)
-        elif right_index:
-            return Block(joined_expr, index_columns=[right_post_join_ids], column_labels=labels)
+        elif index_cols:
+            return Block(joined_expr, index_columns=index_cols, column_labels=labels)
         else:
             expr, offset_index_id = joined_expr.promote_offsets()
             index_columns = [offset_index_id]
@@ -3471,3 +3476,33 @@ def _pd_index_to_array_value(
         rows.append(row)
 
     return core.ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=session)
+
+
+def _resolve_index_col(
+    left_index_cols: list[str],
+    right_index_cols: list[str],
+    left_index: bool,
+    right_index: bool,
+    how: typing.Literal[
+        "inner",
+        "left",
+        "outer",
+        "right",
+        "cross",
+    ],
+) -> list[str]:
+    if left_index and right_index:
+        if how == "inner" or how == "left":
+            return left_index_cols
+        if how == "right":
+            return right_index_cols
+        if how == "outer":
+            return []
+        else:
+            return []
+    elif left_index and not right_index:
+        return right_index_cols
+    elif right_index and not left_index:
+        return left_index_cols
+    else:
+        return []

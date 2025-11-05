@@ -79,7 +79,7 @@ def merge(
         sort=sort,
         suffixes=suffixes,
         left_index=left_index,
-        right_index=right_index
+        right_index=right_index,
     )
     return dataframe.DataFrame(block)
 
