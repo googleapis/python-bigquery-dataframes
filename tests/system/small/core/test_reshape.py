@@ -24,16 +24,17 @@ from bigframes.core.reshape import merge
     ("left_on", "right_on", "left_index", "right_index"),
     [
         ("col_a", None, False, True),
-        (None, "col_c", True, False),
+        (None, "col_d", True, False),
         (None, None, True, True),
     ],
 )
+@pytest.mark.parametrize("how", ["inner", "left", "right", "outer"])
 def test_join_with_index(
-    session: session.Session, left_on, right_on, left_index, right_index
+    session: session.Session, left_on, right_on, left_index, right_index, how
 ):
-    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]})
+    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]}, index=[1, 2, 3])
     bf1 = session.read_pandas(df1)
-    df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]})
+    df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]}, index=[2, 3, 4])
     bf2 = session.read_pandas(df2)
 
     bf_result = merge.merge(
@@ -43,6 +44,7 @@ def test_join_with_index(
         right_on=right_on,
         left_index=left_index,
         right_index=right_index,
+        how=how
     ).to_pandas()
     pd_result = pd.merge(
         df1,
@@ -51,6 +53,7 @@ def test_join_with_index(
         right_on=right_on,
         left_index=left_index,
         right_index=right_index,
+        how=how
     )
 
     pandas.testing.assert_frame_equal(
@@ -66,13 +69,15 @@ def test_join_with_index(
         (None, None, True, True),
     ],
 )
+@pytest.mark.parametrize("how", ["inner", "left", "right", "outer"])
 def test_join_with_multiindex(
-    session: session.Session, left_on, right_on, left_index, right_index
+    session: session.Session, left_on, right_on, left_index, right_index, how
 ):
-    multi_idx = pd.MultiIndex.from_tuples([(1, 2), (2, 3), (3, 4)])
-    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]}, index=multi_idx)
+    multi_idx1 = pd.MultiIndex.from_tuples([(1, 2), (2, 3), (3, 5)])
+    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]}, index=multi_idx1)
     bf1 = session.read_pandas(df1)
-    df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]}, index=multi_idx)
+    multi_idx2 = pd.MultiIndex.from_tuples([(1, 2), (2, 3), (3, 2)])
+    df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]}, index=multi_idx2)
     bf2 = session.read_pandas(df2)
 
     bf_result = merge.merge(
@@ -82,6 +87,7 @@ def test_join_with_multiindex(
         right_on=right_on,
         left_index=left_index,
         right_index=right_index,
+        how=how
     ).to_pandas()
     pd_result = pd.merge(
         df1,
@@ -90,8 +96,9 @@ def test_join_with_multiindex(
         right_on=right_on,
         left_index=left_index,
         right_index=right_index,
+        how=how
     )
 
     pandas.testing.assert_frame_equal(
-        bf_result, pd_result, check_dtype=False, check_index_type=False
+        bf_result.sort_index(), pd_result.sort_index(), check_dtype=False, check_index_type=False,
     )
