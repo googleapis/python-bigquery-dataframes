@@ -117,9 +117,9 @@ def _validate_left_right_on(
     right_index: bool = False,
 ) -> tuple[list[str], list[str]]:
     # Turn left_on and right_on to lists
-    if left_on is not None and not isinstance(left_on, Sequence):
+    if left_on is not None and not isinstance(left_on, (tuple, list)):
         left_on = [left_on]
-    if right_on is not None and not isinstance(right_on, Sequence):
+    if right_on is not None and not isinstance(right_on, (tuple, list)):
         right_on = [right_on]
 
     if left_index and left.index.nlevels > 1:
