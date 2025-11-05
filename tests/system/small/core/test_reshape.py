@@ -44,7 +44,7 @@ def test_join_with_index(
         right_on=right_on,
         left_index=left_index,
         right_index=right_index,
-        how=how
+        how=how,
     ).to_pandas()
     pd_result = pd.merge(
         df1,
@@ -53,12 +53,40 @@ def test_join_with_index(
         right_on=right_on,
         left_index=left_index,
         right_index=right_index,
-        how=how
+        how=how,
     )
 
     pandas.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
+
+
+@pytest.mark.parametrize(
+    ("on", "left_on", "right_on", "left_index", "right_index"),
+    [
+        (None, "col_a", None, True, False),
+        (None, None, "col_c", None, True),
+        ("col_a", None, None, True, True),
+    ],
+)
+def test_join_with_index_invalid_index_arg_raise_error(
+    session: session.Session, on, left_on, right_on, left_index, right_index
+):
+    df1 = pd.DataFrame({"col_a": [1, 2, 3], "col_b": [2, 3, 4]}, index=[1, 2, 3])
+    bf1 = session.read_pandas(df1)
+    df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]}, index=[2, 3, 4])
+    bf2 = session.read_pandas(df2)
+
+    with pytest.raises(ValueError):
+        merge.merge(
+            bf1,
+            bf2,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+        ).to_pandas()
 
 
 @pytest.mark.parametrize(
@@ -70,7 +98,7 @@ def test_join_with_index(
     ],
 )
 @pytest.mark.parametrize("how", ["inner", "left", "right", "outer"])
-def test_join_with_multiindex(
+def test_join_with_multiindex_raises_error(
     session: session.Session, left_on, right_on, left_index, right_index, how
 ):
     multi_idx1 = pd.MultiIndex.from_tuples([(1, 2), (2, 3), (3, 5)])
@@ -80,25 +108,13 @@ def test_join_with_multiindex(
     df2 = pd.DataFrame({"col_c": [1, 2, 3], "col_d": [2, 3, 4]}, index=multi_idx2)
     bf2 = session.read_pandas(df2)
 
-    bf_result = merge.merge(
-        bf1,
-        bf2,
-        left_on=left_on,
-        right_on=right_on,
-        left_index=left_index,
-        right_index=right_index,
-        how=how
-    ).to_pandas()
-    pd_result = pd.merge(
-        df1,
-        df2,
-        left_on=left_on,
-        right_on=right_on,
-        left_index=left_index,
-        right_index=right_index,
-        how=how
-    )
-
-    pandas.testing.assert_frame_equal(
-        bf_result.sort_index(), pd_result.sort_index(), check_dtype=False, check_index_type=False,
-    )
+    with pytest.raises(ValueError):
+        merge.merge(
+            bf1,
+            bf2,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+            how=how,
+        )

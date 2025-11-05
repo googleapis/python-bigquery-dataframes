@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Literal, Sequence
 
+from bigframes_vendored import constants
 import bigframes_vendored.pandas.core.reshape.merge as vendored_pandas_merge
 
 from bigframes import dataframe, series
@@ -116,15 +117,24 @@ def _validate_left_right_on(
     right_index: bool = False,
 ) -> tuple[list[str], list[str]]:
     # Turn left_on and right_on to lists
-    if left_on is not None and not isinstance(left_on, (tuple, list)):
+    if left_on is not None and not isinstance(left_on, Sequence):
         left_on = [left_on]
-    if right_on is not None and not isinstance(right_on, (tuple, list)):
+    if right_on is not None and not isinstance(right_on, Sequence):
         right_on = [right_on]
+
+    if left_index and left.index.nlevels > 1:
+        raise ValueError(
+            f"Joining with multi-level index is not supported. {constants.FEEDBACK_LINK}"
+        )
+    if right_index and right.index.nlevels > 1:
+        raise ValueError(
+            f"Joining with multi-level index is not supported. {constants.FEEDBACK_LINK}"
+        )
 
     # The following checks are copied from Pandas.
     if on is None and left_on is None and right_on is None:
         if left_index and right_index:
-            return list(left._block.index_columns), (right._block.index_columns)
+            return list(left._block.index_columns), list(right._block.index_columns)
         elif left_index:
             raise ValueError("Must pass right_on or right_index=True")
         elif right_index:
@@ -145,7 +155,7 @@ def _validate_left_right_on(
                 or not right.columns.join(common_cols, how="inner").is_unique
             ):
                 raise ValueError(f"Data columns not unique: {repr(common_cols)}")
-            return _to_col_ids(left, common_cols), _to_col_ids(right, common_cols)
+            return _to_col_ids(left, common_cols.to_list()), _to_col_ids(right, common_cols.to_list())
 
     elif on is not None:
         if left_on is not None or right_on is not None:
@@ -167,7 +177,6 @@ def _validate_left_right_on(
             )
         if not right_index and right_on is None:
             raise ValueError('Must pass "right_on" OR "right_index".')
-        n = len(left_on)
         if right_index:
             if len(left_on) != right.index.nlevels:
                 raise ValueError(
@@ -183,7 +192,6 @@ def _validate_left_right_on(
             )
         if not left_index and left_on is None:
             raise ValueError('Must pass "left_on" OR "left_index".')
-        n = len(right_on)
         if left_index:
             if len(right_on) != left.index.nlevels:
                 raise ValueError(
@@ -193,7 +201,7 @@ def _validate_left_right_on(
             return list(left._block.index_columns), _to_col_ids(right, right_on)
 
     # The user correctly specified left_on and right_on
-    if len(right_on) != len(left_on):
+    if len(right_on) != len(left_on): # type: ignore
         raise ValueError("len(right_on) must equal len(left_on)")
 
     return _to_col_ids(left, left_on), _to_col_ids(right, right_on)
