@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datetime import datetime
-import re
 import typing
 
 import pandas as pd
