@@ -2351,7 +2351,7 @@ class Block:
                 joined_expr, left_post_join_ids, right_post_join_ids
             )
         else:
-            joined_expr, resolved_join_ids = resolve_col_join_ids( # type: ignore
+            joined_expr, resolved_join_ids = resolve_col_join_ids(  # type: ignore
                 joined_expr,
                 left_post_join_ids,
                 right_post_join_ids,

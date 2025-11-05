@@ -155,7 +155,9 @@ def _validate_left_right_on(
                 or not right.columns.join(common_cols, how="inner").is_unique
             ):
                 raise ValueError(f"Data columns not unique: {repr(common_cols)}")
-            return _to_col_ids(left, common_cols.to_list()), _to_col_ids(right, common_cols.to_list())
+            return _to_col_ids(left, common_cols.to_list()), _to_col_ids(
+                right, common_cols.to_list()
+            )
 
     elif on is not None:
         if left_on is not None or right_on is not None:
@@ -201,7 +203,7 @@ def _validate_left_right_on(
             return list(left._block.index_columns), _to_col_ids(right, right_on)
 
     # The user correctly specified left_on and right_on
-    if len(right_on) != len(left_on): # type: ignore
+    if len(right_on) != len(left_on):  # type: ignore
         raise ValueError("len(right_on) must equal len(left_on)")
 
     return _to_col_ids(left, left_on), _to_col_ids(right, right_on)
