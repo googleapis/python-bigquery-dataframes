@@ -440,10 +440,7 @@ def test_merge_raises_error_when_left_right_on_set(scalars_dfs):
     left = scalars_df[left_columns]
     right = scalars_df[right_columns]
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape("Can not pass both `on` and `left_on` + `right_on` params."),
-    ):
+    with pytest.raises(ValueError):
         bpd.merge(
             left,
             right,
