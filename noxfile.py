@@ -520,7 +520,7 @@ def cover(session):
     session.run("coverage", "erase")
 
 
-@nox.session(python="3.13")
+@nox.session(python="3.10")
 def docs(session):
     """Build the docs for this library."""
     session.install("-e", ".[scikit-learn]")
@@ -551,7 +551,7 @@ def docs(session):
     )
 
 
-@nox.session(python=DEFAULT_PYTHON_VERSION)
+@nox.session(python="3.10")
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
