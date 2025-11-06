@@ -44,6 +44,7 @@ s.move(
     excludes=[
         # Need a combined LICENSE for all vendored packages.
         "LICENSE",
+        "docs/conf.py",
         # Multi-processing note isn't relevant, as bigframes is responsible for
         # creating clients, not the end user.
         "docs/multiprocessing.rst",
