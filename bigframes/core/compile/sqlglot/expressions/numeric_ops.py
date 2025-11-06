@@ -79,7 +79,9 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.arctan2_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    return sge.func("ATAN2", left.expr, right.expr)
+    left_expr = _coerce_bool_to_int(left)
+    right_expr = _coerce_bool_to_int(right)
+    return sge.func("ATAN2", left_expr, right_expr)
 
 
 @register_unary_op(ops.arctan_op)
