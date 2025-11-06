@@ -254,14 +254,14 @@ def _iter_table(
             array.flatten(), bigframes.dtypes.get_array_inner_type(dtype)
         )
         offset_generator = iter_array(array.offsets, bigframes.dtypes.INT_DTYPE)
-        is_null_generator = iter_array(array.is_null(), bigframes.dtypes.BOOL_DTYPE)
-        previous_offset = next(offset_generator)
-        for is_null, offset in zip(is_null_generator, offset_generator):
-            arr_size = offset - previous_offset
-            previous_offset = offset
-            if is_null:
-                yield None
-            else:
+
+        start_offset = None
+        end_offset = None
+        for offset in offset_generator:
+            start_offset = end_offset
+            end_offset = offset
+            if start_offset is not None:
+                arr_size = end_offset - start_offset
                 yield list(itertools.islice(value_generator, arr_size))
 
     @iter_array.register
@@ -368,7 +368,7 @@ def _adapt_arrow_array(array: pa.Array) -> tuple[pa.Array, bigframes.dtypes.Dtyp
         new_value = pa.ListArray.from_arrays(
             array.offsets, values, mask=array.is_null()
         )
-        return new_value, bigframes.dtypes.list_type(values_type)
+        return new_value.fill_null([]), bigframes.dtypes.list_type(values_type)
     if array.type == bigframes.dtypes.JSON_ARROW_TYPE:
         return _canonicalize_json(array), bigframes.dtypes.JSON_DTYPE
     target_type = logical_type_replacements(array.type)
@@ -505,16 +505,3 @@ def _schema_durations_to_ints(schema: pa.Schema) -> pa.Schema:
     return pa.schema(
         pa.field(field.name, _durations_to_ints(field.type)) for field in schema
     )
-
-
-def _pairwise(iterable):
-    do_yield = False
-    a = None
-    b = None
-    for item in iterable:
-        a = b
-        b = item
-        if do_yield:
-            yield (a, b)
-        else:
-            do_yield = True

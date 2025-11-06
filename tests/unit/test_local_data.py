@@ -21,7 +21,7 @@ from bigframes.core import local_data
 pd_data = pd.DataFrame(
     {
         "ints": [10, 20, 30, 40, 50],
-        "nested_ints": [[1, 2], None, [3, 4, 5], [], [20, 30]],
+        "nested_ints": [[1, 2], [], [3, 4, 5], [], [20, 30]],
         "structs": [{"a": 100}, None, {}, {"b": 200}, {"b": 300}],
     }
 )
@@ -30,7 +30,7 @@ pd_data_normalized = pd.DataFrame(
     {
         "ints": pd.Series([10, 20, 30, 40, 50], dtype=dtypes.INT_DTYPE),
         "nested_ints": pd.Series(
-            [[1, 2], None, [3, 4, 5], [], [20, 30]],
+            [[1, 2], [], [3, 4, 5], [], [20, 30]],
             dtype=pd.ArrowDtype(pa.list_(pa.int64())),
         ),
         "structs": pd.Series(
@@ -165,4 +165,4 @@ def test_local_data_itertuples_list_none():
     )
     local_entry = local_data.ManagedArrowTable.from_pandas(pd_data)
     result = list(local_entry.itertuples())
-    assert result[1][0] is None
+    assert result[1][0] == []
