@@ -399,15 +399,18 @@ def pct_change(block: blocks.Block, periods: int = 1) -> blocks.Block:
     window_spec = windows.unbound()
 
     original_columns = block.value_columns
-    block, shift_columns = block.multi_apply_window_op(
-        original_columns, agg_ops.ShiftOp(periods), window_spec=window_spec
-    )
     exprs = []
-    for original_col, shifted_col in zip(original_columns, shift_columns):
-        change_expr = ops.sub_op.as_expr(original_col, shifted_col)
-        pct_change_expr = ops.div_op.as_expr(change_expr, shifted_col)
+    for original_col in original_columns:
+        shift_expr = agg_expressions.WindowExpression(
+            agg_expressions.UnaryAggregation(
+                agg_ops.ShiftOp(periods), ex.deref(original_col)
+            ),
+            window_spec,
+        )
+        change_expr = ops.sub_op.as_expr(original_col, shift_expr)
+        pct_change_expr = ops.div_op.as_expr(change_expr, shift_expr)
         exprs.append(pct_change_expr)
-    return block.project_exprs(exprs, labels=column_labels, drop=True)
+    return block.project_block_exprs(exprs, labels=column_labels, drop=True)
 
 
 def rank(
