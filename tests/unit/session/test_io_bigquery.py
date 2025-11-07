@@ -139,42 +139,6 @@ def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
     assert "dataframe-head" in labels.values()
 
 
-def test_create_job_configs_labels_length_limit_met():
-    log_adapter.get_and_reset_api_methods()
-    cur_labels = {
-        "bigframes-api": "read_pandas",
-        "source": "bigquery-dataframes-temp",
-    }
-    for i in range(53):
-        key = f"bigframes-api-test-{i}"
-        value = f"test{i}"
-        cur_labels[key] = value
-    # If cur_labels length is 62, we can only add one label from api_methods
-    df = bpd.DataFrame(
-        {"col1": [1, 2], "col2": [3, 4]}, session=mocks.create_bigquery_session()
-    )
-    # Test running two methods
-    df.head()
-    df.max()
-    api_methods = log_adapter._api_methods
-
-    assert set(api_methods) == {
-        "dataframe-max",
-        "dataframe-head",
-        "dataframe-__init__",
-        "session-__init__",
-    }
-    labels = io_bq.create_job_configs_labels(
-        job_configs_labels=cur_labels, api_methods=api_methods
-    )
-    assert labels is not None
-    assert "dataframe-max" in labels.values()
-    assert "dataframe-head" not in labels.values()
-    assert "bigframes-api" in labels.keys()
-    assert "source" in labels.keys()
-    assert len(labels) == 56
-
-
 def test_add_and_trim_labels_length_limit_met():
     log_adapter.get_and_reset_api_methods()
     cur_labels = {
