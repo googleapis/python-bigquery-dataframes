@@ -158,15 +158,21 @@ def test_create_job_configs_labels_length_limit_met():
     df.max()
     api_methods = log_adapter._api_methods
 
+    assert set(api_methods) == {
+        "dataframe-max",
+        "dataframe-head",
+        "dataframe-__init__",
+        "session-__init__",
+    }
     labels = io_bq.create_job_configs_labels(
         job_configs_labels=cur_labels, api_methods=api_methods
     )
     assert labels is not None
-    assert len(labels) == 56
     assert "dataframe-max" in labels.values()
     assert "dataframe-head" not in labels.values()
     assert "bigframes-api" in labels.keys()
     assert "source" in labels.keys()
+    assert len(labels) == 56
 
 
 def test_add_and_trim_labels_length_limit_met():
