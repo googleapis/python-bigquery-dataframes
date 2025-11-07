@@ -135,11 +135,10 @@ def push_into_tree(
         for child_id in expr.expr.column_references
         if child_id in by_id.keys()
     )
-    # be careful about merging multi-parent ids
     # TODO: Also prevent inlining expensive or non-deterministic
+    # We avoid inlining multi-parent ids, as they would be inlined multiple places, potentially increasing work and/or compiled text size
     multi_parent_ids = set(id for id in graph.nodes if len(graph.parents(id)) > 2)
     scalar_ids = set(expr.name for expr in exprs if expr.expr.is_scalar_expr)
-    post_ids = (*root.ids, *target_ids)
 
     def graph_extract_scalar_exprs() -> Sequence[NamedExpression]:
         results: dict[identifiers.ColumnId, expression.Expression] = dict()
@@ -168,11 +167,8 @@ def push_into_tree(
                     id: by_id[id].expr.bind_refs(results, allow_partial_bindings=True)
                 }
                 results.update(new_exprs)
-        return tuple(
-            NamedExpression(expr, id)
-            for id, expr in results.items()
-            if id in set([*graph.sinks, *target_ids])
-        )
+        # TODO: We can prune expressions that won't be reused here,
+        return tuple(NamedExpression(expr, id) for id, expr in results.items())
 
     def graph_extract_window_expr() -> Optional[
         Tuple[identifiers.ColumnId, agg_expressions.WindowExpression]
@@ -193,19 +189,17 @@ def push_into_tree(
             curr_root = nodes.ProjectionNode(
                 curr_root, tuple((x.expr, x.name) for x in scalar_exprs)
             )
-            curr_root._validate()
         while result := graph_extract_window_expr():
             id, window_expr = result
             curr_root = nodes.WindowOpNode(
                 curr_root, window_expr.analytic_expr, window_expr.window, output_name=id
             )
-            curr_root._validate()
     # TODO: Try to get the ordering right earlier, so can avoid this extra node.
+    post_ids = (*root.ids, *target_ids)
     if tuple(curr_root.ids) != post_ids:
         curr_root = nodes.SelectionNode(
             curr_root, tuple(nodes.AliasedRef.identity(id) for id in post_ids)
         )
-        curr_root._validate()
     return curr_root
 
 

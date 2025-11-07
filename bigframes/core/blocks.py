@@ -1165,6 +1165,7 @@ class Block:
         if drop:
             new_array = new_array.drop_columns(self.value_columns)
 
+        new_array.node.validate_tree()
         return Block(
             new_array,
             index_columns=self.index_columns,

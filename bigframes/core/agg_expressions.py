@@ -210,7 +210,7 @@ class WindowExpression(expression.Expression):
         t: Callable[[expression.Expression], expression.Expression],
     ) -> WindowExpression:
         return WindowExpression(
-            self.analytic_expr.transform_children(t),
+            t(self.analytic_expr),  # type: ignore
             self.window.transform_exprs(t),
         )
 
