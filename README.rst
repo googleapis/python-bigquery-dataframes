@@ -110,6 +110,19 @@ For details, see the `third_party
 directory.
 
 
+Display Enhancements
+--------------------
+
+**DataFrame `_repr_html_()` and `_ipython_display_()` Integration**
+
+The `bigframes.pandas.DataFrame._repr_html_()` method has been updated. When `bpd.options.display.repr_mode` is set to “anywidget”, it will:
+
+*   Wrap the import of `anywidget` in a `try...except ImportError` block. If the dependency is not found, it will issue a `warnings.warn` message and fall back to returning the deferred representation.
+*   If the import is successful, it instantiates a new `TableWidget`, passing the DataFrame's data.
+*   Return the widget instance, which Jupyter automatically renders. A new widget instance is created for each `_repr_html_()` call to ensure cell outputs are isolated.
+
+A new `_ipython_display_()` method has been introduced to handle the actual widget rendering, separating concerns from `_repr_html_()`.
+
 Contact Us
 ----------
 
