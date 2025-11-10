@@ -21,11 +21,6 @@ class FactoredExpression:
     sub_exprs: Tuple[NamedExpression, ...]
 
 
-@dataclasses.dataclass(frozen=True, eq=False)
-class ExpressionGroup:
-    exprs: Tuple[NamedExpression, ...]
-
-
 def fragmentize_expression(root: NamedExpression) -> Sequence[NamedExpression]:
     """
     The goal of this functions is to factor out an expression into multiple sub-expressions.
