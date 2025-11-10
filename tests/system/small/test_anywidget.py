@@ -111,6 +111,54 @@ def empty_bf_df(
     return session.read_pandas(empty_pandas_df)
 
 
+@pytest.fixture(scope="module")
+def custom_index_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame with a custom named index for testing."""
+    test_data = pd.DataFrame(
+        {
+            "value_a": [10, 20, 30, 40, 50, 60],
+            "value_b": ["a", "b", "c", "d", "e", "f"],
+        }
+    )
+    test_data.index = pd.Index(
+        ["row_1", "row_2", "row_3", "row_4", "row_5", "row_6"], name="custom_idx"
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def custom_index_bf_df(
+    session: bf.Session, custom_index_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(custom_index_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def multiindex_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame with MultiIndex for testing."""
+    test_data = pd.DataFrame(
+        {
+            "value": [100, 200, 300, 400, 500, 600],
+            "category": ["X", "Y", "Z", "X", "Y", "Z"],
+        }
+    )
+    test_data.index = pd.MultiIndex.from_arrays(
+        [
+            ["group_A", "group_A", "group_A", "group_B", "group_B", "group_B"],
+            [1, 2, 3, 1, 2, 3],
+        ],
+        names=["group", "item"],
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def multiindex_bf_df(
+    session: bf.Session, multiindex_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(multiindex_pandas_df)
+
+
 def mock_execute_result_with_params(
     self, schema, total_rows_val, arrow_batches_val, *args, **kwargs
 ):
@@ -549,6 +597,157 @@ def test_widget_row_count_reflects_actual_data_available(
         assert widget.page_size == 2  # Respects the display option
 
 
-# TODO(shuowei): Add tests for custom index and multiindex
-# This may not be necessary for the SQL Cell use case but should be
-# considered for completeness.
+def test_widget_with_custom_index_should_display_index_column(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+    custom_index_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with a custom named index, when rendered in anywidget mode,
+    then the index column should be visible in the HTML output.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(custom_index_bf_df)
+        html = widget.table_html
+
+        assert "custom_idx" in html
+        assert "row_1" in html
+        assert "row_2" in html
+        assert "row_3" not in html
+        assert "row_4" not in html
+
+
+def test_widget_with_custom_index_pagination_preserves_index(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+    custom_index_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with a custom index, when navigating between pages,
+    then each page should display the correct index values.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(custom_index_bf_df)
+
+        widget.page = 1
+        html = widget.table_html
+
+        assert "row_3" in html
+        assert "row_4" in html
+        assert "row_1" not in html
+        assert "row_2" not in html
+
+
+def test_widget_with_custom_index_matches_pandas_output(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+    custom_index_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with a custom index, the widget's HTML output should
+    match what pandas would render for the same slice.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
+        widget = TableWidget(custom_index_bf_df)
+        html = widget.table_html
+
+        expected_slice = custom_index_pandas_df.iloc[0:3]
+
+        for idx_value in expected_slice.index:
+            assert str(idx_value) in html
+
+
+def test_widget_with_multiindex_should_display_all_index_levels(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+    multiindex_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when rendered in anywidget mode,
+    then all index levels should be visible in the HTML output.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+        html = widget.table_html
+
+        assert "group" in html
+        assert "item" in html
+        assert "group_A" in html
+
+
+def test_widget_with_multiindex_pagination_preserves_structure(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+    multiindex_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when navigating between pages,
+    then the multiindex structure should be preserved on each page.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+
+        widget.page = 1
+        html = widget.table_html
+
+        assert "group_A" in html or "3" in html
+        assert "group_B" in html
+
+
+def test_widget_with_multiindex_all_pages_have_correct_indices(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+    multiindex_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, verify that each page displays
+    the correct multiindex values across all pages.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+
+        for page_num in range(3):
+            widget.page = page_num
+            html = widget.table_html
+
+            start_row = page_num * 2
+            end_row = start_row + 2
+            expected_slice = multiindex_pandas_df.iloc[start_row:end_row]
+
+            found_index_value = False
+            for idx_tuple in expected_slice.index:
+                if str(idx_tuple[0]) in html or str(idx_tuple[1]) in html:
+                    found_index_value = True
+                    break
+
+            assert found_index_value, f"Page {page_num} missing expected index values"
+
+
+def test_widget_with_multiindex_page_size_change_preserves_structure(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+    multiindex_pandas_df: pd.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when the page size is changed,
+    then the multiindex structure should still be correctly displayed.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+
+        widget.page_size = 3
+        html = widget.table_html
+
+        assert "group" in html
+        assert "item" in html
+
+        expected_slice = multiindex_pandas_df.iloc[0:3]
+        for idx_tuple in expected_slice.index:
+            assert str(idx_tuple[0]) in html or str(idx_tuple[1]) in html

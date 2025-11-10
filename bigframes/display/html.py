@@ -42,6 +42,13 @@ def render_html(
     # Render table head
     table_html.append("  <thead>")
     table_html.append('    <tr style="text-align: left;">')
+
+    # Add index headers
+    for name in dataframe.index.names:
+        table_html.append(
+            f'      <th style="text-align: left;"><div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">{html.escape(str(name))}</div></th>'
+        )
+
     for col in dataframe.columns:
         table_html.append(
             f'      <th style="text-align: left;"><div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">{html.escape(str(col))}</div></th>'
@@ -51,18 +58,27 @@ def render_html(
 
     # Render table body
     table_html.append("  <tbody>")
-    for i in range(len(dataframe)):
+    for row_tuple in dataframe.itertuples():
         table_html.append("    <tr>")
-        row = dataframe.iloc[i]
-        for col_name, value in row.items():
+        # First item in itertuples is the index, which can be a tuple for MultiIndex
+        index_values = row_tuple[0]
+        if not isinstance(index_values, tuple):
+            index_values = (index_values,)
+
+        for value in index_values:
+            table_html.append('      <td style="text-align: left; padding: 0.5em;">')
+            table_html.append(f"        {html.escape(str(value))}")
+            table_html.append("      </td>")
+
+        # The rest are the column values
+        for i, value in enumerate(row_tuple[1:]):
+            col_name = dataframe.columns[i]
             dtype = dataframe.dtypes.loc[col_name]  # type: ignore
             align = "right" if _is_dtype_numeric(dtype) else "left"
             table_html.append(
                 '      <td style="text-align: {}; padding: 0.5em;">'.format(align)
             )
 
-            # TODO(b/438181139): Consider semi-exploding ARRAY/STRUCT columns
-            # into multiple rows/columns like the BQ UI does.
             if pandas.api.types.is_scalar(value) and pd.isna(value):
                 table_html.append('        <em style="color: gray;">&lt;NA&gt;</em>')
             else:

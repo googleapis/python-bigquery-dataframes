@@ -197,7 +197,7 @@ class TableWidget(WIDGET_BASE):
         """Combine all cached batches into a single DataFrame."""
         if not self._cached_batches:
             return pd.DataFrame(columns=self._dataframe.columns)
-        return pd.concat(self._cached_batches, ignore_index=True)
+        return pd.concat(self._cached_batches)
 
     def _reset_batches_for_new_page_size(self) -> None:
         """Reset the batch iterator when page size changes."""
@@ -227,7 +227,7 @@ class TableWidget(WIDGET_BASE):
                 break
 
         # Get the data for the current page
-        page_data = cached_data.iloc[start:end]
+        page_data = cached_data[start:end]
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(
