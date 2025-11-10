@@ -1,6 +1,7 @@
 import collections
 import dataclasses
 import functools
+import itertools
 from typing import Generic, Hashable, Iterable, Optional, Sequence, Tuple, TypeVar
 
 from bigframes.core import agg_expressions, expression, identifiers, nodes
@@ -51,9 +52,7 @@ def gather_fragments(
         do_inline = is_leaf | is_window_agg
         if not do_inline:
             id = identifiers.ColumnId.unique()
-            replacements.append(
-                expression.DerefOp(id)
-            )  # TODO: Determinism, maybe hash-based?
+            replacements.append(expression.DerefOp(id))
             named_exprs.append(NamedExpression(child_result.root_expr, id))
             named_exprs.extend(child_result.sub_exprs)
         else:
@@ -75,32 +74,31 @@ T = TypeVar("T", bound=Hashable)
 
 class DiGraph(Generic[T]):
     def __init__(self, edges: Iterable[Tuple[T, T]]):
-        self._nodes = set()
         self._parents = collections.defaultdict(set)
         self._children = collections.defaultdict(set)  # specifically, unpushed ones
-        # dict repr of graph
-        self._sinks = set()
+        # use dict for stable ordering, which grants determinism
+        self._sinks: dict[T, None] = dict()
         for src, dst in edges:
             self._children[src].add(dst)
             self._parents[dst].add(src)
-            self._nodes.add(src)
-            self._nodes.add(dst)
             # sinks have no children
             if not self._children[dst]:
-                self._sinks.add(dst)
-            self._sinks.discard(src)
+                self._sinks[dst] = None
+            if src in self._sinks:
+                del self._sinks[src]
 
     @property
     def nodes(self):
-        return self._nodes
+        # should be the same set of ids as self._parents
+        return self._children.keys()
 
     @property
-    def sinks(self) -> set[T]:
-        return self._sinks
+    def sinks(self) -> Iterable[T]:
+        return self._sinks.keys()
 
     @property
     def empty(self):
-        return len(self._nodes) == 0
+        return len(self.nodes) == 0
 
     def parents(self, node: T) -> set[T]:
         return self._parents[node]
@@ -114,11 +112,11 @@ class DiGraph(Generic[T]):
         for parent in self._parents[node]:
             self._children[parent].remove(node)
             if len(self._children[parent]) == 0:
-                self._sinks.add(parent)
+                self._sinks[parent] = None
         del self._children[node]
         del self._parents[node]
-        self._nodes.remove(node)
-        self._sinks.discard(node)
+        if node in self._sinks:
+            del self._sinks[node]
 
 
 def push_into_tree(
@@ -145,11 +143,11 @@ def push_into_tree(
         while (
             True
         ):  # Will converge as each loop either reduces graph size, or fails to find any candidate and breaks
-            candidate_ids = graph.sinks.intersection(scalar_ids)
-            bad_inline = set(
+            candidate_ids = list(
                 id
-                for id in candidate_ids
-                if any(
+                for id in graph.sinks
+                if (id in scalar_ids)
+                and not any(
                     (
                         child in multi_parent_ids
                         and id in results.keys()
@@ -158,7 +156,6 @@ def push_into_tree(
                     for child in graph.children(id)
                 )
             )
-            candidate_ids = candidate_ids.difference(bad_inline)
             if len(candidate_ids) == 0:
                 break
             for id in candidate_ids:
@@ -173,17 +170,20 @@ def push_into_tree(
     def graph_extract_window_expr() -> Optional[
         Tuple[identifiers.ColumnId, agg_expressions.WindowExpression]
     ]:
-        candidate_ids = graph.sinks.difference(scalar_ids)
-        if not candidate_ids:
+        candidate = list(
+            itertools.islice((id for id in graph.sinks if id not in scalar_ids), 1)
+        )
+        if not candidate:
             return None
         else:
-            id = next(iter(candidate_ids))
+            id = next(iter(candidate))
             graph.remove_node(id)
             result_expr = by_id[id].expr
             assert isinstance(result_expr, agg_expressions.WindowExpression)
             return (id, result_expr)
 
     while not graph.empty:
+        pre_size = len(graph.nodes)
         scalar_exprs = graph_extract_scalar_exprs()
         if scalar_exprs:
             curr_root = nodes.ProjectionNode(
@@ -194,6 +194,8 @@ def push_into_tree(
             curr_root = nodes.WindowOpNode(
                 curr_root, window_expr.analytic_expr, window_expr.window, output_name=id
             )
+        if len(graph.nodes) >= pre_size:
+            raise ValueError("graph didn't shrink")
     # TODO: Try to get the ordering right earlier, so can avoid this extra node.
     post_ids = (*root.ids, *target_ids)
     if tuple(curr_root.ids) != post_ids:
