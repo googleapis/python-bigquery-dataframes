@@ -1,0 +1,1 @@
+../../../third_party/bigframes_vendored/pandas/doc/_templates/autosummary/class.rst

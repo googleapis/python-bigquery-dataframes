@@ -4,12 +4,14 @@ API Reference
 Refer to these pages for details about the public objects in the ``bigframes``
 packages.
 
-.. toctree::
-    :maxdepth: 2
+.. autosummary::
+    :toctree: api
+    :recursive:
 
-    bigframes/index
-    bigframes.bigquery/index
-    bigframes.geopandas/index
-    bigframes.ml/index
-    bigframes.pandas/index
-    bigframes.streaming/index
+    bigframes.bigquery
+    bigframes.enums
+    bigframes.exceptions
+    bigframes.geopandas
+    bigframes.ml
+    bigframes.pandas.DataFrame
+    bigframes.streaming
