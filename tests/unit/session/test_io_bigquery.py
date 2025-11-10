@@ -131,9 +131,10 @@ def test_create_job_configs_labels_length_limit_met_and_labels_is_none():
         df.head()
     api_methods = log_adapter._api_methods
 
-    labels = io_bq.create_job_configs_labels(
-        job_configs_labels=None, api_methods=api_methods
-    )
+    with bpd.option_context("compute.extra_query_labels", {}):
+        labels = io_bq.create_job_configs_labels(
+            job_configs_labels=None, api_methods=api_methods
+        )
     assert labels is not None
     assert len(labels) == log_adapter.MAX_LABELS_COUNT
     assert "dataframe-head" in labels.values()
@@ -158,9 +159,11 @@ def test_create_job_configs_labels_length_limit_met():
     df.max()
     api_methods = log_adapter._api_methods
 
-    labels = io_bq.create_job_configs_labels(
-        job_configs_labels=cur_labels, api_methods=api_methods
-    )
+    with bpd.option_context("compute.extra_query_labels", {}):
+        labels = io_bq.create_job_configs_labels(
+            job_configs_labels=cur_labels, api_methods=api_methods
+        )
+
     assert labels is not None
     assert len(labels) == 56
     assert "dataframe-max" in labels.values()
