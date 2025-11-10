@@ -5,7 +5,10 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     COALESCE(
-      STRING_AGG(`string_col` ORDER BY `string_col` IS NULL ASC, `string_col` ASC, ','),
+      STRING_AGG(`string_col`, ','
+      ORDER BY
+        `string_col` IS NULL ASC,
+        `string_col` ASC),
       ''
     ) AS `bfcol_1`
   FROM `bfcte_0`

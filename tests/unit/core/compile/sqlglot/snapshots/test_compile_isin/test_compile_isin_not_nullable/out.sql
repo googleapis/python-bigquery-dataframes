@@ -22,9 +22,9 @@ WITH `bfcte_1` AS (
   SELECT
     `bfcte_3`.*,
     `bfcte_3`.`bfcol_3` IN ((
-      SELECT
-        `rowindex_2` AS `bfcol_4`
-      FROM `bfcte_2`
+        SELECT
+          `rowindex_2` AS `bfcol_4`
+        FROM `bfcte_2`
     )) AS `bfcol_5`
   FROM `bfcte_3`
 )
