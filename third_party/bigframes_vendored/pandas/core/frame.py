@@ -420,7 +420,7 @@ class DataFrame(generic.NDFrame):
             >>> df = bpd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
             >>> destination = df.to_gbq(ordering_id="ordering_id")
             >>> # The table created can be read outside of the current session.
-            >>> bpd.close_session()  # Optional, to demonstrate a new session.
+            >>> bpd.close_session()  # Optional, to demonstrate a new session.  # doctest: +SKIP
             >>> bpd.read_gbq(destination, index_col="ordering_id")
                          col1  col2
             ordering_id
@@ -4593,6 +4593,8 @@ class DataFrame(generic.NDFrame):
         *,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
+        left_index: bool = False,
+        right_index: bool = False,
         sort: bool = False,
         suffixes: tuple[str, str] = ("_x", "_y"),
     ) -> DataFrame:
@@ -4705,6 +4707,10 @@ class DataFrame(generic.NDFrame):
             right_on (label or list of labels):
                 Columns to join on in the right DataFrame. Either on or left_on + right_on
                 must be passed in.
+            left_index (bool, default False):
+                Use the index from the left DataFrame as the join key.
+            right_index (bool, default False):
+                Use the index from the right DataFrame as the join key.
             sort:
                 Default False. Sort the join keys lexicographically in the
                 result DataFrame. If False, the order of the join keys depends
