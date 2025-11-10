@@ -24,6 +24,7 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
 register_ternary_op = scalar_compiler.scalar_op_compiler.register_ternary_op
 
@@ -131,6 +132,11 @@ def _(
         this=sge.Least(this=original.expr, expressions=[upper.expr]),
         expressions=[lower.expr],
     )
+
+
+@register_binary_op(ops.fillna_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.Coalesce(this=left.expr, expressions=[right.expr])
 
 
 @register_nary_op(ops.case_when_op)
