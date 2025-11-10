@@ -46,12 +46,16 @@ def render_html(
     # Add index headers
     for name in dataframe.index.names:
         table_html.append(
-            f'      <th style="text-align: left;"><div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">{html.escape(str(name))}</div></th>'
+            f'      <th style="text-align: left;">'
+            f'<div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">'
+            f"{html.escape(str(name))}</div></th>"
         )
 
     for col in dataframe.columns:
         table_html.append(
-            f'      <th style="text-align: left;"><div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">{html.escape(str(col))}</div></th>'
+            f'      <th style="text-align: left;">'
+            f'<div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">'
+            f"{html.escape(str(col))}</div></th>"
         )
     table_html.append("    </tr>")
     table_html.append("  </thead>")

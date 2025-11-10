@@ -227,7 +227,7 @@ class TableWidget(WIDGET_BASE):
                 break
 
         # Get the data for the current page
-        page_data = cached_data[start:end]
+        page_data = cached_data.iloc[start:end]
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(
