@@ -686,21 +686,33 @@ def test_widget_with_unknown_row_count_empty_dataframe(
         assert widget.page == 0
 
 
-def test_repr_html_anywidget_fallback(paginated_bf_df: bf.dataframe.DataFrame):
+def test_repr_mimebundle_anywidget_fallback(paginated_bf_df: bf.dataframe.DataFrame):
     """
-    Test that _repr_html_ falls back to deferred mode when anywidget is not available.
+    Test that _repr_mimebundle_ falls back to static html when anywidget is not available.
     """
     with bf.option_context("display.repr_mode", "anywidget"):
         # Use a mock to simulate the absence of the 'anywidget' module.
         with mock.patch.dict(
             "sys.modules", {"anywidget": None, "IPython": mock.MagicMock()}
         ):
-            # The warning is now expected inside the _ipython_display_ call, not _repr_html_
-            # The test setup doesn't easily allow capturing warnings from ipython display hooks.
-            # Instead we focus on the fallback behavior of _repr_html_
-            html = paginated_bf_df._repr_html_()
-            assert "Computation deferred." in html
-            assert "Computation will process" in html
+            bundle = paginated_bf_df._repr_mimebundle_()
+            assert "application/vnd.jupyter.widget-view+json" not in bundle
+            assert "text/html" in bundle
+            html = bundle["text/html"]
+            assert "page_1_row_1" in html
+            assert "page_1_row_2" in html
+            assert "page_2_row_1" not in html
+
+
+def test_repr_mimebundle_anywidget_success(paginated_bf_df: bf.dataframe.DataFrame):
+    """
+    Test that _repr_mimebundle_ returns a widget view when anywidget is available.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        bundle = paginated_bf_df._repr_mimebundle_()
+        assert "application/vnd.jupyter.widget-view+json" in bundle
+        assert "text/html" in bundle
+        assert "text/plain" in bundle
 
 
 # TODO(b/332316283): Add tests for custom index and multiindex
