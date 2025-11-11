@@ -165,6 +165,13 @@ def _(*cases_and_outputs: TypedExpr) -> sge.Expression:
     )
 
 
+@register_binary_op(ops.coalesce_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    if left.expr == right.expr:
+        return left.expr
+    return sge.Coalesce(this=left.expr, expressions=[right.expr])
+
+
 @register_nary_op(ops.RowKey)
 def _(*values: TypedExpr) -> sge.Expression:
     # All inputs into hash must be non-null or resulting hash will be null
