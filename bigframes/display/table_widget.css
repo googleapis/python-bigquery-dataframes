@@ -59,7 +59,7 @@
 
 .bigframes-widget th {
 	background-color: var(--colab-primary-surface-color, var(--jp-layout-color0));
-	/* Uncomment once we support sorting: cursor: pointer; */
+	cursor: pointer;
 	position: sticky;
 	top: 0;
 	z-index: 1;

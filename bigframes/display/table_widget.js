@@ -19,6 +19,8 @@ const ModelProperty = {
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
 	TABLE_HTML: "table_html",
+	SORT_COLUMN: "sort_column",
+	SORT_ASCENDING: "sort_ascending",
 };
 
 const Event = {
@@ -124,6 +126,36 @@ function render({ model, el }) {
 		// Note: Using innerHTML is safe here because the content is generated
 		// by a trusted backend (DataFrame.to_html).
 		tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
+
+		// Add click handlers to column headers for sorting
+		const headers = tableContainer.querySelectorAll("th");
+		headers.forEach((header) => {
+			const columnName = header.textContent.trim();
+			if (columnName) {
+				header.style.cursor = "pointer";
+				header.addEventListener(Event.CLICK, () => {
+					const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
+					const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
+
+					if (currentSortColumn === columnName) {
+						// Toggle sort direction
+						model.set(ModelProperty.SORT_ASCENDING, !currentSortAscending);
+					} else {
+						// New column, default to ascending
+						model.set(ModelProperty.SORT_COLUMN, columnName);
+						model.set(ModelProperty.SORT_ASCENDING, true);
+					}
+					model.save_changes();
+				});
+
+				// Add visual indicator for sorted column
+				if (model.get(ModelProperty.SORT_COLUMN) === columnName) {
+					const arrow = model.get(ModelProperty.SORT_ASCENDING) ? " ▲" : " ▼";
+					header.textContent = columnName + arrow;
+				}
+			}
+		});
+
 		updateButtonStates();
 	}
 
