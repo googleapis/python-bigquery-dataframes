@@ -338,6 +338,18 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return result
 
 
+@register_binary_op(ops.manhattan_distance_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.Anonymous(
+        this="ML.DISTANCE",
+        expressions=[
+            left.expr,
+            right.expr,
+            sge.Literal.string("MANHATTAN"),
+        ],
+    )
+
+
 @register_binary_op(ops.mod_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     # In BigQuery returned value has the same sign as X. In pandas, the sign of y is used, so we need to flip the result if sign(x) != sign(y)
