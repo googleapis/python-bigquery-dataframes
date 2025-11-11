@@ -88,7 +88,7 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
 
             yield batch
 
-    def to_arrow_table(self) -> pyarrow.Table:
+    def to_arrow_table(self, limit: Optional[int] = None) -> pyarrow.Table:
         # Need to provide schema if no result rows, as arrow can't infer
         # If ther are rows, it is safest to infer schema from batches.
         # Any discrepencies between predicted schema and actual schema will produce errors.
@@ -97,9 +97,12 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
         peek_value = list(peek_it)
         # TODO: Enforce our internal schema on the table for consistency
         if len(peek_value) > 0:
-            return pyarrow.Table.from_batches(
-                itertools.chain(peek_value, batches),  # reconstruct
-            )
+            batches = itertools.chain(peek_value, batches)  # reconstruct
+            if limit:
+                batches = pyarrow_utils.truncate_pyarrow_iterable(
+                    batches, max_results=limit
+                )
+            return pyarrow.Table.from_batches(batches)
         else:
             try:
                 return self._schema.to_pyarrow().empty_table()
@@ -108,7 +111,7 @@ class ResultsIterator(Iterator[pa.RecordBatch]):
                 return self._schema.to_pyarrow(use_storage_types=True).empty_table()
 
     def to_pandas(self, limit: Optional[int] = None) -> pd.DataFrame:
-        return pd.concat(self.to_pandas_batches(max_results=limit))
+        return io_pandas.arrow_to_pandas(self.to_arrow_table(limit=limit), self._schema)
 
     def to_pandas_batches(
         self, page_size: Optional[int] = None, max_results: Optional[int] = None
