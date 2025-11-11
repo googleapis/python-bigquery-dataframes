@@ -771,3 +771,25 @@ def test_widget_with_multiindex_page_size_change_preserves_structure(
 
     # Assert content from row 4 (now on page 2) is NOT present
     assert "group_B" not in html
+
+
+def test_widget_with_multiindex_should_use_rowspan(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a MultiIndex, the rendered HTML should use
+    rowspan to create a nested view for the outer index levels.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
+        widget = TableWidget(multiindex_bf_df)
+        html_content = widget.table_html
+
+    # The value "group_A" should appear once with a rowspan of 3.
+    assert '<th rowspan="3"' in html_content
+    assert html_content.count("group_A") == 1
+
+    # The value "group_B" should appear once with a rowspan of 2 (since one row is on the next page).
+    assert '<th rowspan="2"' in html_content
+    assert html_content.count("group_B") == 1
