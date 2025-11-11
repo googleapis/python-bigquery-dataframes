@@ -195,7 +195,8 @@ def bq_connection_name() -> str:
 
 @pytest.fixture(scope="session")
 def bq_connection(bigquery_client: bigquery.Client, bq_connection_name: str) -> str:
-    return f"{bigquery_client.project}.{bigquery_client.location}.{bq_connection_name}"
+    # TODO(b/458169181): LOCATION casefold is needed for the mutimodal backend bug. Remove after the bug is fixed.
+    return f"{bigquery_client.project}.{bigquery_client.location.casefold()}.{bq_connection_name}"
 
 
 @pytest.fixture(scope="session", autouse=True)
