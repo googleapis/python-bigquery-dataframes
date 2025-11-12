@@ -1,13 +1,7 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (ORDER BY `int64_col` ASC NULLS LAST) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `row_number`
-FROM `bfcte_1`
+  ROW_NUMBER() OVER (ORDER BY `t1`.`int64_col` IS NULL ASC, `t1`.`int64_col` ASC) - 1 AS `row_number`
+FROM (
+  SELECT
+    `t0`.`int64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`

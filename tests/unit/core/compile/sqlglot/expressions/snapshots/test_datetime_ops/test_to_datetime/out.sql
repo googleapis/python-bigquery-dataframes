@@ -1,13 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    CAST(TIMESTAMP_SECONDS(`int64_col`) AS DATETIME) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `int64_col`
-FROM `bfcte_1`
+  CAST(CAST(timestamp_micros(CAST(trunc(`t0`.`int64_col` * 0.001) AS INT64)) AS TIMESTAMP) AS DATETIME) AS `int64_col`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
