@@ -2033,6 +2033,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column_ids = self._sql_names(columns)
         return DataFrame(block_ops.nsmallest(self._block, n, column_ids, keep=keep))
 
+    def squeeze(self, axis: typing.Optional[typing.Union[int, str]] = None):
+        nrows, ncols = self.shape
+        squeeze_cols = True
+        squeeze_rows = True
+        if axis is not None:
+            axis_n = utils.get_axis_number(axis)
+            squeeze_cols = axis_n == 1
+            squeeze_rows = axis_n == 0
+        if (ncols == 1) and (nrows == 1) and (squeeze_rows and squeeze_cols):
+            return self.to_pandas().iloc[0, 0]
+        elif ncols == 1 and squeeze_cols:
+            return bigframes.series.Series(self._block)
+        elif nrows == 1 and squeeze_rows:
+            return bigframes.series.Series(self._block.transpose(single_row_mode=True))
+        return self
+
     def insert(
         self,
         loc: int,
