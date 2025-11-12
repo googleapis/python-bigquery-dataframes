@@ -142,14 +142,18 @@ def test_second(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
-def test_strftime(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "timestamp_col"
-    bf_df = scalar_types_df[[col_name]]
-    sql = utils._apply_ops_to_sql(
-        bf_df, [ops.StrftimeOp("%Y-%m-%d").as_expr(col_name)], [col_name]
+def test_timestamp_diff(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col", "date_col"]]
+    sql = utils._apply_binary_op(
+        bf_df, ops.timestamp_diff_op, "timestamp_col", "timestamp_col"
     )
-
     snapshot.assert_match(sql, "out.sql")
+
+
+def test_timestamp_add(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["timestamp_col"]]
+    bf_df["timestamp_col"] = bf_df["timestamp_col"] + pd.Timedelta(1, unit="us")
+    snapshot.assert_match(bf_df.sql, "out.sql")
 
 
 def test_time(scalar_types_df: bpd.DataFrame, snapshot):
