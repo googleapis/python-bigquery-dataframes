@@ -4,12 +4,36 @@ API Reference
 Refer to these pages for details about the public objects in the ``bigframes``
 packages.
 
-.. toctree::
-    :maxdepth: 2
+.. autosummary::
+    :toctree: api
 
-    bigframes/index
-    bigframes.bigquery/index
-    bigframes.geopandas/index
-    bigframes.ml/index
-    bigframes.pandas/index
-    bigframes.streaming/index
+    bigframes._config
+
+ML APIs
+~~~~~~~
+
+BigQuery DataFrames provides many machine learning modules, inspired by
+scikit-learn.
+
+.. code-block::
+
+    bigframes.bigquery
+    bigframes.bigquery.ai
+    bigframes.enums
+    bigframes.exceptions
+    bigframes.geopandas
+    bigframes.pandas
+    bigframes.streaming
+    bigframes.ml.cluster
+    bigframes.ml.compose
+    bigframes.ml.decomposition
+    bigframes.ml.ensemble
+    bigframes.ml.forecasting
+    bigframes.ml.imported
+    bigframes.ml.impute
+    bigframes.ml.linear_model
+    bigframes.ml.llm
+    bigframes.ml.model_selection
+    bigframes.ml.pipeline
+    bigframes.ml.preprocessing
+    bigframes.ml.remote
