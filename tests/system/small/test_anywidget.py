@@ -524,7 +524,7 @@ def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
         widget = TableWidget(paginated_bf_df)
 
     # The widget should have an error message and display it in the HTML.
-    assert widget.row_count == 0
+    assert widget.row_count is None
     assert widget._error_message is not None
     assert "Could not determine total row count" in widget._error_message
     assert widget._error_message in widget.table_html
