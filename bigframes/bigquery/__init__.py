@@ -105,7 +105,51 @@ _functions = [
     struct,
 ]
 
-__all__ = [f.__name__ for f in _functions] + ["ai"]
+__all__ = [
+    # approximate aggregate ops
+    "approx_top_count",
+    # array ops
+    "array_agg",
+    "array_length",
+    "array_to_string",
+    # datetime ops
+    "unix_micros",
+    "unix_millis",
+    "unix_seconds",
+    # geo ops
+    "st_area",
+    "st_buffer",
+    "st_centroid",
+    "st_convexhull",
+    "st_difference",
+    "st_distance",
+    "st_intersection",
+    "st_isclosed",
+    "st_length",
+    "st_regionstats",
+    "st_simplify",
+    # json ops
+    "json_extract",
+    "json_extract_array",
+    "json_extract_string_array",
+    "json_query",
+    "json_query_array",
+    "json_set",
+    "json_value",
+    "json_value_array",
+    "parse_json",
+    "to_json",
+    "to_json_string",
+    # search ops
+    "create_vector_index",
+    "vector_search",
+    # sql ops
+    "sql_scalar",
+    # struct ops
+    "struct",
+    # Modules / SQL namespaces
+    "ai",
+]
 
 _module = sys.modules[__name__]
 for f in _functions:

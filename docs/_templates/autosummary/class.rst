@@ -1,1 +1,1 @@
-../../../third_party/bigframes_vendored/pandas/doc/_templates/autosummary/class.rst
+../../../third_party/sphinx/ext/autosummary/templates/autosummary/class.rst
