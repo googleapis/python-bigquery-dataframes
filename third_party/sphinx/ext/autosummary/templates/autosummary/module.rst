@@ -9,19 +9,7 @@
 .. automodule:: {{ fullname }}
    :no-members:
 
-   {% block attributes %}
-   {%- if attributes %}
-   .. rubric:: {{ _('Module Attributes') }}
-
-   .. autosummary::
-      :toctree:
-   {% for item in attributes %}
-      {{ item }}
-   {%- endfor %}
-   {% endif %}
-   {%- endblock %}
-
-   {%- block functions %}
+   {% block functions %}
    {%- if functions %}
    .. rubric:: {{ _('Functions') }}
 
@@ -39,9 +27,9 @@
 
    .. autosummary::
       :toctree:
-   {% for item in classes %}
+   {% for item in classes %}{% if item not in attributes %}
       {{ item }}
-   {%- endfor %}
+   {% endif %}{%- endfor %}
    {% endif %}
    {%- endblock %}
 
@@ -56,3 +44,14 @@
    {%- endfor %}
    {% endif %}
    {%- endblock %}
+
+{%- block attributes %}
+{%- if attributes %}
+.. rubric:: {{ _('Module Attributes') }}
+
+{% for item in attributes %}
+.. autoattribute:: {{ fullname }}.{{ item }}
+   :no-index:
+{% endfor %}
+{% endif %}
+{%- endblock %}

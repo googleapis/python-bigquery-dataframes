@@ -7,13 +7,7 @@ packages.
 .. autosummary::
     :toctree: api
 
-    bigframes.bigquery
-    bigframes.bigquery.ai
-    bigframes.enums
-    bigframes.exceptions
-    bigframes.geopandas
-    bigframes.pandas
-    bigframes.streaming
+    bigframes._config
 
 ML APIs
 ~~~~~~~
@@ -21,9 +15,15 @@ ML APIs
 BigQuery DataFrames provides many machine learning modules, inspired by
 scikit-learn.
 
-.. autosummary::
-    :toctree: api
+.. code-block::
 
+    bigframes.bigquery
+    bigframes.bigquery.ai
+    bigframes.enums
+    bigframes.exceptions
+    bigframes.geopandas
+    bigframes.pandas
+    bigframes.streaming
     bigframes.ml.cluster
     bigframes.ml.compose
     bigframes.ml.decomposition

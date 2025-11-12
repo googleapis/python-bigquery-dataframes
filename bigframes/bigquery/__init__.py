@@ -18,7 +18,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. "
 
 import sys
 
-from bigframes.bigquery._operations import ai
+from bigframes.bigquery import ai
 from bigframes.bigquery._operations.approx_agg import approx_top_count
 from bigframes.bigquery._operations.array import (
     array_agg,
@@ -105,6 +105,12 @@ _functions = [
     struct,
 ]
 
+_module = sys.modules[__name__]
+for f in _functions:
+    _decorated_object = log_adapter.method_logger(f, custom_base_name="bigquery")
+    setattr(_module, f.__name__, _decorated_object)
+    del f
+
 __all__ = [
     # approximate aggregate ops
     "approx_top_count",
@@ -150,8 +156,3 @@ __all__ = [
     # Modules / SQL namespaces
     "ai",
 ]
-
-_module = sys.modules[__name__]
-for f in _functions:
-    _decorated_object = log_adapter.method_logger(f, custom_base_name="bigquery")
-    setattr(_module, f.__name__, _decorated_object)
