@@ -59,7 +59,7 @@
 
 .bigframes-widget th {
 	background-color: var(--colab-primary-surface-color, var(--jp-layout-color0));
-	cursor: pointer;
+	cursor: default; /* Default cursor for non-sortable columns */
 	position: sticky;
 	top: 0;
 	z-index: 1;
@@ -77,4 +77,10 @@
 .bigframes-widget button:disabled {
 	opacity: 0.65;
 	pointer-events: none;
+}
+
+.bigframes-widget .error-message {
+	font-family:
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	font-size: 14px;
 }

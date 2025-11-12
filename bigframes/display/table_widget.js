@@ -21,6 +21,8 @@ const ModelProperty = {
 	TABLE_HTML: "table_html",
 	SORT_COLUMN: "sort_column",
 	SORT_ASCENDING: "sort_ascending",
+	ERROR_MESSAGE: "error_message",
+	ORDERABLE_COLUMNS: "orderable_columns",
 };
 
 const Event = {
@@ -40,7 +42,17 @@ function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
-	// Structure
+	// Add error message container at the top
+	const errorContainer = document.createElement("div");
+	errorContainer.classList.add("error-message");
+	errorContainer.style.display = "none";
+	errorContainer.style.color = "red";
+	errorContainer.style.padding = "8px";
+	errorContainer.style.marginBottom = "8px";
+	errorContainer.style.border = "1px solid red";
+	errorContainer.style.borderRadius = "4px";
+	errorContainer.style.backgroundColor = "#ffebee";
+
 	const tableContainer = document.createElement("div");
 	const footer = document.createElement("div");
 
@@ -121,42 +133,63 @@ function render({ model, el }) {
 		}
 	}
 
-	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
-		// Note: Using innerHTML is safe here because the content is generated
-		// by a trusted backend (DataFrame.to_html).
 		tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
+
+		// Get sortable columns from backend
+		const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
+		const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
+		const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
 
 		// Add click handlers to column headers for sorting
 		const headers = tableContainer.querySelectorAll("th");
 		headers.forEach((header) => {
-			const columnName = header.textContent.trim();
-			if (columnName) {
-				header.style.cursor = "pointer";
-				header.addEventListener(Event.CLICK, () => {
-					const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
-					const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
+			const columnName = header.querySelector("div").textContent.trim();
 
+			// Only add sorting UI for sortable columns
+			if (columnName && sortableColumns.includes(columnName)) {
+				header.style.cursor = "pointer";
+
+				// Determine sort indicator
+				let indicator = " ●"; // Default: unsorted (dot)
+				if (currentSortColumn === columnName) {
+					indicator = currentSortAscending ? " ▲" : " ▼";
+				}
+				header.textContent = columnName + indicator;
+
+				// Add click handler for three-state toggle
+				header.addEventListener(Event.CLICK, () => {
 					if (currentSortColumn === columnName) {
-						// Toggle sort direction
-						model.set(ModelProperty.SORT_ASCENDING, !currentSortAscending);
+						if (currentSortAscending) {
+							// Currently ascending → switch to descending
+							model.set(ModelProperty.SORT_ASCENDING, false);
+						} else {
+							// Currently descending → clear sort (back to unsorted)
+							model.set(ModelProperty.SORT_COLUMN, "");
+							model.set(ModelProperty.SORT_ASCENDING, true);
+						}
 					} else {
-						// New column, default to ascending
+						// Not currently sorted → sort ascending
 						model.set(ModelProperty.SORT_COLUMN, columnName);
 						model.set(ModelProperty.SORT_ASCENDING, true);
 					}
 					model.save_changes();
 				});
-
-				// Add visual indicator for sorted column
-				if (model.get(ModelProperty.SORT_COLUMN) === columnName) {
-					const arrow = model.get(ModelProperty.SORT_ASCENDING) ? " ▲" : " ▼";
-					header.textContent = columnName + arrow;
-				}
 			}
 		});
 
 		updateButtonStates();
+	}
+
+	// Add error message handler
+	function handleErrorMessageChange() {
+		const errorMsg = model.get(ModelProperty.ERROR_MESSAGE);
+		if (errorMsg) {
+			errorContainer.textContent = errorMsg;
+			errorContainer.style.display = "block";
+		} else {
+			errorContainer.style.display = "none";
+		}
 	}
 
 	// Add event listeners
@@ -170,6 +203,7 @@ function render({ model, el }) {
 	});
 	model.on(Event.CHANGE_TABLE_HTML, handleTableHTMLChange);
 	model.on(`change:${ModelProperty.ROW_COUNT}`, updateButtonStates);
+	model.on(`change:${ModelProperty.ERROR_MESSAGE}`, handleErrorMessageChange);
 	model.on(`change:_initial_load_complete`, (val) => {
 		if (val) {
 			updateButtonStates();
@@ -188,11 +222,13 @@ function render({ model, el }) {
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
 
+	el.appendChild(errorContainer);
 	el.appendChild(tableContainer);
 	el.appendChild(footer);
 
 	// Initial render
 	handleTableHTMLChange();
+	handleErrorMessageChange();
 }
 
 export default { render };
