@@ -3545,7 +3545,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             index=index,
             values=values if len(values) > 1 else None,
         )
-        if fill_value:
+        if fill_value is not None:
             pivoted = pivoted.fillna(fill_value)
         if sort:
             pivoted = pivoted.sort_index()
