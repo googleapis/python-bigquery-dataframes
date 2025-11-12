@@ -1,17 +1,13 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    CASE
-      WHEN `bool_col` IS NULL
-      THEN NULL
-      ELSE COALESCE(LOGICAL_AND(`bool_col`) OVER (), TRUE)
-    END AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `agg_bool`
-FROM `bfcte_1`
+  CASE
+    WHEN `t1`.`bool_col` IS NULL
+    THEN NULL
+    WHEN TRUE
+    THEN COALESCE(LOGICAL_AND(`t1`.`bool_col`) OVER (), TRUE)
+    ELSE CAST(NULL AS BOOL)
+  END AS `agg_bool`
+FROM (
+  SELECT
+    `t0`.`bool_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`

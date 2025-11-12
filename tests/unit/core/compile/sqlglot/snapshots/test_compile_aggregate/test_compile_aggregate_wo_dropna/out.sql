@@ -1,25 +1,21 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `int64_too`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    `int64_too` AS `bfcol_2`,
-    `bool_col` AS `bfcol_3`
-  FROM `bfcte_0`
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_3`,
-    COALESCE(SUM(`bfcol_2`), 0) AS `bfcol_6`
-  FROM `bfcte_1`
-  GROUP BY
-    `bfcol_3`
-)
 SELECT
-  `bfcol_3` AS `bool_col`,
-  `bfcol_6` AS `int64_too`
-FROM `bfcte_2`
-ORDER BY
-  `bfcol_3` ASC NULLS LAST
+`bool_col` AS `bool_col`,
+`int64_too` AS `int64_too`
+FROM
+(SELECT
+  `t2`.`bfuid_col_1146` AS `bool_col`,
+  `t2`.`bfuid_col_1147` AS `int64_too`
+FROM (
+  SELECT
+    `t1`.`bfuid_col_1146`,
+    COALESCE(SUM(`t1`.`bfuid_col_1145`), 0) AS `bfuid_col_1147`
+  FROM (
+    SELECT
+      `t0`.`int64_too` AS `bfuid_col_1145`,
+      `t0`.`bool_col` AS `bfuid_col_1146`
+    FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+  ) AS `t1`
+  GROUP BY
+    1
+) AS `t2`)
+ORDER BY `bool_col` ASC NULLS LAST
