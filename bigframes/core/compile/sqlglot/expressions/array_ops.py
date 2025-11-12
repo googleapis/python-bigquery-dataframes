@@ -22,13 +22,10 @@ import sqlglot.expressions as sge
 from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
+import bigframes.dtypes as dtypes
 
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
-
-
-@register_unary_op(ops.ArrayToStringOp, pass_op=True)
-def _(expr: TypedExpr, op: ops.ArrayToStringOp) -> sge.Expression:
-    return sge.ArrayToString(this=expr.expr, expression=f"'{op.delimiter}'")
+register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
 
 
 @register_unary_op(ops.ArrayIndexOp, pass_op=True)
@@ -66,3 +63,27 @@ def _(expr: TypedExpr, op: ops.ArraySliceOp) -> sge.Expression:
     )
 
     return sge.array(selected_elements)
+
+
+@register_unary_op(ops.ArrayToStringOp, pass_op=True)
+def _(expr: TypedExpr, op: ops.ArrayToStringOp) -> sge.Expression:
+    return sge.ArrayToString(this=expr.expr, expression=f"'{op.delimiter}'")
+
+
+@register_nary_op(ops.ToArrayOp)
+def _(*exprs: TypedExpr) -> sge.Expression:
+    do_upcast_bool = any(
+        dtypes.is_numeric(expr.dtype, include_bool=False) for expr in exprs
+    )
+    if do_upcast_bool:
+        sg_exprs = [_coerce_bool_to_int(expr) for expr in exprs]
+    else:
+        sg_exprs = [expr.expr for expr in exprs]
+    return sge.Array(expressions=sg_exprs)
+
+
+def _coerce_bool_to_int(typed_expr: TypedExpr) -> sge.Expression:
+    """Coerce boolean expression to integer."""
+    if typed_expr.dtype == dtypes.BOOL_DTYPE:
+        return sge.Cast(this=typed_expr.expr, to="INT64")
+    return typed_expr.expr

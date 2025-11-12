@@ -15,6 +15,7 @@
 import pytest
 
 from bigframes import operations as ops
+from bigframes.core import expression
 from bigframes.operations._op_converters import convert_index, convert_slice
 import bigframes.pandas as bpd
 from bigframes.testing import utils
@@ -59,4 +60,25 @@ def test_array_slice_with_start_and_stop(repeated_types_df: bpd.DataFrame, snaps
         bf_df, [convert_slice(slice(1, 5)).as_expr(col_name)], [col_name]
     )
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_to_array_op(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "bool_col", "float64_col", "string_col"]]
+    # Bigquery won't allow you to materialize arrays with null, so use non-nullable
+    int64_non_null = ops.coalesce_op.as_expr("int64_col", expression.const(0))
+    bool_col_non_null = ops.coalesce_op.as_expr("bool_col", expression.const(False))
+    float_col_non_null = ops.coalesce_op.as_expr("float64_col", expression.const(0.0))
+    string_col_non_null = ops.coalesce_op.as_expr("string_col", expression.const(""))
+
+    ops_map = {
+        "bool_col": ops.ToArrayOp().as_expr(bool_col_non_null),
+        "int64_col": ops.ToArrayOp().as_expr(int64_non_null),
+        "strs_col": ops.ToArrayOp().as_expr(string_col_non_null, string_col_non_null),
+        "numeric_col": ops.ToArrayOp().as_expr(
+            int64_non_null, bool_col_non_null, float_col_non_null
+        ),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
     snapshot.assert_match(sql, "out.sql")
