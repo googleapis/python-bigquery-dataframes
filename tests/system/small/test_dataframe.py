@@ -3784,12 +3784,18 @@ def test_df_pivot_hockey(hockey_df, hockey_pandas_df, values, index, columns):
 
 
 @pytest.mark.parametrize(
-    ("values", "index", "columns", "aggfunc"),
+    ("values", "index", "columns", "aggfunc", "fill_value"),
     [
-        (("culmen_length_mm", "body_mass_g"), "species", "sex", "std"),
-        (["body_mass_g", "culmen_length_mm"], ("species", "island"), "sex", "sum"),
-        ("body_mass_g", "sex", ["island", "species"], "mean"),
-        ("culmen_depth_mm", "island", "species", "max"),
+        (("culmen_length_mm", "body_mass_g"), "species", "sex", "std", 1.0),
+        (
+            ["body_mass_g", "culmen_length_mm"],
+            ("species", "island"),
+            "sex",
+            "sum",
+            None,
+        ),
+        ("body_mass_g", "sex", ["island", "species"], "mean", None),
+        ("culmen_depth_mm", "island", "species", "max", -1),
     ],
 )
 def test_df_pivot_table(
@@ -3799,12 +3805,21 @@ def test_df_pivot_table(
     index,
     columns,
     aggfunc,
+    fill_value,
 ):
     bf_result = penguins_df_default_index.pivot_table(
-        values=values, index=index, columns=columns, aggfunc=aggfunc
+        values=values,
+        index=index,
+        columns=columns,
+        aggfunc=aggfunc,
+        fill_value=fill_value,
     ).to_pandas()
     pd_result = penguins_pandas_df_default_index.pivot_table(
-        values=values, index=index, columns=columns, aggfunc=aggfunc
+        values=values,
+        index=index,
+        columns=columns,
+        aggfunc=aggfunc,
+        fill_value=fill_value,
     )
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_column_type=False
@@ -6147,6 +6162,28 @@ def test_agg_with_dict_strs(scalars_dfs):
     pd_result.index = pd_result.index.astype("string[pyarrow]")
 
     pd.testing.assert_series_equal(
+        bf_result, pd_result, check_dtype=False, check_index_type=False
+    )
+
+
+def test_df_agg_with_builtins(scalars_dfs):
+    bf_df, pd_df = scalars_dfs
+
+    bf_result = (
+        bf_df[["int64_col", "bool_col"]]
+        .dropna()
+        .groupby(bf_df.int64_too % 2)
+        .agg({"int64_col": [len, sum, min, max, list], "bool_col": [all, any, max]})
+        .to_pandas()
+    )
+    pd_result = (
+        pd_df[["int64_col", "bool_col"]]
+        .dropna()
+        .groupby(pd_df.int64_too % 2)
+        .agg({"int64_col": [len, sum, min, max, list], "bool_col": [all, any, max]})
+    )
+
+    pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
 

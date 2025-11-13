@@ -305,6 +305,18 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
         return result
 
 
+@register_binary_op(ops.euclidean_distance_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.Anonymous(
+        this="ML.DISTANCE",
+        expressions=[
+            left.expr,
+            right.expr,
+            sge.Literal.string("EUCLIDEAN"),
+        ],
+    )
+
+
 @register_binary_op(ops.floordiv_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     left_expr = _coerce_bool_to_int(left)
@@ -336,6 +348,13 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
         result = sge.Cast(this=sge.Floor(this=result), to="INT64")
 
     return result
+
+
+@register_binary_op(ops.manhattan_distance_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.func(
+        "ML.DISTANCE", left.expr, right.expr, sge.Literal.string("MANHATTAN")
+    )
 
 
 @register_binary_op(ops.mod_op)
