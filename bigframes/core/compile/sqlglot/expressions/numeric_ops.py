@@ -340,13 +340,8 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.manhattan_distance_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    return sge.Anonymous(
-        this="ML.DISTANCE",
-        expressions=[
-            left.expr,
-            right.expr,
-            sge.Literal.string("MANHATTAN"),
-        ],
+    return sge.func(
+        "ML.DISTANCE", left.expr, right.expr, sge.Literal.string("MANHATTAN")
     )
 
 
