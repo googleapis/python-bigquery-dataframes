@@ -521,9 +521,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if self._block.has_index:
             index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
 
-            # These accessses are kind of expensive, maybe should try to skip?
             index_stats = f"{n_rows} entries"
             if n_rows > 0:
+                # These accessses are kind of expensive, maybe should try to skip?
                 first_indice = self.index[0]
                 last_indice = self.index[-1]
                 index_stats += f", {first_indice} to {last_indice}"
