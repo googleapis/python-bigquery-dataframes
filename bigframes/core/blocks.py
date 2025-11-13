@@ -829,10 +829,12 @@ class Block:
                 sampled_batches = execute_result.batches(sample_rate=fraction)
                 raw_df = sampled_batches.to_pandas()
             else:  # uniform sample with random state requires a full follow-up query
-                return self._downsample(
-                    fraction=fraction,
+                down_sampled_block = self.split(
+                    fracs=(fraction,),
                     random_state=sample_config.random_state,
-                )._materialize_local(
+                    sort=False,
+                )[0]
+                return down_sampled_block._materialize_local(
                     MaterializationOptions(ordered=materialize_options.ordered)
                 )
         else:
@@ -840,14 +842,6 @@ class Block:
         df = self._copy_index_to_pandas(raw_df)
         df.set_axis(self.column_labels, axis=1, copy=False)
         return df, execute_result.query_job
-
-    def _downsample(self, fraction: float, random_state) -> Block:
-        block = self.split(
-            fracs=(fraction,),
-            random_state=random_state,
-            sort=False,
-        )[0]
-        return block
 
     def split(
         self,
