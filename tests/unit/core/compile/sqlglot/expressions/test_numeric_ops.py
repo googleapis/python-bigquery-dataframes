@@ -55,6 +55,20 @@ def test_arcsinh(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_arctan2(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "float64_col", "bool_col"]]
+
+    sql = utils._apply_ops_to_sql(
+        bf_df,
+        [
+            ops.arctan2_op.as_expr("int64_col", "float64_col"),
+            ops.arctan2_op.as_expr("bool_col", "float64_col"),
+        ],
+        ["int64_col", "bool_col"],
+    )
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_arctan(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "float64_col"
     bf_df = scalar_types_df[[col_name]]
@@ -100,6 +114,21 @@ def test_cosh(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[[col_name]]
     sql = utils._apply_ops_to_sql(bf_df, [ops.cosh_op.as_expr(col_name)], [col_name])
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_cosine_distance(repeated_types_df: bpd.DataFrame, snapshot):
+    col_names = ["int_list_col", "float_list_col"]
+    bf_df = repeated_types_df[col_names]
+
+    sql = utils._apply_ops_to_sql(
+        bf_df,
+        [
+            ops.cosine_distance_op.as_expr("int_list_col", "int_list_col"),
+            ops.cosine_distance_op.as_expr("float_list_col", "float_list_col"),
+        ],
+        ["int_list_col", "float_list_col"],
+    )
     snapshot.assert_match(sql, "out.sql")
 
 
@@ -286,6 +315,21 @@ def test_div_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 
+def test_euclidean_distance(repeated_types_df: bpd.DataFrame, snapshot):
+    col_names = ["int_list_col", "numeric_list_col"]
+    bf_df = repeated_types_df[col_names]
+
+    sql = utils._apply_ops_to_sql(
+        bf_df,
+        [
+            ops.euclidean_distance_op.as_expr("int_list_col", "int_list_col"),
+            ops.euclidean_distance_op.as_expr("numeric_list_col", "numeric_list_col"),
+        ],
+        ["int_list_col", "numeric_list_col"],
+    )
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_floordiv_numeric(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col", "bool_col", "float64_col"]]
 
@@ -308,6 +352,21 @@ def test_floordiv_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df["timedelta_div_numeric"] = timedelta // 2
 
     snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_manhattan_distance(repeated_types_df: bpd.DataFrame, snapshot):
+    col_names = ["float_list_col", "numeric_list_col"]
+    bf_df = repeated_types_df[col_names]
+
+    sql = utils._apply_ops_to_sql(
+        bf_df,
+        [
+            ops.manhattan_distance_op.as_expr("float_list_col", "float_list_col"),
+            ops.manhattan_distance_op.as_expr("numeric_list_col", "numeric_list_col"),
+        ],
+        ["float_list_col", "numeric_list_col"],
+    )
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_mul_numeric(scalar_types_df: bpd.DataFrame, snapshot):

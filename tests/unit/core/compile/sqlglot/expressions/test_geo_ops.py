@@ -81,6 +81,14 @@ def test_geo_st_convexhull(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_geo_st_difference(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "geography_col"
+    bf_df = scalar_types_df[[col_name]]
+    sql = utils._apply_binary_op(bf_df, ops.geo_st_difference_op, col_name, col_name)
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_geo_st_geogfromtext(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "string_col"
     bf_df = scalar_types_df[[col_name]]
@@ -97,6 +105,14 @@ def test_geo_st_geogpoint(scalar_types_df: bpd.DataFrame, snapshot):
     sql = utils._apply_binary_op(
         bf_df, ops.geo_st_geogpoint_op, col_names[0], col_names[1]
     )
+
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_geo_st_intersection(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "geography_col"
+    bf_df = scalar_types_df[[col_name]]
+    sql = utils._apply_binary_op(bf_df, ops.geo_st_intersection_op, col_name, col_name)
 
     snapshot.assert_match(sql, "out.sql")
 

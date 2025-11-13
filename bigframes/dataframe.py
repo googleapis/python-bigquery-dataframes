@@ -3479,7 +3479,30 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         ] = None,
         columns: typing.Union[blocks.Label, Sequence[blocks.Label]] = None,
         aggfunc: str = "mean",
+        fill_value=None,
+        margins: bool = False,
+        dropna: bool = True,
+        margins_name: Hashable = "All",
+        observed: bool = False,
+        sort: bool = True,
     ) -> DataFrame:
+        if margins:
+            raise NotImplementedError(
+                "DataFrame.pivot_table margins arg not supported. {constants.FEEDBACK_LINK}"
+            )
+        if not dropna:
+            raise NotImplementedError(
+                "DataFrame.pivot_table dropna arg not supported. {constants.FEEDBACK_LINK}"
+            )
+        if margins_name != "All":
+            raise NotImplementedError(
+                "DataFrame.pivot_table margins_name arg not supported. {constants.FEEDBACK_LINK}"
+            )
+        if observed:
+            raise NotImplementedError(
+                "DataFrame.pivot_table observed arg not supported. {constants.FEEDBACK_LINK}"
+            )
+
         if isinstance(index, Iterable) and not (
             isinstance(index, blocks.Label) and index in self.columns
         ):
@@ -3521,13 +3544,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             columns=columns,
             index=index,
             values=values if len(values) > 1 else None,
-        ).sort_index()
+        )
+        if fill_value is not None:
+            pivoted = pivoted.fillna(fill_value)
+        if sort:
+            pivoted = pivoted.sort_index()
 
         # TODO: Remove the reordering step once the issue is resolved.
         # The pivot_table method results in multi-index columns that are always ordered.
         # However, the order of the pivoted result columns is not guaranteed to be sorted.
         # Sort and reorder.
-        return pivoted[pivoted.columns.sort_values()]
+        return pivoted.sort_index(axis=1)  # type: ignore
 
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
