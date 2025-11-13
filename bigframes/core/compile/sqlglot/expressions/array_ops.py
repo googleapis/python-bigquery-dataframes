@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import typing
 
-import sqlglot
+import sqlglot as sg
 import sqlglot.expressions as sge
 
 from bigframes import operations as ops
@@ -38,9 +38,37 @@ def _(expr: TypedExpr, op: ops.ArrayIndexOp) -> sge.Expression:
     )
 
 
+@register_unary_op(ops.ArrayReduceOp, pass_op=True)
+def _(expr: TypedExpr, op: ops.ArrayReduceOp) -> sge.Expression:
+    sub_expr = sg.to_identifier("bf_arr_reduce_uid")
+    sub_type = dtypes.get_array_inner_type(expr.dtype)
+
+    if op.aggregation.order_independent:
+        from bigframes.core.compile.sqlglot.aggregations import unary_compiler
+
+        agg_expr = unary_compiler.compile(op.aggregation, TypedExpr(sub_expr, sub_type))
+    else:
+        from bigframes.core.compile.sqlglot.aggregations import ordered_unary_compiler
+
+        agg_expr = ordered_unary_compiler.compile(
+            op.aggregation, TypedExpr(sub_expr, sub_type)
+        )
+
+    return (
+        sge.select(agg_expr)
+        .from_(
+            sge.Unnest(
+                expressions=[expr.expr],
+                alias=sge.TableAlias(columns=[sub_expr]),
+            )
+        )
+        .subquery()
+    )
+
+
 @register_unary_op(ops.ArraySliceOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.ArraySliceOp) -> sge.Expression:
-    slice_idx = sqlglot.to_identifier("slice_idx")
+    slice_idx = sg.to_identifier("slice_idx")
 
     conditions: typing.List[sge.Predicate] = [slice_idx >= op.start]
 
@@ -48,7 +76,7 @@ def _(expr: TypedExpr, op: ops.ArraySliceOp) -> sge.Expression:
         conditions.append(slice_idx < op.stop)
 
     # local name for each element in the array
-    el = sqlglot.to_identifier("el")
+    el = sg.to_identifier("el")
 
     selected_elements = (
         sge.select(el)

@@ -17,6 +17,7 @@ import pytest
 from bigframes import operations as ops
 from bigframes.core import expression
 from bigframes.operations._op_converters import convert_index, convert_slice
+import bigframes.operations.aggregations as agg_ops
 import bigframes.pandas as bpd
 from bigframes.testing import utils
 
@@ -40,6 +41,20 @@ def test_array_index(repeated_types_df: bpd.DataFrame, snapshot):
         bf_df, [convert_index(1).as_expr(col_name)], [col_name]
     )
 
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_array_reduce_op(repeated_types_df: bpd.DataFrame, snapshot):
+    ops_map = {
+        "sum_float": ops.ArrayReduceOp(agg_ops.SumOp()).as_expr("float_list_col"),
+        "std_float": ops.ArrayReduceOp(agg_ops.StdOp()).as_expr("float_list_col"),
+        "count_str": ops.ArrayReduceOp(agg_ops.CountOp()).as_expr("string_list_col"),
+        "any_bool": ops.ArrayReduceOp(agg_ops.AnyOp()).as_expr("bool_list_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(
+        repeated_types_df, list(ops_map.values()), list(ops_map.keys())
+    )
     snapshot.assert_match(sql, "out.sql")
 
 
