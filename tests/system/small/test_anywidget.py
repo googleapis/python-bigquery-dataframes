@@ -591,12 +591,12 @@ def test_widget_with_unknown_row_count_should_auto_navigate_to_last_page(
         assert "row_0" not in html  # First row should not be visible
 
 
-def test_widget_with_unknown_row_count_should_display_correct_ui_text(
+def test_widget_with_unknown_row_count_should_set_none_state_for_frontend(
     session: bf.Session,
 ):
     """
-    Given a widget with unknown row count, the JavaScript frontend should
-    display appropriate text indicating the total is unknown.
+    Given a widget with unknown row count, its `row_count` traitlet should be
+    `None`, which signals the frontend to display 'Page X of many'.
     """
     from bigframes.display import TableWidget
 
@@ -620,6 +620,10 @@ def test_widget_with_unknown_row_count_should_display_correct_ui_text(
         # The widget should still function normally
         assert widget.page == 0
         assert widget.page_size == 2
+
+        # Force data loading by accessing table_html. This also ensures that
+        # rendering does not raise an exception.
+        _ = widget.table_html
 
 
 def test_widget_with_unknown_row_count_should_allow_forward_navigation(
@@ -688,5 +692,9 @@ def test_widget_with_unknown_row_count_empty_dataframe(
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
+
+
 # This may not be necessary for the SQL Cell use case but should be
+
+
 # considered for completeness.
