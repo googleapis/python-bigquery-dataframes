@@ -21,6 +21,7 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 
 
 @register_unary_op(ops.geo_area_op)
@@ -57,6 +58,11 @@ def _(expr: TypedExpr) -> sge.Expression:
 @register_unary_op(ops.geo_st_convexhull_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("ST_CONVEXHULL", expr.expr)
+
+
+@register_binary_op(ops.geo_st_geogpoint_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.func("ST_GEOGPOINT", left.expr, right.expr)
 
 
 @register_unary_op(ops.geo_st_geogfromtext_op)
