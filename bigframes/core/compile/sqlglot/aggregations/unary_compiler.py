@@ -253,6 +253,39 @@ def _(
     return apply_window_if_present(expr, window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.QcutOp)
+def _(
+    op: agg_ops.QcutOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    percent_ranks = apply_window_if_present(
+        sge.func("PERCENT_RANK"), window, include_framing_clauses=False
+    )
+    if isinstance(op.quantiles, int):
+        quantiles_sql = ir._literal(op.quantiles, dtypes.INT_DTYPE)
+        float_bucket = percent_ranks * quantiles_sql
+        # We need to clip the result to be between 1 and quantiles, so we use LEAST.
+        ceil_val = sge.func("CEIL", float_bucket)
+        clipped = sge.func("LEAST", ceil_val, quantiles_sql)
+        return sge.Sub(this=clipped, expression=sge.convert(1))
+    else:
+        case = sge.Case()
+        first_quantile = ir._literal(
+            op.quantiles[0], dtypes.infer_literal_type(op.quantiles[0])
+        )
+        case = case.when(
+            sge.LT(this=percent_ranks, expression=first_quantile), sge.Null()
+        )
+        for i in range(len(op.quantiles) - 1):
+            quantile = ir._literal(
+                op.quantiles[i + 1], dtypes.infer_literal_type(op.quantiles[i + 1])
+            )
+            bucket = ir._literal(i, dtypes.INT_DTYPE)
+            case = case.when(sge.LTE(this=percent_ranks, expression=quantile), bucket)
+        return case.else_(sge.Null())
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.QuantileOp)
 def _(
     op: agg_ops.QuantileOp,

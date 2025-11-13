@@ -392,6 +392,29 @@ def test_pop_var(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql_window, "window_out.sql")
 
 
+def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_ops_map = {
+        "int_quantiles": agg_exprs.UnaryAggregation(
+            agg_ops.QcutOp(quantiles=4), expression.deref(col_name)
+        ),
+        "list_quantiles": agg_exprs.UnaryAggregation(
+            agg_ops.QcutOp(quantiles=tuple([0, 0.25, 0.5, 0.75, 1])),
+            expression.deref(col_name),
+        ),
+    }
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    sql = _apply_unary_window_op(
+        bf_df, agg_ops_map["int_quantiles"], window, "int_quantiles"
+    )
+    snapshot.assert_match(sql, "int_quantiles.sql")
+    sql = _apply_unary_window_op(
+        bf_df, agg_ops_map["list_quantiles"], window, "list_quantiles"
+    )
+    snapshot.assert_match(sql, "list_quantiles.sql")
+
+
 def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
