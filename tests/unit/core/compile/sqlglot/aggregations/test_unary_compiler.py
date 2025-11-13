@@ -174,6 +174,33 @@ def test_count(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
 
 
+def test_cut(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_ops_map = {
+        "int_bins": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=3, right=True, labels=None), expression.deref(col_name)
+        ),
+        "interval_bins": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=((0, 1), (1, 2)), right=True, labels=None),
+            expression.deref(col_name),
+        ),
+        "int_bins_labels": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=3, labels=("a", "b", "c"), right=False),
+            expression.deref(col_name),
+        ),
+        "interval_bins_labels": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=((0, 1), (1, 2)), labels=False, right=True),
+            expression.deref(col_name),
+        ),
+    }
+    sql = _apply_unary_agg_ops(
+        bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
+    )
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
