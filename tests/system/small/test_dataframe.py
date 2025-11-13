@@ -958,26 +958,23 @@ def test_repr_w_display_options(scalars_dfs, session):
     assert (executions_post - executions_pre) <= 3
 
 
-def test_repr_html_w_all_rows(scalars_dfs, session):
+def test_repr_mimebundle_html_w_all_rows(scalars_dfs, session):
     metrics = session._metrics
-    scalars_df, _ = scalars_dfs
-    # get a pandas df of the expected format
-    df, _ = scalars_df._block.to_pandas()
-    pandas_df = df.set_axis(scalars_df._block.column_labels, axis=1)
-    pandas_df.index.name = scalars_df.index.name
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_head = scalars_df.head(10)
+    pd_head = scalars_pandas_df.head(10)
 
     executions_pre = metrics.execution_count
     # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
-    actual = scalars_df.head(10)._repr_html_()
+    actual = bf_head._repr_mimebundle_()["text/html"]
     executions_post = metrics.execution_count
 
     with display_options.pandas_repr(bigframes.options.display):
-        pandas_repr = pandas_df.head(10)._repr_html_()
+        pandas_repr = pd_head._repr_html_()
 
-    expected = (
-        pandas_repr
-        + f"[{len(pandas_df.index)} rows x {len(pandas_df.columns)} columns in total]"
-    )
+    row_count, col_count = bf_head.shape
+    expected = pandas_repr + f"[{row_count} rows x {col_count} columns in total]"
     assert actual == expected
     assert (executions_post - executions_pre) <= 3
 
