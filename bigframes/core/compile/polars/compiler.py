@@ -700,11 +700,11 @@ if polars_installed:
         @compile_node.register
         def compile_isin(self, node: nodes.InNode):
             left = self.compile_node(node.left_child)
-            right = self.compile_node(node.right_child).unique(node.right_col.id.sql)
+            right = self.compile_node(node.right_child).unique()
             right = right.with_columns(pl.lit(True).alias(node.indicator_col.sql))
 
             left_ex, right_ex = lowering._coerce_comparables(
-                node.left_col, node.right_col
+                node.left_col, ex.DerefOp(next(iter(node.right_child.ids)))
             )
 
             left_pl_ex = self.expr_compiler.compile_expression(left_ex)
