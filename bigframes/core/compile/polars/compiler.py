@@ -703,9 +703,8 @@ if polars_installed:
             right = self.compile_node(node.right_child).unique()
             right = right.with_columns(pl.lit(True).alias(node.indicator_col.sql))
 
-            left_ex, right_ex = lowering._coerce_comparables(
-                node.left_col, ex.DerefOp(next(iter(node.right_child.ids)))
-            )
+            right_col = ex.ResolvedDerefOp.from_field(node.right_child.fields[0])
+            left_ex, right_ex = lowering._coerce_comparables(node.left_col, right_col)
 
             left_pl_ex = self.expr_compiler.compile_expression(left_ex)
             right_pl_ex = self.expr_compiler.compile_expression(right_ex)
