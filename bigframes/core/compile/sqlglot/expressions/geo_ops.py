@@ -60,6 +60,11 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("ST_CONVEXHULL", expr.expr)
 
 
+@register_binary_op(ops.geo_st_geogpoint_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.func("ST_GEOGPOINT", left.expr, right.expr)
+
+
 @register_unary_op(ops.geo_st_geogfromtext_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("SAFE.ST_GEOGFROMTEXT", expr.expr)
@@ -114,3 +119,8 @@ def _(expr: TypedExpr) -> sge.Expression:
 @register_binary_op(ops.geo_st_difference_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.func("ST_DIFFERENCE", left.expr, right.expr)
+
+
+@register_binary_op(ops.geo_st_intersection_op)
+def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    return sge.func("ST_INTERSECTION", left.expr, right.expr)
