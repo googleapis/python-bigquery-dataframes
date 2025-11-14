@@ -815,6 +815,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             repr_string = pandas_df.to_string(**to_string_kwargs)
 
         # Modify the end of the string to reflect count.
+        # Remove pandas' default row/column summary to add our own.
         lines = repr_string.split("\n")
         pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
         if pattern.match(lines[-1]):
@@ -912,52 +913,52 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
 
+    def _get_anywidget_bundle(self, include=None, exclude=None):
+        """
+        Helper method to create and return the anywidget mimebundle.
+        This function encapsulates the logic for anywidget display.
+        """
+        from bigframes import display
+
+        # Process blob columns if needed
+        self._cached()
+        df = self.copy()
+        if bigframes.options.display.blob_display:
+            blob_cols = [
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
+            ]
+            for col in blob_cols:
+                df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+
+        # Create and display the widget
+        widget = display.TableWidget(df)
+        widget_repr_result = widget._repr_mimebundle_(include=include, exclude=exclude)
+
+        # Handle both tuple (data, metadata) and dict returns
+        if isinstance(widget_repr_result, tuple):
+            widget_repr = dict(widget_repr_result[0])  # Extract data dict from tuple
+        else:
+            widget_repr = dict(widget_repr_result)
+
+        # Use deferred repr for text/plain of anywidget display.
+        # This avoids kicking off a query when the user is just
+        # printing the last expression in a cell.
+        widget_repr["text/plain"] = repr(df)
+        widget_repr["text/html"] = self._repr_html_fallback_()
+        return widget_repr
+
     def _repr_mimebundle_(self, include=None, exclude=None):
         """
         Custom display method for IPython/Jupyter environments.
         This is called by IPython's display system when the object is displayed.
         """
         opts = bigframes.options.display
-
         # Only handle widget display in anywidget mode
         if opts.repr_mode == "anywidget":
             try:
-                from bigframes import display
-
-                # Process blob columns if needed
-                self._cached()
-                df = self.copy()
-                if bigframes.options.display.blob_display:
-                    blob_cols = [
-                        series_name
-                        for series_name, series in df.items()
-                        if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
-                    ]
-                    for col in blob_cols:
-                        df[col] = df[col].blob._get_runtime(
-                            mode="R", with_metadata=True
-                        )
-
-                # Create and display the widget
-                widget = display.TableWidget(df)
-                widget_repr_result = widget._repr_mimebundle_(
-                    include=include, exclude=exclude
-                )
-
-                # Handle both tuple (data, metadata) and dict returns
-                if isinstance(widget_repr_result, tuple):
-                    widget_repr = dict(
-                        widget_repr_result[0]
-                    )  # Extract data dict from tuple
-                else:
-                    widget_repr = dict(widget_repr_result)
-
-                # Use deferred repr for text/plain of anywidget display.
-                # This avoids kicking off a query when the user is just
-                # printing the last expression in a cell.
-                widget_repr["text/plain"] = repr(df)
-                widget_repr["text/html"] = self._repr_html_fallback_()
-                return widget_repr
+                return self._get_anywidget_bundle(include=include, exclude=exclude)
 
             except (AttributeError, ValueError, ImportError):
                 # Fallback: let IPython use _repr_html_fallback_() instead

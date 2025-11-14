@@ -958,7 +958,7 @@ def test_repr_w_display_options(scalars_dfs, session):
     assert (executions_post - executions_pre) <= 3
 
 
-def test_repr_html_w_all_rows(scalars_dfs, session):
+def test_mimebundle_html_repr_w_all_rows(scalars_dfs, session):
     metrics = session._metrics
     scalars_df, _ = scalars_dfs
     # get a pandas df of the expected format
