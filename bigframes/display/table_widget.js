@@ -144,18 +144,30 @@ function render({ model, el }) {
 		// Add click handlers to column headers for sorting
 		const headers = tableContainer.querySelectorAll("th");
 		headers.forEach((header) => {
-			const columnName = header.querySelector("div").textContent.trim();
+			const headerDiv = header.querySelector("div");
+			const columnName = headerDiv.textContent.trim();
 
 			// Only add sorting UI for sortable columns
 			if (columnName && sortableColumns.includes(columnName)) {
 				header.style.cursor = "pointer";
 
+				// Create a span for the indicator
+				const indicatorSpan = document.createElement("span");
+				indicatorSpan.classList.add("sort-indicator");
+
 				// Determine sort indicator
-				let indicator = " ●"; // Default: unsorted (dot)
+				let indicator = "●"; // Default: unsorted (dot)
 				if (currentSortColumn === columnName) {
-					indicator = currentSortAscending ? " ▲" : " ▼";
+					indicator = currentSortAscending ? "▲" : "▼";
 				}
-				header.textContent = columnName + indicator;
+				indicatorSpan.textContent = indicator;
+
+				// Add indicator to the header, replacing the old one if it exists
+				const existingIndicator = header.querySelector(".sort-indicator");
+				if (existingIndicator) {
+					header.removeChild(existingIndicator);
+				}
+				header.appendChild(indicatorSpan);
 
 				// Add click handler for three-state toggle
 				header.addEventListener(Event.CLICK, () => {

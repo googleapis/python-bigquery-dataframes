@@ -59,10 +59,18 @@
 
 .bigframes-widget th {
 	background-color: var(--colab-primary-surface-color, var(--jp-layout-color0));
-	cursor: default; /* Default cursor for non-sortable columns */
 	position: sticky;
 	top: 0;
 	z-index: 1;
+}
+
+.bigframes-widget th .sort-indicator {
+	padding-left: 4px;
+	visibility: hidden;
+}
+
+.bigframes-widget th:hover .sort-indicator {
+	visibility: visible;
 }
 
 .bigframes-widget button {
