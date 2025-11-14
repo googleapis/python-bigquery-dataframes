@@ -26,6 +26,7 @@ pytest.importorskip("pytest_snapshot")
 
 CONNECTION_ID = "bigframes-dev.us.bigframes-default-connection"
 
+
 def test_ai_generate(scalar_types_df: dataframe.DataFrame, snapshot):
     col_name = "string_col"
 
@@ -106,6 +107,7 @@ def test_ai_generate_with_model_param(scalar_types_df: dataframe.DataFrame, snap
 
     snapshot.assert_match(sql, "out.sql")
 
+
 def test_ai_generate_bool(scalar_types_df: dataframe.DataFrame, snapshot):
     col_name = "string_col"
 
@@ -124,7 +126,9 @@ def test_ai_generate_bool(scalar_types_df: dataframe.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
-def test_ai_generate_bool_with_connection_id(scalar_types_df: dataframe.DataFrame, snapshot):
+def test_ai_generate_bool_with_connection_id(
+    scalar_types_df: dataframe.DataFrame, snapshot
+):
     col_name = "string_col"
 
     op = ops.AIGenerateBool(
@@ -185,7 +189,10 @@ def test_ai_generate_int(scalar_types_df: dataframe.DataFrame, snapshot):
 
     snapshot.assert_match(sql, "out.sql")
 
-def test_ai_generate_int_with_connection_id(scalar_types_df: dataframe.DataFrame, snapshot):
+
+def test_ai_generate_int_with_connection_id(
+    scalar_types_df: dataframe.DataFrame, snapshot
+):
     col_name = "string_col"
 
     op = ops.AIGenerateInt(
@@ -249,7 +256,9 @@ def test_ai_generate_double(scalar_types_df: dataframe.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
-def test_ai_generate_double_with_connection_id(scalar_types_df: dataframe.DataFrame, snapshot):
+def test_ai_generate_double_with_connection_id(
+    scalar_types_df: dataframe.DataFrame, snapshot
+):
     col_name = "string_col"
 
     op = ops.AIGenerateDouble(
