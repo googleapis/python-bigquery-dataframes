@@ -19,6 +19,10 @@ const ModelProperty = {
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
 	TABLE_HTML: "table_html",
+	SORT_COLUMN: "sort_column",
+	SORT_ASCENDING: "sort_ascending",
+	ERROR_MESSAGE: "error_message",
+	ORDERABLE_COLUMNS: "orderable_columns",
 };
 
 const Event = {
@@ -38,7 +42,17 @@ function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
-	// Structure
+	// Add error message container at the top
+	const errorContainer = document.createElement("div");
+	errorContainer.classList.add("error-message");
+	errorContainer.style.display = "none";
+	errorContainer.style.color = "red";
+	errorContainer.style.padding = "8px";
+	errorContainer.style.marginBottom = "8px";
+	errorContainer.style.border = "1px solid red";
+	errorContainer.style.borderRadius = "4px";
+	errorContainer.style.backgroundColor = "#ffebee";
+
 	const tableContainer = document.createElement("div");
 	const footer = document.createElement("div");
 
@@ -119,12 +133,91 @@ function render({ model, el }) {
 		}
 	}
 
-	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
-		// Note: Using innerHTML is safe here because the content is generated
-		// by a trusted backend (DataFrame.to_html).
 		tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
+
+		// Get sortable columns from backend
+		const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
+		const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
+		const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
+
+		// Add click handlers to column headers for sorting
+		const headers = tableContainer.querySelectorAll("th");
+		headers.forEach((header) => {
+			const headerDiv = header.querySelector("div");
+			const columnName = headerDiv.textContent.trim();
+
+			// Only add sorting UI for sortable columns
+			if (columnName && sortableColumns.includes(columnName)) {
+				header.style.cursor = "pointer";
+
+				// Create a span for the indicator
+				const indicatorSpan = document.createElement("span");
+				indicatorSpan.classList.add("sort-indicator");
+				indicatorSpan.style.paddingLeft = "5px";
+
+				// Determine sort indicator and initial visibility
+				let indicator = "●"; // Default: unsorted (dot)
+				if (currentSortColumn === columnName) {
+					indicator = currentSortAscending ? "▲" : "▼";
+					indicatorSpan.style.visibility = "visible"; // Sorted arrows always visible
+				} else {
+					indicatorSpan.style.visibility = "hidden"; // Unsorted dot hidden by default
+				}
+				indicatorSpan.textContent = indicator;
+
+				// Add indicator to the header, replacing the old one if it exists
+				const existingIndicator = headerDiv.querySelector(".sort-indicator");
+				if (existingIndicator) {
+					headerDiv.removeChild(existingIndicator);
+				}
+				headerDiv.appendChild(indicatorSpan);
+
+				// Add hover effects for unsorted columns only
+				header.addEventListener("mouseover", () => {
+					if (currentSortColumn !== columnName) {
+						indicatorSpan.style.visibility = "visible";
+					}
+				});
+				header.addEventListener("mouseout", () => {
+					if (currentSortColumn !== columnName) {
+						indicatorSpan.style.visibility = "hidden";
+					}
+				});
+
+				// Add click handler for three-state toggle
+				header.addEventListener(Event.CLICK, () => {
+					if (currentSortColumn === columnName) {
+						if (currentSortAscending) {
+							// Currently ascending → switch to descending
+							model.set(ModelProperty.SORT_ASCENDING, false);
+						} else {
+							// Currently descending → clear sort (back to unsorted)
+							model.set(ModelProperty.SORT_COLUMN, "");
+							model.set(ModelProperty.SORT_ASCENDING, true);
+						}
+					} else {
+						// Not currently sorted → sort ascending
+						model.set(ModelProperty.SORT_COLUMN, columnName);
+						model.set(ModelProperty.SORT_ASCENDING, true);
+					}
+					model.save_changes();
+				});
+			}
+		});
+
 		updateButtonStates();
+	}
+
+	// Add error message handler
+	function handleErrorMessageChange() {
+		const errorMsg = model.get(ModelProperty.ERROR_MESSAGE);
+		if (errorMsg) {
+			errorContainer.textContent = errorMsg;
+			errorContainer.style.display = "block";
+		} else {
+			errorContainer.style.display = "none";
+		}
 	}
 
 	// Add event listeners
@@ -138,6 +231,7 @@ function render({ model, el }) {
 	});
 	model.on(Event.CHANGE_TABLE_HTML, handleTableHTMLChange);
 	model.on(`change:${ModelProperty.ROW_COUNT}`, updateButtonStates);
+	model.on(`change:${ModelProperty.ERROR_MESSAGE}`, handleErrorMessageChange);
 	model.on(`change:_initial_load_complete`, (val) => {
 		if (val) {
 			updateButtonStates();
@@ -156,11 +250,13 @@ function render({ model, el }) {
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
 
+	el.appendChild(errorContainer);
 	el.appendChild(tableContainer);
 	el.appendChild(footer);
 
 	// Initial render
 	handleTableHTMLChange();
+	handleErrorMessageChange();
 }
 
 export default { render };

@@ -17,7 +17,7 @@ from __future__ import annotations
 from importlib import resources
 import functools
 import math
-from typing import Any, Dict, Iterator, List, Optional, Type
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type
 import uuid
 
 import pandas as pd
@@ -26,6 +26,7 @@ import bigframes
 from bigframes.core import blocks
 import bigframes.dataframe
 import bigframes.display.html
+import bigframes.dtypes as dtypes
 
 # anywidget and traitlets are optional dependencies. We don't want the import of
 # this module to fail if they aren't installed, though. Instead, we try to
@@ -57,6 +58,9 @@ class TableWidget(WIDGET_BASE):
     page_size = traitlets.Int(0).tag(sync=True)
     row_count = traitlets.Int(0).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
+    sort_column = traitlets.Unicode("").tag(sync=True)
+    sort_ascending = traitlets.Bool(True).tag(sync=True)
+    orderable_columns = traitlets.List(traitlets.Unicode(), []).tag(sync=True)
     _initial_load_complete = traitlets.Bool(False).tag(sync=True)
     _batches: Optional[blocks.PandasBatches] = None
     _error_message = traitlets.Unicode(allow_none=True, default_value=None).tag(
@@ -83,15 +87,20 @@ class TableWidget(WIDGET_BASE):
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: List[pd.DataFrame] = []
+        self._last_sort_state: Optional[Tuple[str, bool]] = None
 
         # respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
         # set traitlets properties that trigger observers
         self.page_size = initial_page_size
+        self.orderable_columns = [
+            col
+            for col in dataframe.columns
+            if dtypes.is_orderable(dataframe.dtypes[col])
+        ]
 
-        # len(dataframe) is expensive, since it will trigger a
-        # SELECT COUNT(*) query. It is a must have however.
+        # obtain the row counts
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
         # TODO(b/452747934): Allow row_count to be None and check to see if
@@ -104,6 +113,7 @@ class TableWidget(WIDGET_BASE):
             self.row_count = self._batches.total_rows
 
         # get the initial page
+        self._get_next_batch()
         self._set_table_html()
 
         # Signals to the frontend that the initial data load is complete.
@@ -215,6 +225,27 @@ class TableWidget(WIDGET_BASE):
             )
             return
 
+        # Apply sorting if a column is selected
+        df_to_display = self._dataframe
+        if self.sort_column:
+            try:
+                df_to_display = df_to_display.sort_values(
+                    by=self.sort_column, ascending=self.sort_ascending
+                )
+            except KeyError:
+                self._error_message = f"Column '{self.sort_column}' not found. Please select a valid column to sort by."
+                # Revert to unsorted state if sorting fails
+                self.sort_column = ""
+
+        # Reset batches when sorting changes
+        if self._last_sort_state != (self.sort_column, self.sort_ascending):
+            self._batches = df_to_display._to_pandas_batches(page_size=self.page_size)
+            self._cached_batches = []
+            self._batch_iter = None
+            self._all_data_loaded = False
+            self._last_sort_state = (self.sort_column, self.sort_ascending)
+            self.page = 0  # Reset to first page
+
         start = self.page * self.page_size
         end = start + self.page_size
 
@@ -233,7 +264,13 @@ class TableWidget(WIDGET_BASE):
         self.table_html = bigframes.display.html.render_html(
             dataframe=page_data,
             table_id=f"table-{self._table_id}",
+            orderable_columns=self.orderable_columns,
         )
+
+    @traitlets.observe("sort_column", "sort_ascending")
+    def _sort_changed(self, _change: Dict[str, Any]):
+        """Handler for when sorting parameters change from the frontend."""
+        self._set_table_html()
 
     @traitlets.observe("page")
     def _page_changed(self, _change: Dict[str, Any]) -> None:

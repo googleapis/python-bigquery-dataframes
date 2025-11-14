@@ -31,19 +31,16 @@ def paginated_pandas_df() -> pd.DataFrame:
     """Create a minimal test DataFrame with exactly 3 pages of 2 rows each."""
     test_data = pd.DataFrame(
         {
-            "id": [0, 1, 2, 3, 4, 5],
+            "id": [5, 4, 3, 2, 1, 0],
             "page_indicator": [
-                # Page 1 (rows 1-2)
-                "page_1_row_1",
-                "page_1_row_2",
-                # Page 2 (rows 3-4)
-                "page_2_row_1",
-                "page_2_row_2",
-                # Page 3 (rows 5-6)
-                "page_3_row_1",
-                "page_3_row_2",
+                "row_5",
+                "row_4",
+                "row_3",
+                "row_2",
+                "row_1",
+                "row_0",
             ],
-            "value": [0, 1, 2, 3, 4, 5],
+            "value": [5, 4, 3, 2, 1, 0],
         }
     )
     return test_data
@@ -552,3 +549,96 @@ def test_widget_row_count_reflects_actual_data_available(
 # TODO(shuowei): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
+
+
+def test_widget_sort_should_sort_ascending_on_first_click(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a widget, when a column header is clicked for the first time,
+    then the data should be sorted by that column in ascending order.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    expected_slice = paginated_pandas_df.sort_values("id", ascending=True).iloc[0:2]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_sort_descending_on_second_click(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a widget sorted by a column, when the same column header is clicked again,
+    then the data should be sorted by that column in descending order.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    # Second click
+    table_widget.sort_ascending = False
+
+    expected_slice = paginated_pandas_df.sort_values("id", ascending=False).iloc[0:2]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_switch_column_and_sort_ascending(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a widget sorted by a column, when a different column header is clicked,
+    then the data should be sorted by the new column in ascending order.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    # Click on a different column
+    table_widget.sort_column = "value"
+    table_widget.sort_ascending = True
+
+    expected_slice = paginated_pandas_df.sort_values("value", ascending=True).iloc[0:2]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_be_maintained_after_pagination(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a sorted widget, when the user navigates to the next page,
+    then the sorting should be maintained.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    # Go to the second page
+    table_widget.page = 1
+
+    expected_slice = paginated_pandas_df.sort_values("id", ascending=True).iloc[2:4]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_reset_on_page_size_change(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a sorted widget, when the page size is changed,
+    then the sorting should be reset.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    table_widget.page_size = 3
+
+    # Sorting is not reset in the backend, but the view should be of the unsorted df
+    expected_slice = paginated_pandas_df.iloc[0:3]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
