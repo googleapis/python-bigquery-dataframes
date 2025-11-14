@@ -55,7 +55,11 @@ class TableWidget(WIDGET_BASE):
 
     page = traitlets.Int(0).tag(sync=True)
     page_size = traitlets.Int(0).tag(sync=True)
-    row_count = traitlets.Int(0).tag(sync=True)
+    row_count = traitlets.Union(
+        [traitlets.Int(), traitlets.Instance(type(None))],
+        default_value=None,
+        allow_none=True,
+    ).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
     _initial_load_complete = traitlets.Bool(False).tag(sync=True)
     _batches: Optional[blocks.PandasBatches] = None
@@ -98,8 +102,10 @@ class TableWidget(WIDGET_BASE):
         # there are multiple pages and show "page 1 of many" in this case
         self._reset_batches_for_new_page_size()
         if self._batches is None or self._batches.total_rows is None:
+            # TODO(b/428238610): We could still end up with a None here if the
+            # underlying execution doesn't produce a total row count.
             self._error_message = "Could not determine total row count. Data might be unavailable or an error occurred."
-            self.row_count = 0
+            self.row_count = None
         else:
             self.row_count = self._batches.total_rows
 
@@ -131,8 +137,13 @@ class TableWidget(WIDGET_BASE):
         Returns:
             The validated and clamped page number as an integer.
         """
-
         value = proposal["value"]
+
+        # If row count is unknown, allow any non-negative page
+        if self.row_count is None:
+            return max(0, value)
+
+        # If truly empty or invalid page size, stay on page 0
         if self.row_count == 0 or self.page_size == 0:
             return 0
 
@@ -228,6 +239,23 @@ class TableWidget(WIDGET_BASE):
 
         # Get the data for the current page
         page_data = cached_data.iloc[start:end]
+
+        # Handle case where user navigated beyond available data with unknown row count
+        is_unknown_count = self.row_count is None
+        is_beyond_data = self._all_data_loaded and len(page_data) == 0 and self.page > 0
+        if is_unknown_count and is_beyond_data:
+            # Calculate the last valid page (zero-indexed)
+            total_rows = len(cached_data)
+            if total_rows > 0:
+                last_valid_page = max(0, math.ceil(total_rows / self.page_size) - 1)
+                # Navigate back to the last valid page
+                self.page = last_valid_page
+                # Recursively call to display the correct page
+                return self._set_table_html()
+            else:
+                # If no data at all, stay on page 0 with empty display
+                self.page = 0
+                return self._set_table_html()
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(

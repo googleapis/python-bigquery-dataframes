@@ -524,7 +524,7 @@ def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
         widget = TableWidget(paginated_bf_df)
 
     # The widget should have an error message and display it in the HTML.
-    assert widget.row_count == 0
+    assert widget.row_count is None
     assert widget._error_message is not None
     assert "Could not determine total row count" in widget._error_message
     assert widget._error_message in widget.table_html
@@ -547,6 +547,148 @@ def test_widget_row_count_reflects_actual_data_available(
         # not limited by page_size (which only affects pagination)
         assert widget.row_count == EXPECTED_ROW_COUNT
         assert widget.page_size == 2  # Respects the display option
+
+
+def test_widget_with_unknown_row_count_should_auto_navigate_to_last_page(
+    session: bf.Session,
+):
+    """
+    Given a widget with unknown row count (row_count=None), when a user
+    navigates beyond the available data and all data is loaded, then the
+    widget should automatically navigate back to the last valid page.
+    """
+    from bigframes.display import TableWidget
+
+    # Create a small DataFrame with known content
+    test_data = pd.DataFrame(
+        {
+            "id": [0, 1, 2, 3, 4],
+            "value": ["row_0", "row_1", "row_2", "row_3", "row_4"],
+        }
+    )
+    bf_df = session.read_pandas(test_data)
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(bf_df)
+
+        # Manually set row_count to None to simulate unknown total
+        widget.row_count = None
+
+        # Navigate to a page beyond available data (page 10)
+        # With page_size=2 and 5 rows, valid pages are 0, 1, 2
+        widget.page = 10
+
+        # Force data loading by accessing table_html
+        _ = widget.table_html
+
+        # After all data is loaded, widget should auto-navigate to last valid page
+        # Last valid page = ceil(5 / 2) - 1 = 2
+        assert widget.page == 2
+
+        # Verify the displayed content is the last page
+        html = widget.table_html
+        assert "row_4" in html  # Last row should be visible
+        assert "row_0" not in html  # First row should not be visible
+
+
+def test_widget_with_unknown_row_count_should_set_none_state_for_frontend(
+    session: bf.Session,
+):
+    """
+    Given a widget with unknown row count, its `row_count` traitlet should be
+    `None`, which signals the frontend to display 'Page X of many'.
+    """
+    from bigframes.display import TableWidget
+
+    test_data = pd.DataFrame(
+        {
+            "id": [0, 1, 2],
+            "value": ["a", "b", "c"],
+        }
+    )
+    bf_df = session.read_pandas(test_data)
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(bf_df)
+
+        # Set row_count to None
+        widget.row_count = None
+
+        # Verify row_count is None (not 0)
+        assert widget.row_count is None
+
+        # The widget should still function normally
+        assert widget.page == 0
+        assert widget.page_size == 2
+
+        # Force data loading by accessing table_html. This also ensures that
+        # rendering does not raise an exception.
+        _ = widget.table_html
+
+
+def test_widget_with_unknown_row_count_should_allow_forward_navigation(
+    session: bf.Session,
+):
+    """
+    Given a widget with unknown row count, users should be able to navigate
+    forward until they reach the end of available data.
+    """
+    from bigframes.display import TableWidget
+
+    test_data = pd.DataFrame(
+        {
+            "id": [0, 1, 2, 3, 4, 5],
+            "value": ["p0_r0", "p0_r1", "p1_r0", "p1_r1", "p2_r0", "p2_r1"],
+        }
+    )
+    bf_df = session.read_pandas(test_data)
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(bf_df)
+        widget.row_count = None
+
+        # Navigate to page 1
+        widget.page = 1
+        html = widget.table_html
+        assert "p1_r0" in html
+        assert "p1_r1" in html
+
+        # Navigate to page 2
+        widget.page = 2
+        html = widget.table_html
+        assert "p2_r0" in html
+        assert "p2_r1" in html
+
+        # Navigate beyond available data (page 5)
+        widget.page = 5
+        _ = widget.table_html
+
+        # Should auto-navigate back to last valid page (page 2)
+        assert widget.page == 2
+
+
+def test_widget_with_unknown_row_count_empty_dataframe(
+    session: bf.Session,
+):
+    """
+    Given an empty DataFrame with unknown row count, the widget should
+    stay on page 0 and display empty content.
+    """
+    from bigframes.display import TableWidget
+
+    empty_data = pd.DataFrame(columns=["id", "value"])
+    bf_df = session.read_pandas(empty_data)
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        widget = TableWidget(bf_df)
+        widget.row_count = None
+
+        # Attempt to navigate to page 5
+        widget.page = 5
+        _ = widget.table_html
+
+        # Should stay on page 0 for empty DataFrame
+        assert widget.page == 0
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
