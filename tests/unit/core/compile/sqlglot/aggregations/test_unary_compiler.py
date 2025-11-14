@@ -194,11 +194,13 @@ def test_cut(scalar_types_df: bpd.DataFrame, snapshot):
             expression.deref(col_name),
         ),
     }
-    sql = _apply_unary_agg_ops(
-        bf_df, list(agg_ops_map.values()), list(agg_ops_map.keys())
-    )
+    window = window_spec.WindowSpec()
 
-    snapshot.assert_match(sql, "out.sql")
+    # Loop through the aggregation map items
+    for test_name, agg_expr in agg_ops_map.items():
+        sql = _apply_unary_window_op(bf_df, agg_expr, window, test_name)
+        
+        snapshot.assert_match(sql, f"{test_name}.sql")
 
 
 def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):

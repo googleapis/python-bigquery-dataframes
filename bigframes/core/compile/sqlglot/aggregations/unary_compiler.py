@@ -245,10 +245,11 @@ def _cut_ops_w_intervals(
                 value = sge.Struct(
                     expressions=[
                         sge.PropertyEQ(
-                            this=sge.Identifier(this="left_exclusive"), expression=left
+                            this=sge.Identifier(this="left_exclusive", quoted=True),
+                            expression=left,
                         ),
                         sge.PropertyEQ(
-                            this=sge.Identifier(this="right_inclusive"),
+                            this=sge.Identifier(this="right_inclusive", quoted=True),
                             expression=right,
                         ),
                     ]
@@ -257,10 +258,11 @@ def _cut_ops_w_intervals(
                 value = sge.Struct(
                     expressions=[
                         sge.PropertyEQ(
-                            this=sge.Identifier(this="left_inclusive"), expression=left
+                            this=sge.Identifier(this="left_inclusive", quoted=True),
+                            expression=left,
                         ),
                         sge.PropertyEQ(
-                            this=sge.Identifier(this="right_exclusive"),
+                            this=sge.Identifier(this="right_exclusive", quoted=True),
                             expression=right,
                         ),
                     ]
