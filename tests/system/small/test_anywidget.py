@@ -692,9 +692,5 @@ def test_widget_with_unknown_row_count_empty_dataframe(
 
 
 # TODO(shuowei): Add tests for custom index and multiindex
-
-
 # This may not be necessary for the SQL Cell use case but should be
-
-
 # considered for completeness.
