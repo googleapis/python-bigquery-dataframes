@@ -827,7 +827,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
 
-    def _repr_html_(self) -> str:
+    def _repr_html_fallback_(self) -> str:
         """
         Returns an html string primarily for use by notebooks for displaying
         a representation of the DataFrame. Displays 20 rows by default since
@@ -940,26 +940,36 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 # Create and display the widget
                 widget = display.TableWidget(df)
-                widget_repr = widget._repr_mimebundle_(include=include, exclude=exclude)
+                widget_repr_result = widget._repr_mimebundle_(
+                    include=include, exclude=exclude
+                )
+
+                # Handle both tuple (data, metadata) and dict returns
+                if isinstance(widget_repr_result, tuple):
+                    widget_repr = dict(
+                        widget_repr_result[0]
+                    )  # Extract data dict from tuple
+                else:
+                    widget_repr = dict(widget_repr_result)
 
                 # Use deferred repr for text/plain of anywidget display.
                 # This avoids kicking off a query when the user is just
                 # printing the last expression in a cell.
-                widget_repr["text/plain"] = repr(self)
-                widget_repr["text/html"] = self._repr_html_()
+                widget_repr["text/plain"] = repr(df)
+                widget_repr["text/html"] = self._repr_html_fallback_()
                 return widget_repr
 
             except (AttributeError, ValueError, ImportError):
-                # Fallback: let IPython use _repr_html_() instead
+                # Fallback: let IPython use _repr_html_fallback_() instead
                 warnings.warn(
                     "Anywidget mode is not available. "
                     "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
                     f"Falling back to static HTML. Error: {traceback.format_exc()}"
                 )
-                # Don't return anything - let IPython fall back to _repr_html_()
+                # Don't return anything - let IPython fall back to _repr_html_fallback_()
                 pass
 
-        return {"text/html": self._repr_html_(), "text/plain": repr(self)}
+        return {"text/html": self._repr_html_fallback_(), "text/plain": repr(self)}
 
     def __delitem__(self, key: str):
         df = self.drop(columns=[key])

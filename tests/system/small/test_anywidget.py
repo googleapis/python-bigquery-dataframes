@@ -690,11 +690,9 @@ def test_repr_mimebundle_anywidget_fallback(paginated_bf_df: bf.dataframe.DataFr
     """
     Test that _repr_mimebundle_ falls back to static html when anywidget is not available.
     """
-    with bf.option_context("display.repr_mode", "anywidget"):
-        # Use a mock to simulate the absence of the 'anywidget' module.
-        with mock.patch.dict(
-            "sys.modules", {"anywidget": None, "IPython": mock.MagicMock()}
-        ):
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        # Mock the ANYWIDGET_INSTALLED flag to simulate absence of anywidget
+        with mock.patch("bigframes.display.anywidget.ANYWIDGET_INSTALLED", False):
             bundle = paginated_bf_df._repr_mimebundle_()
             assert "application/vnd.jupyter.widget-view+json" not in bundle
             assert "text/html" in bundle

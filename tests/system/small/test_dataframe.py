@@ -968,7 +968,8 @@ def test_repr_html_w_all_rows(scalars_dfs, session):
 
     executions_pre = metrics.execution_count
     # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
-    actual = scalars_df.head(10)._repr_html_()
+    bundle = scalars_df.head(10)._repr_mimebundle_()
+    actual = bundle["text/html"]
     executions_post = metrics.execution_count
 
     with display_options.pandas_repr(bigframes.options.display):
