@@ -789,7 +789,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
+        # anywdiget mode uses the same display logic as the "deferred" mode
+        # for faster execution
+        if opts.repr_mode in ("deferred", "anywidget"):
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -815,7 +817,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             repr_string = pandas_df.to_string(**to_string_kwargs)
 
         # Modify the end of the string to reflect count.
-        # Remove pandas' default row/column summary to add our own.
         lines = repr_string.split("\n")
         pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
         if pattern.match(lines[-1]):
