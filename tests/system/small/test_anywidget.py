@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import unittest.mock as mock
+
 import pandas as pd
 import pytest
 
@@ -549,6 +551,33 @@ def test_widget_row_count_reflects_actual_data_available(
         assert widget.page_size == 2  # Respects the display option
 
 
-# TODO(shuowei): Add tests for custom index and multiindex
+def test_repr_mimebundle_anywidget_fallback(paginated_bf_df: bf.dataframe.DataFrame):
+    """
+    Test that _repr_mimebundle_ falls back to static html when anywidget is not available.
+    """
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        # Mock the ANYWIDGET_INSTALLED flag to simulate absence of anywidget
+        with mock.patch("bigframes.display.anywidget.ANYWIDGET_INSTALLED", False):
+            bundle = paginated_bf_df._repr_mimebundle_()
+            assert "application/vnd.jupyter.widget-view+json" not in bundle
+            assert "text/html" in bundle
+            html = bundle["text/html"]
+            assert "page_1_row_1" in html
+            assert "page_1_row_2" in html
+            assert "page_2_row_1" not in html
+
+
+def test_repr_mimebundle_anywidget_success(paginated_bf_df: bf.dataframe.DataFrame):
+    """
+    Test that _repr_mimebundle_ returns a widget view when anywidget is available.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        bundle = paginated_bf_df._repr_mimebundle_()
+        assert "application/vnd.jupyter.widget-view+json" in bundle
+        assert "text/html" in bundle
+        assert "text/plain" in bundle
+
+
+# TODO(b/332316283): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.

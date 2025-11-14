@@ -829,7 +829,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
 
-    def _repr_html_(self) -> str:
+    def _repr_html_fallback_(self) -> str:
         """
         Returns an html string primarily for use by notebooks for displaying
         a representation of the DataFrame. Displays 20 rows by default since
@@ -840,7 +840,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        # Process blob columns first, regardless of display mode
+        # Process blob columns first for non-deferred modes
         self._cached()
         df = self.copy()
         if bigframes.options.display.blob_display:
@@ -854,29 +854,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
         else:
             blob_cols = []
-
-        if opts.repr_mode == "anywidget":
-            try:
-                from IPython.display import display as ipython_display
-
-                from bigframes import display
-
-                # Always create a new widget instance for each display call
-                # This ensures that each cell gets its own widget and prevents
-                # unintended sharing between cells
-                widget = display.TableWidget(df.copy())
-
-                ipython_display(widget)
-                return ""  # Return empty string since we used display()
-
-            except (AttributeError, ValueError, ImportError):
-                # Fallback if anywidget is not available
-                warnings.warn(
-                    "Anywidget mode is not available. "
-                    "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
-                    f"Falling back to deferred mode. Error: {traceback.format_exc()}"
-                )
-                return formatter.repr_query_job(self._compute_dry_run())
 
         # Continue with regular HTML rendering for non-anywidget modes
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -936,6 +913,65 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
         return html_string
+
+    def _get_anywidget_bundle(self, include=None, exclude=None):
+        """
+        Helper method to create and return the anywidget mimebundle.
+        This function encapsulates the logic for anywidget display.
+        """
+        from bigframes import display
+
+        # Process blob columns if needed
+        self._cached()
+        df = self.copy()
+        if bigframes.options.display.blob_display:
+            blob_cols = [
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
+            ]
+            for col in blob_cols:
+                df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+
+        # Create and display the widget
+        widget = display.TableWidget(df)
+        widget_repr_result = widget._repr_mimebundle_(include=include, exclude=exclude)
+
+        # Handle both tuple (data, metadata) and dict returns
+        if isinstance(widget_repr_result, tuple):
+            widget_repr = dict(widget_repr_result[0])  # Extract data dict from tuple
+        else:
+            widget_repr = dict(widget_repr_result)
+
+        # Use deferred repr for text/plain of anywidget display.
+        # This avoids kicking off a query when the user is just
+        # printing the last expression in a cell.
+        widget_repr["text/plain"] = repr(df)
+        widget_repr["text/html"] = self._repr_html_fallback_()
+        return widget_repr
+
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        """
+        Custom display method for IPython/Jupyter environments.
+        This is called by IPython's display system when the object is displayed.
+        """
+        opts = bigframes.options.display
+        # Only handle widget display in anywidget mode
+        if opts.repr_mode == "anywidget":
+            try:
+                return self._get_anywidget_bundle(include=include, exclude=exclude)
+
+            except (AttributeError, ValueError, ImportError):
+                # Fallback: let IPython use _repr_html_fallback_() instead
+                warnings.warn(
+                    "Anywidget mode is not available. "
+                    "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
+                    f"Falling back to static HTML. Error: {traceback.format_exc()}"
+                )
+                # Don't return anything - let IPython fall back to _repr_html_fallback_()
+                pass
+
+        return {"text/html": self._repr_html_fallback_(), "text/plain": repr(self)}
 
     def __delitem__(self, key: str):
         df = self.drop(columns=[key])
