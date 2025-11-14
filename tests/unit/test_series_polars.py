@@ -544,6 +544,25 @@ def test_series_equals_different_values(scalars_df_index, scalars_pandas_df_inde
     assert pd_result == bf_result
 
 
+def test_series_squeeze_noop(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df["int64_too"].squeeze()
+    bf_result = scalars_df["int64_too"].squeeze().to_pandas()
+
+    assert_series_equal(bf_result, pd_result)
+
+
+def test_series_squeeze_squeezes(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    # implicitly transposes, so col types need to be compatible
+    pd_result = scalars_pandas_df["int64_too"].head(1).squeeze()
+    bf_result = scalars_df["int64_too"].head(1).squeeze()
+
+    assert pd_result == bf_result
+
+
 def test_series_get_with_default_index(scalars_dfs):
     col_name = "float64_col"
     key = 2
