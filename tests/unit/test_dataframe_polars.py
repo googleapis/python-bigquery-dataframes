@@ -737,7 +737,7 @@ def test_join_repr(scalars_dfs):
     assert actual == expected
 
 
-def test_repr_html_w_all_rows(scalars_dfs, session):
+def test_mimebundle_html_repr_w_all_rows(scalars_dfs, session):
     scalars_df, _ = scalars_dfs
     # get a pandas df of the expected format
     df, _ = scalars_df._block.to_pandas()
