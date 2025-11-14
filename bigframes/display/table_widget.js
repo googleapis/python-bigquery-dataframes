@@ -154,20 +154,36 @@ function render({ model, el }) {
 				// Create a span for the indicator
 				const indicatorSpan = document.createElement("span");
 				indicatorSpan.classList.add("sort-indicator");
+				indicatorSpan.style.paddingLeft = "5px";
 
-				// Determine sort indicator
+				// Determine sort indicator and initial visibility
 				let indicator = "●"; // Default: unsorted (dot)
 				if (currentSortColumn === columnName) {
 					indicator = currentSortAscending ? "▲" : "▼";
+					indicatorSpan.style.visibility = "visible"; // Sorted arrows always visible
+				} else {
+					indicatorSpan.style.visibility = "hidden"; // Unsorted dot hidden by default
 				}
 				indicatorSpan.textContent = indicator;
 
 				// Add indicator to the header, replacing the old one if it exists
-				const existingIndicator = header.querySelector(".sort-indicator");
+				const existingIndicator = headerDiv.querySelector(".sort-indicator");
 				if (existingIndicator) {
-					header.removeChild(existingIndicator);
+					headerDiv.removeChild(existingIndicator);
 				}
-				header.appendChild(indicatorSpan);
+				headerDiv.appendChild(indicatorSpan);
+
+				// Add hover effects for unsorted columns only
+				header.addEventListener("mouseover", () => {
+					if (currentSortColumn !== columnName) {
+						indicatorSpan.style.visibility = "visible";
+					}
+				});
+				header.addEventListener("mouseout", () => {
+					if (currentSortColumn !== columnName) {
+						indicatorSpan.style.visibility = "hidden";
+					}
+				});
 
 				// Add click handler for three-state toggle
 				header.addEventListener(Event.CLICK, () => {
