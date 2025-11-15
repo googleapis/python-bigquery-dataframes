@@ -4159,7 +4159,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             op,
             window_spec=window_spec,
         )
-        return DataFrame(block.select_columns(result_ids))
+        if op.skips_nulls:
+            block = self._block.project_exprs(
+                tuple(
+                    bigframes.operations.where_op.as_expr(
+                        bigframes.operations.notnull_op.as_expr(og_col),
+                        r_col,
+                        ex.const(None),
+                    )
+                    for og_col, r_col in zip(self._block.value_columns, result_ids)
+                ),
+                labels=block.column_labels,
+                drop=True,
+            )
+        else:
+            block = block.select_columns(result_ids)
+        return DataFrame(block)
 
     @validations.requires_ordering()
     def sample(

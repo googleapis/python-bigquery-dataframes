@@ -67,7 +67,6 @@ def rewrite_timedelta_expressions(root: nodes.BigFrameNode) -> nodes.BigFrameNod
             _rewrite_aggregation(root.expression, root.schema),
             root.window_spec,
             root.output_name,
-            root.never_skip_nulls,
             root.skip_reproject_unsafe,
         )
 
