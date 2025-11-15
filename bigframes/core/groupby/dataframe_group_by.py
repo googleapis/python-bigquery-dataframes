@@ -748,22 +748,22 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         window_spec = window or window_specs.cumulative_rows(
             grouping_keys=tuple(self._by_col_ids)
         )
-        columns, _ = self._aggregated_columns(numeric_only=numeric_only)
+        columns, labels = self._aggregated_columns(numeric_only=numeric_only)
         block, result_ids = self._block.multi_apply_window_op(
             columns,
             op,
             window_spec=window_spec,
         )
-        block = self._block.project_exprs(
+        block = block.project_exprs(
             tuple(
                 bigframes.operations.where_op.as_expr(
-                    bigframes.operations.notnull_op.as_expr(og_col),
                     r_col,
+                    bigframes.operations.notnull_op.as_expr(og_col),
                     ex.const(None),
                 )
                 for og_col, r_col in zip(columns, result_ids)
             ),
-            labels=block.column_labels,
+            labels=labels,
             drop=True,
         )
 

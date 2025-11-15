@@ -440,10 +440,10 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             window_spec=window_spec,
         )
         if op.skips_nulls:
-            block, result_id = self._block.project_expr(
+            block, result_id = block.project_expr(
                 bigframes.operations.where_op.as_expr(
-                    bigframes.operations.notnull_op.as_expr(self._value_column),
                     result_id,
+                    bigframes.operations.notnull_op.as_expr(self._value_column),
                     ex.const(None),
                 ),
                 label,
