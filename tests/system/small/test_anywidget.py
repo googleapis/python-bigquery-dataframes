@@ -111,6 +111,54 @@ def empty_bf_df(
     return session.read_pandas(empty_pandas_df)
 
 
+@pytest.fixture(scope="module")
+def custom_index_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame with a custom named index for testing."""
+    test_data = pd.DataFrame(
+        {
+            "value_a": [10, 20, 30, 40, 50, 60],
+            "value_b": ["a", "b", "c", "d", "e", "f"],
+        }
+    )
+    test_data.index = pd.Index(
+        ["row_1", "row_2", "row_3", "row_4", "row_5", "row_6"], name="custom_idx"
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def custom_index_bf_df(
+    session: bf.Session, custom_index_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(custom_index_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def multiindex_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame with MultiIndex for testing."""
+    test_data = pd.DataFrame(
+        {
+            "value": [100, 200, 300, 400, 500, 600],
+            "category": ["X", "Y", "Z", "X", "Y", "Z"],
+        }
+    )
+    test_data.index = pd.MultiIndex.from_arrays(
+        [
+            ["group_A", "group_A", "group_A", "group_B", "group_B", "group_B"],
+            [1, 2, 3, 1, 2, 3],
+        ],
+        names=["group", "item"],
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def multiindex_bf_df(
+    session: bf.Session, multiindex_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(multiindex_pandas_df)
+
+
 def mock_execute_result_with_params(
     self, schema, total_rows_val, arrow_batches_val, *args, **kwargs
 ):
@@ -141,6 +189,19 @@ def mock_execute_result_with_params(
             )
 
     return MockExecuteResult()
+
+
+def _assert_value_in_html_cell(html_content: str, value: str):
+    """Asserts that a specific value is present as content in a table cell."""
+    # Replace whitespace and newlines to make the check independent of formatting
+    cleaned_html = html_content.replace(" ", "").replace("\n", "")
+    assert f">{value}<" in cleaned_html
+
+
+def _assert_value_not_in_html_cell(html_content: str, value: str):
+    """Asserts that a specific value is NOT present as content in a table cell."""
+    cleaned_html = html_content.replace(" ", "").replace("\n", "")
+    assert f">{value}<" not in cleaned_html
 
 
 def _assert_html_matches_pandas_slice(
@@ -549,6 +610,186 @@ def test_widget_row_count_reflects_actual_data_available(
         assert widget.page_size == 2  # Respects the display option
 
 
-# TODO(shuowei): Add tests for custom index and multiindex
-# This may not be necessary for the SQL Cell use case but should be
-# considered for completeness.
+def test_widget_with_custom_index_should_display_index_column(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a custom named index, when rendered,
+    then the index column and first page of rows should be visible.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(custom_index_bf_df)
+        html = widget.table_html
+
+    assert "custom_idx" in html
+    assert "row_1" in html
+    assert "row_2" in html
+    assert "row_3" not in html  # Verify pagination is working
+    assert "row_4" not in html
+
+
+def test_widget_with_custom_index_pagination_preserves_index(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a custom index, when navigating to the second page,
+    then the second page's index values should be visible.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(custom_index_bf_df)
+
+        widget.page = 1  # Navigate to page 2
+        html = widget.table_html
+
+    assert "row_3" in html
+    assert "row_4" in html
+    assert "row_1" not in html  # Verify page 1 content is gone
+    assert "row_2" not in html
+
+
+def test_widget_with_custom_index_matches_pandas_output(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a custom index and max_rows=3, the widget's HTML
+    output should contain the first three index values.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
+        widget = TableWidget(custom_index_bf_df)
+        html = widget.table_html
+
+    assert "row_1" in html
+    assert "row_2" in html
+    assert "row_3" in html
+    assert "row_4" not in html  # Verify it respects max_rows
+
+
+def test_widget_with_multiindex_should_display_all_index_levels(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when rendered,
+    then all index level names and first page of values should be visible.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+        html = widget.table_html
+
+    assert "group" in html
+    assert "item" in html
+    assert "group_A" in html
+    assert "1" in html
+    assert "2" in html
+    assert "group_B" not in html  # Verify pagination
+
+
+def test_widget_with_multiindex_pagination_preserves_structure(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when navigating between pages,
+    then the multiindex structure should be preserved on the new page.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+
+        widget.page = 1  # Navigate to the second page
+        html = widget.table_html
+
+    # Page 2 contains row 3: (group_A, 3) and row 4: (group_B, 1)
+    assert "group_A" in html
+    assert "3" in html
+    assert "group_B" in html
+    assert "1" in html
+
+    # Verify page 1 content is gone by checking for a unique value from that page.
+    _assert_value_not_in_html_cell(html, "200")
+
+
+def test_widget_with_multiindex_pagination_shows_last_page(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when navigating to the last page,
+    then the final items are correctly displayed.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+
+        # DataFrame has 6 rows, so page 2 is the last page with page_size=2
+        widget.page = 2
+        html = widget.table_html
+
+    # Last page contains (group_B, 2) and (group_B, 3) with values 500 and 600.
+    assert "group_B" in html
+    _assert_value_in_html_cell(html, "500")
+    _assert_value_in_html_cell(html, "600")
+
+    # Verify content from previous pages (page 0 and page 1) is gone.
+    assert "group_A" not in html
+    _assert_value_not_in_html_cell(html, "100")
+    _assert_value_not_in_html_cell(html, "200")
+    _assert_value_not_in_html_cell(html, "300")
+    _assert_value_not_in_html_cell(html, "400")
+
+
+def test_widget_with_multiindex_page_size_change_preserves_structure(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with MultiIndex, when the page size is changed,
+    then the multiindex structure should be correctly displayed for the new size.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(multiindex_bf_df)
+
+        widget.page_size = 3  # Change page size
+        html = widget.table_html
+
+    assert "group" in html  # Headers still present
+    assert "item" in html
+
+    # Assert content from first 3 rows is present
+    assert "group_A" in html
+    assert "1" in html
+    assert "2" in html
+    assert "3" in html
+
+    # Assert content from row 4 (now on page 2) is NOT present
+    assert "group_B" not in html
+
+
+def test_widget_with_multiindex_should_use_rowspan(
+    multiindex_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a MultiIndex, the rendered HTML should use
+    rowspan to create a nested view for the outer index levels.
+    """
+    from bigframes.display import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 5):
+        widget = TableWidget(multiindex_bf_df)
+        html_content = widget.table_html
+
+    # The value "group_A" should appear once with a rowspan of 3.
+    assert '<th rowspan="3"' in html_content
+    assert html_content.count("group_A") == 1
+
+    # The value "group_B" should appear once with a rowspan of 2 (since one row is on the next page).
+    assert '<th rowspan="2"' in html_content
+    assert html_content.count("group_B") == 1
