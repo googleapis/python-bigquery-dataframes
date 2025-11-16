@@ -1,33 +1,18 @@
-WITH `bfcte_1` AS (
-  SELECT
-    `numeric_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_2` AS (
-  SELECT
-    `rowindex` AS `bfcol_2`,
-    `numeric_col` AS `bfcol_3`
-  FROM `bfcte_1`
-), `bfcte_0` AS (
-  SELECT
-    `numeric_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_3` AS (
-  SELECT
-    `rowindex` AS `bfcol_6`,
-    `numeric_col` AS `bfcol_7`
-  FROM `bfcte_0`
-), `bfcte_4` AS (
-  SELECT
-    *
-  FROM `bfcte_2`
-  INNER JOIN `bfcte_3`
-    ON COALESCE(`bfcol_3`, CAST(0 AS NUMERIC)) = COALESCE(`bfcol_7`, CAST(0 AS NUMERIC))
-    AND COALESCE(`bfcol_3`, CAST(1 AS NUMERIC)) = COALESCE(`bfcol_7`, CAST(1 AS NUMERIC))
-)
 SELECT
-  `bfcol_2` AS `rowindex_x`,
-  `bfcol_3` AS `numeric_col`,
-  `bfcol_6` AS `rowindex_y`
-FROM `bfcte_4`
+  `t3`.`rowindex` AS `rowindex_x`,
+  `t3`.`numeric_col`,
+  `t4`.`bfuid_col_1274` AS `rowindex_y`
+FROM (
+  SELECT
+    `t0`.`rowindex`,
+    `t0`.`numeric_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t3`
+INNER JOIN (
+  SELECT
+    `t0`.`rowindex` AS `bfuid_col_1274`,
+    `t0`.`numeric_col` AS `bfuid_col_1275`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t4`
+  ON COALESCE(`t3`.`numeric_col`, 0) = COALESCE(`t4`.`bfuid_col_1275`, 0)
+  AND COALESCE(`t3`.`numeric_col`, 1) = COALESCE(`t4`.`bfuid_col_1275`, 1)
