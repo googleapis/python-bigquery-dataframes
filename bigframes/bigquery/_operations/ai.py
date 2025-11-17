@@ -56,6 +56,7 @@ def generate(
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
+        >>> bpd.options.display.progress_bar = "auto"
         >>> country = bpd.Series(["Japan", "Canada"])
         >>> bbq.ai.generate(("What's the capital city of ", country, " one word only"))
         0    {'result': 'Tokyo\\n', 'full_response': '{"cand...
