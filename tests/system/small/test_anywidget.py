@@ -229,20 +229,15 @@ def test_widget_navigation_should_display_correct_page(
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_widget_navigation_should_clamp_to_zero_for_negative_input(
+def test_widget_navigation_should_raise_error_for_negative_input(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
     Given a widget, when a negative page number is set,
-    then the page number should be clamped to 0 and display the first page.
+    then a ValueError should be raised.
     """
-    expected_slice = paginated_pandas_df.iloc[0:2]
-
-    table_widget.page = -1
-    html = table_widget.table_html
-
-    assert table_widget.page == 0
-    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+    with pytest.raises(ValueError, match="Page number cannot be negative."):
+        table_widget.page = -1
 
 
 def test_widget_navigation_should_clamp_to_last_page_for_out_of_bounds_input(
@@ -500,20 +495,18 @@ class FaultyIterator:
         raise ValueError("Simulated read error")
 
 
-def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
+def test_widget_should_show_error_on_batch_failure(
     paginated_bf_df: bf.dataframe.DataFrame,
     monkeypatch: pytest.MonkeyPatch,
 ):
     """
-    Given an internal component fails to return valid execution data,
-    when the TableWidget is created, its error_message should be set and displayed.
+    Given that the internal call to `_to_pandas_batches` fails and returns None,
+    when the TableWidget is created, its `error_message` should be set and displayed.
     """
-    # Patch the executor's 'execute' method to simulate an error.
+    # Patch the DataFrame's batch creation method to simulate a failure.
     monkeypatch.setattr(
-        "bigframes.session.bq_caching_executor.BigQueryCachingExecutor.execute",
-        lambda self, *args, **kwargs: mock_execute_result_with_params(
-            self, paginated_bf_df._block.expr.schema, None, [], *args, **kwargs
-        ),
+        "bigframes.dataframe.DataFrame._to_pandas_batches",
+        lambda self, *args, **kwargs: None,
     )
 
     # Create the TableWidget under the error condition.
@@ -526,7 +519,7 @@ def test_widget_should_fallback_to_zero_rows_with_invalid_total_rows(
     # The widget should have an error message and display it in the HTML.
     assert widget.row_count is None
     assert widget._error_message is not None
-    assert "Could not determine total row count" in widget._error_message
+    assert "Could not retrieve data batches" in widget._error_message
     assert widget._error_message in widget.table_html
 
 

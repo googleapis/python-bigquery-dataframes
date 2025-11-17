@@ -98,13 +98,16 @@ class TableWidget(WIDGET_BASE):
         # SELECT COUNT(*) query. It is a must have however.
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
-        # TODO(b/452747934): Allow row_count to be None and check to see if
-        # there are multiple pages and show "page 1 of many" in this case
         self._reset_batches_for_new_page_size()
-        if self._batches is None or self._batches.total_rows is None:
-            # TODO(b/428238610): We could still end up with a None here if the
-            # underlying execution doesn't produce a total row count.
-            self._error_message = "Could not determine total row count. Data might be unavailable or an error occurred."
+
+        if self._batches is None:
+            self._error_message = "Could not retrieve data batches. Data might be unavailable or an error occurred."
+            self.row_count = None
+        elif self._batches.total_rows is None:
+            # Total rows is unknown, this is an expected state.
+            # TODO(b/461536343): Cheaply discover if we have exactly 1 page.
+            # There are cases where total rows is not set, but there are no additional
+            # pages. We could disable the "next" button in these cases.
             self.row_count = None
         else:
             self.row_count = self._batches.total_rows
@@ -139,13 +142,19 @@ class TableWidget(WIDGET_BASE):
         """
         value = proposal["value"]
 
-        # If row count is unknown, allow any non-negative page
-        if self.row_count is None:
-            return max(0, value)
+        if value < 0:
+            raise ValueError("Page number cannot be negative.")
 
-        # If truly empty or invalid page size, stay on page 0
+        # If truly empty or invalid page size, stay on page 0.
+        # This handles cases where row_count is 0 or page_size is 0, preventing
+        # division by zero or nonsensical pagination, regardless of row_count being None.
         if self.row_count == 0 or self.page_size == 0:
             return 0
+
+        # If row count is unknown, allow any non-negative page. The previous check
+        # ensures that invalid page_size (0) is already handled.
+        if self.row_count is None:
+            return value
 
         # Calculate the zero-indexed maximum page number.
         max_page = max(0, math.ceil(self.row_count / self.page_size) - 1)
