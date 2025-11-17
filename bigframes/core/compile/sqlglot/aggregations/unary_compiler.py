@@ -121,7 +121,7 @@ def _(
         case_expr = _cut_ops_w_int_bins(op, column, op.bins, window)
     else:  # Interpret as intervals
         case_expr = _cut_ops_w_intervals(op, column, op.bins, window)
-    return apply_window_if_present(case_expr, window)
+    return case_expr
 
 
 def _cut_ops_w_int_bins(
@@ -165,31 +165,18 @@ def _cut_ops_w_int_bins(
                 col_min + sge.convert(this_bin + 1) * bin_width + right_adj
             )
             if op.right:
-                value = sge.Struct(
-                    expressions=[
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="left_exclusive", quoted=True),
-                            expression=left,
-                        ),
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="right_inclusive", quoted=True),
-                            expression=right,
-                        ),
-                    ]
-                )
+                left_identifier = sge.Identifier(this="left_exclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_inclusive", quoted=True)
             else:
-                value = sge.Struct(
-                    expressions=[
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="left_inclusive", quoted=True),
-                            expression=left,
-                        ),
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="right_exclusive", quoted=True),
-                            expression=right,
-                        ),
-                    ]
-                )
+                left_identifier = sge.Identifier(this="left_inclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_exclusive", quoted=True)
+
+            value = sge.Struct(
+                expressions=[
+                    sge.PropertyEQ(this=left_identifier, expression=left),
+                    sge.PropertyEQ(this=right_identifier, expression=right),
+                ]
+            )
 
         condition: sge.Expression
         if this_bin == bins - 1:
@@ -242,31 +229,18 @@ def _cut_ops_w_intervals(
             value = ir._literal(list(op.labels)[this_bin], dtypes.STRING_DTYPE)
         else:
             if op.right:
-                value = sge.Struct(
-                    expressions=[
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="left_exclusive", quoted=True),
-                            expression=left,
-                        ),
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="right_inclusive", quoted=True),
-                            expression=right,
-                        ),
-                    ]
-                )
+                left_identifier = sge.Identifier(this="left_exclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_inclusive", quoted=True)
             else:
-                value = sge.Struct(
-                    expressions=[
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="left_inclusive", quoted=True),
-                            expression=left,
-                        ),
-                        sge.PropertyEQ(
-                            this=sge.Identifier(this="right_exclusive", quoted=True),
-                            expression=right,
-                        ),
-                    ]
-                )
+                left_identifier = sge.Identifier(this="left_inclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_exclusive", quoted=True)
+
+            value = sge.Struct(
+                expressions=[
+                    sge.PropertyEQ(this=left_identifier, expression=left),
+                    sge.PropertyEQ(this=right_identifier, expression=right),
+                ]
+            )
         case_expr = case_expr.when(condition, value)
     return case_expr
 

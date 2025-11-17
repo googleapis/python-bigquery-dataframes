@@ -16,7 +16,7 @@ WITH `bfcte_0` AS (
       THEN 'b'
       WHEN `int64_col` IS NOT NULL
       THEN 'c'
-    END OVER () AS `bfcol_1`
+    END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

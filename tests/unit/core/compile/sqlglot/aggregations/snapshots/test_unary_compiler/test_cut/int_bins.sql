@@ -47,7 +47,7 @@ WITH `bfcte_0` AS (
           3 * IEEE_DIVIDE(MAX(`int64_col`) OVER () - MIN(`int64_col`) OVER (), 3)
         ) + 0 AS `right_inclusive`
       )
-    END OVER () AS `bfcol_1`
+    END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

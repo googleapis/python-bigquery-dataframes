@@ -10,7 +10,7 @@ WITH `bfcte_0` AS (
       THEN 0
       WHEN `int64_col` > 1 AND `int64_col` <= 2
       THEN 1
-    END OVER () AS `bfcol_1`
+    END AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

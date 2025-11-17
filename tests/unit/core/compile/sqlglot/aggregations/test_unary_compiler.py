@@ -199,7 +199,7 @@ def test_cut(scalar_types_df: bpd.DataFrame, snapshot):
     # Loop through the aggregation map items
     for test_name, agg_expr in agg_ops_map.items():
         sql = _apply_unary_window_op(bf_df, agg_expr, window, test_name)
-        
+
         snapshot.assert_match(sql, f"{test_name}.sql")
 
 
