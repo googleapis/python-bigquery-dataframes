@@ -720,6 +720,11 @@ def unit_prerelease(session: nox.sessions.Session):
     prerelease(session, os.path.join("tests", "unit"))
 
 
+@nox.session(python=UNIT_TEST_PYTHON_VERSIONS[-1])
+def snapshot(session: nox.sessions.Session):
+    run_unit(session, os.path.join("tests", "snapshot"))
+
+
 @nox.session(python=SYSTEM_TEST_PYTHON_VERSIONS[-1])
 def system_prerelease(session: nox.sessions.Session):
     """Run the system test suite with prerelease dependencies."""
