@@ -378,7 +378,7 @@ class Index(vendored_pandas_index.Index):
         max_results = opts.max_rows
         # anywdiget mode uses the same display logic as the "deferred" mode
         # for faster execution
-        if opts.repr_mode in ("deferred", "anywidget"):
+        if opts.repr_mode == "deferred":
             _, dry_run_query_job = self._block._compute_dry_run()
             return formatter.repr_query_job(dry_run_query_job)
 
