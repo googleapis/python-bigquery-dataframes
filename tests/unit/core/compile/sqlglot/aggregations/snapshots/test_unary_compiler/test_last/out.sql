@@ -5,7 +5,10 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    LAST_VALUE(`int64_col`) OVER (ORDER BY `int64_col` DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS `bfcol_1`
+    LAST_VALUE(`int64_col`) OVER (
+      ORDER BY `int64_col` DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) AS `bfcol_1`
   FROM `bfcte_0`
 )
 SELECT

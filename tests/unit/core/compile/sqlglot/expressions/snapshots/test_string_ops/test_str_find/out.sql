@@ -5,10 +5,10 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    STRPOS(`string_col`, 'e') - 1 AS `bfcol_1`,
-    STRPOS(`string_col`, 'e') - 1 AS `bfcol_2`,
-    STRPOS(SUBSTRING(`string_col`, 1, 5), 'e') - 1 AS `bfcol_3`,
-    STRPOS(SUBSTRING(`string_col`, 3, 3), 'e') - 1 AS `bfcol_4`
+    INSTR(`string_col`, 'e', 1) - 1 AS `bfcol_1`,
+    INSTR(`string_col`, 'e', 3) - 1 AS `bfcol_2`,
+    INSTR(SUBSTRING(`string_col`, 1, 5), 'e') - 1 AS `bfcol_3`,
+    INSTR(SUBSTRING(`string_col`, 3, 3), 'e') - 1 AS `bfcol_4`
   FROM `bfcte_0`
 )
 SELECT
