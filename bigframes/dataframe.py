@@ -789,9 +789,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
-        # for faster execution
-        if opts.repr_mode in ("deferred", "anywidget"):
+        if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -944,9 +942,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             widget_repr = dict(widget_repr_result)
 
         # Use deferred repr for text/plain of anywidget display.
-        # This avoids kicking off a query when the user is just
-        # printing the last expression in a cell.
-        widget_repr["text/plain"] = repr(df)
+        # This ensures consistency with __repr__ and avoids unnecessary query execution
+        # when the user is just printing the last expression in a cell.
+        widget_repr["text/plain"] = formatter.repr_query_job(df._compute_dry_run())
         widget_repr["text/html"] = self._repr_html_fallback_()
         return widget_repr
 
