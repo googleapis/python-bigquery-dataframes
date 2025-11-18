@@ -521,14 +521,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if self._block.has_index:
             index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
 
-            # These accessses are kind of expensive, maybe should try to skip?
-            first_indice = self.index[0]
-            last_indice = self.index[-1]
-            obuf.write(
-                f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n"
-            )
+            index_stats = f"{n_rows} entries"
+            if n_rows > 0:
+                # These accessses are kind of expensive, maybe should try to skip?
+                first_indice = self.index[0]
+                last_indice = self.index[-1]
+                index_stats += f", {first_indice} to {last_indice}"
+            obuf.write(f"{index_type}: {index_stats}\n")
         else:
             obuf.write("NullIndex\n")
+
+        if n_columns == 0:
+            # We don't display any more information if the dataframe has no columns
+            obuf.write("Empty DataFrame\n")
+            return
 
         dtype_strings = self.dtypes.astype("string")
         if show_all_columns:
@@ -3486,10 +3492,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         observed: bool = False,
         sort: bool = True,
     ) -> DataFrame:
-        if fill_value is not None:
-            raise NotImplementedError(
-                "DataFrame.pivot_table fill_value arg not supported. {constants.FEEDBACK_LINK}"
-            )
         if margins:
             raise NotImplementedError(
                 "DataFrame.pivot_table margins arg not supported. {constants.FEEDBACK_LINK}"
@@ -3549,6 +3551,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             index=index,
             values=values if len(values) > 1 else None,
         )
+        if fill_value is not None:
+            pivoted = pivoted.fillna(fill_value)
         if sort:
             pivoted = pivoted.sort_index()
 
@@ -3556,7 +3560,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         # The pivot_table method results in multi-index columns that are always ordered.
         # However, the order of the pivoted result columns is not guaranteed to be sorted.
         # Sort and reorder.
-        return pivoted[pivoted.columns.sort_values()]
+        return pivoted.sort_index(axis=1)  # type: ignore
 
     def stack(self, level: LevelsType = -1):
         if not isinstance(self.columns, pandas.MultiIndex):
