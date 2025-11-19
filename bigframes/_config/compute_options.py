@@ -29,7 +29,7 @@ class ComputeOptions:
         >>> df = bpd.read_gbq("bigquery-public-data.ml_datasets.penguins")
 
         >>> bpd.options.compute.maximum_bytes_billed = 500
-        >>> # df.to_pandas() # this should fail
+        >>> df.to_pandas() # this should fail  # doctest: +SKIP
         google.api_core.exceptions.InternalServerError: 500 Query exceeded limit for bytes billed: 500. 10485760 or higher required.
 
         >>> bpd.options.compute.maximum_bytes_billed = None  # reset option

@@ -8,15 +8,6 @@ packages.
     :toctree: api
 
     bigframes._config
-
-ML APIs
-~~~~~~~
-
-BigQuery DataFrames provides many machine learning modules, inspired by
-scikit-learn.
-
-.. code-block::
-
     bigframes.bigquery
     bigframes.bigquery.ai
     bigframes.enums
@@ -24,6 +15,17 @@ scikit-learn.
     bigframes.geopandas
     bigframes.pandas
     bigframes.streaming
+
+ML APIs
+~~~~~~~
+
+BigQuery DataFrames provides many machine learning modules, inspired by
+scikit-learn.
+
+
+.. autosummary::
+    :toctree: api
+
     bigframes.ml.cluster
     bigframes.ml.compose
     bigframes.ml.decomposition
