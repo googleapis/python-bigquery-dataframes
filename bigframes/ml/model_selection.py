@@ -110,6 +110,7 @@ def train_test_split(
     joined_df = dfs[0]
     for df in dfs[1:]:
         joined_df = joined_df.join(df, how="outer")
+    joined_df = joined_df.cache()
     if stratify is None:
         joined_df_train, joined_df_test = joined_df._split(
             fracs=(train_size, test_size), random_state=random_state
