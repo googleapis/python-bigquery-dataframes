@@ -187,7 +187,9 @@ def push_into_tree(
         while result := graph_extract_window_expr():
             id, window_expr = result
             curr_root = nodes.WindowOpNode(
-                curr_root, window_expr.analytic_expr, window_expr.window, output_name=id
+                curr_root,
+                (nodes.ColumnDef(window_expr.analytic_expr, id),),
+                window_expr.window,
             )
         if len(graph.nodes) >= pre_size:
             raise ValueError("graph didn't shrink")
