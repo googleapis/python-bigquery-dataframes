@@ -864,10 +864,10 @@ if polars_installed:
                             self.expr_compiler.compile_expression(key)
                             for key in window.grouping_keys
                         )
-                    result = df.with_columns(agg_pl.alias(cdef.id.sql))
+                    result = result.with_columns(agg_pl.alias(cdef.id.sql))
                 else:  # row-bounded window
                     window_result = self._calc_row_analytic_func(
-                        df, cdef.expression, node.window_spec, cdef.id.sql
+                        result, cdef.expression, node.window_spec, cdef.id.sql
                     )
                     result = pl.concat([result, window_result], how="horizontal")
             return result
