@@ -44,8 +44,8 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    # if window is not None:
-    #     raise NotImplementedError("AllOp with windowing is not supported.")
+    if window is not None:
+        raise NotImplementedError("AllOp with windowing is not supported.")
 
     # BQ will return null for empty column, result would be false in pandas.
     result = apply_window_if_present(sge.func("LOGICAL_AND", column.expr), window)
