@@ -291,13 +291,13 @@ class StreamingDataFrame(StreamingBase):
 
     __repr__.__doc__ = _curate_df_doc(inspect.getdoc(dataframe.DataFrame.__repr__))
 
-    def _repr_html_fallback_(self, *args, **kwargs):
-        return _return_type_wrapper(self._df._repr_html_fallback_, StreamingDataFrame)(
+    def _repr_html_fallback(self, *args, **kwargs):
+        return _return_type_wrapper(self._df._repr_html_fallback, StreamingDataFrame)(
             *args, **kwargs
         )
 
-    _repr_html_fallback_.__doc__ = _curate_df_doc(
-        inspect.getdoc(dataframe.DataFrame._repr_html_fallback_)
+    _repr_html_fallback.__doc__ = _curate_df_doc(
+        inspect.getdoc(dataframe.DataFrame._repr_html_fallback)
     )
 
     @property

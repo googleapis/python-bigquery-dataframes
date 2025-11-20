@@ -827,7 +827,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
 
-    def _repr_html_fallback_(self) -> str:
+    def _repr_html_fallback(self) -> str:
         """
         Returns an html string primarily for use by notebooks for displaying
         a representation of the DataFrame. Displays 20 rows by default since
@@ -941,11 +941,34 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             widget_repr = dict(widget_repr_result)
 
-        # Use deferred repr for text/plain of anywidget display.
-        # This ensures consistency with __repr__ and avoids unnecessary query execution
-        # when the user is just printing the last expression in a cell.
-        widget_repr["text/plain"] = formatter.repr_query_job(df._compute_dry_run())
-        widget_repr["text/html"] = self._repr_html_fallback_()
+        # At this point, we have already executed the query as part of the
+        # widget construction. Let's use the information available to render
+        # the HTML and plain text versions.
+        widget_repr["text/html"] = widget.table_html
+
+        # Re-create the text representation from what we know.
+        opts = bigframes.options.display
+        with display_options.pandas_repr(opts):
+            import pandas.io.formats
+
+            # safe to mutate this, this dict is owned by this code, and does not affect global config
+            to_string_kwargs = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not self._has_index:
+                to_string_kwargs.update({"index": False})
+            repr_string = widget._cached_data.to_string(**to_string_kwargs)
+
+        lines = repr_string.split("\n")
+        row_count = widget.row_count
+        if row_count is not None and row_count > len(widget._cached_data):
+            lines.append("...")
+
+        lines.append("")
+        column_count = len(self.columns)
+        lines.append(f"[{row_count or '?'} rows x {column_count} columns]")
+        widget_repr["text/plain"] = "\n".join(lines)
+
         return widget_repr
 
     def _repr_mimebundle_(self, include=None, exclude=None):
@@ -959,17 +982,106 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             try:
                 return self._get_anywidget_bundle(include=include, exclude=exclude)
 
-            except (AttributeError, ValueError, ImportError):
-                # Fallback: let IPython use _repr_html_fallback_() instead
+            except ImportError:
+                # Fallback: let IPython use _repr_html_fallback() instead
                 warnings.warn(
                     "Anywidget mode is not available. "
                     "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
                     f"Falling back to static HTML. Error: {traceback.format_exc()}"
                 )
-                # Don't return anything - let IPython fall back to _repr_html_fallback_()
+                # Don't return anything - let IPython fall back to _repr_html_fallback()
                 pass
 
-        return {"text/html": self._repr_html_fallback_(), "text/plain": repr(self)}
+        # In non-anywidget mode, fetch data once and use it for both HTML
+        # and plain text representations to avoid multiple queries.
+        opts = bigframes.options.display
+        max_results = opts.max_rows
+
+        # Process blob columns first, logic from _repr_html_fallback
+        self._cached()
+        df = self.copy()
+        if bigframes.options.display.blob_display:
+            blob_cols = [
+                series_name
+                for series_name, series in df.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
+            ]
+            for col in blob_cols:
+                df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+        else:
+            blob_cols = []
+
+        pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
+            max_results
+        )
+        self._set_internal_query_job(query_job)
+        column_count = len(pandas_df.columns)
+
+        # Generate HTML representation
+        with display_options.pandas_repr(opts):
+            if bigframes.options.display.blob_display and blob_cols:
+
+                def obj_ref_rt_to_html(obj_ref_rt) -> str:
+                    obj_ref_rt_json = json.loads(obj_ref_rt)
+                    obj_ref_details = obj_ref_rt_json["objectref"]["details"]
+                    if "gcs_metadata" in obj_ref_details:
+                        gcs_metadata = obj_ref_details["gcs_metadata"]
+                        content_type = typing.cast(
+                            str, gcs_metadata.get("content_type", "")
+                        )
+                        if content_type.startswith("image"):
+                            size_str = ""
+                            if bigframes.options.display.blob_display_width:
+                                size_str = f' width="{bigframes.options.display.blob_display_width}"'
+                            if bigframes.options.display.blob_display_height:
+                                size_str = (
+                                    size_str
+                                    + f' height="{bigframes.options.display.blob_display_height}"'
+                                )
+                            url = obj_ref_rt_json["access_urls"]["read_url"]
+                            return f'<img src="{url}"{size_str}>'
+
+                    return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
+
+                formatters = {blob_col: obj_ref_rt_to_html for blob_col in blob_cols}
+                with pandas.option_context("display.max_colwidth", None):
+                    html_string = pandas_df.to_html(
+                        escape=False,
+                        notebook=True,
+                        max_rows=pandas.get_option("display.max_rows"),
+                        max_cols=pandas.get_option("display.max_columns"),
+                        show_dimensions=pandas.get_option("display.show_dimensions"),
+                        formatters=formatters,  # type: ignore
+                    )
+            else:
+                html_string = pandas_df._repr_html_()  # type:ignore
+
+        html_string += f"[{row_count} rows x {column_count} columns in total]"
+
+        # Generate text representation
+        with display_options.pandas_repr(opts):
+            import pandas.io.formats
+
+            to_string_kwargs = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not self._has_index:
+                to_string_kwargs.update({"index": False})
+            repr_string = pandas_df.to_string(**to_string_kwargs)
+
+        lines = repr_string.split("\n")
+        pattern = re.compile("\\[[0-9]+ rows x [0-9]+ columns\\]")
+        if pattern.match(lines[-1]):
+            lines = lines[:-2]
+
+        if row_count > len(lines) - 1:
+            lines.append("...")
+
+        lines.append("")
+        lines.append(f"[{row_count} rows x {column_count} columns]")
+        text_representation = "\n".join(lines)
+
+        return {"text/html": html_string, "text/plain": text_representation}
 
     def __delitem__(self, key: str):
         df = self.drop(columns=[key])
