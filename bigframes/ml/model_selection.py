@@ -121,8 +121,8 @@ def train_test_split(
     results = []
     for array in arrays:
         columns = array.name if isinstance(array, bpd.Series) else array.columns
-        results.append(joined_df_train[columns])
-        results.append(joined_df_test[columns])
+        results.append(joined_df_train[columns].cache())
+        results.append(joined_df_test[columns].cache())
 
     return results
 
