@@ -533,6 +533,16 @@ class Index(vendored_pandas_index.Index):
 
         return series.Series(block)
 
+    def isna(self) -> Index:
+        return self._apply_unary_op(ops.isnull_op)
+
+    isnull = isna
+
+    def notna(self) -> Index:
+        return self._apply_unary_op(ops.notnull_op)
+
+    notnull = notna
+
     def fillna(self, value=None) -> Index:
         if self.nlevels > 1:
             raise TypeError("Multiindex does not support 'fillna'")
