@@ -268,8 +268,7 @@ class ArrayValue:
 
     def compute_general_expression(self, assignments: Sequence[ex.Expression]):
         named_exprs = [
-            expression_factoring.NamedExpression(expr, ids.ColumnId.unique())
-            for expr in assignments
+            nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
         # TODO: Jointly fragmentize expressions to more efficiently reuse common sub-expressions
@@ -279,7 +278,7 @@ class ArrayValue:
                 for expr in named_exprs
             )
         )
-        target_ids = tuple(named_expr.name for named_expr in named_exprs)
+        target_ids = tuple(named_expr.id for named_expr in named_exprs)
         new_root = expression_factoring.push_into_tree(self.node, fragments, target_ids)
         return (ArrayValue(new_root), target_ids)
 
