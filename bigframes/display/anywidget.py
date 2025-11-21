@@ -328,6 +328,9 @@ class TableWidget(WIDGET_BASE):
             return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
+        # Reset the sort state to default (no sort)
+        self.sort_column = ""
+        self.sort_ascending = True
 
         # Reset batches to use new page size for future data fetching
         self._reset_batches_for_new_page_size()
