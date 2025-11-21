@@ -14,10 +14,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 from importlib import resources
 import functools
 import math
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type
+from typing import Any, Dict, Iterator, List, Optional, Type
 import uuid
 
 import pandas as pd
@@ -45,6 +46,12 @@ if ANYWIDGET_INSTALLED:
     WIDGET_BASE = anywidget.AnyWidget
 else:
     WIDGET_BASE = object
+
+
+@dataclasses.dataclass(frozen=True)
+class _SortState:
+    column: str
+    ascending: bool
 
 
 class TableWidget(WIDGET_BASE):
@@ -91,17 +98,18 @@ class TableWidget(WIDGET_BASE):
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: List[pd.DataFrame] = []
-        self._last_sort_state: Optional[Tuple[str, bool]] = None
+        self._last_sort_state: Optional[_SortState] = None
 
         # respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
         # set traitlets properties that trigger observers
+        # TODO(b/462525985): Investigate and improve TableWidget UX for DataFrames with a large number of columns.
         self.page_size = initial_page_size
         self.orderable_columns = [
-            col
-            for col in dataframe.columns
-            if dtypes.is_orderable(dataframe.dtypes[col])
+            col_name
+            for col_name, dtype in dataframe.dtypes.items()
+            if dtypes.is_orderable(dtype)
         ]
 
         # obtain the row counts
@@ -248,22 +256,17 @@ class TableWidget(WIDGET_BASE):
         # Apply sorting if a column is selected
         df_to_display = self._dataframe
         if self.sort_column:
-            try:
-                df_to_display = df_to_display.sort_values(
-                    by=self.sort_column, ascending=self.sort_ascending
-                )
-            except KeyError:
-                self._error_message = f"Column '{self.sort_column}' not found. Please select a valid column to sort by."
-                # Revert to unsorted state if sorting fails
-                self.sort_column = ""
+            df_to_display = df_to_display.sort_values(
+                by=self.sort_column, ascending=self.sort_ascending
+            )
 
         # Reset batches when sorting changes
-        if self._last_sort_state != (self.sort_column, self.sort_ascending):
+        if self._last_sort_state != _SortState(self.sort_column, self.sort_ascending):
             self._batches = df_to_display._to_pandas_batches(page_size=self.page_size)
             self._cached_batches = []
             self._batch_iter = None
             self._all_data_loaded = False
-            self._last_sort_state = (self.sort_column, self.sort_ascending)
+            self._last_sort_state = _SortState(self.sort_column, self.sort_ascending)
             self.page = 0  # Reset to first page
 
         start = self.page * self.page_size
