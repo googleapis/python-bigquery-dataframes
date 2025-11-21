@@ -21,13 +21,11 @@ describe("TableWidget", () => {
 	let model;
 	let el;
 	let render;
-	let dom;
 
 	beforeEach(async () => {
 		jest.resetModules();
-		dom = new JSDOM("<!DOCTYPE html><div></div>");
-		global.document = dom.window.document;
-		el = dom.window.document.querySelector("div");
+		document.body.innerHTML = "<div></div>";
+		el = document.body.querySelector("div");
 
 		const tableWidget = (
 			await import("../../bigframes/display/table_widget.js")
@@ -68,7 +66,7 @@ describe("TableWidget", () => {
 				return null;
 			});
 
-			render({ model, el }, dom.window.document);
+			render({ model, el });
 
 			expect(el.classList.contains("bigframes-widget")).toBe(true);
 			expect(el.querySelector(".error-message")).not.toBeNull();
@@ -91,7 +89,7 @@ describe("TableWidget", () => {
 				return null;
 			});
 
-			render({ model, el }, dom.window.document);
+			render({ model, el });
 
 			// Manually trigger the table_html change handler
 			const tableHtmlChangeHandler = model.on.mock.calls.find(
@@ -125,7 +123,7 @@ describe("TableWidget", () => {
 				return null;
 			});
 
-			render({ model, el }, dom.window.document);
+			render({ model, el });
 
 			// Manually trigger the table_html change handler
 			const tableHtmlChangeHandler = model.on.mock.calls.find(
@@ -158,7 +156,7 @@ describe("TableWidget", () => {
 				return null;
 			});
 
-			render({ model, el }, dom.window.document);
+			render({ model, el });
 
 			// Manually trigger the table_html change handler
 			const tableHtmlChangeHandler = model.on.mock.calls.find(
@@ -192,7 +190,7 @@ describe("TableWidget", () => {
 				return null;
 			});
 
-			render({ model, el }, dom.window.document);
+			render({ model, el });
 
 			// Manually trigger the table_html change handler
 			const tableHtmlChangeHandler = model.on.mock.calls.find(

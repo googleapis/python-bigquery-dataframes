@@ -36,12 +36,12 @@ const Event = {
  * @param {{ model: any, el: HTMLElement }} props - The widget properties.
  * @param {Document} doc - The document object to use for creating elements.
  */
-function render({ model, el }, doc) {
+function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
 	// Add error message container at the top
-	const errorContainer = doc.createElement("div");
+	const errorContainer = document.createElement("div");
 	errorContainer.classList.add("error-message");
 	errorContainer.style.display = "none";
 	errorContainer.style.color = "red";
@@ -51,8 +51,8 @@ function render({ model, el }, doc) {
 	errorContainer.style.borderRadius = "4px";
 	errorContainer.style.backgroundColor = "#ffebee";
 
-	const tableContainer = doc.createElement("div");
-	const footer = doc.createElement("div");
+	const tableContainer = document.createElement("div");
+	const footer = document.createElement("div");
 
 	// Footer styles
 	footer.style.display = "flex";
@@ -63,16 +63,16 @@ function render({ model, el }, doc) {
 		'-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
 	// Pagination controls
-	const paginationContainer = doc.createElement("div");
-	const prevPage = doc.createElement("button");
-	const pageIndicator = doc.createElement("span");
-	const nextPage = doc.createElement("button");
-	const rowCountLabel = doc.createElement("span");
+	const paginationContainer = document.createElement("div");
+	const prevPage = document.createElement("button");
+	const pageIndicator = document.createElement("span");
+	const nextPage = document.createElement("button");
+	const rowCountLabel = document.createElement("span");
 
 	// Page size controls
-	const pageSizeContainer = doc.createElement("div");
-	const pageSizeLabel = doc.createElement("label");
-	const pageSizeInput = doc.createElement("select");
+	const pageSizeContainer = document.createElement("div");
+	const pageSizeLabel = document.createElement("label");
+	const pageSizeInput = document.createElement("select");
 
 	prevPage.textContent = "<";
 	nextPage.textContent = ">";
@@ -84,7 +84,7 @@ function render({ model, el }, doc) {
 	// Page size options
 	const pageSizes = [10, 20, 50, 100, 200, 500, 1000];
 	for (const size of pageSizes) {
-		const option = doc.createElement("option");
+		const option = document.createElement("option");
 		option.value = size;
 		option.textContent = size;
 		if (size === model.get(ModelProperty.PAGE_SIZE)) {
@@ -158,7 +158,7 @@ function render({ model, el }, doc) {
 				header.style.cursor = "pointer";
 
 				// Create a span for the indicator
-				const indicatorSpan = doc.createElement("span");
+				const indicatorSpan = document.createElement("span");
 				indicatorSpan.classList.add("sort-indicator");
 				indicatorSpan.style.paddingLeft = "5px";
 
