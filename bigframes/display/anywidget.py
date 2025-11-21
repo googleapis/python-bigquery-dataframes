@@ -239,13 +239,17 @@ class TableWidget(WIDGET_BASE):
             return pd.DataFrame(columns=self._dataframe.columns)
         return pd.concat(self._cached_batches, ignore_index=True)
 
+    def _reset_batch_cache(self) -> None:
+        """Resets batch caching attributes."""
+        self._cached_batches = []
+        self._batch_iter = None
+        self._all_data_loaded = False
+
     def _reset_batches_for_new_page_size(self) -> None:
         """Reset the batch iterator when page size changes."""
         self._batches = self._dataframe._to_pandas_batches(page_size=self.page_size)
 
-        self._cached_batches = []
-        self._batch_iter = None
-        self._all_data_loaded = False
+        self._reset_batch_cache()
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
@@ -265,9 +269,7 @@ class TableWidget(WIDGET_BASE):
         # Reset batches when sorting changes
         if self._last_sort_state != _SortState(self.sort_column, self.sort_ascending):
             self._batches = df_to_display._to_pandas_batches(page_size=self.page_size)
-            self._cached_batches = []
-            self._batch_iter = None
-            self._all_data_loaded = False
+            self._reset_batch_cache()
             self._last_sort_state = _SortState(self.sort_column, self.sort_ascending)
             self.page = 0  # Reset to first page
 
