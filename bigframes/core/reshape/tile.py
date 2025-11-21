@@ -22,6 +22,8 @@ import bigframes_vendored.pandas.core.reshape.tile as vendored_pandas_tile
 import pandas as pd
 
 import bigframes
+import bigframes.constants
+import bigframes.core.expression as ex
 import bigframes.core.ordering as order
 import bigframes.core.utils as utils
 import bigframes.core.window_spec as window_specs
@@ -163,6 +165,7 @@ def qcut(
             f"Only duplicates='drop' is supported in BigQuery DataFrames so far. {constants.FEEDBACK_LINK}"
         )
     block = x._block
+    label = block.col_id_to_label[x._value_column]
     block, nullity_id = block.apply_unary_op(x._value_column, ops.notnull_op)
     block, result = block.apply_window_op(
         x._value_column,
@@ -171,6 +174,9 @@ def qcut(
             grouping_keys=(nullity_id,),
             ordering=(order.ascending_over(x._value_column),),
         ),
+    )
+    block, result = block.project_expr(
+        ops.where_op.as_expr(result, nullity_id, ex.const(None)), label=label
     )
     return bigframes.series.Series(block.select_column(result))
 

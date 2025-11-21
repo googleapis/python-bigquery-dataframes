@@ -23,29 +23,39 @@ WITH `bfcte_0` AS (
 ), `bfcte_3` AS (
   SELECT
     *,
-    NOT `int64_col` IS NULL AS `bfcol_9`
+    IF(`bfcol_4`, `bfcol_5`, NULL) AS `bfcol_6`
   FROM `bfcte_2`
 ), `bfcte_4` AS (
   SELECT
     *,
+    NOT `int64_col` IS NULL AS `bfcol_10`
+  FROM `bfcte_3`
+), `bfcte_5` AS (
+  SELECT
+    *,
     CASE
-      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_9` ORDER BY `int64_col` ASC) < 0
+      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_10` ORDER BY `int64_col` ASC) < 0
       THEN NULL
-      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_9` ORDER BY `int64_col` ASC) <= 0.25
+      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_10` ORDER BY `int64_col` ASC) <= 0.25
       THEN 0
-      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_9` ORDER BY `int64_col` ASC) <= 0.5
+      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_10` ORDER BY `int64_col` ASC) <= 0.5
       THEN 1
-      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_9` ORDER BY `int64_col` ASC) <= 0.75
+      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_10` ORDER BY `int64_col` ASC) <= 0.75
       THEN 2
-      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_9` ORDER BY `int64_col` ASC) <= 1
+      WHEN PERCENT_RANK() OVER (PARTITION BY `bfcol_10` ORDER BY `int64_col` ASC) <= 1
       THEN 3
       ELSE NULL
-    END AS `bfcol_10`
-  FROM `bfcte_3`
+    END AS `bfcol_11`
+  FROM `bfcte_4`
+), `bfcte_6` AS (
+  SELECT
+    *,
+    IF(`bfcol_10`, `bfcol_11`, NULL) AS `bfcol_12`
+  FROM `bfcte_5`
 )
 SELECT
   `rowindex`,
   `int64_col`,
-  `bfcol_5` AS `qcut_w_int`,
-  `bfcol_10` AS `qcut_w_list`
-FROM `bfcte_4`
+  `bfcol_6` AS `qcut_w_int`,
+  `bfcol_12` AS `qcut_w_list`
+FROM `bfcte_6`
