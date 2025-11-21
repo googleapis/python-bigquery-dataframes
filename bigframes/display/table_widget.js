@@ -1,5 +1,5 @@
-/**
- * Copyright 2025 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,24 +26,22 @@ const ModelProperty = {
 };
 
 const Event = {
-	CHANGE: "change",
-	CHANGE_TABLE_HTML: `change:${ModelProperty.TABLE_HTML}`,
 	CLICK: "click",
+	CHANGE: "change",
+	CHANGE_TABLE_HTML: "change:table_html",
 };
 
 /**
  * Renders the interactive table widget.
- * @param {{
- * model: any,
- * el: HTMLElement
- * }} options
+ * @param {{ model: any, el: HTMLElement }} props - The widget properties.
+ * @param {Document} doc - The document object to use for creating elements.
  */
-function render({ model, el }) {
+function render({ model, el }, doc) {
 	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
 	// Add error message container at the top
-	const errorContainer = document.createElement("div");
+	const errorContainer = doc.createElement("div");
 	errorContainer.classList.add("error-message");
 	errorContainer.style.display = "none";
 	errorContainer.style.color = "red";
@@ -53,94 +51,95 @@ function render({ model, el }) {
 	errorContainer.style.borderRadius = "4px";
 	errorContainer.style.backgroundColor = "#ffebee";
 
-	const tableContainer = document.createElement("div");
-	const footer = document.createElement("div");
+	const tableContainer = doc.createElement("div");
+	const footer = doc.createElement("div");
 
-	// Footer: Total rows label
-	const rowCountLabel = document.createElement("div");
+	// Footer styles
+	footer.style.display = "flex";
+	footer.style.justifyContent = "space-between";
+	footer.style.alignItems = "center";
+	footer.style.padding = "8px";
+	footer.style.fontFamily =
+		'-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
-	// Footer: Pagination controls
-	const paginationContainer = document.createElement("div");
-	const prevPage = document.createElement("button");
-	const paginationLabel = document.createElement("span");
-	const nextPage = document.createElement("button");
+	// Pagination controls
+	const paginationContainer = doc.createElement("div");
+	const prevPage = doc.createElement("button");
+	const pageIndicator = doc.createElement("span");
+	const nextPage = doc.createElement("button");
+	const rowCountLabel = doc.createElement("span");
 
-	// Footer: Page size controls
-	const pageSizeContainer = document.createElement("div");
-	const pageSizeLabel = document.createElement("label");
-	const pageSizeSelect = document.createElement("select");
+	// Page size controls
+	const pageSizeContainer = doc.createElement("div");
+	const pageSizeLabel = doc.createElement("label");
+	const pageSizeInput = doc.createElement("select");
 
-	// Add CSS classes
-	tableContainer.classList.add("table-container");
-	footer.classList.add("footer");
-	paginationContainer.classList.add("pagination");
-	pageSizeContainer.classList.add("page-size");
+	prevPage.textContent = "<";
+	nextPage.textContent = ">";
+	pageSizeLabel.textContent = "Page size:";
+	pageSizeLabel.style.marginRight = "8px";
+	pageIndicator.style.margin = "0 8px";
+	rowCountLabel.style.margin = "0 8px";
 
-	// Configure pagination buttons
-	prevPage.type = "button";
-	nextPage.type = "button";
-	prevPage.textContent = "Prev";
-	nextPage.textContent = "Next";
-
-	// Configure page size selector
-	pageSizeLabel.textContent = "Page Size";
-	for (const size of [10, 25, 50, 100]) {
-		const option = document.createElement("option");
+	// Page size options
+	const pageSizes = [10, 20, 50, 100, 200, 500, 1000];
+	for (const size of pageSizes) {
+		const option = doc.createElement("option");
 		option.value = size;
 		option.textContent = size;
 		if (size === model.get(ModelProperty.PAGE_SIZE)) {
 			option.selected = true;
 		}
-		pageSizeSelect.appendChild(option);
+		pageSizeInput.appendChild(option);
 	}
 
 	/** Updates the footer states and page label based on the model. */
 	function updateButtonStates() {
-		const rowCount = model.get(ModelProperty.ROW_COUNT);
-		const pageSize = model.get(ModelProperty.PAGE_SIZE);
 		const currentPage = model.get(ModelProperty.PAGE);
+		const pageSize = model.get(ModelProperty.PAGE_SIZE);
+		const rowCount = model.get(ModelProperty.ROW_COUNT);
 
 		if (rowCount === null) {
 			// Unknown total rows
 			rowCountLabel.textContent = "Total rows unknown";
-			paginationLabel.textContent = `Page ${(currentPage + 1).toLocaleString()} of many`;
+			pageIndicator.textContent = `Page ${(currentPage + 1).toLocaleString()} of many`;
 			prevPage.disabled = currentPage === 0;
 			nextPage.disabled = false; // Allow navigation until we hit the end
 		} else {
 			// Known total rows
 			const totalPages = Math.ceil(rowCount / pageSize);
 			rowCountLabel.textContent = `${rowCount.toLocaleString()} total rows`;
-			paginationLabel.textContent = `Page ${(currentPage + 1).toLocaleString()} of ${rowCount.toLocaleString()}`;
+			pageIndicator.textContent = `Page ${(currentPage + 1).toLocaleString()} of ${totalPages.toLocaleString()}`;
 			prevPage.disabled = currentPage === 0;
 			nextPage.disabled = currentPage >= totalPages - 1;
 		}
-		pageSizeSelect.value = pageSize;
+		pageSizeInput.value = pageSize;
 	}
 
 	/**
-	 * Increments or decrements the page in the model.
-	 * @param {number} direction - `1` for next, `-1` for previous.
+	 * Handles page navigation.
+	 * @param {number} direction - The direction to navigate (-1 for previous, 1 for next).
 	 */
 	function handlePageChange(direction) {
-		const current = model.get(ModelProperty.PAGE);
-		const next = current + direction;
-		model.set(ModelProperty.PAGE, next);
+		const currentPage = model.get(ModelProperty.PAGE);
+		model.set(ModelProperty.PAGE, currentPage + direction);
 		model.save_changes();
 	}
 
 	/**
-	 * Handles changes to the page size from the dropdown.
-	 * @param {number} size - The new page size.
+	 * Handles page size changes.
+	 * @param {number} newSize - The new page size.
 	 */
-	function handlePageSizeChange(size) {
-		const currentSize = model.get(ModelProperty.PAGE_SIZE);
-		if (size !== currentSize) {
-			model.set(ModelProperty.PAGE_SIZE, size);
-			model.save_changes();
-		}
+	function handlePageSizeChange(newSize) {
+		model.set(ModelProperty.PAGE_SIZE, newSize);
+		model.set(ModelProperty.PAGE, 0); // Reset to first page
+		model.save_changes();
 	}
 
+	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
+		// Note: Using innerHTML is safe here because the content is generated
+		// by a trusted backend (DataFrame.to_html).
 		tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
 
 		// Get sortable columns from backend
@@ -159,7 +158,7 @@ function render({ model, el }) {
 				header.style.cursor = "pointer";
 
 				// Create a span for the indicator
-				const indicatorSpan = document.createElement("span");
+				const indicatorSpan = doc.createElement("span");
 				indicatorSpan.classList.add("sort-indicator");
 				indicatorSpan.style.paddingLeft = "5px";
 
@@ -230,7 +229,7 @@ function render({ model, el }) {
 	// Add event listeners
 	prevPage.addEventListener(Event.CLICK, () => handlePageChange(-1));
 	nextPage.addEventListener(Event.CLICK, () => handlePageChange(1));
-	pageSizeSelect.addEventListener(Event.CHANGE, (e) => {
+	pageSizeInput.addEventListener(Event.CHANGE, (e) => {
 		const newSize = Number(e.target.value);
 		if (newSize) {
 			handlePageSizeChange(newSize);
@@ -244,14 +243,15 @@ function render({ model, el }) {
 			updateButtonStates();
 		}
 	});
+	model.on(`change:${ModelProperty.PAGE}`, updateButtonStates);
 
 	// Assemble the DOM
 	paginationContainer.appendChild(prevPage);
-	paginationContainer.appendChild(paginationLabel);
+	paginationContainer.appendChild(pageIndicator);
 	paginationContainer.appendChild(nextPage);
 
 	pageSizeContainer.appendChild(pageSizeLabel);
-	pageSizeContainer.appendChild(pageSizeSelect);
+	pageSizeContainer.appendChild(pageSizeInput);
 
 	footer.appendChild(rowCountLabel);
 	footer.appendChild(paginationContainer);

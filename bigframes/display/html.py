@@ -50,8 +50,15 @@ def render_html(
         if col in orderable_columns:
             th_classes.append("sortable")
         class_str = f'class="{" ".join(th_classes)}"' if th_classes else ""
+        header_div = (
+            '<div style="resize: horizontal; overflow: auto; '
+            "box-sizing: border-box; width: 100%; height: 100%; "
+            'padding: 0.5em;">'
+            f"{html.escape(str(col))}"
+            "</div>"
+        )
         table_html.append(
-            f'      <th style="text-align: left;" {class_str}><div style="resize: horizontal; overflow: auto; box-sizing: border-box; width: 100%; height: 100%; padding: 0.5em;">{html.escape(str(col))}</div></th>'
+            f'      <th style="text-align: left;" {class_str}>{header_div}</th>'
         )
     table_html.append("    </tr>")
     table_html.append("  </thead>")

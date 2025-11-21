@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""A scrollable, paginated table widget for BigQuery DataFrames."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -107,7 +109,7 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/462525985): Investigate and improve TableWidget UX for DataFrames with a large number of columns.
         self.page_size = initial_page_size
         self.orderable_columns = [
-            col_name
+            str(col_name)
             for col_name, dtype in dataframe.dtypes.items()
             if dtypes.is_orderable(dtype)
         ]

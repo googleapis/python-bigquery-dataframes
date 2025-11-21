@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""System tests for the anywidget-based table widget."""
 
 import pandas as pd
 import pytest
