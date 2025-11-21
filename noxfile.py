@@ -308,6 +308,7 @@ def mypy(session):
 
 
 def install_systemtest_dependencies(session, install_test_extra, *constraints):
+    session.run("pip", "install", "--upgrade", "pip")
     # Use pre-release gRPC for system tests.
     # Exclude version 1.49.0rc1 which has a known issue.
     # See https://github.com/grpc/grpc/pull/30642

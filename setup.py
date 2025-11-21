@@ -57,7 +57,6 @@ dependencies = [
     # 25.20.0 introduces this fix https://github.com/TobikoData/sqlmesh/issues/3095 for rtrim/ltrim.
     "sqlglot >=25.20.0",
     "tabulate >=0.9",
-    "ipywidgets >=7.7.1",
     "humanize >=4.6.0",
     "matplotlib >=3.7.1",
     "db-dtypes >=1.4.2",
@@ -90,6 +89,7 @@ extras = {
     # install anywidget for SQL
     "anywidget": [
         "anywidget>=0.9.18",
+        "ipywidgets>=7.7.1",
         "traitlets>=5.0.0",
     ],
 }
