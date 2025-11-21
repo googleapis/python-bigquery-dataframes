@@ -838,8 +838,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
-        # Process blob columns first for non-deferred modes
-        df, blob_cols = self._process_blob_columns()
+        df, blob_cols = self._get_display_df_and_blob_cols()
 
         pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
@@ -852,9 +851,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             pandas_df, row_count, column_count, blob_cols
         )
 
-    def _process_blob_columns(self) -> tuple[DataFrame, list[str]]:
+    def _get_display_df_and_blob_cols(self) -> tuple[DataFrame, list[str]]:
         """Process blob columns for display."""
-        self._cached()
         df = self
         blob_cols = []
         if bigframes.options.display.blob_display:
@@ -866,6 +864,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if blob_cols:
                 df = self.copy()
                 for col in blob_cols:
+                    # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
                     df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
         return df, blob_cols
 
@@ -876,7 +875,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """
         from bigframes import display
 
-        df, _ = self._process_blob_columns()
+        # TODO(shuowei): Keep blob_cols and pass them to TableWidget so that they can render properly.
+        df, _ = self._get_display_df_and_blob_cols()
 
         # Create and display the widget
         widget = display.TableWidget(df)
@@ -940,21 +940,21 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                 return self._get_anywidget_bundle(include=include, exclude=exclude)
 
             except ImportError:
-                # Fallback: let IPython use _repr_html_fallback() instead
+                # Anywidget is an optional dependency, so warn rather than fail.
+                # TODO(shuowei): When Anywidget becomes the default for all repr modes,
+                # remove this warning.
                 warnings.warn(
                     "Anywidget mode is not available. "
                     "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
                     f"Falling back to static HTML. Error: {traceback.format_exc()}"
                 )
-                # Don't return anything - let IPython fall back to _repr_html_fallback()
-                pass
 
         # In non-anywidget mode, fetch data once and use it for both HTML
         # and plain text representations to avoid multiple queries.
         opts = bigframes.options.display
         max_results = opts.max_rows
 
-        df, blob_cols = self._process_blob_columns()
+        df, blob_cols = self._get_display_df_and_blob_cols()
 
         pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
