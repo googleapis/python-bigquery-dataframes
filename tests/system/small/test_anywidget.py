@@ -13,7 +13,8 @@
 # limitations under the License.
 
 
-import unittest.mock as mock
+from typing import Any
+from unittest import mock
 
 import pandas as pd
 import pytest
@@ -100,6 +101,33 @@ def small_widget(small_bf_df):
         yield TableWidget(small_bf_df)
 
 
+@pytest.fixture
+def unknown_row_count_widget(session):
+    """Fixture to create a TableWidget with an unknown row count."""
+    from bigframes.core import blocks
+    from bigframes.display import TableWidget
+
+    # Create a small DataFrame with known content
+    test_data = pd.DataFrame(
+        {
+            "id": [0, 1, 2, 3, 4],
+            "value": ["row_0", "row_1", "row_2", "row_3", "row_4"],
+        }
+    )
+    bf_df = session.read_pandas(test_data)
+
+    # Simulate a scenario where total_rows is not available from the iterator
+    with mock.patch.object(bf_df, "_to_pandas_batches") as mock_batches:
+        # We need to provide an iterator of DataFrames, not Series
+        batches_iterator = iter([test_data])
+        mock_batches.return_value = blocks.PandasBatches(
+            batches_iterator, total_rows=None
+        )
+        with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+            widget = TableWidget(bf_df)
+            yield widget
+
+
 @pytest.fixture(scope="module")
 def empty_pandas_df() -> pd.DataFrame:
     """Create an empty DataFrame for edge case testing."""
@@ -131,7 +159,7 @@ def mock_execute_result_with_params(
             return ExecutionMetadata()
 
         @property
-        def schema(self):
+        def schema(self) -> Any:
             return schema
 
         def batches(self) -> ResultsIterator:
@@ -183,10 +211,10 @@ def test_widget_initialization_should_default_to_page_zero(
     table_widget,
 ):
     """
-    Given a new TableWidget, when it is initialized,
-    then its page number should default to 0.
+    A TableWidget should initialize with page 0 and the correct page size.
     """
-
+    # The `table_widget` fixture already creates the widget.
+    # Assert its state.
     assert table_widget.page == 0
     assert table_widget.page_size == EXPECTED_PAGE_SIZE
 
@@ -309,15 +337,21 @@ def test_widget_with_few_rows_should_display_all_rows(small_widget, small_pandas
 
 def test_navigation_beyond_last_page_should_be_clamped(small_widget):
     """
-    Given a DataFrame smaller than the page size,
-    when navigating beyond the last page,
-    then the page should be clamped to the last valid page (page 0).
+    Given a DataFrame with a small number of rows, the widget should
+    report the correct total row count and prevent navigation beyond
+    the first page, ensuring the frontend correctly displays "Page 1 of 1".
     """
+    # For a DataFrame with 2 rows and page_size 5 (from small_widget fixture),
+    # the frontend should calculate 1 total page.
+    assert small_widget.row_count == 2
+
+    # The widget should always be on page 0 for a single-page dataset.
     assert small_widget.page == 0
 
-    small_widget.page = 1  # Attempt to navigate past the end
-
-    assert small_widget.page == 0  # Should be clamped back to the only valid page
+    # Attempting to navigate to page 1 should be clamped back to page 0,
+    # confirming that only one page is recognized by the backend.
+    small_widget.page = 1
+    assert small_widget.page == 0
 
 
 def test_global_options_change_should_not_affect_existing_widget_page_size(
@@ -434,8 +468,10 @@ def test_navigation_after_page_size_change_should_use_new_size(
 
 @pytest.mark.parametrize("invalid_size", [0, -5], ids=["zero", "negative"])
 def test_setting_invalid_page_size_should_be_ignored(table_widget, invalid_size: int):
-    """When the page size is set to an invalid number (<=0), the change should
-    be ignored."""
+    """
+    When the page size is set to an invalid number (<=0), the change should
+    be ignored.
+    """
     # Set the initial page to 2.
     initial_size = table_widget.page_size
     assert initial_size == 2
