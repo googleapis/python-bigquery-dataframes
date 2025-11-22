@@ -1133,6 +1133,11 @@ class Series(vendored_pandas_series.Series):
             block_ops.nsmallest(self._block, n, [self._value_column], keep=keep)
         )
 
+    def squeeze(self, axis=None):
+        if len(self) == 1:
+            return self.to_pandas().iloc[0]
+        return self
+
     def isin(self, values) -> "Series":
         if isinstance(values, Series):
             return Series(self._block.isin(values._block))
