@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A scrollable, paginated table widget for BigQuery DataFrames."""
+"""Interactive, paginated table widget for BigFrames DataFrames."""
 
 from __future__ import annotations
 
