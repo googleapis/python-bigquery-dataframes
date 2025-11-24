@@ -28,7 +28,10 @@
 	align-items: center;
 	display: flex;
 	font-size: 0.8rem;
-	padding-top: 8px;
+	justify-content: space-between;
+	padding: 8px;
+	font-family:
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .bigframes-widget .footer > * {
@@ -44,12 +47,24 @@
 	padding: 4px;
 }
 
+.bigframes-widget .page-indicator {
+	margin: 0 8px;
+}
+
+.bigframes-widget .row-count {
+	margin: 0 8px;
+}
+
 .bigframes-widget .page-size {
 	align-items: center;
 	display: flex;
 	flex-direction: row;
 	gap: 4px;
 	justify-content: end;
+}
+
+.bigframes-widget .page-size label {
+	margin-right: 8px;
 }
 
 .bigframes-widget table {
@@ -91,4 +106,9 @@
 	font-family:
 		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	font-size: 14px;
+	padding: 8px;
+	margin-bottom: 8px;
+	border: 1px solid red;
+	border-radius: 4px;
+	background-color: #ffebee;
 }

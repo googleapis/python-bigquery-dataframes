@@ -43,46 +43,34 @@ function render({ model, el }) {
 	// Add error message container at the top
 	const errorContainer = document.createElement("div");
 	errorContainer.classList.add("error-message");
-	errorContainer.style.display = "none";
-	errorContainer.style.color = "red";
-	errorContainer.style.padding = "8px";
-	errorContainer.style.marginBottom = "8px";
-	errorContainer.style.border = "1px solid red";
-	errorContainer.style.borderRadius = "4px";
-	errorContainer.style.backgroundColor = "#ffebee";
 
 	const tableContainer = document.createElement("div");
-	const footer = document.createElement("div");
-
-	// Footer styles
-	footer.style.display = "flex";
-	footer.style.justifyContent = "space-between";
-	footer.style.alignItems = "center";
-	footer.style.padding = "8px";
-	footer.style.fontFamily =
-		'-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+	tableContainer.classList.add("table-container");
+	const footer = document.createElement("footer");
+	footer.classList.add("footer");
 
 	// Pagination controls
 	const paginationContainer = document.createElement("div");
+	paginationContainer.classList.add("pagination");
 	const prevPage = document.createElement("button");
 	const pageIndicator = document.createElement("span");
+	pageIndicator.classList.add("page-indicator");
 	const nextPage = document.createElement("button");
 	const rowCountLabel = document.createElement("span");
+	rowCountLabel.classList.add("row-count");
 
 	// Page size controls
 	const pageSizeContainer = document.createElement("div");
+	pageSizeContainer.classList.add("page-size");
 	const pageSizeLabel = document.createElement("label");
 	const pageSizeInput = document.createElement("select");
 
 	prevPage.textContent = "<";
 	nextPage.textContent = ">";
 	pageSizeLabel.textContent = "Page size:";
-	pageSizeLabel.style.marginRight = "8px";
-	pageIndicator.style.margin = "0 8px";
-	rowCountLabel.style.margin = "0 8px";
 
 	// Page size options
-	const pageSizes = [10, 20, 50, 100, 200, 500, 1000];
+	const pageSizes = [10, 25, 50, 100];
 	for (const size of pageSizes) {
 		const option = document.createElement("option");
 		option.value = size;
