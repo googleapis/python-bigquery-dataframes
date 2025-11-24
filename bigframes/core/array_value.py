@@ -268,8 +268,7 @@ class ArrayValue:
 
     def compute_general_expression(self, assignments: Sequence[ex.Expression]):
         named_exprs = [
-            expression_factoring.NamedExpression(expr, ids.ColumnId.unique())
-            for expr in assignments
+            nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
         # TODO: Jointly fragmentize expressions to more efficiently reuse common sub-expressions
@@ -279,7 +278,7 @@ class ArrayValue:
                 for expr in named_exprs
             )
         )
-        target_ids = tuple(named_expr.name for named_expr in named_exprs)
+        target_ids = tuple(named_expr.id for named_expr in named_exprs)
         new_root = expression_factoring.push_into_tree(self.node, fragments, target_ids)
         return (ArrayValue(new_root), target_ids)
 
@@ -401,52 +400,26 @@ class ArrayValue:
             )
         )
 
-    def project_window_op(
-        self,
-        column_name: str,
-        op: agg_ops.UnaryWindowOp,
-        window_spec: WindowSpec,
-        *,
-        never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
-    ) -> Tuple[ArrayValue, str]:
-        """
-        Creates a new expression based on this expression with unary operation applied to one column.
-        column_name: the id of the input column present in the expression
-        op: the windowable operator to apply to the input column
-        window_spec: a specification of the window over which to apply the operator
-        output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
-        never_skip_nulls: will disable null skipping for operators that would otherwise do so
-        skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
-        """
-
-        return self.project_window_expr(
-            agg_expressions.UnaryAggregation(op, ex.deref(column_name)),
-            window_spec,
-            never_skip_nulls,
-            skip_reproject_unsafe,
-        )
-
     def project_window_expr(
         self,
-        expression: agg_expressions.Aggregation,
+        expressions: Sequence[agg_expressions.Aggregation],
         window: WindowSpec,
-        never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
     ):
-        output_name = self._gen_namespaced_uid()
+        id_strings = [self._gen_namespaced_uid() for _ in expressions]
+        agg_exprs = tuple(
+            nodes.ColumnDef(expression, ids.ColumnId(id_str))
+            for expression, id_str in zip(expressions, id_strings)
+        )
+
         return (
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    expression=expression,
+                    agg_exprs=agg_exprs,
                     window_spec=window,
-                    output_name=ids.ColumnId(output_name),
-                    never_skip_nulls=never_skip_nulls,
-                    skip_reproject_unsafe=skip_reproject_unsafe,
                 )
             ),
-            output_name,
+            id_strings,
         )
 
     def isin(
