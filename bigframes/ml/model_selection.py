@@ -110,7 +110,6 @@ def train_test_split(
     joined_df = dfs[0]
     for df in dfs[1:]:
         joined_df = joined_df.join(df, how="outer")
-    joined_df = joined_df.cache()
     if stratify is None:
         joined_df_train, joined_df_test = joined_df._split(
             fracs=(train_size, test_size), random_state=random_state
@@ -118,11 +117,14 @@ def train_test_split(
     else:
         joined_df_train, joined_df_test = _stratify_split(joined_df, stratify)
 
+    joined_df_train = joined_df_train.cache()
+    joined_df_test = joined_df_test.cache()
+
     results = []
     for array in arrays:
         columns = array.name if isinstance(array, bpd.Series) else array.columns
-        results.append(joined_df_train[columns].cache())
-        results.append(joined_df_test[columns].cache())
+        results.append(joined_df_train[columns])
+        results.append(joined_df_test[columns])
 
     return results
 
