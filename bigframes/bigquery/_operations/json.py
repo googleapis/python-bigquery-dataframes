@@ -441,7 +441,8 @@ def json_keys(
         input (bigframes.series.Series):
             The Series containing JSON data.
         max_depth (int, optional):
-            Specifies the maximum depth of nested fields to search for keys.
+            Specifies the maximum depth of nested fields to search for keys. If not
+            provided, searched keys at all levels.
 
     Returns:
         bigframes.series.Series: A new Series containing arrays of keys from the input JSON.
