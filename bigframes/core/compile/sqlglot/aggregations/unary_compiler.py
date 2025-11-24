@@ -386,6 +386,17 @@ def _(
     return apply_window_if_present(sge.func("MIN", column.expr), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.NuniqueOp)
+def _(
+    op: agg_ops.NuniqueOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(
+        sge.func("COUNT", sge.Distinct(expressions=[column.expr])), window
+    )
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.PopVarOp)
 def _(
     op: agg_ops.PopVarOp,
