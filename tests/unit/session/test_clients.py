@@ -180,11 +180,7 @@ def test_user_agent_not_in_vscode(monkeypatch):
 
 
 @mock.patch.dict(os.environ, {"VSCODE_PID": "12345"}, clear=True)
-@mock.patch(
-    "bigframes.session.environment.is_vscode_google_cloud_code_extension_installed",
-    return_value=False,
-)
-def test_user_agent_in_vscode(mock_is_installed, monkeypatch):
+def test_user_agent_in_vscode(monkeypatch):
     monkeypatch_client_constructors(monkeypatch)
     provider = create_clients_provider()
     assert_clients_w_user_agent(provider, "vscode")
