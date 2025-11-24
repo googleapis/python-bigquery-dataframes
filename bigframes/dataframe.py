@@ -4201,7 +4201,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         column: typing.Union[blocks.Label, typing.Sequence[blocks.Label]],
         *,
         ignore_index: Optional[bool] = False,
+        pad: Optional[bool] = False,
     ) -> DataFrame:
+        """
+        Transform each element of a list-like to a row, replicating index values.
+
+        Args:
+            column: Column(s) to explode.
+            ignore_index: If True, the resulting index will be labeled 0, 1, …, n - 1.
+            pad: If True and multiple columns are exploded, use maximum array length
+                 with NULL padding for shorter arrays. If False (default), use minimum
+                 array length (pandas-compatible behavior).
+        """
         column_labels = bigframes.core.explode.check_column(column)
 
         column_ids = [self._resolve_label_exact(label) for label in column_labels]
@@ -4215,6 +4226,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             self._block.explode(
                 column_ids=typing.cast(typing.Sequence[str], tuple(column_ids)),
                 ignore_index=ignore_index,
+                pad=pad,
             )
         )
 

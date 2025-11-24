@@ -424,6 +424,7 @@ class SQLGlotIR:
         self,
         column_names: tuple[str, ...],
         offsets_col: typing.Optional[str],
+        pad: bool = False,
     ) -> SQLGlotIR:
         """Unnests one or more array columns."""
         num_columns = len(list(column_names))
@@ -431,7 +432,7 @@ class SQLGlotIR:
         if num_columns == 1:
             return self._explode_single_column(column_names[0], offsets_col)
         else:
-            return self._explode_multiple_columns(column_names, offsets_col)
+            return self._explode_multiple_columns(column_names, offsets_col, pad)
 
     def sample(self, fraction: float) -> SQLGlotIR:
         """Uniform samples a fraction of the rows."""
@@ -569,8 +570,16 @@ class SQLGlotIR:
         self,
         column_names: tuple[str, ...],
         offsets_col: typing.Optional[str],
+        pad: bool = False,
     ) -> SQLGlotIR:
-        """Helper method to handle the case of exploding multiple columns."""
+        """Helper method to handle the case of exploding multiple columns.
+
+        Args:
+            column_names: Columns to explode
+            offsets_col: Optional column for offsets
+            pad: If True, use GREATEST (max length with NULL padding).
+                 If False, use LEAST (min length, pandas-compatible).
+        """
         offset = (
             sge.to_identifier(offsets_col, quoted=self.quoted) if offsets_col else None
         )
@@ -579,17 +588,17 @@ class SQLGlotIR:
             for column_name in column_names
         ]
 
-        # If there are multiple columns, we need to unnest by zipping the arrays:
-        # https://cloud.google.com/bigquery/docs/arrays#zipping_arrays
-        column_lengths = [
-            sge.func("ARRAY_LENGTH", sge.to_identifier(column, quoted=self.quoted)) - 1
-            for column in columns
-        ]
+        # Calculate array lengths
+        column_lengths = [sge.func("ARRAY_LENGTH", column) - 1 for column in columns]
+
+        # Use GREATEST for max length (with padding) or LEAST for min length (default)
+        length_func = "GREATEST" if pad else "LEAST"
         generate_array = sge.func(
             "GENERATE_ARRAY",
             sge.convert(0),
-            sge.func("LEAST", *column_lengths),
+            sge.func(length_func, *column_lengths),
         )
+
         unnested_offset_alias = sge.to_identifier(
             next(self.uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
         )
@@ -598,17 +607,20 @@ class SQLGlotIR:
             alias=sge.TableAlias(columns=[unnested_offset_alias]),
             offset=offset,
         )
+
+        # Always use SAFE_OFFSET for robustness
         selection = sge.Star(
             replace=[
                 sge.Bracket(
                     this=column,
                     expressions=[unnested_offset_alias],
-                    safe=True,
+                    safe=True,  # SAFE_OFFSET returns NULL if index doesn't exist
                     offset=False,
                 ).as_(column)
                 for column in columns
             ]
         )
+
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(

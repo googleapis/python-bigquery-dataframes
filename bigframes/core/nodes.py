@@ -1571,6 +1571,7 @@ class RandomSampleNode(UnaryNode):
 @dataclasses.dataclass(frozen=True, eq=False)
 class ExplodeNode(UnaryNode):
     column_ids: typing.Tuple[ex.DerefOp, ...]
+    pad: bool = False
     # Offsets are generated only if this is non-null
     offsets_col: Optional[identifiers.ColumnId] = None
 

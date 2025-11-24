@@ -1535,6 +1535,7 @@ class Block:
         self,
         column_ids: typing.Sequence[str],
         ignore_index: Optional[bool],
+        pad: Optional[bool] = False,
     ) -> Block:
         column_ids = [
             column_id
@@ -1544,7 +1545,7 @@ class Block:
         if len(column_ids) == 0:
             expr = self.expr
         else:
-            expr = self.expr.explode(column_ids)
+            expr = self.expr.explode(column_ids, pad=typing.cast(bool, pad))
 
         if ignore_index:
             expr = expr.drop_columns(self.index_columns)

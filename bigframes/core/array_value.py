@@ -532,13 +532,17 @@ class ArrayValue:
             return ArrayValue(result)
         return None
 
-    def explode(self, column_ids: typing.Sequence[str]) -> ArrayValue:
+    def explode(
+        self, column_ids: typing.Sequence[str], pad: bool = False
+    ) -> ArrayValue:
         assert len(column_ids) > 0
         for column_id in column_ids:
             assert bigframes.dtypes.is_array_like(self.get_column_type(column_id))
 
         offsets = tuple(ex.deref(id) for id in column_ids)
-        return ArrayValue(nodes.ExplodeNode(child=self.node, column_ids=offsets))
+        return ArrayValue(
+            nodes.ExplodeNode(child=self.node, column_ids=offsets, pad=pad)
+        )
 
     def _uniform_sampling(self, fraction: float) -> ArrayValue:
         """Sampling the table on given fraction.

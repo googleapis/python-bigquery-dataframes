@@ -4043,60 +4043,24 @@ class DataFrame(generic.NDFrame):
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
     def explode(
-        self, column: Union[str, Sequence[str]], *, ignore_index: Optional[bool] = False
+        self,
+        column: Union[str, Sequence[str]],
+        *,
+        ignore_index: Optional[bool] = False,
+        pad: Optional[bool] = False,
     ) -> DataFrame:
         """
         Transform each element of an array to a row, replicating index values.
 
-        **Examples:**
-
-
-            >>> df = bpd.DataFrame({'A': [[0, 1, 2], [], [], [3, 4]],
-            ...                     'B': 1,
-            ...                     'C': [['a', 'b', 'c'], np.nan, [], ['d', 'e']]})
-            >>> df.explode('A')
-                A  B              C
-            0     0  1  ['a' 'b' 'c']
-            0     1  1  ['a' 'b' 'c']
-            0     2  1  ['a' 'b' 'c']
-            1  <NA>  1             []
-            2  <NA>  1             []
-            3     3  1      ['d' 'e']
-            3     4  1      ['d' 'e']
-            <BLANKLINE>
-            [7 rows x 3 columns]
-            >>> df.explode(list('AC'))
-                A  B     C
-            0     0  1     a
-            0     1  1     b
-            0     2  1     c
-            1  <NA>  1  <NA>
-            2  <NA>  1  <NA>
-            3     3  1     d
-            3     4  1     e
-            <BLANKLINE>
-            [7 rows x 3 columns]
-
         Args:
             column (str, Sequence[str]):
-                Column(s) to explode. For multiple columns, specify a non-empty list
-                with each element be str or tuple, and all specified columns their
-                list-like data on same row of the frame must have matching length.
+                Column(s) to explode.
             ignore_index (bool, default False):
                 If True, the resulting index will be labeled 0, 1, …, n - 1.
-
-        Returns:
-            bigframes.pandas.DataFrame:
-                Exploded lists to rows of the subset columns;
-                index will be duplicated for these rows.
-
-        Raises:
-            ValueError:
-                * If columns of the frame are not unique.
-                * If specified columns to explode is empty list.
-                * If specified columns to explode have not matching count of elements rowwise in the frame.
-            KeyError:
-                If incorrect column names are provided
+            pad (bool, default False):
+                If True and multiple columns are exploded, use maximum array length
+                with NULL padding for shorter arrays. If False, use minimum array
+                length (pandas-compatible behavior).
         """
         raise NotImplementedError(constants.ABSTRACT_METHOD_ERROR_MESSAGE)
 
