@@ -443,6 +443,25 @@ def test_pop_var(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql_window, "window_out.sql")
 
 
+def test_product(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.ProductOp().as_expr(col_name)
+    sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
+
+    snapshot.assert_match(sql, "out.sql")
+
+    bf_df_str = scalar_types_df[[col_name, "string_col"]]
+    window_partition = window_spec.WindowSpec(
+        grouping_keys=(expression.deref("string_col"),),
+    )
+    sql_window_partition = _apply_unary_window_op(
+        bf_df_str, agg_expr, window_partition, "agg_int64"
+    )
+
+    snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
+
+
 def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
     if sys.version_info < (3, 12):
         pytest.skip(
