@@ -721,11 +721,6 @@ def test_widget_with_unknown_row_count_empty_dataframe(
         assert widget.page == 0
 
 
-# TODO(shuowei): Add tests for custom index and multiindex
-# This may not be necessary for the SQL Cell use case but should be
-# considered for completeness.
-
-
 def test_widget_sort_should_sort_ascending_on_first_click(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
@@ -817,3 +812,55 @@ def test_widget_sort_should_reset_on_page_size_change(
     html = table_widget.table_html
 
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def integer_column_df(session):
+    """Create a DataFrame with integer column labels."""
+    pandas_df = pd.DataFrame([[0, 1], [2, 3]], columns=pd.Index([1, 2]))
+    return session.read_pandas(pandas_df)
+
+
+@pytest.fixture(scope="module")
+def multiindex_column_df(session):
+    """Create a DataFrame with MultiIndex column labels."""
+    pandas_df = pd.DataFrame(
+        {
+            "foo": ["one", "one", "one", "two", "two", "two"],
+            "bar": ["A", "B", "C", "A", "B", "C"],
+            "baz": [1, 2, 3, 4, 5, 6],
+            "zoo": ["x", "y", "z", "q", "w", "t"],
+        }
+    )
+    df = session.read_pandas(pandas_df)
+    # The session is attached to `df` through the constructor.
+    # We can pass it to the pivoted DataFrame.
+    pdf = df.pivot(index="foo", columns="bar", values=["baz", "zoo"])
+    return pdf
+
+
+def test_table_widget_integer_columns_disables_sorting(integer_column_df):
+    """
+    Given a DataFrame with integer column labels, the widget should
+    disable sorting.
+    """
+    from bigframes.display import TableWidget
+
+    widget = TableWidget(integer_column_df)
+    assert widget.orderable_columns == []
+
+
+def test_table_widget_multiindex_columns_disables_sorting(multiindex_column_df):
+    """
+    Given a DataFrame with a MultiIndex for columns, the widget should
+    disable sorting.
+    """
+    from bigframes.display import TableWidget
+
+    widget = TableWidget(multiindex_column_df)
+    assert widget.orderable_columns == []
+
+
+# TODO(shuowei): Add tests for custom index and multiindex
+# This may not be necessary for the SQL Cell use case but should be
+# considered for completeness.

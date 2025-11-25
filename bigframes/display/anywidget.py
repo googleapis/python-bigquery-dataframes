@@ -108,11 +108,15 @@ class TableWidget(WIDGET_BASE):
         # set traitlets properties that trigger observers
         # TODO(b/462525985): Investigate and improve TableWidget UX for DataFrames with a large number of columns.
         self.page_size = initial_page_size
-        self.orderable_columns = [
-            str(col_name)
-            for col_name, dtype in dataframe.dtypes.items()
-            if dtypes.is_orderable(dtype)
-        ]
+        # TODO(b/463754889): Support non-string column labels for sorting.
+        if all(isinstance(col, str) for col in dataframe.columns):
+            self.orderable_columns = [
+                col_name
+                for col_name, dtype in dataframe.dtypes.items()
+                if dtypes.is_orderable(dtype)
+            ]
+        else:
+            self.orderable_columns = []
 
         # obtain the row counts
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
@@ -262,6 +266,7 @@ class TableWidget(WIDGET_BASE):
         # Apply sorting if a column is selected
         df_to_display = self._dataframe
         if self.sort_column:
+            # TODO(b/463715504): Support sorting by index columns.
             df_to_display = df_to_display.sort_values(
                 by=self.sort_column, ascending=self.sort_ascending
             )
