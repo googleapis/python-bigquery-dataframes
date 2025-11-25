@@ -136,12 +136,16 @@ class TableWidget(WIDGET_BASE):
             self.row_count = self._batches.total_rows
 
         # get the initial page
-        self._get_next_batch()
         self._set_table_html()
 
         # Signals to the frontend that the initial data load is complete.
         # Also used as a guard to prevent observers from firing during initialization.
         self._initial_load_complete = True
+
+    @traitlets.observe("_initial_load_complete")
+    def _on_initial_load_complete(self, change: Dict[str, Any]):
+        if change["new"]:
+            self._set_table_html()
 
     @functools.cached_property
     def _esm(self):
