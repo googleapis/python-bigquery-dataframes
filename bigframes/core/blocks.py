@@ -1167,6 +1167,58 @@ class Block:
             index_labels=self._index_labels,
         )
 
+    # This is a new experimental version of the aggregate that supports mixing analytic and scalar expressions\
+    def reduce_general(
+        self,
+        aggregations: typing.Sequence[ex.Expression] = (),
+        by_column_ids: typing.Sequence[str] = (),
+        column_labels: Optional[pd.Index] = None,
+        *,
+        dropna: bool = True,
+    ) -> typing.Tuple[Block, typing.Sequence[str]]:
+        """
+        Apply aggregations to the block.
+
+        Arguments:
+            by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
+            aggregations: input_column_id, operation tuples
+            dropna: whether null keys should be dropped
+
+        Returns:
+            Tuple[Block, Sequence[str]]:
+                The first element is the grouped block. The second is the
+                column IDs corresponding to each applied aggregation.
+        """
+        if column_labels is None:
+            column_labels = pd.Index(range(len(aggregations)))
+
+        result_expr, output_col_ids = self.expr.compute_general_reduction(
+            aggregations, by_column_ids, dropna=dropna
+        )
+
+        names: typing.List[Label] = []
+        if len(by_column_ids) == 0:
+            result_expr, label_id = result_expr.create_constant(0, pd.Int64Dtype())
+            index_columns = (label_id,)
+            names = [None]
+        else:
+            index_columns = tuple(by_column_ids)  # type: ignore
+            for by_col_id in by_column_ids:
+                if by_col_id in self.value_columns:
+                    names.append(self.col_id_to_label[by_col_id])
+                else:
+                    names.append(self.col_id_to_index_name[by_col_id])
+
+        return (
+            Block(
+                result_expr,
+                index_columns=index_columns,
+                column_labels=column_labels,
+                index_labels=names,
+            ),
+            [id.name for id in output_col_ids],
+        )
+
     def apply_window_op(
         self,
         column: str,

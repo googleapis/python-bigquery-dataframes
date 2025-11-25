@@ -64,8 +64,11 @@ def plan_general_aggregation(
     plan = nodes.ProjectionNode(
         plan, tuple((cdef.expression, cdef.id) for cdef in post_scalar_exprs)
     )
+    final_ids = itertools.chain(
+        (ref.id for ref in grouping_keys), (cdef.id for cdef in post_scalar_exprs)
+    )
     plan = nodes.SelectionNode(
-        plan, tuple(nodes.AliasedRef.identity(cdef.id) for cdef in post_scalar_exprs)
+        plan, tuple(nodes.AliasedRef.identity(ident) for ident in final_ids)
     )
     return plan
 

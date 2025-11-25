@@ -279,14 +279,21 @@ class ArrayValue:
         self,
         assignments: Sequence[ex.Expression],
         by_column_ids: typing.Sequence[str] = (),
+        *,
+        dropna: bool = False,
     ):
         # Warning: this function does not check if the expression is a valid reduction, and may fail spectacularly on invalid inputs
+        plan = self.node
+        if dropna:
+            for col_id in by_column_ids:
+                plan = nodes.FilterNode(plan, ops.notnull_op.as_expr(col_id))
+
         named_exprs = [
             nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
         new_root = expression_factoring.plan_general_aggregation(
-            self.node, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
+            plan, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
         )
         target_ids = tuple(named_expr.id for named_expr in named_exprs)
         return (ArrayValue(new_root), target_ids)
