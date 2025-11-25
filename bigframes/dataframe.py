@@ -827,30 +827,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
 
-    def _repr_html_fallback(self) -> str:
-        """
-        Returns an html string primarily for use by notebooks for displaying
-        a representation of the DataFrame. Displays 20 rows by default since
-        many notebooks are not configured for large tables.
-        """
-        opts = bigframes.options.display
-        max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self._compute_dry_run())
-
-        df, blob_cols = self._get_display_df_and_blob_cols()
-
-        pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
-            max_results
-        )
-
-        self._set_internal_query_job(query_job)
-        column_count = len(pandas_df.columns)
-
-        return self._create_html_representation(
-            pandas_df, row_count, column_count, blob_cols
-        )
-
     def _get_display_df_and_blob_cols(self) -> tuple[DataFrame, list[str]]:
         """Process blob columns for display."""
         df = self
