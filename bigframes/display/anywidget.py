@@ -111,7 +111,7 @@ class TableWidget(WIDGET_BASE):
         # TODO(b/463754889): Support non-string column labels for sorting.
         if all(isinstance(col, str) for col in dataframe.columns):
             self.orderable_columns = [
-                col_name
+                str(col_name)
                 for col_name, dtype in dataframe.dtypes.items()
                 if dtypes.is_orderable(dtype)
             ]
