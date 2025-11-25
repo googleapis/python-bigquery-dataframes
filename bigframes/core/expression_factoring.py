@@ -1,11 +1,73 @@
 import collections
 import dataclasses
 import functools
-from typing import cast, Generic, Hashable, Iterable, Optional, Sequence, Tuple, TypeVar
+import itertools
+from typing import (
+    cast,
+    Generic,
+    Hashable,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 from bigframes.core import agg_expressions, expression, identifiers, nodes, window_spec
 
 _MAX_INLINE_COMPLEXITY = 10
+
+
+def plan_general_col_exprs(
+    plan: nodes.BigFrameNode, col_exprs: Sequence[nodes.ColumnDef]
+) -> nodes.BigFrameNode:
+    # TODO: Jointly fragmentize expressions to more efficiently reuse common sub-expressions
+    target_ids = tuple(named_expr.id for named_expr in col_exprs)
+
+    fragments = tuple(
+        itertools.chain.from_iterable(
+            fragmentize_expression(expr) for expr in col_exprs
+        )
+    )
+    return push_into_tree(plan, fragments, target_ids)
+
+
+def plan_general_aggregation(
+    plan: nodes.BigFrameNode,
+    agg_defs: Sequence[nodes.ColumnDef],
+    grouping_keys: Sequence[expression.DerefOp],
+) -> nodes.BigFrameNode:
+    factored_aggs = [factor_aggregation(agg_def) for agg_def in agg_defs]
+    all_inputs = list(
+        itertools.chain(*(factored_agg.agg_inputs for factored_agg in factored_aggs))
+    )
+    # TODO: Windowize
+    window_def = window_spec.WindowSpec(grouping_keys=tuple(grouping_keys))
+    windowized_inputs = [
+        nodes.ColumnDef(windowize(cdef.expression, window_def), cdef.id)
+        for cdef in all_inputs
+    ]
+    plan = plan_general_col_exprs(plan, windowized_inputs)
+    all_aggs = list(
+        itertools.chain(*(factored_agg.agg_exprs for factored_agg in factored_aggs))
+    )
+    plan = nodes.AggregateNode(
+        plan,
+        tuple((cdef.expression, cdef.id) for cdef in all_aggs),  # type: ignore
+        by_column_ids=tuple(grouping_keys),
+    )
+    post_scalar_exprs = tuple(
+        (factored_agg.root_scalar_expr for factored_agg in factored_aggs)
+    )
+    plan = nodes.ProjectionNode(
+        plan, tuple((cdef.expression, cdef.id) for cdef in post_scalar_exprs)
+    )
+    plan = nodes.SelectionNode(
+        plan, tuple(nodes.AliasedRef.identity(cdef.id) for cdef in post_scalar_exprs)
+    )
+    return plan
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -22,6 +84,101 @@ def fragmentize_expression(root: nodes.ColumnDef) -> Sequence[nodes.ColumnDef]:
     factored_expr = root.expression.reduce_up(gather_fragments)
     root_expr = nodes.ColumnDef(factored_expr.root_expr, root.id)
     return (root_expr, *factored_expr.sub_exprs)
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class FactoredAggregation:
+    # pure scalar expression
+    root_scalar_expr: nodes.ColumnDef
+    # pure agg expression, only refs cols and consts
+    agg_exprs: Tuple[nodes.ColumnDef, ...]
+    # can be analytic, scalar op, const, col refs
+    agg_inputs: Tuple[nodes.ColumnDef, ...]
+
+
+def windowize(
+    root: expression.Expression, window: window_spec.WindowSpec
+) -> expression.Expression:
+    def windowize_local(expr: expression.Expression):
+        if isinstance(expr, agg_expressions.Aggregation):
+            return agg_expressions.WindowExpression(expr, window)
+        if isinstance(expr, agg_expressions.WindowExpression):
+            raise ValueError(f"Expression {expr} already windowed!")
+        return expr
+
+    return root.bottom_up(windowize_local)
+
+
+def factor_aggregation(root: nodes.ColumnDef) -> FactoredAggregation:
+    """
+    Factor an aggregation def into three components.
+    1. Input column expressions (includes analytic expressions)
+    2. The set of underlying primitive aggregations
+    3. A final post-aggregate scalar expression
+    """
+    final_aggs = set(find_final_aggregations(root.expression))
+    agg_inputs = set(
+        itertools.chain.from_iterable(map(find_final_aggregations, final_aggs))
+    )
+
+    agg_input_defs = tuple(
+        nodes.ColumnDef(expr, identifiers.ColumnId.unique()) for expr in agg_inputs
+    )
+    agg_inputs_dict = {
+        cdef.expression: expression.DerefOp(cdef.id) for cdef in agg_input_defs
+    }
+
+    isolated_aggs = tuple(
+        nodes.ColumnDef(
+            sub_expressions(expr, agg_inputs_dict), identifiers.ColumnId.unique()
+        )
+        for expr in agg_inputs
+    )
+    agg_outputs_dict = {
+        cdef.expression: expression.DerefOp(cdef.id) for cdef in isolated_aggs
+    }
+
+    root_scalar_expr = nodes.ColumnDef(
+        sub_expressions(root.expression, agg_outputs_dict), root.id
+    )
+
+    return FactoredAggregation(
+        root_scalar_expr=root_scalar_expr,
+        agg_exprs=isolated_aggs,
+        agg_inputs=agg_input_defs,
+    )
+
+
+def sub_expressions(
+    root: expression.Expression,
+    replacements: Mapping[expression.Expression, expression.Expression],
+) -> expression.Expression:
+    return root.top_down(lambda x: replacements.get(x, x))
+
+
+def find_final_aggregations(
+    root: expression.Expression,
+) -> Iterator[agg_expressions.Aggregation]:
+    if isinstance(root, agg_expressions.Aggregation):
+        yield root
+    elif isinstance(root, expression.OpExpression):
+        for child in root.children:
+            yield from find_final_aggregations(child)
+    elif isinstance(root, expression.ScalarConstantExpression):
+        return
+    else:
+        # eg, window expression, column references not allowed
+        raise ValueError(f"Unexpected node: {root}")
+
+
+def find_agg_inputs(
+    root: agg_expressions.Aggregation,
+) -> Iterator[expression.Expression]:
+    for child in root.children:
+        if not isinstance(
+            child, (expression.DerefOp, expression.ScalarConstantExpression)
+        ):
+            yield child
 
 
 def gather_fragments(

@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import datetime
 import functools
-import itertools
 import typing
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -271,15 +270,25 @@ class ArrayValue:
             nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
-        # TODO: Jointly fragmentize expressions to more efficiently reuse common sub-expressions
-        fragments = tuple(
-            itertools.chain.from_iterable(
-                expression_factoring.fragmentize_expression(expr)
-                for expr in named_exprs
-            )
+        new_root = expression_factoring.plan_general_col_exprs(self.node, named_exprs)
+
+        target_ids = tuple(named_expr.id for named_expr in named_exprs)
+        return (ArrayValue(new_root), target_ids)
+
+    def compute_general_reduction(
+        self,
+        assignments: Sequence[ex.Expression],
+        by_column_ids: typing.Sequence[str] = (),
+    ):
+        # Warning: this function does not check if the expression is a valid reduction, and may fail spectacularly on invalid inputs
+        named_exprs = [
+            nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
+        ]
+        # TODO: Push this to rewrite later to go from block expression to planning form
+        new_root = expression_factoring.plan_general_aggregation(
+            self.node, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
         )
         target_ids = tuple(named_expr.id for named_expr in named_exprs)
-        new_root = expression_factoring.push_into_tree(self.node, fragments, target_ids)
         return (ArrayValue(new_root), target_ids)
 
     def project_to_id(self, expression: ex.Expression):
