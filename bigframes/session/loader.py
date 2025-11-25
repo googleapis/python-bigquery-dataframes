@@ -402,7 +402,9 @@ class GbqDataLoader:
         SAFETY_MARGIN = (
             40  # Perf seems bad for large chunks, so do 40x smaller than max
         )
-        batch_count = data.metadata.total_bytes // (MAX_BYTES // SAFETY_MARGIN)
+        batch_count = math.ceil(
+            data.metadata.total_bytes / (MAX_BYTES // SAFETY_MARGIN)
+        )
         rows_per_batch = math.ceil(data.metadata.row_count / batch_count)
 
         schema_w_offsets = data.schema.append(
@@ -454,7 +456,9 @@ class GbqDataLoader:
         SAFETY_MARGIN = (
             4  # aim for 2.5mb to account for row variance, format differences, etc.
         )
-        batch_count = data.metadata.total_bytes // (MAX_BYTES // SAFETY_MARGIN)
+        batch_count = math.ceil(
+            data.metadata.total_bytes / (MAX_BYTES // SAFETY_MARGIN)
+        )
         rows_per_batch = math.ceil(data.metadata.row_count / batch_count)
 
         schema_w_offsets = data.schema.append(
