@@ -54,9 +54,8 @@ def _apply_unary_window_op(
 ) -> str:
     win_node = nodes.WindowOpNode(
         obj._block.expr.node,
-        expression=op,
+        agg_exprs=(nodes.ColumnDef(op, identifiers.ColumnId(new_name)),),
         window_spec=window_spec,
-        output_name=identifiers.ColumnId(new_name),
     )
     result = array_value.ArrayValue(win_node).select_columns([new_name])
 
@@ -172,6 +171,35 @@ def test_count(scalar_types_df: bpd.DataFrame, snapshot):
         bf_df_str, agg_expr, window_partition, "agg_int64"
     )
     snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
+
+
+def test_cut(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_ops_map = {
+        "int_bins": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=3, right=True, labels=None), expression.deref(col_name)
+        ),
+        "interval_bins": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=((0, 1), (1, 2)), right=True, labels=None),
+            expression.deref(col_name),
+        ),
+        "int_bins_labels": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=3, labels=("a", "b", "c"), right=False),
+            expression.deref(col_name),
+        ),
+        "interval_bins_labels": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=((0, 1), (1, 2)), labels=False, right=True),
+            expression.deref(col_name),
+        ),
+    }
+    window = window_spec.WindowSpec()
+
+    # Loop through the aggregation map items
+    for test_name, agg_expr in agg_ops_map.items():
+        sql = _apply_unary_window_op(bf_df, agg_expr, window, test_name)
+
+        snapshot.assert_match(sql, f"{test_name}.sql")
 
 
 def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
@@ -404,6 +432,27 @@ def test_pop_var(scalar_types_df: bpd.DataFrame, snapshot):
     window = window_spec.WindowSpec(ordering=(ordering.descending_over(col_name),))
     sql_window = _apply_unary_window_op(bf_df_int, agg_expr, window, "agg_int64")
     snapshot.assert_match(sql_window, "window_out.sql")
+
+
+def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
+
+    col_name = "int64_col"
+    bf = scalar_types_df[[col_name]]
+    bf["qcut_w_int"] = bpd.qcut(bf[col_name], q=4, labels=False, duplicates="drop")
+
+    q_list = tuple([0, 0.25, 0.5, 0.75, 1])
+    bf["qcut_w_list"] = bpd.qcut(
+        scalar_types_df[col_name],
+        q=q_list,
+        labels=False,
+        duplicates="drop",
+    )
+
+    snapshot.assert_match(bf.sql, "out.sql")
 
 
 def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
