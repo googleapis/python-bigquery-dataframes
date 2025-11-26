@@ -243,7 +243,7 @@ def _(expr: TypedExpr, op: ops.StartsWithOp) -> sge.Expression:
 
 @register_unary_op(ops.StrStripOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.StrStripOp) -> sge.Expression:
-    return sge.Trim(this=sge.convert(op.to_strip), expression=expr.expr)
+    return sge.Trim(this=expr.expr, expression=sge.convert(op.to_strip))
 
 
 @register_unary_op(ops.StringSplitOp, pass_op=True)
