@@ -37,12 +37,12 @@ def paginated_pandas_df() -> pd.DataFrame:
         {
             "id": [5, 4, 3, 2, 1, 0],
             "page_indicator": [
-                "row_5",
-                "row_4",
-                "row_3",
-                "row_2",
-                "row_1",
-                "row_0",
+                "page_3_row_2",
+                "page_3_row_1",
+                "page_2_row_2",
+                "page_2_row_1",
+                "page_1_row_2",
+                "page_1_row_1",
             ],
             "value": [5, 4, 3, 2, 1, 0],
         }
@@ -886,7 +886,6 @@ def test_table_widget_multiindex_columns_disables_sorting(multiindex_column_df):
     assert widget.orderable_columns == []
 
 
-# TODO(shuowei): Add tests for custom index and multiindex
 def test_repr_mimebundle_should_fallback_to_html_if_anywidget_is_unavailable(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
@@ -900,9 +899,9 @@ def test_repr_mimebundle_should_fallback_to_html_if_anywidget_is_unavailable(
             assert "application/vnd.jupyter.widget-view+json" not in bundle
             assert "text/html" in bundle
             html = bundle["text/html"]
-            assert "page_1_row_1" in html
-            assert "page_1_row_2" in html
-            assert "page_2_row_1" not in html
+            assert "page_3_row_2" in html
+            assert "page_3_row_1" in html
+            assert "page_1_row_1" not in html
 
 
 def test_repr_mimebundle_should_return_widget_view_if_anywidget_is_available(
