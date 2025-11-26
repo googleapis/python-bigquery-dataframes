@@ -40,7 +40,5 @@ def _(expr: TypedExpr, op: ops.ToTimedeltaOp) -> sge.Expression:
     if factor != 1:
         value = sge.Mul(this=value, expression=sge.convert(factor))
     if expr.dtype == dtypes.FLOAT_DTYPE:
-        value = sge.Floor(this=value)
-    if expr.dtype != dtypes.INT_DTYPE:
-        value = sge.Cast(this=value, to=sge.DataType(this="INT64"))
+        value = sge.Cast(this=sge.Floor(this=value), to=sge.DataType(this="INT64"))
     return value
