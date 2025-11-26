@@ -295,6 +295,7 @@ class ArrayValue:
         new_root = expression_factoring.plan_general_aggregation(
             plan, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
         )
+        new_root.validate_tree()
         target_ids = tuple(named_expr.id for named_expr in named_exprs)
         return (ArrayValue(new_root), target_ids)
 

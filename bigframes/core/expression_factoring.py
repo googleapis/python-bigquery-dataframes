@@ -4,6 +4,7 @@ import functools
 import itertools
 from typing import (
     cast,
+    Dict,
     Generic,
     Hashable,
     Iterable,
@@ -11,6 +12,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     TypeVar,
 )
@@ -58,6 +60,7 @@ def plan_general_aggregation(
         tuple((cdef.expression, cdef.id) for cdef in all_aggs),  # type: ignore
         by_column_ids=tuple(grouping_keys),
     )
+
     post_scalar_exprs = tuple(
         (factored_agg.root_scalar_expr for factored_agg in factored_aggs)
     )
@@ -70,6 +73,7 @@ def plan_general_aggregation(
     plan = nodes.SelectionNode(
         plan, tuple(nodes.AliasedRef.identity(ident) for ident in final_ids)
     )
+
     return plan
 
 
@@ -120,9 +124,7 @@ def factor_aggregation(root: nodes.ColumnDef) -> FactoredAggregation:
     3. A final post-aggregate scalar expression
     """
     final_aggs = set(find_final_aggregations(root.expression))
-    agg_inputs = set(
-        itertools.chain.from_iterable(map(find_final_aggregations, final_aggs))
-    )
+    agg_inputs = set(itertools.chain.from_iterable(map(find_agg_inputs, final_aggs)))
 
     agg_input_defs = tuple(
         nodes.ColumnDef(expr, identifiers.ColumnId.unique()) for expr in agg_inputs
@@ -131,18 +133,18 @@ def factor_aggregation(root: nodes.ColumnDef) -> FactoredAggregation:
         cdef.expression: expression.DerefOp(cdef.id) for cdef in agg_input_defs
     }
 
+    agg_expr_to_ids = {expr: identifiers.ColumnId.unique() for expr in final_aggs}
+
     isolated_aggs = tuple(
-        nodes.ColumnDef(
-            sub_expressions(expr, agg_inputs_dict), identifiers.ColumnId.unique()
-        )
-        for expr in agg_inputs
+        nodes.ColumnDef(sub_expressions(expr, agg_inputs_dict), agg_expr_to_ids[expr])
+        for expr in final_aggs
     )
     agg_outputs_dict = {
-        cdef.expression: expression.DerefOp(cdef.id) for cdef in isolated_aggs
+        expr: expression.DerefOp(id) for expr, id in agg_expr_to_ids.items()
     }
 
     root_scalar_expr = nodes.ColumnDef(
-        sub_expressions(root.expression, agg_outputs_dict), root.id
+        sub_expressions(root.expression, agg_outputs_dict), root.id  # type: ignore
     )
 
     return FactoredAggregation(
@@ -221,17 +223,23 @@ T = TypeVar("T", bound=Hashable)
 
 
 class DiGraph(Generic[T]):
-    def __init__(self, edges: Iterable[Tuple[T, T]]):
-        self._parents = collections.defaultdict(set)
-        self._children = collections.defaultdict(set)  # specifically, unpushed ones
+    def __init__(self, nodes: Iterable[T], edges: Iterable[Tuple[T, T]]):
+        self._parents: Dict[T, Set[T]] = collections.defaultdict(set)
+        self._children: Dict[T, Set[T]] = collections.defaultdict(
+            set
+        )  # specifically, unpushed ones
         # use dict for stable ordering, which grants determinism
         self._sinks: dict[T, None] = dict()
+        for node in nodes:
+            self._children[node]
+            self._parents[node]
+            self._sinks[node] = None
         for src, dst in edges:
+            assert src in self.nodes
+            assert dst in self.nodes
             self._children[src].add(dst)
             self._parents[dst].add(src)
             # sinks have no children
-            if not self._children[dst]:
-                self._sinks[dst] = None
             if src in self._sinks:
                 del self._sinks[src]
 
@@ -249,9 +257,11 @@ class DiGraph(Generic[T]):
         return len(self.nodes) == 0
 
     def parents(self, node: T) -> set[T]:
+        assert node in self._parents
         return self._parents[node]
 
     def children(self, node: T) -> set[T]:
+        assert node in self._children
         return self._children[node]
 
     def remove_node(self, node: T) -> None:
@@ -276,10 +286,13 @@ def push_into_tree(
     by_id = {expr.id: expr for expr in exprs}
     # id -> id
     graph = DiGraph(
-        (expr.id, child_id)
-        for expr in exprs
-        for child_id in expr.expression.column_references
-        if child_id in by_id.keys()
+        (expr.id for expr in exprs),
+        (
+            (expr.id, child_id)
+            for expr in exprs
+            for child_id in expr.expression.column_references
+            if child_id in by_id.keys()
+        ),
     )
     # TODO: Also prevent inlining expensive or non-deterministic
     # We avoid inlining multi-parent ids, as they would be inlined multiple places, potentially increasing work and/or compiled text size
@@ -354,6 +367,11 @@ def push_into_tree(
 
         return None
 
+    must_be_pushed = set(target_ids) - set(graph.nodes)
+    if not must_be_pushed.issubset(curr_root.ids):
+        missing = must_be_pushed - set(curr_root.ids)
+        raise ValueError(f"hmmm, missing {missing}")
+
     while not graph.empty:
         pre_size = len(graph.nodes)
         scalar_exprs = graph_extract_scalar_exprs()
@@ -361,6 +379,9 @@ def push_into_tree(
             curr_root = nodes.ProjectionNode(
                 curr_root, tuple((x.expression, x.id) for x in scalar_exprs)
             )
+            must_be_pushed = set(target_ids) - set(graph.nodes)
+            if not must_be_pushed.issubset(curr_root.ids):
+                raise ValueError("hmmm")
         while result := graph_extract_window_expr():
             defs, window = result
             assert len(defs) > 0
@@ -369,6 +390,10 @@ def push_into_tree(
                 tuple(defs),
                 window,
             )
+            must_be_pushed = set(target_ids) - set(graph.nodes)
+            if not must_be_pushed.issubset(curr_root.ids):
+                missing = must_be_pushed - set(curr_root.ids)
+                raise ValueError(f"hmmm, missing {missing}")
         if len(graph.nodes) >= pre_size:
             raise ValueError("graph didn't shrink")
     # TODO: Try to get the ordering right earlier, so can avoid this extra node.
