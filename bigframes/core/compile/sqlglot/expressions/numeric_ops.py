@@ -223,16 +223,13 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 def _int_pow_op(
     left_expr: sge.Expression, right_expr: sge.Expression
 ) -> sge.Expression:
-    import math
-
-    overflow_value = math.log(2**63 - 1)
     overflow_cond = sge.and_(
         sge.NEQ(this=left_expr, expression=sge.convert(0)),
         sge.GT(
             this=sge.Mul(
                 this=right_expr, expression=sge.Ln(this=sge.Abs(this=left_expr))
             ),
-            expression=sge.convert(overflow_value),
+            expression=sge.convert(constants._INT64_LOG_BOUND),
         ),
     )
 
@@ -271,7 +268,10 @@ def _float_pow_op(
     )
 
     # Float64 lose integer precision beyond 2**53, beyond this insufficient precision to get parity
-    exp_too_big = sge.GT(this=sge.Abs(this=right_expr), expression=sge.convert(2**53))
+    exp_too_big = sge.GT(
+        this=sge.Abs(this=right_expr),
+        expression=sge.convert(constants._FLOAT64_MAX_INT_PRECISION),
+    )
     # Treat very large exponents as +=INF
     norm_exp = sge.Case(
         ifs=[
