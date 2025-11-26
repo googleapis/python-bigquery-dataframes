@@ -956,6 +956,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         """Create an HTML representation of the DataFrame."""
         opts = bigframes.options.display
         with display_options.pandas_repr(opts):
+            # TODO(shuowei, b/464053870): Escaping HTML would be useful, but
+            # `escape=False` is needed to show images. We may need to implement
+            # a full-fledged repr module to better support types not in pandas.
             if bigframes.options.display.blob_display and blob_cols:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
@@ -981,6 +984,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
 
                 formatters = {blob_col: obj_ref_rt_to_html for blob_col in blob_cols}
+
+                # set max_colwidth so not to truncate the image url
                 with pandas.option_context("display.max_colwidth", None):
                     html_string = pandas_df.to_html(
                         escape=False,
@@ -991,6 +996,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                         formatters=formatters,  # type: ignore
                     )
             else:
+                # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
                 html_string = pandas_df._repr_html_()  # type:ignore
 
         html_string += f"[{row_count} rows x {column_count} columns in total]"
