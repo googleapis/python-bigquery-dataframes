@@ -209,7 +209,8 @@ def test_widget_initialization_should_default_to_page_zero(
     table_widget,
 ):
     """
-    A TableWidget should initialize with page 0 and the correct page size.
+    Given a new TableWidget, when it is initialized,
+    then its page number should default to 0.
     """
     # The `table_widget` fixture already creates the widget.
     # Assert its state.
@@ -335,9 +336,9 @@ def test_widget_with_few_rows_should_display_all_rows(small_widget, small_pandas
 
 def test_navigation_beyond_last_page_should_be_clamped(small_widget):
     """
-    Given a DataFrame with a small number of rows, the widget should
-    report the correct total row count and prevent navigation beyond
-    the first page, ensuring the frontend correctly displays "Page 1 of 1".
+    Given a DataFrame smaller than the page size,
+    when navigating beyond the last page,
+    then the page should be clamped to the last valid page (page 0).
     """
     # For a DataFrame with 2 rows and page_size 5 (from small_widget fixture),
     # the frontend should calculate 1 total page.
@@ -394,19 +395,32 @@ def test_widget_with_empty_dataframe_should_have_zero_row_count(
 def test_widget_with_empty_dataframe_should_render_table_headers(
     empty_bf_df: bf.dataframe.DataFrame,
 ):
+
     """
+
+
     Given an empty DataFrame,
+
+
     when a widget is created from it,
+
+
     then its HTML representation should still render the table headers.
+
+
     """
+
     with bf.option_context("display.repr_mode", "anywidget"):
+
         from bigframes.display import TableWidget
 
         widget = TableWidget(empty_bf_df)
+
         html = widget.table_html
 
-    assert "<table" in html
-    assert "id" in html  # Check for a column header
+        assert "<table" in html
+
+        assert "id" in html  # Check for a column header
 
 
 def test_page_size_change_should_reset_current_page_to_zero(table_widget):
@@ -872,6 +886,7 @@ def test_table_widget_multiindex_columns_disables_sorting(multiindex_column_df):
     assert widget.orderable_columns == []
 
 
+# TODO(shuowei): Add tests for custom index and multiindex
 def test_repr_mimebundle_should_fallback_to_html_if_anywidget_is_unavailable(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
