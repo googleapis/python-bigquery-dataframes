@@ -288,27 +288,29 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_unary_op(ops.ZfillOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.ZfillOp) -> sge.Expression:
+    length_expr = sge.Greatest(
+        expressions=[sge.Length(this=expr.expr), sge.convert(op.width)]
+    )
     return sge.Case(
         ifs=[
             sge.If(
-                this=sge.EQ(
-                    this=sge.Substring(
-                        this=expr.expr, start=sge.convert(1), length=sge.convert(1)
-                    ),
-                    expression=sge.convert("-"),
+                this=sge.func(
+                    "STARTS_WITH",
+                    expr.expr,
+                    sge.convert("-"),
                 ),
                 true=sge.Concat(
                     expressions=[
                         sge.convert("-"),
                         sge.func(
                             "LPAD",
-                            sge.Substring(this=expr.expr, start=sge.convert(1)),
-                            sge.convert(op.width - 1),
+                            sge.Substring(this=expr.expr, start=sge.convert(2)),
+                            length_expr - 1,
                             sge.convert("0"),
                         ),
                     ]
                 ),
             )
         ],
-        default=sge.func("LPAD", expr.expr, sge.convert(op.width), sge.convert("0")),
+        default=sge.func("LPAD", expr.expr, length_expr, sge.convert("0")),
     )
