@@ -20,7 +20,9 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 
 from bigframes.core import compile, nodes
-from bigframes.core.compile import sqlglot
+from bigframes.core.compile.ibis_compiler.ibis_compiler import (
+    compile_sql as compile_sql_ibis,
+)
 import bigframes.core.events
 from bigframes.session import executor, semi_executor
 import bigframes.session._io.bigquery as bq_io
@@ -40,7 +42,7 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
     ):
         self.bqclient = bqclient
         self._compile_fn = (
-            compile.compile_sql if compiler == "ibis" else sqlglot.compile_sql
+            compile_sql_ibis if compiler == "ibis" else compile.compile_sql
         )
         self._publisher = publisher
 
