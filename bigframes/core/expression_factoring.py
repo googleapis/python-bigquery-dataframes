@@ -1,23 +1,42 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import collections
 import dataclasses
 import functools
 import itertools
 from typing import (
     cast,
-    Dict,
-    Generic,
     Hashable,
     Iterable,
     Iterator,
     Mapping,
     Optional,
     Sequence,
-    Set,
     Tuple,
     TypeVar,
 )
 
-from bigframes.core import agg_expressions, expression, identifiers, nodes, window_spec
+from bigframes.core import (
+    agg_expressions,
+    expression,
+    graphs,
+    identifiers,
+    nodes,
+    window_spec,
+)
 
 _MAX_INLINE_COMPLEXITY = 10
 
@@ -45,7 +64,6 @@ def plan_general_aggregation(
     all_inputs = list(
         itertools.chain(*(factored_agg.agg_inputs for factored_agg in factored_aggs))
     )
-    # TODO: Windowize
     window_def = window_spec.WindowSpec(grouping_keys=tuple(grouping_keys))
     windowized_inputs = [
         nodes.ColumnDef(windowize(cdef.expression, window_def), cdef.id)
@@ -123,8 +141,10 @@ def factor_aggregation(root: nodes.ColumnDef) -> FactoredAggregation:
     2. The set of underlying primitive aggregations
     3. A final post-aggregate scalar expression
     """
-    final_aggs = set(find_final_aggregations(root.expression))
-    agg_inputs = set(itertools.chain.from_iterable(map(find_agg_inputs, final_aggs)))
+    final_aggs = list(dedupe(find_final_aggregations(root.expression)))
+    agg_inputs = list(
+        dedupe(itertools.chain.from_iterable(map(find_agg_inputs, final_aggs)))
+    )
 
     agg_input_defs = tuple(
         nodes.ColumnDef(expr, identifiers.ColumnId.unique()) for expr in agg_inputs
@@ -219,64 +239,6 @@ def replace_children(
     return root.transform_children(lambda x: mapping.get(x, x))
 
 
-T = TypeVar("T", bound=Hashable)
-
-
-class DiGraph(Generic[T]):
-    def __init__(self, nodes: Iterable[T], edges: Iterable[Tuple[T, T]]):
-        self._parents: Dict[T, Set[T]] = collections.defaultdict(set)
-        self._children: Dict[T, Set[T]] = collections.defaultdict(
-            set
-        )  # specifically, unpushed ones
-        # use dict for stable ordering, which grants determinism
-        self._sinks: dict[T, None] = dict()
-        for node in nodes:
-            self._children[node]
-            self._parents[node]
-            self._sinks[node] = None
-        for src, dst in edges:
-            assert src in self.nodes
-            assert dst in self.nodes
-            self._children[src].add(dst)
-            self._parents[dst].add(src)
-            # sinks have no children
-            if src in self._sinks:
-                del self._sinks[src]
-
-    @property
-    def nodes(self):
-        # should be the same set of ids as self._parents
-        return self._children.keys()
-
-    @property
-    def sinks(self) -> Iterable[T]:
-        return self._sinks.keys()
-
-    @property
-    def empty(self):
-        return len(self.nodes) == 0
-
-    def parents(self, node: T) -> set[T]:
-        assert node in self._parents
-        return self._parents[node]
-
-    def children(self, node: T) -> set[T]:
-        assert node in self._children
-        return self._children[node]
-
-    def remove_node(self, node: T) -> None:
-        for child in self._children[node]:
-            self._parents[child].remove(node)
-        for parent in self._parents[node]:
-            self._children[parent].remove(node)
-            if len(self._children[parent]) == 0:
-                self._sinks[parent] = None
-        del self._children[node]
-        del self._parents[node]
-        if node in self._sinks:
-            del self._sinks[node]
-
-
 def push_into_tree(
     root: nodes.BigFrameNode,
     exprs: Sequence[nodes.ColumnDef],
@@ -285,7 +247,7 @@ def push_into_tree(
     curr_root = root
     by_id = {expr.id: expr for expr in exprs}
     # id -> id
-    graph = DiGraph(
+    graph = graphs.DiGraph(
         (expr.id for expr in exprs),
         (
             (expr.id, child_id)
@@ -296,7 +258,7 @@ def push_into_tree(
     )
     # TODO: Also prevent inlining expensive or non-deterministic
     # We avoid inlining multi-parent ids, as they would be inlined multiple places, potentially increasing work and/or compiled text size
-    multi_parent_ids = set(id for id in graph.nodes if len(graph.parents(id)) > 2)
+    multi_parent_ids = set(id for id in graph.nodes if len(list(graph.parents(id))) > 2)
     scalar_ids = set(expr.id for expr in exprs if expr.expression.is_scalar_expr)
 
     analytic_defs = filter(
@@ -367,11 +329,6 @@ def push_into_tree(
 
         return None
 
-    must_be_pushed = set(target_ids) - set(graph.nodes)
-    if not must_be_pushed.issubset(curr_root.ids):
-        missing = must_be_pushed - set(curr_root.ids)
-        raise ValueError(f"hmmm, missing {missing}")
-
     while not graph.empty:
         pre_size = len(graph.nodes)
         scalar_exprs = graph_extract_scalar_exprs()
@@ -379,9 +336,6 @@ def push_into_tree(
             curr_root = nodes.ProjectionNode(
                 curr_root, tuple((x.expression, x.id) for x in scalar_exprs)
             )
-            must_be_pushed = set(target_ids) - set(graph.nodes)
-            if not must_be_pushed.issubset(curr_root.ids):
-                raise ValueError("hmmm")
         while result := graph_extract_window_expr():
             defs, window = result
             assert len(defs) > 0
@@ -390,10 +344,6 @@ def push_into_tree(
                 tuple(defs),
                 window,
             )
-            must_be_pushed = set(target_ids) - set(graph.nodes)
-            if not must_be_pushed.issubset(curr_root.ids):
-                missing = must_be_pushed - set(curr_root.ids)
-                raise ValueError(f"hmmm, missing {missing}")
         if len(graph.nodes) >= pre_size:
             raise ValueError("graph didn't shrink")
     # TODO: Try to get the ordering right earlier, so can avoid this extra node.
@@ -424,3 +374,11 @@ def grouped(values: Iterable[tuple[K, V]]) -> dict[K, list[V]]:
     for k, v in values:
         result[k].append(v)
     return result
+
+
+def dedupe(values: Iterable[K]) -> Iterator[K]:
+    seen = set()
+    for k in values:
+        if k not in seen:
+            seen.add(k)
+            yield k
