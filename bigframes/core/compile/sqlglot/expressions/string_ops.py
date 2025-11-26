@@ -18,6 +18,7 @@ import functools
 
 import sqlglot.expressions as sge
 
+from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
@@ -195,6 +196,9 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 @register_unary_op(ops.len_op)
 def _(expr: TypedExpr) -> sge.Expression:
+    if dtypes.is_array_like(expr.dtype):
+        return sge.func("ARRAY_LENGTH", expr.expr)
+
     return sge.Length(this=expr.expr)
 
 
