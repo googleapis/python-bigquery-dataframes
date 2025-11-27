@@ -1785,6 +1785,57 @@ def test_dataframe_sort_index_inplace(scalars_dfs):
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
 
+@pytest.mark.parametrize(
+    ("axis",),
+    ((0,), ("columns",), (None,)),
+)
+def test_dataframe_squeeze_noop(scalars_dfs, axis):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df.squeeze(axis=axis)
+    bf_result = scalars_df.squeeze(axis=axis).to_pandas()
+
+    pandas.testing.assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("axis",),
+    ((1,), (None,)),
+)
+def test_dataframe_squeeze_cols(scalars_dfs, axis):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df[["int64_col"]].squeeze(axis)
+    bf_result = scalars_df[["int64_col"]].squeeze(axis).to_pandas()
+
+    pandas.testing.assert_series_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
+    ("axis",),
+    ((0,), (None,)),
+)
+def test_dataframe_squeeze_rows(scalars_dfs, axis):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    # implicitly transposes, so col types need to be compatible
+    pd_result = scalars_pandas_df[["int64_col", "int64_too"]].head(1).squeeze(axis)
+    bf_result = scalars_df[["int64_col", "int64_too"]].head(1).squeeze(axis).to_pandas()
+
+    pandas.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+
+
+def test_dataframe_squeeze_both_axes(
+    scalars_dfs,
+):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    pd_result = scalars_pandas_df[["int64_col"]].head(1).squeeze()
+    bf_result = scalars_df[["int64_col"]].head(1).squeeze()
+
+    assert pd_result == bf_result
+
+
 def test_df_abs(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
     columns = ["int64_col", "int64_too", "float64_col"]
