@@ -4,6 +4,22 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.30.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.29.0...v2.30.0) (2025-11-13)
+
+
+### Features
+
+* Add bigframes.pandas.crosstab ([#2231](https://github.com/googleapis/python-bigquery-dataframes/issues/2231)) ([c62e553](https://github.com/googleapis/python-bigquery-dataframes/commit/c62e5535ed4c19b6d65f9a46cb1531e8099621b2))
+* Pivot_table supports fill_value arg ([#2257](https://github.com/googleapis/python-bigquery-dataframes/issues/2257)) ([8f490e6](https://github.com/googleapis/python-bigquery-dataframes/commit/8f490e68a9a2584236486060ad3b55923781d975))
+* Preserve source names better for more readable sql ([#2243](https://github.com/googleapis/python-bigquery-dataframes/issues/2243)) ([64995d6](https://github.com/googleapis/python-bigquery-dataframes/commit/64995d659837a8576b2ee9335921904e577c7014))
+* Support builtins funcs for df.agg ([#2256](https://github.com/googleapis/python-bigquery-dataframes/issues/2256)) ([956a5b0](https://github.com/googleapis/python-bigquery-dataframes/commit/956a5b00dff55b73e3cbebb4e6e81672680f1f63))
+* Support mixed scalar-analytic expressions ([#2239](https://github.com/googleapis/python-bigquery-dataframes/issues/2239)) ([20ab469](https://github.com/googleapis/python-bigquery-dataframes/commit/20ab469d29767a2f04fe02aa66797893ecd1c539))
+
+
+### Bug Fixes
+
+* Do not warn with DefaultIndexWarning in partial ordering mode ([#2230](https://github.com/googleapis/python-bigquery-dataframes/issues/2230)) ([cc2dbae](https://github.com/googleapis/python-bigquery-dataframes/commit/cc2dbae684103a21fe8838468f7eb8267188780d))
+
 ## [2.29.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.28.0...v2.29.0) (2025-11-10)
 
 
