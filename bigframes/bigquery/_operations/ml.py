@@ -20,6 +20,7 @@ from typing import Mapping, Optional, Union
 import bigframes.core.sql.ml
 import bigframes.core.log_adapter as log_adapter
 import bigframes.dataframe as dataframe
+import bigframes.ml.base
 import bigframes.session
 
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
@@ -37,7 +38,7 @@ def create_model(
     training_data: Optional[Union[dataframe.DataFrame, str]] = None,
     custom_holiday: Optional[Union[dataframe.DataFrame, str]] = None,
     session: Optional[bigframes.session.Session] = None,
-) -> None:
+) -> bigframes.ml.base.BaseModel:
     """
     Creates a BigQuery ML model.
     """
@@ -81,3 +82,5 @@ def create_model(
 
     # Use _start_query_ml_ddl which is designed for this
     session._start_query_ml_ddl(sql)
+
+    return session.read_gbq_model(model_name)
