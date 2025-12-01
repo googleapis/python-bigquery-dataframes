@@ -15,13 +15,15 @@
 from __future__ import annotations
 
 import typing
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional, TYPE_CHECKING, Union
 
 import bigframes.core.log_adapter as log_adapter
 import bigframes.core.sql.ml
 import bigframes.dataframe as dataframe
-import bigframes.ml.base
-import bigframes.session
+
+if TYPE_CHECKING:
+    import bigframes.ml.base
+    import bigframes.session
 
 
 # Helper to convert DataFrame to SQL string
@@ -47,7 +49,7 @@ def create_model(
     training_data: Optional[Union[dataframe.DataFrame, str]] = None,
     custom_holiday: Optional[Union[dataframe.DataFrame, str]] = None,
     session: Optional[bigframes.session.Session] = None,
-) -> bigframes.ml.base.BaseModel:
+) -> bigframes.ml.base.BaseEstimator:
     """
     Creates a BigQuery ML model.
     """

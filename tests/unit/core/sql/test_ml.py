@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import pytest
+
 import bigframes.core.sql.ml
+
 
 def test_create_model_basic(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
