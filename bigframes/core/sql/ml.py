@@ -20,6 +20,7 @@ from typing import Mapping, Optional, Union
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
 
+
 def create_model_ddl(
     model_name: str,
     *,
@@ -63,9 +64,9 @@ def create_model_ddl(
     # [REMOTE WITH CONNECTION {connection_name | DEFAULT}]
     if connection_name:
         if connection_name.upper() == "DEFAULT":
-             ddl += "REMOTE WITH CONNECTION DEFAULT\n"
+            ddl += "REMOTE WITH CONNECTION DEFAULT\n"
         else:
-             ddl += f"REMOTE WITH CONNECTION {googlesql.identifier(connection_name)}\n"
+            ddl += f"REMOTE WITH CONNECTION {googlesql.identifier(connection_name)}\n"
 
     # [OPTIONS(model_option_list)]
     if options:
@@ -77,7 +78,7 @@ def create_model_ddl(
                 # if value is list, it is [val1, val2]
                 rendered_val = bigframes.core.sql.simple_literal(list(option_value))
             else:
-                 rendered_val = bigframes.core.sql.simple_literal(option_value)
+                rendered_val = bigframes.core.sql.simple_literal(option_value)
 
             rendered_options.append(f"{option_name} = {rendered_val}")
 
@@ -93,7 +94,7 @@ def create_model_ddl(
             parts.append(f"custom_holiday AS ({custom_holiday})")
             ddl += f"AS (\n  {', '.join(parts)}\n)"
         else:
-             # Just training_data is treated as the query_statement
-             ddl += f"AS {training_data}"
+            # Just training_data is treated as the query_statement
+            ddl += f"AS {training_data}"
 
     return ddl

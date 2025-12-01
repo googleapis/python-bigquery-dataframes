@@ -17,8 +17,8 @@ from __future__ import annotations
 import typing
 from typing import Mapping, Optional, Union
 
-import bigframes.core.sql.ml
 import bigframes.core.log_adapter as log_adapter
+import bigframes.core.sql.ml
 import bigframes.dataframe as dataframe
 import bigframes.ml.base
 import bigframes.session
@@ -59,7 +59,11 @@ def create_model(
     # Determine session from DataFrames if not provided
     if session is None:
         # Try to get session from inputs
-        dfs = [obj for obj in [training_data, custom_holiday] if hasattr(obj, "_session")]
+        dfs = [
+            obj
+            for obj in [training_data, custom_holiday]
+            if isinstance(obj, dataframe.DataFrame)
+        ]
         if dfs:
             session = dfs[0]._session
 
