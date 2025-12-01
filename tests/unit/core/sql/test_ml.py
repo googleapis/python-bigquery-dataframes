@@ -19,7 +19,7 @@ def test_create_model_basic(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
         model_name="my_project.my_dataset.my_model",
         options={"model_type": "LINEAR_REG", "input_label_cols": ["label"]},
-        query_statement="SELECT * FROM my_table",
+        training_data="SELECT * FROM my_table",
     )
     snapshot.assert_match(sql, "create_model_basic.sql")
 
@@ -28,7 +28,7 @@ def test_create_model_replace(snapshot):
         model_name="my_model",
         replace=True,
         options={"model_type": "LOGISTIC_REG"},
-        query_statement="SELECT * FROM t",
+        training_data="SELECT * FROM t",
     )
     snapshot.assert_match(sql, "create_model_replace.sql")
 
@@ -37,7 +37,7 @@ def test_create_model_if_not_exists(snapshot):
         model_name="my_model",
         if_not_exists=True,
         options={"model_type": "KMEANS"},
-        query_statement="SELECT * FROM t",
+        training_data="SELECT * FROM t",
     )
     snapshot.assert_match(sql, "create_model_if_not_exists.sql")
 
@@ -46,7 +46,7 @@ def test_create_model_transform(snapshot):
         model_name="my_model",
         transform=["ML.STANDARD_SCALER(c1) OVER() AS c1_scaled", "c2"],
         options={"model_type": "LINEAR_REG"},
-        query_statement="SELECT c1, c2, label FROM t",
+        training_data="SELECT c1, c2, label FROM t",
     )
     snapshot.assert_match(sql, "create_model_transform.sql")
 
@@ -81,6 +81,6 @@ def test_create_model_list_option(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
         model_name="my_model",
         options={"hidden_units": [32, 16], "dropout": 0.2},
-        query_statement="SELECT * FROM t",
+        training_data="SELECT * FROM t",
     )
     snapshot.assert_match(sql, "create_model_list_option.sql")

@@ -30,11 +30,13 @@ def create_model_ddl(
     output_schema: Optional[Mapping[str, str]] = None,
     connection_name: Optional[str] = None,
     options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
-    query_statement: Optional[str] = None,
     training_data: Optional[str] = None,
     custom_holiday: Optional[str] = None,
 ) -> str:
-    """Encode the CREATE MODEL statement."""
+    """Encode the CREATE MODEL statement.
+
+    See https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create for reference.
+    """
 
     if replace:
         create = "CREATE OR REPLACE MODEL "
@@ -83,18 +85,15 @@ def create_model_ddl(
 
     # [AS {query_statement | ( training_data AS (query_statement), custom_holiday AS (holiday_statement) )}]
 
-    if query_statement and (training_data or custom_holiday):
-        raise ValueError("Cannot specify both `query_statement` and (`training_data` or `custom_holiday`).")
-
-    if query_statement:
-        ddl += f"AS {query_statement}"
-    elif training_data:
-        # specialized AS clause
-        parts = []
-        parts.append(f"training_data AS ({training_data})")
+    if training_data:
         if custom_holiday:
+            # When custom_holiday is present, we need named clauses
+            parts = []
+            parts.append(f"training_data AS ({training_data})")
             parts.append(f"custom_holiday AS ({custom_holiday})")
-
-        ddl += f"AS (\n  {', '.join(parts)}\n)"
+            ddl += f"AS (\n  {', '.join(parts)}\n)"
+        else:
+             # Just training_data is treated as the query_statement
+             ddl += f"AS {training_data}"
 
     return ddl
