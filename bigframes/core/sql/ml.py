@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import typing
 from typing import Mapping, Optional, Union
 
 import bigframes.core.compile.googlesql as googlesql
