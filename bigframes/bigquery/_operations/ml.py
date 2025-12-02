@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import typing
 from typing import Mapping, Optional, TYPE_CHECKING, Union
 
 import bigframes.core.log_adapter as log_adapter
