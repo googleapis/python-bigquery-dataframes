@@ -19,8 +19,18 @@ by directly mapping to the equivalent function names in SQL syntax.
 For an interface more familiar to Scikit-Learn users, see :mod:`bigframes.ml`.
 """
 
-from bigframes.bigquery._operations.ml import create_model
+from bigframes.bigquery._operations.ml import (
+    create_model,
+    evaluate,
+    explain_predict,
+    global_explain,
+    predict,
+)
 
 __all__ = [
     "create_model",
+    "evaluate",
+    "predict",
+    "explain_predict",
+    "global_explain",
 ]

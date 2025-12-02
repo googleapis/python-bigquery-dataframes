@@ -97,3 +97,102 @@ def create_model_ddl(
             ddl += f"AS {training_data}"
 
     return ddl
+
+
+def evaluate(
+    model_name: str,
+    *,
+    table: Optional[str] = None,
+    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+) -> str:
+    """Encode the ML.EVALUATE statement.
+
+    See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate for reference.
+    """
+    sql = f"SELECT * FROM ML.EVALUATE(MODEL {googlesql.identifier(model_name)}"
+    if table:
+        sql += f", ({table})"
+    if options:
+        rendered_options = []
+        for option_name, option_value in options.items():
+            if isinstance(option_value, (list, tuple)):
+                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
+            else:
+                rendered_val = bigframes.core.sql.simple_literal(option_value)
+            rendered_options.append(f"{option_name} = {rendered_val}")
+        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += ")"
+    return sql
+
+
+def predict(
+    model_name: str,
+    table: str,
+    *,
+    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+) -> str:
+    """Encode the ML.PREDICT statement.
+
+    See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-predict for reference.
+    """
+    sql = (
+        f"SELECT * FROM ML.PREDICT(MODEL {googlesql.identifier(model_name)}, ({table})"
+    )
+    if options:
+        rendered_options = []
+        for option_name, option_value in options.items():
+            if isinstance(option_value, (list, tuple)):
+                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
+            else:
+                rendered_val = bigframes.core.sql.simple_literal(option_value)
+            rendered_options.append(f"{option_name} = {rendered_val}")
+        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += ")"
+    return sql
+
+
+def explain_predict(
+    model_name: str,
+    table: str,
+    *,
+    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+) -> str:
+    """Encode the ML.EXPLAIN_PREDICT statement.
+
+    See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict for reference.
+    """
+    sql = f"SELECT * FROM ML.EXPLAIN_PREDICT(MODEL {googlesql.identifier(model_name)}, ({table})"
+    if options:
+        rendered_options = []
+        for option_name, option_value in options.items():
+            if isinstance(option_value, (list, tuple)):
+                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
+            else:
+                rendered_val = bigframes.core.sql.simple_literal(option_value)
+            rendered_options.append(f"{option_name} = {rendered_val}")
+        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += ")"
+    return sql
+
+
+def global_explain(
+    model_name: str,
+    *,
+    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+) -> str:
+    """Encode the ML.GLOBAL_EXPLAIN statement.
+
+    See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-global-explain for reference.
+    """
+    sql = f"SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL {googlesql.identifier(model_name)}"
+    if options:
+        rendered_options = []
+        for option_name, option_value in options.items():
+            if isinstance(option_value, (list, tuple)):
+                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
+            else:
+                rendered_val = bigframes.core.sql.simple_literal(option_value)
+            rendered_options.append(f"{option_name} = {rendered_val}")
+        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += ")"
+    return sql

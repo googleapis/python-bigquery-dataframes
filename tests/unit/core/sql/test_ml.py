@@ -91,3 +91,75 @@ def test_create_model_list_option(snapshot):
         training_data="SELECT * FROM t",
     )
     snapshot.assert_match(sql, "create_model_list_option.sql")
+
+
+def test_evaluate_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.evaluate(
+        model_name="my_project.my_dataset.my_model",
+    )
+    snapshot.assert_match(sql, "evaluate_model_basic.sql")
+
+
+def test_evaluate_model_with_table(snapshot):
+    sql = bigframes.core.sql.ml.evaluate(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM evaluation_data",
+    )
+    snapshot.assert_match(sql, "evaluate_model_with_table.sql")
+
+
+def test_evaluate_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.evaluate(
+        model_name="my_model",
+        options={"threshold": 0.5},
+    )
+    snapshot.assert_match(sql, "evaluate_model_with_options.sql")
+
+
+def test_predict_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.predict(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM new_data",
+    )
+    snapshot.assert_match(sql, "predict_model_basic.sql")
+
+
+def test_predict_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.predict(
+        model_name="my_model",
+        table="SELECT * FROM new_data",
+        options={"quantiles": [0.25, 0.75]},
+    )
+    snapshot.assert_match(sql, "predict_model_with_options.sql")
+
+
+def test_explain_predict_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.explain_predict(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM new_data",
+    )
+    snapshot.assert_match(sql, "explain_predict_model_basic.sql")
+
+
+def test_explain_predict_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.explain_predict(
+        model_name="my_model",
+        table="SELECT * FROM new_data",
+        options={"top_k_features": 5},
+    )
+    snapshot.assert_match(sql, "explain_predict_model_with_options.sql")
+
+
+def test_global_explain_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.global_explain(
+        model_name="my_project.my_dataset.my_model",
+    )
+    snapshot.assert_match(sql, "global_explain_model_basic.sql")
+
+
+def test_global_explain_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.global_explain(
+        model_name="my_model",
+        options={"num_features": 10},
+    )
+    snapshot.assert_match(sql, "global_explain_model_with_options.sql")
