@@ -51,6 +51,34 @@ def create_model(
 ) -> bigframes.ml.base.BaseEstimator:
     """
     Creates a BigQuery ML model.
+
+    Args:
+        model_name (str):
+            The name of the model in BigQuery.
+        replace (bool, default False):
+            Whether to replace the model if it already exists.
+        if_not_exists (bool, default False):
+            Whether to ignore the error if the model already exists.
+        transform (list[str], optional):
+            The TRANSFORM clause, which specifies the preprocessing steps to apply to the input data.
+        input_schema (Mapping[str, str], optional):
+            The INPUT clause, which specifies the schema of the input data.
+        output_schema (Mapping[str, str], optional):
+            The OUTPUT clause, which specifies the schema of the output data.
+        connection_name (str, optional):
+            The connection to use for the model.
+        options (Mapping[str, Union[str, int, float, bool, list]], optional):
+            The OPTIONS clause, which specifies the model options.
+        training_data (Union[dataframe.DataFrame, str], optional):
+            The query or DataFrame to use for training the model.
+        custom_holiday (Union[dataframe.DataFrame, str], optional):
+            The query or DataFrame to use for custom holiday data.
+        session (bigframes.session.Session, optional):
+            The BigFrames session to use. If not provided, the default session is used.
+
+    Returns:
+        bigframes.ml.base.BaseEstimator:
+            The created BigFrames model.
     """
     import bigframes.pandas as bpd
 
