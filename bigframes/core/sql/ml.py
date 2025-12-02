@@ -121,7 +121,7 @@ def evaluate(
                 rendered_val = bigframes.core.sql.simple_literal(option_value)
             rendered_options.append(f"{option_name} = {rendered_val}")
         sql += f", OPTIONS({', '.join(rendered_options)})"
-    sql += ")"
+    sql += ")\n"
     return sql
 
 
@@ -147,7 +147,7 @@ def predict(
                 rendered_val = bigframes.core.sql.simple_literal(option_value)
             rendered_options.append(f"{option_name} = {rendered_val}")
         sql += f", OPTIONS({', '.join(rendered_options)})"
-    sql += ")"
+    sql += ")\n"
     return sql
 
 
@@ -171,7 +171,7 @@ def explain_predict(
                 rendered_val = bigframes.core.sql.simple_literal(option_value)
             rendered_options.append(f"{option_name} = {rendered_val}")
         sql += f", OPTIONS({', '.join(rendered_options)})"
-    sql += ")"
+    sql += ")\n"
     return sql
 
 
@@ -194,5 +194,5 @@ def global_explain(
                 rendered_val = bigframes.core.sql.simple_literal(option_value)
             rendered_options.append(f"{option_name} = {rendered_val}")
         sql += f", OPTIONS({', '.join(rendered_options)})"
-    sql += ")"
+    sql += ")\n"
     return sql
