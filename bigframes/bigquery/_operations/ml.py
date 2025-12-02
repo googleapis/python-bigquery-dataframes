@@ -52,6 +52,10 @@ def create_model(
     """
     Creates a BigQuery ML model.
 
+    See the `BigQuery ML CREATE MODEL DDL syntax
+    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create>`_
+    for additional reference.
+
     Args:
         model_name (str):
             The name of the model in BigQuery.
@@ -69,16 +73,16 @@ def create_model(
             The connection to use for the model.
         options (Mapping[str, Union[str, int, float, bool, list]], optional):
             The OPTIONS clause, which specifies the model options.
-        training_data (Union[dataframe.DataFrame, str], optional):
+        training_data (Union[bigframes.pandas.DataFrame, str], optional):
             The query or DataFrame to use for training the model.
-        custom_holiday (Union[dataframe.DataFrame, str], optional):
+        custom_holiday (Union[bigframes.pandas.DataFrame, str], optional):
             The query or DataFrame to use for custom holiday data.
         session (bigframes.session.Session, optional):
-            The BigFrames session to use. If not provided, the default session is used.
+            The session to use. If not provided, the default session is used.
 
     Returns:
         bigframes.ml.base.BaseEstimator:
-            The created BigFrames model.
+            The created BigQuery ML model.
     """
     import bigframes.pandas as bpd
 
