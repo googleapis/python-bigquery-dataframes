@@ -40,6 +40,8 @@ def create_model(
     *,
     replace: bool = False,
     if_not_exists: bool = False,
+    # TODO(tswast): Also support bigframes.ml transformer classes and/or
+    # bigframes.pandas functions?
     transform: Optional[list[str]] = None,
     input_schema: Optional[Mapping[str, str]] = None,
     output_schema: Optional[Mapping[str, str]] = None,
@@ -64,7 +66,8 @@ def create_model(
         if_not_exists (bool, default False):
             Whether to ignore the error if the model already exists.
         transform (list[str], optional):
-            The TRANSFORM clause, which specifies the preprocessing steps to apply to the input data.
+            A list of SQL transformations for the TRANSFORM clause, which
+            specifies the preprocessing steps to apply to the input data.
         input_schema (Mapping[str, str], optional):
             The INPUT clause, which specifies the schema of the input data.
         output_schema (Mapping[str, str], optional):
