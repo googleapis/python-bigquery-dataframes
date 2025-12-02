@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Union
+from typing import Dict, Mapping, Optional, Union
 
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
@@ -94,33 +94,48 @@ def create_model_ddl(
             ddl += f"AS (\n  {', '.join(parts)}\n)"
         else:
             # Just training_data is treated as the query_statement
-            ddl += f"AS {training_data}"
+            ddl += f"AS {training_data}\n"
 
     return ddl
+
+
+def _build_struct_sql(
+    struct_options: Mapping[str, Union[str, int, float, bool]]
+) -> str:
+    if not struct_options:
+        return ""
+
+    rendered_options = []
+    for option_name, option_value in struct_options.items():
+        rendered_val = bigframes.core.sql.simple_literal(option_value)
+        rendered_options.append(f"{rendered_val} AS {option_name}")
+    return f", STRUCT({', '.join(rendered_options)})"
 
 
 def evaluate(
     model_name: str,
     *,
     table: Optional[str] = None,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    perform_aggregation: Optional[bool] = None,
+    horizon: Optional[int] = None,
+    confidence_level: Optional[float] = None,
 ) -> str:
-    """Encode the ML.EVALUATE statement.
-
+    """Encode the ML.EVAluate statement.
     See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate for reference.
     """
+    struct_options: Dict[str, Union[str, int, float, bool]] = {}
+    if perform_aggregation is not None:
+        struct_options["perform_aggregation"] = perform_aggregation
+    if horizon is not None:
+        struct_options["horizon"] = horizon
+    if confidence_level is not None:
+        struct_options["confidence_level"] = confidence_level
+
     sql = f"SELECT * FROM ML.EVALUATE(MODEL {googlesql.identifier(model_name)}"
     if table:
         sql += f", ({table})"
-    if options:
-        rendered_options = []
-        for option_name, option_value in options.items():
-            if isinstance(option_value, (list, tuple)):
-                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
-            else:
-                rendered_val = bigframes.core.sql.simple_literal(option_value)
-            rendered_options.append(f"{option_name} = {rendered_val}")
-        sql += f", OPTIONS({', '.join(rendered_options)})"
+
+    sql += _build_struct_sql(struct_options)
     sql += ")\n"
     return sql
 
@@ -129,24 +144,25 @@ def predict(
     model_name: str,
     table: str,
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    threshold: Optional[float] = None,
+    keep_original_columns: Optional[bool] = None,
+    trial_id: Optional[int] = None,
 ) -> str:
     """Encode the ML.PREDICT statement.
-
     See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-predict for reference.
     """
+    struct_options = {}
+    if threshold is not None:
+        struct_options["threshold"] = threshold
+    if keep_original_columns is not None:
+        struct_options["keep_original_columns"] = keep_original_columns
+    if trial_id is not None:
+        struct_options["trial_id"] = trial_id
+
     sql = (
         f"SELECT * FROM ML.PREDICT(MODEL {googlesql.identifier(model_name)}, ({table})"
     )
-    if options:
-        rendered_options = []
-        for option_name, option_value in options.items():
-            if isinstance(option_value, (list, tuple)):
-                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
-            else:
-                rendered_val = bigframes.core.sql.simple_literal(option_value)
-            rendered_options.append(f"{option_name} = {rendered_val}")
-        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += _build_struct_sql(struct_options)
     sql += ")\n"
     return sql
 
@@ -155,22 +171,28 @@ def explain_predict(
     model_name: str,
     table: str,
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    top_k_features: Optional[int] = None,
+    threshold: Optional[float] = None,
+    integrated_gradients_num_steps: Optional[int] = None,
+    approx_feature_contrib: Optional[bool] = None,
 ) -> str:
     """Encode the ML.EXPLAIN_PREDICT statement.
-
     See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict for reference.
     """
+    struct_options: Dict[str, Union[str, int, float, bool]] = {}
+    if top_k_features is not None:
+        struct_options["top_k_features"] = top_k_features
+    if threshold is not None:
+        struct_options["threshold"] = threshold
+    if integrated_gradients_num_steps is not None:
+        struct_options[
+            "integrated_gradients_num_steps"
+        ] = integrated_gradients_num_steps
+    if approx_feature_contrib is not None:
+        struct_options["approx_feature_contrib"] = approx_feature_contrib
+
     sql = f"SELECT * FROM ML.EXPLAIN_PREDICT(MODEL {googlesql.identifier(model_name)}, ({table})"
-    if options:
-        rendered_options = []
-        for option_name, option_value in options.items():
-            if isinstance(option_value, (list, tuple)):
-                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
-            else:
-                rendered_val = bigframes.core.sql.simple_literal(option_value)
-            rendered_options.append(f"{option_name} = {rendered_val}")
-        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += _build_struct_sql(struct_options)
     sql += ")\n"
     return sql
 
@@ -178,21 +200,16 @@ def explain_predict(
 def global_explain(
     model_name: str,
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    class_level_explain: Optional[bool] = None,
 ) -> str:
     """Encode the ML.GLOBAL_EXPLAIN statement.
-
     See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-global-explain for reference.
     """
+    struct_options = {}
+    if class_level_explain is not None:
+        struct_options["class_level_explain"] = class_level_explain
+
     sql = f"SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL {googlesql.identifier(model_name)}"
-    if options:
-        rendered_options = []
-        for option_name, option_value in options.items():
-            if isinstance(option_value, (list, tuple)):
-                rendered_val = bigframes.core.sql.simple_literal(list(option_value))
-            else:
-                rendered_val = bigframes.core.sql.simple_literal(option_value)
-            rendered_options.append(f"{option_name} = {rendered_val}")
-        sql += f", OPTIONS({', '.join(rendered_options)})"
+    sql += _build_struct_sql(struct_options)
     sql += ")\n"
     return sql

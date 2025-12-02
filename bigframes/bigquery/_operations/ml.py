@@ -151,7 +151,9 @@ def evaluate(
     model: Union[bigframes.ml.base.BaseEstimator, str],
     input_: Optional[Union[dataframe.DataFrame, str]] = None,
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    perform_aggregation: Optional[bool] = None,
+    horizon: Optional[int] = None,
+    confidence_level: Optional[float] = None,
 ) -> dataframe.DataFrame:
     """
     Evaluates a BigQuery ML model.
@@ -166,8 +168,22 @@ def evaluate(
         input_ (Union[bigframes.pandas.DataFrame, str], optional):
             The DataFrame or query to use for evaluation. If not provided, the
             evaluation data from training is used.
-        options (Mapping[str, Union[str, int, float, bool, list]], optional):
-            The OPTIONS clause, which specifies the model options.
+        perform_aggregation (bool, optional):
+            A BOOL value that indicates the level of evaluation for forecasting
+            accuracy. If you specify TRUE, then the forecasting accuracy is on
+            the time series level. If you specify FALSE, the forecasting
+            accuracy is on the timestamp level. The default value is TRUE.
+        horizon (int, optional):
+            An INT64 value that specifies the number of forecasted time points
+            against which the evaluation metrics are computed. The default value
+            is the horizon value specified in the CREATE MODEL statement for the
+            time series model, or 1000 if unspecified. When evaluating multiple
+            time series at the same time, this parameter applies to each time
+            series.
+        confidence_level (float, optional):
+            A FLOAT64 value that specifies the percentage of the future values
+            that fall in the prediction interval. The default value is 0.95. The
+            valid input range is ``[0, 1)``.
 
     Returns:
         bigframes.pandas.DataFrame:
@@ -179,7 +195,9 @@ def evaluate(
     sql = bigframes.core.sql.ml.evaluate(
         model_name=model_name,
         table=table_sql,
-        options=options,
+        perform_aggregation=perform_aggregation,
+        horizon=horizon,
+        confidence_level=confidence_level,
     )
 
     return session.read_gbq(sql)
@@ -190,7 +208,9 @@ def predict(
     model: Union[bigframes.ml.base.BaseEstimator, str],
     input_: Union[dataframe.DataFrame, str],
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    threshold: Optional[float] = None,
+    keep_original_columns: Optional[bool] = None,
+    trial_id: Optional[int] = None,
 ) -> dataframe.DataFrame:
     """
     Runs prediction on a BigQuery ML model.
@@ -204,8 +224,15 @@ def predict(
             The model to use for prediction.
         input_ (Union[bigframes.pandas.DataFrame, str]):
             The DataFrame or query to use for prediction.
-        options (Mapping[str, Union[str, int, float, bool, list]], optional):
-            The OPTIONS clause, which specifies the model options.
+        threshold (float, optional):
+            The threshold to use for classification models.
+        keep_original_columns (bool, optional):
+            Whether to keep the original columns in the output.
+        trial_id (int, optional):
+            An INT64 value that identifies the hyperparameter tuning trial that
+            you want the function to evaluate. The function uses the optimal
+            trial by default. Only specify this argument if you ran
+            hyperparameter tuning when creating the model.
 
     Returns:
         bigframes.pandas.DataFrame:
@@ -217,7 +244,9 @@ def predict(
     sql = bigframes.core.sql.ml.predict(
         model_name=model_name,
         table=table_sql,
-        options=options,
+        threshold=threshold,
+        keep_original_columns=keep_original_columns,
+        trial_id=trial_id,
     )
 
     return session.read_gbq(sql)
@@ -228,7 +257,10 @@ def explain_predict(
     model: Union[bigframes.ml.base.BaseEstimator, str],
     input_: Union[dataframe.DataFrame, str],
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    top_k_features: Optional[int] = None,
+    threshold: Optional[float] = None,
+    integrated_gradients_num_steps: Optional[int] = None,
+    approx_feature_contrib: Optional[bool] = None,
 ) -> dataframe.DataFrame:
     """
     Runs explainable prediction on a BigQuery ML model.
@@ -242,8 +274,19 @@ def explain_predict(
             The model to use for prediction.
         input_ (Union[bigframes.pandas.DataFrame, str]):
             The DataFrame or query to use for prediction.
-        options (Mapping[str, Union[str, int, float, bool, list]], optional):
-            The OPTIONS clause, which specifies the model options.
+        top_k_features (int, optional):
+            The number of top features to return.
+        threshold (float, optional):
+            The threshold for binary classification models.
+        integrated_gradients_num_steps (int, optional):
+            an INT64 value that specifies the number of steps to sample between
+            the example being explained and its baseline. This value is used to
+            approximate the integral in integrated gradients attribution
+            methods. Increasing the value improves the precision of feature
+            attributions, but can be slower and more computationally expensive.
+        approx_feature_contrib (bool, optional):
+            A BOOL value that indicates whether to use an approximate feature
+            contribution method in the XGBoost model explanation.
 
     Returns:
         bigframes.pandas.DataFrame:
@@ -255,7 +298,10 @@ def explain_predict(
     sql = bigframes.core.sql.ml.explain_predict(
         model_name=model_name,
         table=table_sql,
-        options=options,
+        top_k_features=top_k_features,
+        threshold=threshold,
+        integrated_gradients_num_steps=integrated_gradients_num_steps,
+        approx_feature_contrib=approx_feature_contrib,
     )
 
     return session.read_gbq(sql)
@@ -265,7 +311,7 @@ def explain_predict(
 def global_explain(
     model: Union[bigframes.ml.base.BaseEstimator, str],
     *,
-    options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
+    class_level_explain: Optional[bool] = None,
 ) -> dataframe.DataFrame:
     """
     Gets global explanations for a BigQuery ML model.
@@ -277,8 +323,8 @@ def global_explain(
     Args:
         model (bigframes.ml.base.BaseEstimator or str):
             The model to get explanations from.
-        options (Mapping[str, Union[str, int, float, bool, list]], optional):
-            The OPTIONS clause, which specifies the model options.
+        class_level_explain (bool, optional):
+            Whether to return class-level explanations.
 
     Returns:
         bigframes.pandas.DataFrame:
@@ -287,7 +333,7 @@ def global_explain(
     model_name, session = _get_model_name_and_session(model)
     sql = bigframes.core.sql.ml.global_explain(
         model_name=model_name,
-        options=options,
+        class_level_explain=class_level_explain,
     )
 
     return session.read_gbq(sql)
