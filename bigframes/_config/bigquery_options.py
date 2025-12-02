@@ -161,6 +161,16 @@ class BigQueryOptions:
     def location(self) -> Optional[str]:
         """Default location for job, datasets, and tables.
 
+        >>> import bigframes.pandas as bpd
+        >>> bpd.reset_session()
+        >>> bpd.options.bigquery.location = "us-central1"
+        >>> bpd.options.bigquery.location
+        'us-central1'
+
+        If not set, is set to the location inferred by the first call to
+        func:`bigframes.pandas.read_gbq` or similar. If the location can't be
+        inferred, jobs and temporary data use the US multiregion.
+
         For more information, see https://cloud.google.com/bigquery/docs/locations BigQuery locations.
 
         Returns:
