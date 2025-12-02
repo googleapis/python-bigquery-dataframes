@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module integrates BigQuery ML functions."""
+"""This module exposes `BigQuery ML
+<https://docs.cloud.google.com/bigquery/docs/bqml-introduction>`_ functions
+by directly mapping to the equivalent function names in SQL syntax.
+
+For an interface more familiar to Scikit-Learn users, see :mod:`bigframes.ml`.
+"""
 
 from bigframes.bigquery._operations.ml import create_model
 
