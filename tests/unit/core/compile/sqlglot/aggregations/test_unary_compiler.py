@@ -54,9 +54,8 @@ def _apply_unary_window_op(
 ) -> str:
     win_node = nodes.WindowOpNode(
         obj._block.expr.node,
-        expression=op,
+        agg_exprs=(nodes.ColumnDef(op, identifiers.ColumnId(new_name)),),
         window_spec=window_spec,
-        output_name=identifiers.ColumnId(new_name),
     )
     result = array_value.ArrayValue(win_node).select_columns([new_name])
 
@@ -174,6 +173,35 @@ def test_count(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
 
 
+def test_cut(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_ops_map = {
+        "int_bins": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=3, right=True, labels=None), expression.deref(col_name)
+        ),
+        "interval_bins": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=((0, 1), (1, 2)), right=True, labels=None),
+            expression.deref(col_name),
+        ),
+        "int_bins_labels": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=3, labels=("a", "b", "c"), right=False),
+            expression.deref(col_name),
+        ),
+        "interval_bins_labels": agg_exprs.UnaryAggregation(
+            agg_ops.CutOp(bins=((0, 1), (1, 2)), labels=False, right=True),
+            expression.deref(col_name),
+        ),
+    }
+    window = window_spec.WindowSpec()
+
+    # Loop through the aggregation map items
+    for test_name, agg_expr in agg_ops_map.items():
+        sql = _apply_unary_window_op(bf_df, agg_expr, window, test_name)
+
+        snapshot.assert_match(sql, f"{test_name}.sql")
+
+
 def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
@@ -186,18 +214,7 @@ def test_dense_rank(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
-def test_date_series_diff(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "date_col"
-    bf_df = scalar_types_df[[col_name]]
-    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
-    op = agg_exprs.UnaryAggregation(
-        agg_ops.DateSeriesDiffOp(periods=1), expression.deref(col_name)
-    )
-    sql = _apply_unary_window_op(bf_df, op, window, "diff_date")
-    snapshot.assert_match(sql, "out.sql")
-
-
-def test_diff(scalar_types_df: bpd.DataFrame, snapshot):
+def test_diff_w_int(scalar_types_df: bpd.DataFrame, snapshot):
     # Test integer
     int_col = "int64_col"
     bf_df_int = scalar_types_df[[int_col]]
@@ -206,9 +223,10 @@ def test_diff(scalar_types_df: bpd.DataFrame, snapshot):
         agg_ops.DiffOp(periods=1), expression.deref(int_col)
     )
     int_sql = _apply_unary_window_op(bf_df_int, int_op, window, "diff_int")
-    snapshot.assert_match(int_sql, "diff_int.sql")
+    snapshot.assert_match(int_sql, "out.sql")
 
-    # Test boolean
+
+def test_diff_w_bool(scalar_types_df: bpd.DataFrame, snapshot):
     bool_col = "bool_col"
     bf_df_bool = scalar_types_df[[bool_col]]
     window = window_spec.WindowSpec(ordering=(ordering.descending_over(bool_col),))
@@ -216,7 +234,29 @@ def test_diff(scalar_types_df: bpd.DataFrame, snapshot):
         agg_ops.DiffOp(periods=1), expression.deref(bool_col)
     )
     bool_sql = _apply_unary_window_op(bf_df_bool, bool_op, window, "diff_bool")
-    snapshot.assert_match(bool_sql, "diff_bool.sql")
+    snapshot.assert_match(bool_sql, "out.sql")
+
+
+def test_diff_w_datetime(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "datetime_col"
+    bf_df_date = scalar_types_df[[col_name]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(col_name)
+    )
+    sql = _apply_unary_window_op(bf_df_date, op, window, "diff_datetime")
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_diff_w_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "timestamp_col"
+    bf_df_timestamp = scalar_types_df[[col_name]]
+    window = window_spec.WindowSpec(ordering=(ordering.descending_over(col_name),))
+    op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(col_name)
+    )
+    sql = _apply_unary_window_op(bf_df_timestamp, op, window, "diff_timestamp")
+    snapshot.assert_match(sql, "out.sql")
 
 
 def test_first(scalar_types_df: bpd.DataFrame, snapshot):
@@ -384,6 +424,15 @@ def test_min(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
 
 
+def test_nunique(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.NuniqueOp().as_expr(col_name)
+    sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_pop_var(scalar_types_df: bpd.DataFrame, snapshot):
     col_names = ["int64_col", "bool_col"]
     bf_df = scalar_types_df[col_names]
@@ -404,6 +453,46 @@ def test_pop_var(scalar_types_df: bpd.DataFrame, snapshot):
     window = window_spec.WindowSpec(ordering=(ordering.descending_over(col_name),))
     sql_window = _apply_unary_window_op(bf_df_int, agg_expr, window, "agg_int64")
     snapshot.assert_match(sql_window, "window_out.sql")
+
+
+def test_product(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.ProductOp().as_expr(col_name)
+    sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
+
+    snapshot.assert_match(sql, "out.sql")
+
+    bf_df_str = scalar_types_df[[col_name, "string_col"]]
+    window_partition = window_spec.WindowSpec(
+        grouping_keys=(expression.deref("string_col"),),
+    )
+    sql_window_partition = _apply_unary_window_op(
+        bf_df_str, agg_expr, window_partition, "agg_int64"
+    )
+
+    snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
+
+
+def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
+
+    col_name = "int64_col"
+    bf = scalar_types_df[[col_name]]
+    bf["qcut_w_int"] = bpd.qcut(bf[col_name], q=4, labels=False, duplicates="drop")
+
+    q_list = tuple([0, 0.25, 0.5, 0.75, 1])
+    bf["qcut_w_list"] = bpd.qcut(
+        scalar_types_df[col_name],
+        q=q_list,
+        labels=False,
+        duplicates="drop",
+    )
+
+    snapshot.assert_match(bf.sql, "out.sql")
 
 
 def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
@@ -527,17 +616,6 @@ def test_sum(scalar_types_df: bpd.DataFrame, snapshot):
         bf_df_str, agg_expr, window_partition, "agg_int64"
     )
     snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
-
-
-def test_time_series_diff(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "timestamp_col"
-    bf_df = scalar_types_df[[col_name]]
-    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
-    op = agg_exprs.UnaryAggregation(
-        agg_ops.TimeSeriesDiffOp(periods=1), expression.deref(col_name)
-    )
-    sql = _apply_unary_window_op(bf_df, op, window, "diff_time")
-    snapshot.assert_match(sql, "out.sql")
 
 
 def test_var(scalar_types_df: bpd.DataFrame, snapshot):

@@ -111,25 +111,138 @@ def _(
     return apply_window_if_present(sge.func("COUNT", column.expr), window)
 
 
-@UNARY_OP_REGISTRATION.register(agg_ops.DateSeriesDiffOp)
+@UNARY_OP_REGISTRATION.register(agg_ops.CutOp)
 def _(
-    op: agg_ops.DateSeriesDiffOp,
+    op: agg_ops.CutOp,
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    if column.dtype != dtypes.DATE_DTYPE:
-        raise TypeError(f"Cannot perform date series diff on type {column.dtype}")
-    shift_op_impl = UNARY_OP_REGISTRATION[agg_ops.ShiftOp(0)]
-    shifted = shift_op_impl(agg_ops.ShiftOp(op.periods), column, window)
-    # Conversion factor from days to microseconds
-    conversion_factor = 24 * 60 * 60 * 1_000_000
-    return sge.Cast(
-        this=sge.DateDiff(
-            this=column.expr, expression=shifted, unit=sge.Identifier(this="DAY")
-        )
-        * sge.convert(conversion_factor),
-        to="INT64",
+    if isinstance(op.bins, int):
+        case_expr = _cut_ops_w_int_bins(op, column, op.bins, window)
+    else:  # Interpret as intervals
+        case_expr = _cut_ops_w_intervals(op, column, op.bins, window)
+    return case_expr
+
+
+def _cut_ops_w_int_bins(
+    op: agg_ops.CutOp,
+    column: typed_expr.TypedExpr,
+    bins: int,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Case:
+    case_expr = sge.Case()
+    col_min = apply_window_if_present(
+        sge.func("MIN", column.expr), window or window_spec.WindowSpec()
     )
+    col_max = apply_window_if_present(
+        sge.func("MAX", column.expr), window or window_spec.WindowSpec()
+    )
+    adj: sge.Expression = sge.Sub(this=col_max, expression=col_min) * sge.convert(0.001)
+    bin_width: sge.Expression = sge.func(
+        "IEEE_DIVIDE",
+        sge.Sub(this=col_max, expression=col_min),
+        sge.convert(bins),
+    )
+
+    for this_bin in range(bins):
+        value: sge.Expression
+        if op.labels is False:
+            value = ir._literal(this_bin, dtypes.INT_DTYPE)
+        elif isinstance(op.labels, typing.Iterable):
+            value = ir._literal(list(op.labels)[this_bin], dtypes.STRING_DTYPE)
+        else:
+            left_adj: sge.Expression = (
+                adj if this_bin == 0 and op.right else sge.convert(0)
+            )
+            right_adj: sge.Expression = (
+                adj if this_bin == bins - 1 and not op.right else sge.convert(0)
+            )
+
+            left: sge.Expression = (
+                col_min + sge.convert(this_bin) * bin_width - left_adj
+            )
+            right: sge.Expression = (
+                col_min + sge.convert(this_bin + 1) * bin_width + right_adj
+            )
+            if op.right:
+                left_identifier = sge.Identifier(this="left_exclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_inclusive", quoted=True)
+            else:
+                left_identifier = sge.Identifier(this="left_inclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_exclusive", quoted=True)
+
+            value = sge.Struct(
+                expressions=[
+                    sge.PropertyEQ(this=left_identifier, expression=left),
+                    sge.PropertyEQ(this=right_identifier, expression=right),
+                ]
+            )
+
+        condition: sge.Expression
+        if this_bin == bins - 1:
+            condition = sge.Is(this=column.expr, expression=sge.Not(this=sge.Null()))
+        else:
+            if op.right:
+                condition = sge.LTE(
+                    this=column.expr,
+                    expression=(col_min + sge.convert(this_bin + 1) * bin_width),
+                )
+            else:
+                condition = sge.LT(
+                    this=column.expr,
+                    expression=(col_min + sge.convert(this_bin + 1) * bin_width),
+                )
+        case_expr = case_expr.when(condition, value)
+    return case_expr
+
+
+def _cut_ops_w_intervals(
+    op: agg_ops.CutOp,
+    column: typed_expr.TypedExpr,
+    bins: typing.Iterable[typing.Tuple[typing.Any, typing.Any]],
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Case:
+    case_expr = sge.Case()
+    for this_bin, interval in enumerate(bins):
+        left: sge.Expression = ir._literal(
+            interval[0], dtypes.infer_literal_type(interval[0])
+        )
+        right: sge.Expression = ir._literal(
+            interval[1], dtypes.infer_literal_type(interval[1])
+        )
+        condition: sge.Expression
+        if op.right:
+            condition = sge.And(
+                this=sge.GT(this=column.expr, expression=left),
+                expression=sge.LTE(this=column.expr, expression=right),
+            )
+        else:
+            condition = sge.And(
+                this=sge.GTE(this=column.expr, expression=left),
+                expression=sge.LT(this=column.expr, expression=right),
+            )
+
+        value: sge.Expression
+        if op.labels is False:
+            value = ir._literal(this_bin, dtypes.INT_DTYPE)
+        elif isinstance(op.labels, typing.Iterable):
+            value = ir._literal(list(op.labels)[this_bin], dtypes.STRING_DTYPE)
+        else:
+            if op.right:
+                left_identifier = sge.Identifier(this="left_exclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_inclusive", quoted=True)
+            else:
+                left_identifier = sge.Identifier(this="left_inclusive", quoted=True)
+                right_identifier = sge.Identifier(this="right_exclusive", quoted=True)
+
+            value = sge.Struct(
+                expressions=[
+                    sge.PropertyEQ(this=left_identifier, expression=left),
+                    sge.PropertyEQ(this=right_identifier, expression=right),
+                ]
+            )
+        case_expr = case_expr.when(condition, value)
+    return case_expr
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.DenseRankOp)
@@ -193,13 +306,27 @@ def _(
 ) -> sge.Expression:
     shift_op_impl = UNARY_OP_REGISTRATION[agg_ops.ShiftOp(0)]
     shifted = shift_op_impl(agg_ops.ShiftOp(op.periods), column, window)
-    if column.dtype in (dtypes.BOOL_DTYPE, dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
-        if column.dtype == dtypes.BOOL_DTYPE:
-            return sge.NEQ(this=column.expr, expression=shifted)
-        else:
-            return sge.Sub(this=column.expr, expression=shifted)
-    else:
-        raise TypeError(f"Cannot perform diff on type {column.dtype}")
+    if column.dtype == dtypes.BOOL_DTYPE:
+        return sge.NEQ(this=column.expr, expression=shifted)
+
+    if column.dtype in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
+        return sge.Sub(this=column.expr, expression=shifted)
+
+    if column.dtype == dtypes.TIMESTAMP_DTYPE:
+        return sge.TimestampDiff(
+            this=column.expr,
+            expression=shifted,
+            unit=sge.Identifier(this="MICROSECOND"),
+        )
+
+    if column.dtype == dtypes.DATETIME_DTYPE:
+        return sge.DatetimeDiff(
+            this=column.expr,
+            expression=shifted,
+            unit=sge.Identifier(this="MICROSECOND"),
+        )
+
+    raise TypeError(f"Cannot perform diff on type {column.dtype}")
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.MaxOp)
@@ -252,6 +379,17 @@ def _(
     return apply_window_if_present(sge.func("MIN", column.expr), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.NuniqueOp)
+def _(
+    op: agg_ops.NuniqueOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(
+        sge.func("COUNT", sge.Distinct(expressions=[column.expr])), window
+    )
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.PopVarOp)
 def _(
     op: agg_ops.PopVarOp,
@@ -264,6 +402,95 @@ def _(
 
     expr = sge.func("VAR_POP", expr)
     return apply_window_if_present(expr, window)
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.ProductOp)
+def _(
+    op: agg_ops.ProductOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    # Need to short-circuit as log with zeroes is illegal sql
+    is_zero = sge.EQ(this=column.expr, expression=sge.convert(0))
+
+    # There is no product sql aggregate function, so must implement as a sum of logs, and then
+    # apply power after. Note, log and power base must be equal! This impl uses natural log.
+    logs = (
+        sge.Case()
+        .when(is_zero, sge.convert(0))
+        .else_(sge.func("LN", sge.func("ABS", column.expr)))
+    )
+    logs_sum = apply_window_if_present(sge.func("SUM", logs), window)
+    magnitude = sge.func("EXP", logs_sum)
+
+    # Can't determine sign from logs, so have to determine parity of count of negative inputs
+    is_negative = (
+        sge.Case()
+        .when(
+            sge.LT(this=sge.func("SIGN", column.expr), expression=sge.convert(0)),
+            sge.convert(1),
+        )
+        .else_(sge.convert(0))
+    )
+    negative_count = apply_window_if_present(sge.func("SUM", is_negative), window)
+    negative_count_parity = sge.Mod(
+        this=negative_count, expression=sge.convert(2)
+    )  # 1 if result should be negative, otherwise 0
+
+    any_zeroes = apply_window_if_present(sge.func("LOGICAL_OR", is_zero), window)
+
+    float_result = (
+        sge.Case()
+        .when(any_zeroes, sge.convert(0))
+        .else_(
+            sge.Mul(
+                this=magnitude,
+                expression=sge.If(
+                    this=sge.EQ(this=negative_count_parity, expression=sge.convert(1)),
+                    true=sge.convert(-1),
+                    false=sge.convert(1),
+                ),
+            )
+        )
+    )
+    return float_result
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.QcutOp)
+def _(
+    op: agg_ops.QcutOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    percent_ranks_order_by = sge.Ordered(this=column.expr, desc=False)
+    percent_ranks = apply_window_if_present(
+        sge.func("PERCENT_RANK"),
+        window,
+        include_framing_clauses=False,
+        order_by_override=[percent_ranks_order_by],
+    )
+    if isinstance(op.quantiles, int):
+        scaled_rank = percent_ranks * sge.convert(op.quantiles)
+        # Calculate the 0-based bucket index.
+        bucket_index = sge.func("CEIL", scaled_rank) - sge.convert(1)
+        safe_bucket_index = sge.func("GREATEST", bucket_index, 0)
+
+        return sge.If(
+            this=sge.Is(this=column.expr, expression=sge.Null()),
+            true=sge.Null(),
+            false=sge.Cast(this=safe_bucket_index, to="INT64"),
+        )
+    else:
+        case = sge.Case()
+        first_quantile = sge.convert(op.quantiles[0])
+        case = case.when(
+            sge.LT(this=percent_ranks, expression=first_quantile), sge.Null()
+        )
+        for bucket_n in range(len(op.quantiles) - 1):
+            quantile = sge.convert(op.quantiles[bucket_n + 1])
+            bucket = sge.convert(bucket_n)
+            case = case.when(sge.LTE(this=percent_ranks, expression=quantile), bucket)
+        return case.else_(sge.Null())
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.QuantileOp)
@@ -357,23 +584,6 @@ def _(
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     zero = pd.to_timedelta(0) if column.dtype == dtypes.TIMEDELTA_DTYPE else 0
     return sge.func("IFNULL", expr, ir._literal(zero, column.dtype))
-
-
-@UNARY_OP_REGISTRATION.register(agg_ops.TimeSeriesDiffOp)
-def _(
-    op: agg_ops.TimeSeriesDiffOp,
-    column: typed_expr.TypedExpr,
-    window: typing.Optional[window_spec.WindowSpec] = None,
-) -> sge.Expression:
-    if column.dtype != dtypes.TIMESTAMP_DTYPE:
-        raise TypeError(f"Cannot perform time series diff on type {column.dtype}")
-    shift_op_impl = UNARY_OP_REGISTRATION[agg_ops.ShiftOp(0)]
-    shifted = shift_op_impl(agg_ops.ShiftOp(op.periods), column, window)
-    return sge.TimestampDiff(
-        this=column.expr,
-        expression=shifted,
-        unit=sge.Identifier(this="MICROSECOND"),
-    )
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.VarOp)

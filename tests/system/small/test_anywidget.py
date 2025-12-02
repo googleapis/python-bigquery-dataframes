@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""System tests for the anywidget-based table widget."""
+
+from typing import Any
+from unittest import mock
 
 import pandas as pd
 import pytest
@@ -31,19 +35,16 @@ def paginated_pandas_df() -> pd.DataFrame:
     """Create a minimal test DataFrame with exactly 3 pages of 2 rows each."""
     test_data = pd.DataFrame(
         {
-            "id": [0, 1, 2, 3, 4, 5],
+            "id": [5, 4, 3, 2, 1, 0],
             "page_indicator": [
-                # Page 1 (rows 1-2)
-                "page_1_row_1",
-                "page_1_row_2",
-                # Page 2 (rows 3-4)
-                "page_2_row_1",
-                "page_2_row_2",
-                # Page 3 (rows 5-6)
-                "page_3_row_1",
                 "page_3_row_2",
+                "page_3_row_1",
+                "page_2_row_2",
+                "page_2_row_1",
+                "page_1_row_2",
+                "page_1_row_1",
             ],
-            "value": [0, 1, 2, 3, 4, 5],
+            "value": [5, 4, 3, 2, 1, 0],
         }
     )
     return test_data
@@ -98,6 +99,33 @@ def small_widget(small_bf_df):
         yield TableWidget(small_bf_df)
 
 
+@pytest.fixture
+def unknown_row_count_widget(session):
+    """Fixture to create a TableWidget with an unknown row count."""
+    from bigframes.core import blocks
+    from bigframes.display import TableWidget
+
+    # Create a small DataFrame with known content
+    test_data = pd.DataFrame(
+        {
+            "id": [0, 1, 2, 3, 4],
+            "value": ["row_0", "row_1", "row_2", "row_3", "row_4"],
+        }
+    )
+    bf_df = session.read_pandas(test_data)
+
+    # Simulate a scenario where total_rows is not available from the iterator
+    with mock.patch.object(bf_df, "_to_pandas_batches") as mock_batches:
+        # We need to provide an iterator of DataFrames, not Series
+        batches_iterator = iter([test_data])
+        mock_batches.return_value = blocks.PandasBatches(
+            batches_iterator, total_rows=None
+        )
+        with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+            widget = TableWidget(bf_df)
+            yield widget
+
+
 @pytest.fixture(scope="module")
 def empty_pandas_df() -> pd.DataFrame:
     """Create an empty DataFrame for edge case testing."""
@@ -129,7 +157,7 @@ def mock_execute_result_with_params(
             return ExecutionMetadata()
 
         @property
-        def schema(self):
+        def schema(self) -> Any:
             return schema
 
         def batches(self) -> ResultsIterator:
@@ -177,10 +205,13 @@ def test_widget_initialization_should_calculate_total_row_count(
     assert widget.row_count == EXPECTED_ROW_COUNT
 
 
-def test_widget_initialization_should_set_default_pagination(
+def test_widget_initialization_should_default_to_page_zero(
     table_widget,
 ):
-    """A TableWidget should initialize with page 0 and the correct page size."""
+    """
+    Given a new TableWidget, when it is initialized,
+    then its page number should default to 0.
+    """
     # The `table_widget` fixture already creates the widget.
     # Assert its state.
     assert table_widget.page == 0
@@ -229,8 +260,8 @@ def test_widget_navigation_should_display_correct_page(
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
-def test_widget_navigation_should_raise_error_for_negative_input(
-    table_widget, paginated_pandas_df: pd.DataFrame
+def test_setting_negative_page_should_raise_error(
+    table_widget,
 ):
     """
     Given a widget, when a negative page number is set,
@@ -240,19 +271,20 @@ def test_widget_navigation_should_raise_error_for_negative_input(
         table_widget.page = -1
 
 
-def test_widget_navigation_should_clamp_to_last_page_for_out_of_bounds_input(
+def test_setting_page_beyond_max_should_clamp_to_last_page(
     table_widget, paginated_pandas_df: pd.DataFrame
 ):
     """
-    Given a widget, when a page number greater than the max is set,
+    Given a widget,
+    when a page number greater than the max is set,
     then the page number should be clamped to the last valid page.
     """
-    expected_slice = paginated_pandas_df.iloc[4:6]
+    expected_slice = paginated_pandas_df.iloc[4:6]  # Last page data
 
-    table_widget.page = 100
+    table_widget.page = 100  # Set page far beyond the total of 3 pages
     html = table_widget.table_html
 
-    assert table_widget.page == 2
+    assert table_widget.page == 2  # Page is clamped to the last valid page (0-indexed)
     _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
 
 
@@ -302,57 +334,84 @@ def test_widget_with_few_rows_should_display_all_rows(small_widget, small_pandas
     _assert_html_matches_pandas_slice(html, small_pandas_df, small_pandas_df)
 
 
-def test_widget_with_few_rows_should_have_only_one_page(small_widget):
+def test_navigation_beyond_last_page_should_be_clamped(small_widget):
     """
-    Given a DataFrame smaller than the page size, the widget should
-    clamp page navigation, effectively having only one page.
+    Given a DataFrame smaller than the page size,
+    when navigating beyond the last page,
+    then the page should be clamped to the last valid page (page 0).
     """
+    # For a DataFrame with 2 rows and page_size 5 (from small_widget fixture),
+    # the frontend should calculate 1 total page.
+    assert small_widget.row_count == 2
+
+    # The widget should always be on page 0 for a single-page dataset.
     assert small_widget.page == 0
 
-    # Attempt to navigate past the end
+    # Attempting to navigate to page 1 should be clamped back to page 0,
+    # confirming that only one page is recognized by the backend.
     small_widget.page = 1
-
-    # Should be clamped back to the only valid page
     assert small_widget.page == 0
 
 
-def test_widget_page_size_should_be_immutable_after_creation(
+def test_global_options_change_should_not_affect_existing_widget_page_size(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
     """
-    A widget's page size should be fixed on creation and not be affected
-    by subsequent changes to global options.
+    Given an existing widget,
+    when global display options are changed,
+    then the widget's page size should remain unchanged.
     """
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         from bigframes.display import TableWidget
 
         widget = TableWidget(paginated_bf_df)
         assert widget.page_size == 2
-
-        # Navigate to second page to ensure widget is in a non-default state
-        widget.page = 1
+        widget.page = 1  # a non-default state
         assert widget.page == 1
 
-        # Change global max_rows - widget should not be affected
-        bf.options.display.max_rows = 10
+    bf.options.display.max_rows = 10  # Change global setting
 
-        assert widget.page_size == 2  # Should remain unchanged
-        assert widget.page == 1  # Should remain on same page
+    assert widget.page_size == 2  # Should remain unchanged
+    assert widget.page == 1  # Page should not be reset
 
 
-def test_empty_widget_should_have_zero_row_count(empty_bf_df: bf.dataframe.DataFrame):
-    """Given an empty DataFrame, the widget's row count should be 0."""
+def test_widget_with_empty_dataframe_should_have_zero_row_count(
+    empty_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given an empty DataFrame,
+    when a widget is created from it,
+    then its row_count should be 0.
+    """
+
     with bf.option_context("display.repr_mode", "anywidget"):
         from bigframes.display import TableWidget
 
         widget = TableWidget(empty_bf_df)
 
-        assert widget.row_count == 0
+    assert widget.row_count == 0
 
 
-def test_empty_widget_should_render_table_headers(empty_bf_df: bf.dataframe.DataFrame):
-    """Given an empty DataFrame, the widget should still render table headers."""
+def test_widget_with_empty_dataframe_should_render_table_headers(
+    empty_bf_df: bf.dataframe.DataFrame,
+):
+
+    """
+
+
+    Given an empty DataFrame,
+
+
+    when a widget is created from it,
+
+
+    then its HTML representation should still render the table headers.
+
+
+    """
+
     with bf.option_context("display.repr_mode", "anywidget"):
+
         from bigframes.display import TableWidget
 
         widget = TableWidget(empty_bf_df)
@@ -360,7 +419,8 @@ def test_empty_widget_should_render_table_headers(empty_bf_df: bf.dataframe.Data
         html = widget.table_html
 
         assert "<table" in html
-        assert "id" in html
+
+        assert "id" in html  # Check for a column header
 
 
 def test_page_size_change_should_reset_current_page_to_zero(table_widget):
@@ -420,8 +480,10 @@ def test_navigation_after_page_size_change_should_use_new_size(
 
 @pytest.mark.parametrize("invalid_size", [0, -5], ids=["zero", "negative"])
 def test_setting_invalid_page_size_should_be_ignored(table_widget, invalid_size: int):
-    """When the page size is set to an invalid number (<=0), the change should
-    be ignored."""
+    """
+    When the page size is set to an invalid number (<=0), the change should
+    be ignored.
+    """
     # Set the initial page to 2.
     initial_size = table_widget.page_size
     assert initial_size == 2
@@ -684,6 +746,190 @@ def test_widget_with_unknown_row_count_empty_dataframe(
         assert widget.page == 0
 
 
-# TODO(shuowei): Add tests for custom index and multiindex
+def test_widget_sort_should_sort_ascending_on_first_click(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a widget, when a column header is clicked for the first time,
+    then the data should be sorted by that column in ascending order.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    expected_slice = paginated_pandas_df.sort_values("id", ascending=True).iloc[0:2]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_sort_descending_on_second_click(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a widget sorted by a column, when the same column header is clicked again,
+    then the data should be sorted by that column in descending order.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    # Second click
+    table_widget.sort_ascending = False
+
+    expected_slice = paginated_pandas_df.sort_values("id", ascending=False).iloc[0:2]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_switch_column_and_sort_ascending(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a widget sorted by a column, when a different column header is clicked,
+    then the data should be sorted by the new column in ascending order.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    # Click on a different column
+    table_widget.sort_column = "value"
+    table_widget.sort_ascending = True
+
+    expected_slice = paginated_pandas_df.sort_values("value", ascending=True).iloc[0:2]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_be_maintained_after_pagination(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a sorted widget, when the user navigates to the next page,
+    then the sorting should be maintained.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    # Go to the second page
+    table_widget.page = 1
+
+    expected_slice = paginated_pandas_df.sort_values("id", ascending=True).iloc[2:4]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+def test_widget_sort_should_reset_on_page_size_change(
+    table_widget, paginated_pandas_df: pd.DataFrame
+):
+    """
+    Given a sorted widget, when the page size is changed,
+    then the sorting should be reset.
+    """
+    table_widget.sort_column = "id"
+    table_widget.sort_ascending = True
+
+    table_widget.page_size = 3
+
+    # Sorting is not reset in the backend, but the view should be of the unsorted df
+    expected_slice = paginated_pandas_df.iloc[0:3]
+    html = table_widget.table_html
+
+    _assert_html_matches_pandas_slice(html, expected_slice, paginated_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def integer_column_df(session):
+    """Create a DataFrame with integer column labels."""
+    pandas_df = pd.DataFrame([[0, 1], [2, 3]], columns=pd.Index([1, 2]))
+    return session.read_pandas(pandas_df)
+
+
+@pytest.fixture(scope="module")
+def multiindex_column_df(session):
+    """Create a DataFrame with MultiIndex column labels."""
+    pandas_df = pd.DataFrame(
+        {
+            "foo": ["one", "one", "one", "two", "two", "two"],
+            "bar": ["A", "B", "C", "A", "B", "C"],
+            "baz": [1, 2, 3, 4, 5, 6],
+            "zoo": ["x", "y", "z", "q", "w", "t"],
+        }
+    )
+    df = session.read_pandas(pandas_df)
+    # The session is attached to `df` through the constructor.
+    # We can pass it to the pivoted DataFrame.
+    pdf = df.pivot(index="foo", columns="bar", values=["baz", "zoo"])
+    return pdf
+
+
+def test_table_widget_integer_columns_disables_sorting(integer_column_df):
+    """
+    Given a DataFrame with integer column labels, the widget should
+    disable sorting.
+    """
+    from bigframes.display import TableWidget
+
+    widget = TableWidget(integer_column_df)
+    assert widget.orderable_columns == []
+
+
+def test_table_widget_multiindex_columns_disables_sorting(multiindex_column_df):
+    """
+    Given a DataFrame with a MultiIndex for columns, the widget should
+    disable sorting.
+    """
+    from bigframes.display import TableWidget
+
+    widget = TableWidget(multiindex_column_df)
+    assert widget.orderable_columns == []
+
+
+def test_repr_mimebundle_should_fallback_to_html_if_anywidget_is_unavailable(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Test that _repr_mimebundle_ falls back to static html when anywidget is not available.
+    """
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        # Mock the ANYWIDGET_INSTALLED flag to simulate absence of anywidget
+        with mock.patch("bigframes.display.anywidget.ANYWIDGET_INSTALLED", False):
+            bundle = paginated_bf_df._repr_mimebundle_()
+            assert "application/vnd.jupyter.widget-view+json" not in bundle
+            assert "text/html" in bundle
+            html = bundle["text/html"]
+            assert "page_3_row_2" in html
+            assert "page_3_row_1" in html
+            assert "page_1_row_1" not in html
+
+
+def test_repr_mimebundle_should_return_widget_view_if_anywidget_is_available(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Test that _repr_mimebundle_ returns a widget view when anywidget is available.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        bundle = paginated_bf_df._repr_mimebundle_()
+        assert "application/vnd.jupyter.widget-view+json" in bundle
+        assert "text/html" in bundle
+        assert "text/plain" in bundle
+
+
+def test_repr_in_anywidget_mode_should_not_be_deferred(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Test that repr(df) is not deferred in anywidget mode.
+    This is to ensure that print(df) works as expected.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        representation = repr(paginated_bf_df)
+        assert "Computation deferred" not in representation
+        assert "page_1_row_1" in representation
+
+
+# TODO(b/332316283): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
