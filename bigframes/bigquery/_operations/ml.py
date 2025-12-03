@@ -49,8 +49,11 @@ def _get_model_name_and_session(
     *dataframes: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]],
 ) -> tuple[str, Optional[bigframes.session.Session]]:
     if isinstance(model, pd.Series):
-        model_ref = model["modelReference"]
-        model_name = f"{model_ref['projectId']}.{model_ref['datasetId']}.{model_ref['modelId']}"  # type: ignore
+        try:
+            model_ref = model["modelReference"]
+            model_name = f"{model_ref['projectId']}.{model_ref['datasetId']}.{model_ref['modelId']}"  # type: ignore
+        except KeyError:
+            raise ValueError("modelReference must be present in the pandas Series.")
     elif isinstance(model, str):
         model_name = model
     else:
