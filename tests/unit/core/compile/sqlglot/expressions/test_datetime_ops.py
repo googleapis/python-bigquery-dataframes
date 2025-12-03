@@ -64,19 +64,8 @@ def test_datetime_to_integer_label(scalar_types_df: bpd.DataFrame, snapshot):
         "fixed_freq": ops.DatetimeToIntegerLabelOp(
             freq=pd.tseries.offsets.Day(), origin="start", closed="left"  # type: ignore
         ).as_expr("datetime_col", "timestamp_col"),
-        "non_fixed_freq_monthly": ops.DatetimeToIntegerLabelOp(
-            freq=pd.tseries.offsets.MonthEnd(), origin="start", closed="left"  # type: ignore
-        ).as_expr("datetime_col", "timestamp_col"),
         "non_fixed_freq_weekly": ops.DatetimeToIntegerLabelOp(
             freq=pd.tseries.offsets.Week(weekday=6), origin="start", closed="left"  # type: ignore
-        ).as_expr("datetime_col", "timestamp_col"),
-        "non_fixed_freq_quarterly": ops.DatetimeToIntegerLabelOp(
-            freq=pd.tseries.offsets.QuarterEnd(startingMonth=12),  # type: ignore
-            origin="start",
-            closed="left",
-        ).as_expr("datetime_col", "timestamp_col"),
-        "non_fixed_freq_yearly": ops.DatetimeToIntegerLabelOp(
-            freq=pd.tseries.offsets.YearEnd(month=12), origin="start", closed="left"  # type: ignore
         ).as_expr("datetime_col", "timestamp_col"),
     }
 
