@@ -16,11 +16,24 @@
 
 from __future__ import annotations
 
-try:
-    import anywidget  # noqa
+from typing import Any
 
-    from bigframes.display.anywidget import TableWidget
 
-    __all__ = ["TableWidget"]
-except Exception:
-    pass
+def __getattr__(name: str) -> Any:
+    if name == "TableWidget":
+        try:
+            import anywidget  # noqa
+
+            from bigframes.display.anywidget import TableWidget
+
+            return TableWidget
+        except Exception:
+            raise AttributeError(
+                f"module '{__name__}' has no attribute '{name}'. "
+                "TableWidget requires anywidget and traitlets to be installed. "
+                "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'`."
+            )
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+__all__ = ["TableWidget"]
