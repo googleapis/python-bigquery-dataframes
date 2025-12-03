@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Union
+from typing import cast, Mapping, Optional, Union
 
 import bigframes_vendored.constants
 import google.cloud.bigquery
@@ -28,35 +28,43 @@ import bigframes.session
 
 
 # Helper to convert DataFrame to SQL string
-def _to_sql(df_or_sql: Union[dataframe.DataFrame, str]) -> str:
+def _to_sql(df_or_sql: Union[pd.DataFrame, dataframe.DataFrame, str]) -> str:
+    import bigframes.pandas as bpd
+
     if isinstance(df_or_sql, str):
         return df_or_sql
-    # It's a DataFrame
-    sql, _, _ = df_or_sql._to_sql_query(include_index=False)
+
+    if isinstance(df_or_sql, pd.DataFrame):
+        bf_df = bpd.read_pandas(df_or_sql)
+    else:
+        bf_df = cast(dataframe.DataFrame, df_or_sql)
+
+    sql, _, _ = bf_df._to_sql_query(include_index=False)
     return sql
 
 
 def _get_model_name_and_session(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
     # Other dataframe arguments to extract session from
-    *dataframes: Optional[Union[dataframe.DataFrame, str]],
-) -> tuple[str, bigframes.session.Session]:
-    import bigframes.pandas as bpd
-
-    if isinstance(model, str):
+    *dataframes: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]],
+) -> tuple[str, Optional[bigframes.session.Session]]:
+    if isinstance(model, pd.Series):
+        model_ref = model["modelReference"]
+        model_name = f"{model_ref['projectId']}.{model_ref['datasetId']}.{model_ref['modelId']}"  # type: ignore
+    elif isinstance(model, str):
         model_name = model
-        session = None
-        for df in dataframes:
-            if isinstance(df, dataframe.DataFrame):
-                session = df._session
-                break
-        if session is None:
-            session = bpd.get_global_session()
-        return model_name, session
     else:
         if model._bqml_model is None:
             raise ValueError("Model must be fitted to be used in ML operations.")
         return model._bqml_model.model_name, model._bqml_model.session
+
+    session = None
+    for df in dataframes:
+        if isinstance(df, dataframe.DataFrame):
+            session = df._session
+            break
+
+    return model_name, session
 
 
 def _get_model_metadata(
@@ -82,8 +90,8 @@ def create_model(
     output_schema: Optional[Mapping[str, str]] = None,
     connection_name: Optional[str] = None,
     options: Optional[Mapping[str, Union[str, int, float, bool, list]]] = None,
-    training_data: Optional[Union[dataframe.DataFrame, str]] = None,
-    custom_holiday: Optional[Union[dataframe.DataFrame, str]] = None,
+    training_data: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]] = None,
+    custom_holiday: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]] = None,
     session: Optional[bigframes.session.Session] = None,
 ) -> pd.Series:
     """
@@ -169,8 +177,8 @@ def create_model(
 
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
 def evaluate(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    input_: Optional[Union[dataframe.DataFrame, str]] = None,
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    input_: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]] = None,
     *,
     perform_aggregation: Optional[bool] = None,
     horizon: Optional[int] = None,
@@ -210,6 +218,8 @@ def evaluate(
         bigframes.pandas.DataFrame:
             The evaluation results.
     """
+    import bigframes.pandas as bpd
+
     model_name, session = _get_model_name_and_session(model, input_)
     table_sql = _to_sql(input_) if input_ is not None else None
 
@@ -221,13 +231,16 @@ def evaluate(
         confidence_level=confidence_level,
     )
 
-    return session.read_gbq(sql)
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
 def predict(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    input_: Union[dataframe.DataFrame, str],
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    input_: Union[pd.DataFrame, dataframe.DataFrame, str],
     *,
     threshold: Optional[float] = None,
     keep_original_columns: Optional[bool] = None,
@@ -259,6 +272,8 @@ def predict(
         bigframes.pandas.DataFrame:
             The prediction results.
     """
+    import bigframes.pandas as bpd
+
     model_name, session = _get_model_name_and_session(model, input_)
     table_sql = _to_sql(input_)
 
@@ -270,13 +285,16 @@ def predict(
         trial_id=trial_id,
     )
 
-    return session.read_gbq(sql)
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
 def explain_predict(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    input_: Union[dataframe.DataFrame, str],
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    input_: Union[pd.DataFrame, dataframe.DataFrame, str],
     *,
     top_k_features: Optional[int] = None,
     threshold: Optional[float] = None,
@@ -313,6 +331,8 @@ def explain_predict(
         bigframes.pandas.DataFrame:
             The prediction results with explanations.
     """
+    import bigframes.pandas as bpd
+
     model_name, session = _get_model_name_and_session(model, input_)
     table_sql = _to_sql(input_)
 
@@ -325,12 +345,15 @@ def explain_predict(
         approx_feature_contrib=approx_feature_contrib,
     )
 
-    return session.read_gbq(sql)
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
 def global_explain(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
     *,
     class_level_explain: Optional[bool] = None,
 ) -> dataframe.DataFrame:
@@ -351,10 +374,15 @@ def global_explain(
         bigframes.pandas.DataFrame:
             The global explanation results.
     """
+    import bigframes.pandas as bpd
+
     model_name, session = _get_model_name_and_session(model)
     sql = bigframes.core.sql.ml.global_explain(
         model_name=model_name,
         class_level_explain=class_level_explain,
     )
 
-    return session.read_gbq(sql)
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
