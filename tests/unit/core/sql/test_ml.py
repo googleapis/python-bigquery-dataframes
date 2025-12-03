@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
 import bigframes.core.sql.ml
 
 
@@ -25,6 +23,7 @@ def test_create_model_basic(snapshot):
     )
     snapshot.assert_match(sql, "create_model_basic.sql")
 
+
 def test_create_model_replace(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
         model_name="my_model",
@@ -33,6 +32,7 @@ def test_create_model_replace(snapshot):
         training_data="SELECT * FROM t",
     )
     snapshot.assert_match(sql, "create_model_replace.sql")
+
 
 def test_create_model_if_not_exists(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
@@ -43,6 +43,7 @@ def test_create_model_if_not_exists(snapshot):
     )
     snapshot.assert_match(sql, "create_model_if_not_exists.sql")
 
+
 def test_create_model_transform(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
         model_name="my_model",
@@ -51,6 +52,7 @@ def test_create_model_transform(snapshot):
         training_data="SELECT c1, c2, label FROM t",
     )
     snapshot.assert_match(sql, "create_model_transform.sql")
+
 
 def test_create_model_remote(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
@@ -62,6 +64,7 @@ def test_create_model_remote(snapshot):
     )
     snapshot.assert_match(sql, "create_model_remote.sql")
 
+
 def test_create_model_remote_default(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
         model_name="my_remote_model",
@@ -69,6 +72,7 @@ def test_create_model_remote_default(snapshot):
         options={"endpoint": "gemini-pro"},
     )
     snapshot.assert_match(sql, "create_model_remote_default.sql")
+
 
 def test_create_model_training_data_and_holiday(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
@@ -79,6 +83,7 @@ def test_create_model_training_data_and_holiday(snapshot):
     )
     snapshot.assert_match(sql, "create_model_training_data_and_holiday.sql")
 
+
 def test_create_model_list_option(snapshot):
     sql = bigframes.core.sql.ml.create_model_ddl(
         model_name="my_model",
@@ -86,3 +91,77 @@ def test_create_model_list_option(snapshot):
         training_data="SELECT * FROM t",
     )
     snapshot.assert_match(sql, "create_model_list_option.sql")
+
+
+def test_evaluate_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.evaluate(
+        model_name="my_project.my_dataset.my_model",
+    )
+    snapshot.assert_match(sql, "evaluate_model_basic.sql")
+
+
+def test_evaluate_model_with_table(snapshot):
+    sql = bigframes.core.sql.ml.evaluate(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM evaluation_data",
+    )
+    snapshot.assert_match(sql, "evaluate_model_with_table.sql")
+
+
+def test_evaluate_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.evaluate(
+        model_name="my_model",
+        perform_aggregation=False,
+        horizon=10,
+        confidence_level=0.95,
+    )
+    snapshot.assert_match(sql, "evaluate_model_with_options.sql")
+
+
+def test_predict_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.predict(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM new_data",
+    )
+    snapshot.assert_match(sql, "predict_model_basic.sql")
+
+
+def test_predict_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.predict(
+        model_name="my_model",
+        table="SELECT * FROM new_data",
+        keep_original_columns=True,
+    )
+    snapshot.assert_match(sql, "predict_model_with_options.sql")
+
+
+def test_explain_predict_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.explain_predict(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM new_data",
+    )
+    snapshot.assert_match(sql, "explain_predict_model_basic.sql")
+
+
+def test_explain_predict_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.explain_predict(
+        model_name="my_model",
+        table="SELECT * FROM new_data",
+        top_k_features=5,
+    )
+    snapshot.assert_match(sql, "explain_predict_model_with_options.sql")
+
+
+def test_global_explain_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.global_explain(
+        model_name="my_project.my_dataset.my_model",
+    )
+    snapshot.assert_match(sql, "global_explain_model_basic.sql")
+
+
+def test_global_explain_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.global_explain(
+        model_name="my_model",
+        class_level_explain=True,
+    )
+    snapshot.assert_match(sql, "global_explain_model_with_options.sql")
