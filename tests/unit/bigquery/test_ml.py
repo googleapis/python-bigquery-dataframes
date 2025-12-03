@@ -65,10 +65,10 @@ def test_to_sql_with_pandas_dataframe(read_pandas_mock):
     read_pandas_mock.assert_called_once()
 
 
+@mock.patch("bigframes.bigquery._operations.ml._get_model_metadata")
 @mock.patch("bigframes.pandas.read_pandas")
-@mock.patch("bigframes.core.sql.ml.create_model_ddl")
 def test_create_model_with_pandas_dataframe(
-    create_model_ddl_mock, read_pandas_mock, mock_session
+    read_pandas_mock, _get_model_metadata_mock, mock_session
 ):
     df = pd.DataFrame({"col1": [1, 2, 3]})
     read_pandas_mock.return_value._to_sql_query.return_value = (
@@ -78,72 +78,70 @@ def test_create_model_with_pandas_dataframe(
     )
     ml_ops.create_model("model_name", training_data=df, session=mock_session)
     read_pandas_mock.assert_called_once()
-    create_model_ddl_mock.assert_called_once()
+    mock_session.read_gbq_query.assert_called_once()
+    generated_sql = mock_session.read_gbq_query.call_args[0][0]
+    assert "CREATE MODEL `model_name`" in generated_sql
+    assert "AS SELECT * FROM `pandas_df`" in generated_sql
 
 
 @mock.patch("bigframes.pandas.read_gbq_query")
 @mock.patch("bigframes.pandas.read_pandas")
-@mock.patch("bigframes.core.sql.ml.evaluate")
-def test_evaluate_with_pandas_dataframe(
-    evaluate_mock, read_pandas_mock, read_gbq_query_mock
-):
+def test_evaluate_with_pandas_dataframe(read_pandas_mock, read_gbq_query_mock):
     df = pd.DataFrame({"col1": [1, 2, 3]})
     read_pandas_mock.return_value._to_sql_query.return_value = (
         "SELECT * FROM `pandas_df`",
         [],
         [],
     )
-    evaluate_mock.return_value = "SELECT * FROM `pandas_df`"
     ml_ops.evaluate(MODEL_SERIES, input_=df)
     read_pandas_mock.assert_called_once()
-    evaluate_mock.assert_called_once()
-    read_gbq_query_mock.assert_called_once_with("SELECT * FROM `pandas_df`")
+    read_gbq_query_mock.assert_called_once()
+    generated_sql = read_gbq_query_mock.call_args[0][0]
+    assert "ML.EVALUATE" in generated_sql
+    assert f"MODEL `{MODEL_NAME}`" in generated_sql
+    assert "(SELECT * FROM `pandas_df`)" in generated_sql
 
 
 @mock.patch("bigframes.pandas.read_gbq_query")
 @mock.patch("bigframes.pandas.read_pandas")
-@mock.patch("bigframes.core.sql.ml.predict")
-def test_predict_with_pandas_dataframe(
-    predict_mock, read_pandas_mock, read_gbq_query_mock
-):
+def test_predict_with_pandas_dataframe(read_pandas_mock, read_gbq_query_mock):
     df = pd.DataFrame({"col1": [1, 2, 3]})
     read_pandas_mock.return_value._to_sql_query.return_value = (
         "SELECT * FROM `pandas_df`",
         [],
         [],
     )
-    predict_mock.return_value = "SELECT * FROM `pandas_df`"
     ml_ops.predict(MODEL_SERIES, input_=df)
     read_pandas_mock.assert_called_once()
-    predict_mock.assert_called_once()
-    read_gbq_query_mock.assert_called_once_with("SELECT * FROM `pandas_df`")
+    read_gbq_query_mock.assert_called_once()
+    generated_sql = read_gbq_query_mock.call_args[0][0]
+    assert "ML.PREDICT" in generated_sql
+    assert f"MODEL `{MODEL_NAME}`" in generated_sql
+    assert "(SELECT * FROM `pandas_df`)" in generated_sql
 
 
 @mock.patch("bigframes.pandas.read_gbq_query")
 @mock.patch("bigframes.pandas.read_pandas")
-@mock.patch("bigframes.core.sql.ml.explain_predict")
-def test_explain_predict_with_pandas_dataframe(
-    explain_predict_mock, read_pandas_mock, read_gbq_query_mock
-):
+def test_explain_predict_with_pandas_dataframe(read_pandas_mock, read_gbq_query_mock):
     df = pd.DataFrame({"col1": [1, 2, 3]})
     read_pandas_mock.return_value._to_sql_query.return_value = (
         "SELECT * FROM `pandas_df`",
         [],
         [],
     )
-    explain_predict_mock.return_value = "SELECT * FROM `pandas_df`"
     ml_ops.explain_predict(MODEL_SERIES, input_=df)
     read_pandas_mock.assert_called_once()
-    explain_predict_mock.assert_called_once()
-    read_gbq_query_mock.assert_called_once_with("SELECT * FROM `pandas_df`")
+    read_gbq_query_mock.assert_called_once()
+    generated_sql = read_gbq_query_mock.call_args[0][0]
+    assert "ML.EXPLAIN_PREDICT" in generated_sql
+    assert f"MODEL `{MODEL_NAME}`" in generated_sql
+    assert "(SELECT * FROM `pandas_df`)" in generated_sql
 
 
 @mock.patch("bigframes.pandas.read_gbq_query")
-@mock.patch("bigframes.core.sql.ml.global_explain")
-def test_global_explain_with_pandas_series_model(
-    global_explain_mock, read_gbq_query_mock
-):
-    global_explain_mock.return_value = "SELECT * FROM `pandas_df`"
+def test_global_explain_with_pandas_series_model(read_gbq_query_mock):
     ml_ops.global_explain(MODEL_SERIES)
-    global_explain_mock.assert_called_once()
-    read_gbq_query_mock.assert_called_once_with("SELECT * FROM `pandas_df`")
+    read_gbq_query_mock.assert_called_once()
+    generated_sql = read_gbq_query_mock.call_args[0][0]
+    assert "ML.GLOBAL_EXPLAIN" in generated_sql
+    assert f"MODEL `{MODEL_NAME}`" in generated_sql
