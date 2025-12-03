@@ -376,9 +376,7 @@ class Index(vendored_pandas_index.Index):
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
-        # for faster execution
-        if opts.repr_mode in ("deferred", "anywidget"):
+        if opts.repr_mode == "deferred":
             _, dry_run_query_job = self._block._compute_dry_run()
             return formatter.repr_query_job(dry_run_query_job)
 
@@ -626,8 +624,6 @@ class Index(vendored_pandas_index.Index):
         return Index(result)
 
     def drop_duplicates(self, *, keep: __builtins__.str = "first") -> Index:
-        if keep is not False:
-            validations.enforce_ordered(self, "drop_duplicates")
         block = block_ops.drop_duplicates(self._block, self._block.index_columns, keep)
         return Index(block)
 
