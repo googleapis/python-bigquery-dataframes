@@ -107,7 +107,6 @@ def _(expr: TypedExpr, op: ops.MapOp) -> sge.Expression:
             sge.If(this=sge.convert(key), true=sge.convert(value))
             for key, value in op.mappings
         ],
-        default=expr.expr,
     )
 
 

@@ -10,7 +10,6 @@ packages.
     bigframes._config
     bigframes.bigquery
     bigframes.bigquery.ai
-    bigframes.bigquery.ml
     bigframes.enums
     bigframes.exceptions
     bigframes.geopandas
@@ -27,8 +26,6 @@ scikit-learn.
 .. autosummary::
     :toctree: api
 
-    bigframes.ml
-    bigframes.ml.base
     bigframes.ml.cluster
     bigframes.ml.compose
     bigframes.ml.decomposition
@@ -38,7 +35,6 @@ scikit-learn.
     bigframes.ml.impute
     bigframes.ml.linear_model
     bigframes.ml.llm
-    bigframes.ml.metrics
     bigframes.ml.model_selection
     bigframes.ml.pipeline
     bigframes.ml.preprocessing

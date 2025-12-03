@@ -14,13 +14,16 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Union
+import typing
+from typing import Mapping, Optional, TYPE_CHECKING, Union
 
 import bigframes.core.log_adapter as log_adapter
 import bigframes.core.sql.ml
 import bigframes.dataframe as dataframe
-import bigframes.ml.base
-import bigframes.session
+
+if TYPE_CHECKING:
+    import bigframes.ml.base
+    import bigframes.session
 
 
 # Helper to convert DataFrame to SQL string
@@ -32,37 +35,12 @@ def _to_sql(df_or_sql: Union[dataframe.DataFrame, str]) -> str:
     return sql
 
 
-def _get_model_name_and_session(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    # Other dataframe arguments to extract session from
-    *dataframes: Optional[Union[dataframe.DataFrame, str]],
-) -> tuple[str, bigframes.session.Session]:
-    import bigframes.pandas as bpd
-
-    if isinstance(model, str):
-        model_name = model
-        session = None
-        for df in dataframes:
-            if isinstance(df, dataframe.DataFrame):
-                session = df._session
-                break
-        if session is None:
-            session = bpd.get_global_session()
-        return model_name, session
-    else:
-        if model._bqml_model is None:
-            raise ValueError("Model must be fitted to be used in ML operations.")
-        return model._bqml_model.model_name, model._bqml_model.session
-
-
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
 def create_model(
     model_name: str,
     *,
     replace: bool = False,
     if_not_exists: bool = False,
-    # TODO(tswast): Also support bigframes.ml transformer classes and/or
-    # bigframes.pandas functions?
     transform: Optional[list[str]] = None,
     input_schema: Optional[Mapping[str, str]] = None,
     output_schema: Optional[Mapping[str, str]] = None,
@@ -75,10 +53,6 @@ def create_model(
     """
     Creates a BigQuery ML model.
 
-    See the `BigQuery ML CREATE MODEL DDL syntax
-    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create>`_
-    for additional reference.
-
     Args:
         model_name (str):
             The name of the model in BigQuery.
@@ -87,8 +61,7 @@ def create_model(
         if_not_exists (bool, default False):
             Whether to ignore the error if the model already exists.
         transform (list[str], optional):
-            A list of SQL transformations for the TRANSFORM clause, which
-            specifies the preprocessing steps to apply to the input data.
+            The TRANSFORM clause, which specifies the preprocessing steps to apply to the input data.
         input_schema (Mapping[str, str], optional):
             The INPUT clause, which specifies the schema of the input data.
         output_schema (Mapping[str, str], optional):
@@ -97,16 +70,16 @@ def create_model(
             The connection to use for the model.
         options (Mapping[str, Union[str, int, float, bool, list]], optional):
             The OPTIONS clause, which specifies the model options.
-        training_data (Union[bigframes.pandas.DataFrame, str], optional):
+        training_data (Union[dataframe.DataFrame, str], optional):
             The query or DataFrame to use for training the model.
-        custom_holiday (Union[bigframes.pandas.DataFrame, str], optional):
+        custom_holiday (Union[dataframe.DataFrame, str], optional):
             The query or DataFrame to use for custom holiday data.
         session (bigframes.session.Session, optional):
-            The session to use. If not provided, the default session is used.
+            The BigFrames session to use. If not provided, the default session is used.
 
     Returns:
         bigframes.ml.base.BaseEstimator:
-            The created BigQuery ML model.
+            The created BigFrames model.
     """
     import bigframes.pandas as bpd
 
@@ -144,196 +117,3 @@ def create_model(
     session._start_query_ml_ddl(sql)
 
     return session.read_gbq_model(model_name)
-
-
-@log_adapter.method_logger(custom_base_name="bigquery_ml")
-def evaluate(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    input_: Optional[Union[dataframe.DataFrame, str]] = None,
-    *,
-    perform_aggregation: Optional[bool] = None,
-    horizon: Optional[int] = None,
-    confidence_level: Optional[float] = None,
-) -> dataframe.DataFrame:
-    """
-    Evaluates a BigQuery ML model.
-
-    See the `BigQuery ML EVALUATE function syntax
-    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-evaluate>`_
-    for additional reference.
-
-    Args:
-        model (bigframes.ml.base.BaseEstimator or str):
-            The model to evaluate.
-        input_ (Union[bigframes.pandas.DataFrame, str], optional):
-            The DataFrame or query to use for evaluation. If not provided, the
-            evaluation data from training is used.
-        perform_aggregation (bool, optional):
-            A BOOL value that indicates the level of evaluation for forecasting
-            accuracy. If you specify TRUE, then the forecasting accuracy is on
-            the time series level. If you specify FALSE, the forecasting
-            accuracy is on the timestamp level. The default value is TRUE.
-        horizon (int, optional):
-            An INT64 value that specifies the number of forecasted time points
-            against which the evaluation metrics are computed. The default value
-            is the horizon value specified in the CREATE MODEL statement for the
-            time series model, or 1000 if unspecified. When evaluating multiple
-            time series at the same time, this parameter applies to each time
-            series.
-        confidence_level (float, optional):
-            A FLOAT64 value that specifies the percentage of the future values
-            that fall in the prediction interval. The default value is 0.95. The
-            valid input range is ``[0, 1)``.
-
-    Returns:
-        bigframes.pandas.DataFrame:
-            The evaluation results.
-    """
-    model_name, session = _get_model_name_and_session(model, input_)
-    table_sql = _to_sql(input_) if input_ is not None else None
-
-    sql = bigframes.core.sql.ml.evaluate(
-        model_name=model_name,
-        table=table_sql,
-        perform_aggregation=perform_aggregation,
-        horizon=horizon,
-        confidence_level=confidence_level,
-    )
-
-    return session.read_gbq(sql)
-
-
-@log_adapter.method_logger(custom_base_name="bigquery_ml")
-def predict(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    input_: Union[dataframe.DataFrame, str],
-    *,
-    threshold: Optional[float] = None,
-    keep_original_columns: Optional[bool] = None,
-    trial_id: Optional[int] = None,
-) -> dataframe.DataFrame:
-    """
-    Runs prediction on a BigQuery ML model.
-
-    See the `BigQuery ML PREDICT function syntax
-    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-predict>`_
-    for additional reference.
-
-    Args:
-        model (bigframes.ml.base.BaseEstimator or str):
-            The model to use for prediction.
-        input_ (Union[bigframes.pandas.DataFrame, str]):
-            The DataFrame or query to use for prediction.
-        threshold (float, optional):
-            The threshold to use for classification models.
-        keep_original_columns (bool, optional):
-            Whether to keep the original columns in the output.
-        trial_id (int, optional):
-            An INT64 value that identifies the hyperparameter tuning trial that
-            you want the function to evaluate. The function uses the optimal
-            trial by default. Only specify this argument if you ran
-            hyperparameter tuning when creating the model.
-
-    Returns:
-        bigframes.pandas.DataFrame:
-            The prediction results.
-    """
-    model_name, session = _get_model_name_and_session(model, input_)
-    table_sql = _to_sql(input_)
-
-    sql = bigframes.core.sql.ml.predict(
-        model_name=model_name,
-        table=table_sql,
-        threshold=threshold,
-        keep_original_columns=keep_original_columns,
-        trial_id=trial_id,
-    )
-
-    return session.read_gbq(sql)
-
-
-@log_adapter.method_logger(custom_base_name="bigquery_ml")
-def explain_predict(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    input_: Union[dataframe.DataFrame, str],
-    *,
-    top_k_features: Optional[int] = None,
-    threshold: Optional[float] = None,
-    integrated_gradients_num_steps: Optional[int] = None,
-    approx_feature_contrib: Optional[bool] = None,
-) -> dataframe.DataFrame:
-    """
-    Runs explainable prediction on a BigQuery ML model.
-
-    See the `BigQuery ML EXPLAIN_PREDICT function syntax
-    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-explain-predict>`_
-    for additional reference.
-
-    Args:
-        model (bigframes.ml.base.BaseEstimator or str):
-            The model to use for prediction.
-        input_ (Union[bigframes.pandas.DataFrame, str]):
-            The DataFrame or query to use for prediction.
-        top_k_features (int, optional):
-            The number of top features to return.
-        threshold (float, optional):
-            The threshold for binary classification models.
-        integrated_gradients_num_steps (int, optional):
-            an INT64 value that specifies the number of steps to sample between
-            the example being explained and its baseline. This value is used to
-            approximate the integral in integrated gradients attribution
-            methods. Increasing the value improves the precision of feature
-            attributions, but can be slower and more computationally expensive.
-        approx_feature_contrib (bool, optional):
-            A BOOL value that indicates whether to use an approximate feature
-            contribution method in the XGBoost model explanation.
-
-    Returns:
-        bigframes.pandas.DataFrame:
-            The prediction results with explanations.
-    """
-    model_name, session = _get_model_name_and_session(model, input_)
-    table_sql = _to_sql(input_)
-
-    sql = bigframes.core.sql.ml.explain_predict(
-        model_name=model_name,
-        table=table_sql,
-        top_k_features=top_k_features,
-        threshold=threshold,
-        integrated_gradients_num_steps=integrated_gradients_num_steps,
-        approx_feature_contrib=approx_feature_contrib,
-    )
-
-    return session.read_gbq(sql)
-
-
-@log_adapter.method_logger(custom_base_name="bigquery_ml")
-def global_explain(
-    model: Union[bigframes.ml.base.BaseEstimator, str],
-    *,
-    class_level_explain: Optional[bool] = None,
-) -> dataframe.DataFrame:
-    """
-    Gets global explanations for a BigQuery ML model.
-
-    See the `BigQuery ML GLOBAL_EXPLAIN function syntax
-    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-global-explain>`_
-    for additional reference.
-
-    Args:
-        model (bigframes.ml.base.BaseEstimator or str):
-            The model to get explanations from.
-        class_level_explain (bool, optional):
-            Whether to return class-level explanations.
-
-    Returns:
-        bigframes.pandas.DataFrame:
-            The global explanation results.
-    """
-    model_name, session = _get_model_name_and_session(model)
-    sql = bigframes.core.sql.ml.global_explain(
-        model_name=model_name,
-        class_level_explain=class_level_explain,
-    )
-
-    return session.read_gbq(sql)
