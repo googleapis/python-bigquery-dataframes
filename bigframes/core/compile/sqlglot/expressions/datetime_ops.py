@@ -71,7 +71,7 @@ def _datetime_to_integer_label_fixed_frequency(
         "UNIX_MICROS",
         sge.Cast(this=x.expr, to=sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ)),
     )
-    first = _calculate_resample_first(y, op.origin)
+    first = _calculate_resample_first(y, op.origin)  # type: ignore
     x_int_label = sge.Cast(
         this=sge.Floor(
             this=sge.func(
@@ -147,7 +147,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
             ),
         )
     elif rule_code == "ME":  # Monthly
-        x_int = sge.Paren(
+        x_int = sge.Paren(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
                     this=sge.Extract(
@@ -163,7 +163,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
                 ),
             )
         )
-        first = sge.Paren(
+        first = sge.Paren(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
                     this=sge.Extract(
@@ -204,7 +204,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
             ),
         )
     elif rule_code == "QE-DEC":  # Quarterly
-        x_int = sge.Paren(
+        x_int = sge.Paren(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
                     this=sge.Extract(
@@ -220,7 +220,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
                 ),
             )
         )
-        first = sge.Paren(
+        first = sge.Paren(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
                     this=sge.Extract(
