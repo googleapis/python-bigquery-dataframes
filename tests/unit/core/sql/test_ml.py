@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 import bigframes.core.sql.ml
+
+pytest.importorskip("pytest_snapshot")
 
 
 def test_create_model_basic(snapshot):
