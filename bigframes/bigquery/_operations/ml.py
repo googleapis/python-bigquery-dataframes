@@ -16,6 +16,10 @@ from __future__ import annotations
 
 from typing import Mapping, Optional, Union
 
+import bigframes_vendored.constants
+import google.cloud.bigquery
+import pandas as pd
+
 import bigframes.core.log_adapter as log_adapter
 import bigframes.core.sql.ml
 import bigframes.dataframe as dataframe
@@ -55,6 +59,16 @@ def _get_model_name_and_session(
         return model._bqml_model.model_name, model._bqml_model.session
 
 
+def _get_model_metadata(
+    *,
+    bqclient: google.cloud.bigquery.Client,
+    model_name: str,
+) -> pd.Series:
+    model_metadata = bqclient.get_model(model_name)
+    model_dict = model_metadata.to_api_repr()
+    return pd.Series(model_dict)
+
+
 @log_adapter.method_logger(custom_base_name="bigquery_ml")
 def create_model(
     model_name: str,
@@ -71,7 +85,7 @@ def create_model(
     training_data: Optional[Union[dataframe.DataFrame, str]] = None,
     custom_holiday: Optional[Union[dataframe.DataFrame, str]] = None,
     session: Optional[bigframes.session.Session] = None,
-) -> bigframes.ml.base.BaseEstimator:
+) -> pd.Series:
     """
     Creates a BigQuery ML model.
 
@@ -105,8 +119,12 @@ def create_model(
             The session to use. If not provided, the default session is used.
 
     Returns:
-        bigframes.ml.base.BaseEstimator:
-            The created BigQuery ML model.
+        pandas.Series:
+            A Series with object dtype containing the model metadata. Reference
+            the `BigQuery Model REST API reference
+            <https://docs.cloud.google.com/bigquery/docs/reference/rest/v2/models#Model>`_
+            for available fields.
+
     """
     import bigframes.pandas as bpd
 
@@ -138,12 +156,15 @@ def create_model(
     )
 
     if session is None:
+        bpd.read_gbq_query(sql)
         session = bpd.get_global_session()
+        assert (
+            session is not None
+        ), f"Missing connection to BigQuery. Please report how you encountered this error at {bigframes_vendored.constants.FEEDBACK_LINK}."
+    else:
+        session.read_gbq_query(sql)
 
-    # Use _start_query_ml_ddl which is designed for this
-    session._start_query_ml_ddl(sql)
-
-    return session.read_gbq_model(model_name)
+    return _get_model_metadata(bqclient=session.bqclient, model_name=model_name)
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ml")

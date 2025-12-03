@@ -28,7 +28,6 @@ scikit-learn.
     :toctree: api
 
     bigframes.ml
-    bigframes.ml.base
     bigframes.ml.cluster
     bigframes.ml.compose
     bigframes.ml.decomposition

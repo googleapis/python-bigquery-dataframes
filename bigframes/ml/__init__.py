@@ -37,7 +37,7 @@ See the `BigQuery ML linear regression tutorial
 <https://docs.cloud.google.com/bigquery/docs/linear-regression-tutorial>`_ for a
 detailed example.
 
-See all, the references for ``bigframes.ml`` sub-modules:
+See also the references for ``bigframes.ml`` sub-modules:
 
 * :mod:`bigframes.ml.cluster`
 * :mod:`bigframes.ml.compose`
