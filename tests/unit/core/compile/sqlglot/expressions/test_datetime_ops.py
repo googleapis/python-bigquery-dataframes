@@ -277,3 +277,21 @@ def test_sub_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df["timedelta_sub_timedelta"] = bf_df["duration_col"] - bf_df["duration_col"]
 
     snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_integer_label_to_datetime(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["rowindex", "timestamp_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {
+        "fixed_freq": ops.IntegerLabelToDatetimeOp(
+            freq=pd.tseries.offsets.Day(), origin="start", label="left" # type: ignore
+        ).as_expr("rowindex", "timestamp_col"),
+        "non_fixed_freq": ops.IntegerLabelToDatetimeOp(
+          freq=pd.tseries.offsets.QuarterEnd(startingMonth=12), # type: ignore
+          origin="start",
+          label="left",
+        ).as_expr("rowindex", "timestamp_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
