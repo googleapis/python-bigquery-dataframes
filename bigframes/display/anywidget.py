@@ -245,7 +245,7 @@ class TableWidget(WIDGET_BASE):
         """Combine all cached batches into a single DataFrame."""
         if not self._cached_batches:
             return pd.DataFrame(columns=self._dataframe.columns)
-        return pd.concat(self._cached_batches, ignore_index=True)
+        return pd.concat(self._cached_batches)
 
     def _reset_batch_cache(self) -> None:
         """Resets batch caching attributes."""
@@ -294,7 +294,18 @@ class TableWidget(WIDGET_BASE):
                 break
 
         # Get the data for the current page
-        page_data = cached_data.iloc[start:end]
+        page_data = cached_data.iloc[start:end].copy()
+
+        # Handle index display
+        if hasattr(self._dataframe, "_has_index") and not self._dataframe._has_index:
+            # No index to display
+            pass
+        elif page_data.index.name is not None:
+            # Custom named index - include it with its actual name
+            page_data.insert(0, page_data.index.name, page_data.index)
+        else:
+            # Default index - include as "Row" column
+            page_data.insert(0, "Row", range(start + 1, start + len(page_data) + 1))
 
         # Handle case where user navigated beyond available data with unknown row count
         is_unknown_count = self.row_count is None

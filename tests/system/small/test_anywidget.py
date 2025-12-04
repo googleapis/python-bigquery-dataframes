@@ -930,6 +930,137 @@ def test_repr_in_anywidget_mode_should_not_be_deferred(
         assert "page_1_row_1" in representation
 
 
-# TODO(b/332316283): Add tests for custom index and multiindex
+@pytest.fixture(scope="module")
+def custom_index_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame with a custom named index for testing."""
+    test_data = pd.DataFrame(
+        {
+            "value_a": [10, 20, 30, 40, 50, 60],
+            "value_b": ["a", "b", "c", "d", "e", "f"],
+        }
+    )
+    test_data.index = pd.Index(
+        ["row_1", "row_2", "row_3", "row_4", "row_5", "row_6"], name="custom_idx"
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def custom_index_bf_df(
+    session: bf.Session, custom_index_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(custom_index_pandas_df)
+
+
+@pytest.fixture(scope="module")
+def multiindex_pandas_df() -> pd.DataFrame:
+    """Create a DataFrame with MultiIndex for testing."""
+    test_data = pd.DataFrame(
+        {
+            "value": [100, 200, 300, 400, 500, 600],
+            "category": ["X", "Y", "Z", "X", "Y", "Z"],
+        }
+    )
+    test_data.index = pd.MultiIndex.from_arrays(
+        [
+            ["group_A", "group_A", "group_A", "group_B", "group_B", "group_B"],
+            [1, 2, 3, 1, 2, 3],
+        ],
+        names=["group", "item"],
+    )
+    return test_data
+
+
+@pytest.fixture(scope="module")
+def multiindex_bf_df(
+    session: bf.Session, multiindex_pandas_df: pd.DataFrame
+) -> bf.dataframe.DataFrame:
+    return session.read_pandas(multiindex_pandas_df)
+
+
+def test_widget_with_default_index_should_display_row_column(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a default index, when rendered,
+    then a "Row" index column should be visible.
+    """
+    from bigframes.display.anywidget import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(paginated_bf_df)
+        html = widget.table_html
+
+    # The header for the index should now be "Row".
+    thead = html.split("<thead>")[1].split("</thead>")[0]
+    assert "Row" in thead
+
+    # The body rows should contain one header cell (`<th>`) for the "Row" index.
+    tbody = html.split("<tbody>")[1].split("</tbody>")[0]
+    first_row = tbody.split("<tr>")[1].split("</tr>")[0]
+    assert "<td" in first_row
+
+
+def test_widget_with_custom_index_should_display_index_column(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a custom named index, when rendered,
+    then the index column and first page of rows should be visible.
+    """
+    from bigframes.display.anywidget import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(custom_index_bf_df)
+        html = widget.table_html
+
+    assert "custom_idx" in html
+    assert "row_1" in html
+    assert "row_2" in html
+    assert "row_3" not in html  # Verify pagination is working
+    assert "row_4" not in html
+
+
+def test_widget_with_custom_index_pagination_preserves_index(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a custom index, when navigating to the second page,
+    then the second page's index values should be visible.
+    """
+    from bigframes.display.anywidget import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
+        widget = TableWidget(custom_index_bf_df)
+
+        widget.page = 1  # Navigate to page 2
+        html = widget.table_html
+
+    assert "row_3" in html
+    assert "row_4" in html
+    assert "row_1" not in html  # Verify page 1 content is gone
+    assert "row_2" not in html
+
+
+def test_widget_with_custom_index_matches_pandas_output(
+    custom_index_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Given a DataFrame with a custom index and max_rows=3, the widget's HTML
+    output should contain the first three index values.
+    """
+    from bigframes.display.anywidget import TableWidget
+
+    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
+        widget = TableWidget(custom_index_bf_df)
+        html = widget.table_html
+
+    assert "row_1" in html
+    assert "row_2" in html
+    assert "row_3" in html
+    assert "row_4" not in html  # Verify it respects max_rows
+
+
+# TODO(b/332316283): Add tests for custom multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
