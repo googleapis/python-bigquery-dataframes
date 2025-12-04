@@ -279,17 +279,66 @@ def test_sub_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 
-def test_integer_label_to_datetime(scalar_types_df: bpd.DataFrame, snapshot):
+def test_integer_label_to_datetime_fixed(scalar_types_df: bpd.DataFrame, snapshot):
     col_names = ["rowindex", "timestamp_col"]
     bf_df = scalar_types_df[col_names]
     ops_map = {
         "fixed_freq": ops.IntegerLabelToDatetimeOp(
-            freq=pd.tseries.offsets.Day(), origin="start", label="left" # type: ignore
+            freq=pd.tseries.offsets.Day(), origin="start", label="left"  # type: ignore
         ).as_expr("rowindex", "timestamp_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_integer_label_to_datetime_week(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["rowindex", "timestamp_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {
+        "non_fixed_freq_weekly": ops.IntegerLabelToDatetimeOp(
+            freq=pd.tseries.offsets.Week(weekday=6), origin="start", label="left"
+        ).as_expr("rowindex", "timestamp_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_integer_label_to_datetime_month(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["rowindex", "timestamp_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {
+        "non_fixed_freq_monthly": ops.IntegerLabelToDatetimeOp(
+            freq=pd.tseries.offsets.MonthEnd(), origin="start", label="left"
+        ).as_expr("rowindex", "timestamp_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_integer_label_to_datetime_quarter(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["rowindex", "timestamp_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {
         "non_fixed_freq": ops.IntegerLabelToDatetimeOp(
-          freq=pd.tseries.offsets.QuarterEnd(startingMonth=12), # type: ignore
-          origin="start",
-          label="left",
+            freq=pd.tseries.offsets.QuarterEnd(startingMonth=12),  # type: ignore
+            origin="start",
+            label="left",
+        ).as_expr("rowindex", "timestamp_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_integer_label_to_datetime_year(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["rowindex", "timestamp_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {
+        "non_fixed_freq_yearly": ops.IntegerLabelToDatetimeOp(
+            freq=pd.tseries.offsets.YearEnd(month=12), origin="start", label="left"
         ).as_expr("rowindex", "timestamp_col"),
     }
 
