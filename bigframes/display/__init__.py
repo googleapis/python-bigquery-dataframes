@@ -20,6 +20,15 @@ from typing import Any
 
 
 def __getattr__(name: str) -> Any:
+    """Lazily import TableWidget to avoid ZMQ port conflicts.
+
+    anywidget and traitlets eagerly initialize kernel communication channels on
+    import. This can lead to race conditions and ZMQ port conflicts when
+    multiple Jupyter kernels are started in parallel, such as during notebook
+    tests. By using __getattr__, we defer the import of TableWidget until it is
+    explicitly accessed, preventing premature initialization and avoiding port
+    collisions.
+    """
     if name == "TableWidget":
         try:
             import anywidget  # noqa
