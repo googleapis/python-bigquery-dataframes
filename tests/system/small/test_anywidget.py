@@ -913,7 +913,7 @@ def test_repr_mimebundle_should_return_widget_view_if_anywidget_is_available(
     with bf.option_context("display.repr_mode", "anywidget"):
         bundle = paginated_bf_df._repr_mimebundle_()
         assert "application/vnd.jupyter.widget-view+json" in bundle
-        assert "text/html" in bundle
+        assert "text/html" not in bundle
         assert "text/plain" in bundle
 
 
