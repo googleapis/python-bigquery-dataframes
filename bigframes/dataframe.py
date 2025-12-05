@@ -864,11 +864,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             widget_repr = dict(widget_repr_result)
 
-        # At this point, we have already executed the query as part of the
-        # widget construction. Let's use the information available to render
-        # the HTML and plain text versions.
-        widget_repr["text/html"] = widget.table_html
-
+        # Plain text representations to avoid multiple queries.
         widget_repr["text/plain"] = self._create_text_representation(
             widget._cached_data, widget.row_count
         )

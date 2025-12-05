@@ -930,6 +930,19 @@ def test_repr_in_anywidget_mode_should_not_be_deferred(
         assert "page_1_row_1" in representation
 
 
+def test_repr_mimebundle_anywidget_no_html(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Verify that in 'anywidget' mode, the mimebundle does not contain 'text/html'.
+    This is to prevent rendering conflicts in environments like Colab.
+    """
+    with bf.option_context("display.repr_mode", "anywidget"):
+        mimebundle = paginated_bf_df._repr_mimebundle_()
+        assert "text/html" not in mimebundle
+        assert "application/vnd.jupyter.widget-view+json" in mimebundle
+
+
 # TODO(b/332316283): Add tests for custom index and multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
