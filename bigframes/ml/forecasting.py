@@ -230,6 +230,20 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         """
         X, y = utils.batch_convert_to_dataframe(X, y)
 
+        # Auto-convert Date to datetime for hourly/per_minute frequency
+        if self.data_frequency in ["hourly", "per_minute"]:
+            timestamp_col = X.columns[0]
+            if "date" in X[timestamp_col].dtype.name:
+                import warnings
+
+                warnings.warn(
+                    f"Converting Date column '{timestamp_col}' to datetime for "
+                    f"{self.data_frequency} frequency. This is required because "
+                    f"BigQuery ML doesn't support Date type with hourly frequency."
+                )
+                X = X.copy()
+                X[timestamp_col] = bpd.to_datetime(X[timestamp_col])
+
         if X.columns.size != 1:
             raise ValueError("Time series timestamp input X contain at least 1 column.")
         if y.columns.size != 1:
