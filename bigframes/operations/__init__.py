@@ -33,6 +33,7 @@ from bigframes.operations.array_ops import (
 from bigframes.operations.base_ops import (
     BinaryOp,
     NaryOp,
+    NullaryOp,
     RowOp,
     ScalarOp,
     TernaryOp,
@@ -93,6 +94,7 @@ from bigframes.operations.generic_ops import (
     clip_op,
     coalesce_op,
     fillna_op,
+    gen_uuid_op,
     hash_op,
     invert_op,
     IsInOp,
@@ -101,7 +103,8 @@ from bigframes.operations.generic_ops import (
     maximum_op,
     minimum_op,
     notnull_op,
-    RowKey,
+    rand_op,
+    RowHash,
     SqlScalarOp,
     where_op,
 )
@@ -231,6 +234,7 @@ from bigframes.operations.timedelta_ops import (
 __all__ = [
     # Base ops
     "RowOp",
+    "NullaryOp",
     "NaryOp",
     "UnaryOp",
     "BinaryOp",
@@ -243,6 +247,7 @@ __all__ = [
     "clip_op",
     "coalesce_op",
     "fillna_op",
+    "gen_uuid_op",
     "hash_op",
     "invert_op",
     "IsInOp",
@@ -251,7 +256,8 @@ __all__ = [
     "maximum_op",
     "minimum_op",
     "notnull_op",
-    "RowKey",
+    "rand_op",
+    "RowHash",
     "SqlScalarOp",
     "where_op",
     # String ops

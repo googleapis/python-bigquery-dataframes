@@ -833,34 +833,45 @@ class Block:
             return df, execute_result.query_job
 
     def _downsample(
-        self, total_rows: int, sampling_method: str, fraction: float, random_state
+        self,
+        total_rows: int,
+        sampling_method: str,
+        fraction: float,
+        random_state: Optional[int],
     ) -> Block:
         # either selecting fraction or number of rows
         if sampling_method == _HEAD:
             filtered_block = self.slice(stop=int(total_rows * fraction))
             return filtered_block
         elif (sampling_method == _UNIFORM) and (random_state is None):
-            filtered_expr = self.expr._uniform_sampling(fraction)
-            block = Block(
-                filtered_expr,
-                index_columns=self.index_columns,
-                column_labels=self.column_labels,
-                index_labels=self.index.names,
-            )
-            return block
+            return self.sample(fraction=fraction, shuffle=False, seed=random_state)
         elif sampling_method == _UNIFORM:
-            block = self.split(
-                fracs=(fraction,),
-                random_state=random_state,
-                sort=False,
-            )[0]
-            return block
+            return self.sample(fraction=fraction, shuffle=False)
         else:
             # This part should never be called, just in case.
             raise NotImplementedError(
                 f"The downsampling method {sampling_method} is not implemented, "
                 f"please choose from {','.join(_SAMPLING_METHODS)}."
             )
+
+    def sample(
+        self, fraction: float, shuffle: bool, seed: Optional[int] = None
+    ) -> Block:
+        assert fraction <= 1.0 and fraction >= 0
+        return Block(
+            self.expr._uniform_sampling(fraction=fraction, shuffle=shuffle, seed=seed),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self.index.names,
+        )
+
+    def shuffle(self, seed: Optional[int] = None) -> Block:
+        return Block(
+            self.expr._uniform_sampling(fraction=1.0, shuffle=True, seed=seed),
+            index_columns=self.index_columns,
+            column_labels=self.column_labels,
+            index_labels=self.index.names,
+        )
 
     def split(
         self,
@@ -894,22 +905,11 @@ class Block:
             random_state = random.randint(-(2**63), 2**63 - 1)
 
         # Create a new column with random_state value.
-        block, random_state_col = block.create_constant(str(random_state))
+        og_ordering_col = None
+        if sort is False:
+            block, og_ordering_col = block.promote_offsets()
 
-        # Create an ordering col and convert to string
-        block, ordering_col = block.promote_offsets()
-        block, string_ordering_col = block.apply_unary_op(
-            ordering_col, ops.AsTypeOp(to_type=bigframes.dtypes.STRING_DTYPE)
-        )
-
-        # Apply hash method to sum col and order by it.
-        block, string_sum_col = block.apply_binary_op(
-            string_ordering_col, random_state_col, ops.strconcat_op
-        )
-        block, hash_string_sum_col = block.apply_unary_op(string_sum_col, ops.hash_op)
-        block = block.order_by(
-            [ordering.OrderingExpression(ex.deref(hash_string_sum_col))]
-        )
+        block = block.shuffle(seed=random_state)
 
         intervals = []
         cur = 0
@@ -934,21 +934,15 @@ class Block:
                 for sliced_block in sliced_blocks
             ]
         elif sort is False:
+            assert og_ordering_col is not None
             sliced_blocks = [
                 sliced_block.order_by(
-                    [ordering.OrderingExpression(ex.deref(ordering_col))]
-                )
+                    [ordering.OrderingExpression(ex.deref(og_ordering_col))]
+                ).drop_columns([og_ordering_col])
                 for sliced_block in sliced_blocks
             ]
 
-        drop_cols = [
-            random_state_col,
-            ordering_col,
-            string_ordering_col,
-            string_sum_col,
-            hash_string_sum_col,
-        ]
-        return [sliced_block.drop_columns(drop_cols) for sliced_block in sliced_blocks]
+        return [sliced_block for sliced_block in sliced_blocks]
 
     def _compute_dry_run(
         self,

@@ -865,12 +865,18 @@ class GbqDataLoader:
                 array_value = array_value.order_by(
                     [
                         bigframes.core.ordering.OrderingExpression(
-                            bigframes.operations.RowKey().as_expr(
+                            bigframes.operations.RowHash().as_expr(
                                 *(id for id in array_value.column_ids)
                             ),
                             # More concise SQL this way.
                             na_last=False,
-                        )
+                        ),
+                        # Used to disambiguate between identical rows (which will have identical hash)
+                        bigframes.core.ordering.OrderingExpression(
+                            bigframes.operations.rand_op.as_expr(),
+                            # More concise SQL this way.
+                            na_last=False,
+                        ),
                     ],
                     is_total_order=True,
                 )

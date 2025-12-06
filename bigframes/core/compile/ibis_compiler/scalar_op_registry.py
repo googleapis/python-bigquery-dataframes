@@ -1987,9 +1987,19 @@ def _construct_prompt(
     return ibis.struct(prompt)
 
 
-@scalar_op_compiler.register_nary_op(ops.RowKey, pass_op=True)
-def rowkey_op_impl(*values: ibis_types.Value, op: ops.RowKey) -> ibis_types.Value:
-    return bigframes.core.compile.ibis_compiler.default_ordering.gen_row_key(values)
+@scalar_op_compiler.register_nary_op(ops.RowHash, pass_op=True)
+def rowkey_op_impl(*values: ibis_types.Value, op: ops.RowHash) -> ibis_types.Value:
+    return bigframes.core.compile.ibis_compiler.default_ordering.gen_row_hash(values)
+
+
+@scalar_op_compiler.register_nullary_op(ops.rand_op, pass_op=False)
+def rand_op_impl() -> ibis_types.Value:
+    return ibis.random()
+
+
+@scalar_op_compiler.register_nullary_op(ops.gen_uuid_op, pass_op=False)
+def gen_uuid_op_impl() -> ibis_types.Value:
+    return ibis.uuid()
 
 
 # Helpers

@@ -4241,7 +4241,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             block = block.select_columns(result_ids)
         return DataFrame(block)
 
-    @validations.requires_ordering()
     def sample(
         self,
         n: Optional[int] = None,
@@ -4252,7 +4251,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
-
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return DataFrame(
