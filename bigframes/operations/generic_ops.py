@@ -420,8 +420,8 @@ case_when_op = CaseWhenOp()
 
 # Really doesn't need to be its own op, but allows us to try to get the most compact representation
 @dataclasses.dataclass(frozen=True)
-class RowKey(base_ops.NaryOp):
-    name: typing.ClassVar[str] = "rowkey"
+class RowHash(base_ops.NaryOp):
+    name: typing.ClassVar[str] = "rowhash"
 
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         return dtypes.STRING_DTYPE
@@ -433,7 +433,47 @@ class RowKey(base_ops.NaryOp):
 
     @property
     def deterministic(self) -> bool:
+        return True
+
+
+@dataclasses.dataclass(frozen=True)
+class RandOp(base_ops.NullaryOp):
+    name: typing.ClassVar[str] = "rand"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.FLOAT_DTYPE
+
+    @property
+    def is_bijective(self) -> bool:
+        """Whether the operation has a 1:1 mapping between inputs and outputs"""
         return False
+
+    @property
+    def deterministic(self) -> bool:
+        return False
+
+
+rand_op = RandOp()
+
+
+@dataclasses.dataclass(frozen=True)
+class GenUuidOp(base_ops.NullaryOp):
+    name: typing.ClassVar[str] = "gen_uuid"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        return dtypes.STRING_DTYPE
+
+    @property
+    def is_bijective(self) -> bool:
+        """Whether the operation has a 1:1 mapping between inputs and outputs"""
+        return False
+
+    @property
+    def deterministic(self) -> bool:
+        return False
+
+
+gen_uuid_op = GenUuidOp()
 
 
 @dataclasses.dataclass(frozen=True)

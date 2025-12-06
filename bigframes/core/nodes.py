@@ -1531,10 +1531,12 @@ class WindowOpNode(UnaryNode, AdditiveNode):
 @dataclasses.dataclass(frozen=True, eq=False)
 class RandomSampleNode(UnaryNode):
     fraction: float
+    shuffle: bool
+    seed: Optional[int] = None
 
     @property
     def deterministic(self) -> bool:
-        return False
+        return self.seed is not None
 
     @property
     def row_preserving(self) -> bool:
