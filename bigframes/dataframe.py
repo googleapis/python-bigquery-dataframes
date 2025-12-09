@@ -860,9 +860,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         # Handle both tuple (data, metadata) and dict returns
         if isinstance(widget_repr_result, tuple):
-            widget_repr = dict(widget_repr_result[0])  # Extract data dict from tuple
+            widget_repr, widget_metadata = widget_repr_result
         else:
-            widget_repr = dict(widget_repr_result)
+            widget_repr = widget_repr_result
+            widget_metadata = None
+
+        widget_repr = dict(widget_repr)
 
         # At this point, we have already executed the query as part of the
         # widget construction. Let's use the information available to render
@@ -873,6 +876,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             widget._cached_data, widget.row_count
         )
 
+        if widget_metadata is not None:
+            return widget_repr, widget_metadata
         return widget_repr
 
     def _create_text_representation(
