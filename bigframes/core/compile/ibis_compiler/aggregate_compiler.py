@@ -633,6 +633,9 @@ def _(
     column: ibis_types.Column,
     window=None,
 ) -> ibis_types.BooleanValue:
+    if window is not None:
+        raise NotImplementedError("AllOp with windowing is not supported.")
+
     # BQ will return null for empty column, result would be false in pandas.
     result = _apply_window_if_present(_is_true(column).all(), window)
     literal = ibis_types.literal(True)
