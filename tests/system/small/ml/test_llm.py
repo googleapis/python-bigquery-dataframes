@@ -16,7 +16,6 @@ from typing import Callable
 from unittest import mock
 
 import pandas as pd
-import pyarrow as pa
 import pytest
 
 from bigframes import exceptions
