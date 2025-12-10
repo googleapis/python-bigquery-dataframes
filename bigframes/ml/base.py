@@ -248,6 +248,9 @@ class UnsupervisedTrainablePredictor(TrainablePredictor):
     ) -> _T:
         return self._fit(X, y)
 
+    def fit_predict(self, X: utils.ArrayType, y=None) -> bpd.DataFrame:  # ignored
+        return self.fit(X).predict(X)
+
 
 class RetriableRemotePredictor(BaseEstimator):
     def _predict_and_retry(
