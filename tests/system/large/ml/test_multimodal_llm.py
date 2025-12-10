@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
-import pyarrow as pa
 import pytest
 
 from bigframes.ml import llm

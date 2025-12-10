@@ -453,6 +453,7 @@ def test_model_centroids_with_custom_index(penguins_df_default_index):
     # If this line executes without errors, the model has correctly ignored the custom index columns
     model.predict(X_train.reset_index(drop=True))
 
+
 def test_linear_reg_model_global_explain(
     penguins_linear_model_w_global_explain, new_penguins_df
 ):

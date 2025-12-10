@@ -16,7 +16,6 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from bigframes import exceptions
 from bigframes.ml import llm
 import bigframes.pandas as bpd
 from bigframes.testing import utils
