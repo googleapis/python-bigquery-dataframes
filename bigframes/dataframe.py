@@ -844,15 +844,16 @@ class DataFrame(vendored_pandas_frame.DataFrame):
                     df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
         return df, blob_cols
 
-    def _get_anywidget_bundle(self, include=None, exclude=None):
+    def _get_anywidget_bundle(
+        self, include=None, exclude=None
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
         Helper method to create and return the anywidget mimebundle.
         This function encapsulates the logic for anywidget display.
         """
         from bigframes import display
 
-        # TODO(shuowei): Keep blob_cols and pass them to TableWidget so that they can render properly.
-        df, _ = self._get_display_df_and_blob_cols()
+        df, blob_cols = self._get_display_df_and_blob_cols()
 
         # Create and display the widget
         widget = display.TableWidget(df)
@@ -863,22 +864,25 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             widget_repr, widget_metadata = widget_repr_result
         else:
             widget_repr = widget_repr_result
-            widget_metadata = None
+            widget_metadata = {}
 
         widget_repr = dict(widget_repr)
 
         # At this point, we have already executed the query as part of the
         # widget construction. Let's use the information available to render
         # the HTML and plain text versions.
-        widget_repr["text/html"] = widget.table_html
+        widget_repr["text/html"] = self._create_html_representation(
+            widget._cached_data,
+            widget.row_count,
+            len(self.columns),
+            blob_cols,
+        )
 
         widget_repr["text/plain"] = self._create_text_representation(
             widget._cached_data, widget.row_count
         )
 
-        if widget_metadata is not None:
-            return widget_repr, widget_metadata
-        return widget_repr
+        return widget_repr, widget_metadata
 
     def _create_text_representation(
         self, pandas_df: pandas.DataFrame, total_rows: typing.Optional[int]
