@@ -918,6 +918,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         Custom display method for IPython/Jupyter environments.
         This is called by IPython's display system when the object is displayed.
         """
+        # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+        # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
         opts = bigframes.options.display
         # Only handle widget display in anywidget mode
         if opts.repr_mode == "anywidget":
