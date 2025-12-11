@@ -2687,7 +2687,8 @@ def test_dataframe_diff(scalars_df_index, scalars_pandas_df_index, periods):
 def test_dataframe_pct_change(scalars_df_index, scalars_pandas_df_index, periods):
     col_names = ["int64_too", "float64_col", "int64_col"]
     bf_result = scalars_df_index[col_names].pct_change(periods=periods).to_pandas()
-    pd_result = scalars_pandas_df_index[col_names].pct_change(periods=periods)
+    # pandas 3.0 does not automatically ffill anymore
+    pd_result = scalars_pandas_df_index[col_names].ffill().pct_change(periods=periods)
     pd.testing.assert_frame_equal(
         pd_result,
         bf_result,
@@ -2797,8 +2798,12 @@ def test_df_transpose():
     )
     rows_multi = pd.MultiIndex.from_arrays([index, index], names=["r1", "r2"])
 
-    pd_df = pandas.DataFrame(values, index=rows_multi, columns=columns_multi)
-    bf_df = dataframe.DataFrame(values, index=rows_multi, columns=columns_multi)
+    pd_df = pandas.DataFrame(
+        values, index=rows_multi, columns=columns_multi, dtype="Float64"
+    )
+    bf_df = dataframe.DataFrame(
+        values, index=rows_multi, columns=columns_multi, dtype="Float64"
+    )
 
     pd_result = pd_df.T
     bf_result = bf_df.T.to_pandas()
@@ -3386,9 +3391,8 @@ def test_dataframe_aggregates_axis_1(scalars_df_index, scalars_pandas_df_index, 
     pd_result = op(scalars_pandas_df_index[col_names])
 
     # Pandas may produce narrower numeric types, but bigframes always produces Float64
-    pd_result = pd_result.astype("Float64")
     # Pandas has object index type
-    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+    assert_series_equal(pd_result, bf_result, check_index_type=False, check_dtype=False)
 
 
 @pytest.mark.parametrize(

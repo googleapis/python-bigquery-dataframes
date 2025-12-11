@@ -22,11 +22,13 @@ from google.cloud import bigquery, functions_v2
 from google.cloud.functions_v2.types import functions
 import numpy as np
 import pandas as pd
+import pandas.api.types as pd_types
 import pyarrow as pa  # type: ignore
 import pytest
 
 from bigframes import operations as ops
 from bigframes.core import expression as ex
+import bigframes.dtypes
 import bigframes.functions._utils as bff_utils
 import bigframes.pandas as bpd
 
@@ -98,7 +100,12 @@ def assert_pandas_df_equal(df0, df1, ignore_order: bool = False, **kwargs):
 
 
 def assert_series_equal(
-    left: pd.Series, right: pd.Series, ignore_order: bool = False, **kwargs
+    left: pd.Series,
+    right: pd.Series,
+    *,
+    ignore_order: bool = False,
+    nulls_are_nan: bool = True,
+    **kwargs,
 ):
     if ignore_order:
         if left.index.name is None:
@@ -107,6 +114,16 @@ def assert_series_equal(
         else:
             left = left.sort_index()
             right = right.sort_index()
+
+    if nulls_are_nan:
+        if left.dtype == bigframes.dtypes.FLOAT_DTYPE:
+            left = left.astype("float64")
+        if right.dtype == bigframes.dtypes.FLOAT_DTYPE:
+            right = right.astype("float64")
+        if pd_types.is_object_dtype(left):
+            left = left.fillna(float("nan"))
+        if pd_types.is_object_dtype(right):
+            right = right.fillna(float("nan"))
 
     pd.testing.assert_series_equal(left, right, **kwargs)
 

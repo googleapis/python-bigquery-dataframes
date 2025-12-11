@@ -801,6 +801,8 @@ def test_series_replace_dict(scalars_dfs, replacement_dict):
 )
 def test_series_interpolate(method):
     pytest.importorskip("scipy")
+    if method == "pad" and pd.__version__.startswith("3."):
+        pytest.skip("pandas 3.0 dropped method='pad'")
 
     values = [None, 1, 2, None, None, 16, None]
     index = [-3.2, 11.4, 3.56, 4, 4.32, 5.55, 76.8]
@@ -813,11 +815,12 @@ def test_series_interpolate(method):
     bf_result = bf_series.interpolate(method=method).to_pandas()
 
     # pd uses non-null types, while bf uses nullable types
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         pd_result,
         bf_result,
         check_index_type=False,
         check_dtype=False,
+        nulls_are_nan=True,
     )
 
 
@@ -2730,7 +2733,7 @@ def test_diff(scalars_df_index, scalars_pandas_df_index, periods):
 def test_series_pct_change(scalars_df_index, scalars_pandas_df_index, periods):
     bf_result = scalars_df_index["int64_col"].pct_change(periods=periods).to_pandas()
     # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
-    pd_result = scalars_pandas_df_index["int64_col"].pct_change(periods=periods)
+    pd_result = scalars_pandas_df_index["int64_col"].ffill().pct_change(periods=periods)
 
     pd.testing.assert_series_equal(
         bf_result,
