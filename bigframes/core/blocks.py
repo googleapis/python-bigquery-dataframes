@@ -1146,13 +1146,15 @@ class Block:
             index_labels=self._index_labels,
         )
 
-    # This is a new experimental version of the project_exprs that supports mixing analytic and scalar expressions
     def project_block_exprs(
         self,
         exprs: Sequence[ex.Expression],
         labels: Union[Sequence[Label], pd.Index],
         drop=False,
     ) -> Block:
+        """
+        Version of the project_exprs that supports mixing analytic and scalar expressions
+        """
         new_array, _ = self.expr.compute_general_expression(exprs)
         if drop:
             new_array = new_array.drop_columns(self.value_columns)
@@ -1167,7 +1169,6 @@ class Block:
             index_labels=self._index_labels,
         )
 
-    # This is a new experimental version of the aggregate that supports mixing analytic and scalar expressions\
     def reduce_general(
         self,
         aggregations: typing.Sequence[ex.Expression] = (),
@@ -1176,6 +1177,9 @@ class Block:
         *,
         dropna: bool = True,
     ) -> typing.Tuple[Block, typing.Sequence[str]]:
+        """
+        Version of the aggregate that supports mixing analytic and scalar expressions.
+        """
         if column_labels is None:
             column_labels = pd.Index(range(len(aggregations)))
 

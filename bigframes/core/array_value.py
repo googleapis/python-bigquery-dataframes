@@ -266,11 +266,28 @@ class ArrayValue:
         )
 
     def compute_general_expression(self, assignments: Sequence[ex.Expression]):
+        """
+        Applies arbitrary column expressions to the current execution block.
+
+        This method transforms the logical plan by applying a sequence of expressions that
+        preserve the length of the input columns. It supports both scalar operations
+        and window functions. Each expression is assigned a unique internal column identifier.
+
+        Args:
+            assignments (Sequence[ex.Expression]): A sequence of expression objects
+                representing the transformations to apply to the columns.
+
+        Returns:
+            Tuple[ArrayValue, Tuple[str, ...]]: A tuple containing:
+                - An `ArrayValue` wrapping the new root node of the updated logical plan.
+                - A tuple of strings representing the unique column IDs generated for
+                  each expression in the assignments.
+        """
         named_exprs = [
             nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
-        new_root = expression_factoring.plan_general_col_exprs(self.node, named_exprs)
+        new_root = expression_factoring.apply_col_exprs_to_plan(self.node, named_exprs)
 
         target_ids = tuple(named_expr.id for named_expr in named_exprs)
         return (ArrayValue(new_root), target_ids)
@@ -282,7 +299,29 @@ class ArrayValue:
         *,
         dropna: bool = False,
     ):
-        # Warning: this function does not check if the expression is a valid reduction, and may fail spectacularly on invalid inputs
+        """
+        Applies arbitrary aggregation expressions to the block, optionally grouped by keys.
+
+        This method handles reduction operations (e.g., sum, mean, count) that collapse
+        multiple input rows into a single scalar value per group. If grouping keys are
+        provided, the operation is performed per group; otherwise, it is a global reduction.
+
+        Args:
+            assignments (Sequence[ex.Expression]): A sequence of aggregation expressions
+                to be calculated.
+            by_column_ids (typing.Sequence[str], optional): A sequence of column IDs
+                to use as grouping keys. Defaults to an empty tuple (global reduction).
+            dropna (bool, optional): If True, rows containing null values in the
+                `by_column_ids` columns will be filtered out before the reduction
+                is applied. Defaults to False.
+
+        Returns:
+            Tuple[ArrayValue, Tuple[str, ...]]: A tuple containing:
+                - An `ArrayValue` wrapping the new root node representing the
+                  aggregation/group-by result.
+                - A tuple of strings representing the unique column IDs assigned to the
+                  resulting aggregate columns.
+        """
         plan = self.node
         if dropna:
             for col_id in by_column_ids:
@@ -292,7 +331,7 @@ class ArrayValue:
             nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
-        new_root = expression_factoring.plan_general_aggregation(
+        new_root = expression_factoring.apply_agg_exprs_to_plan(
             plan, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
         )
         target_ids = tuple(named_expr.id for named_expr in named_exprs)

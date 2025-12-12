@@ -41,7 +41,7 @@ from bigframes.core import (
 _MAX_INLINE_COMPLEXITY = 10
 
 
-def plan_general_col_exprs(
+def apply_col_exprs_to_plan(
     plan: nodes.BigFrameNode, col_exprs: Sequence[nodes.ColumnDef]
 ) -> nodes.BigFrameNode:
     # TODO: Jointly fragmentize expressions to more efficiently reuse common sub-expressions
@@ -55,7 +55,7 @@ def plan_general_col_exprs(
     return push_into_tree(plan, fragments, target_ids)
 
 
-def plan_general_aggregation(
+def apply_agg_exprs_to_plan(
     plan: nodes.BigFrameNode,
     agg_defs: Sequence[nodes.ColumnDef],
     grouping_keys: Sequence[expression.DerefOp],
@@ -69,7 +69,7 @@ def plan_general_aggregation(
         nodes.ColumnDef(windowize(cdef.expression, window_def), cdef.id)
         for cdef in all_inputs
     ]
-    plan = plan_general_col_exprs(plan, windowized_inputs)
+    plan = apply_col_exprs_to_plan(plan, windowized_inputs)
     all_aggs = list(
         itertools.chain(*(factored_agg.agg_exprs for factored_agg in factored_aggs))
     )
@@ -113,6 +113,14 @@ def fragmentize_expression(root: nodes.ColumnDef) -> Sequence[nodes.ColumnDef]:
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class FactoredAggregation:
+    """
+    A three part recomposition of a general aggregating expression.
+
+    1. agg_inputs: This is a set of (*col) -> col transformation that preprocess inputs for the aggregations ops
+    2. agg_exprs: This is a set of pure aggregations (eg sum, mean, min, max) ops referencing the outputs of (1)
+    3. root_scalar_expr: This is the final set, takes outputs of (2), applies scalar expression to produce final result.
+    """
+
     # pure scalar expression
     root_scalar_expr: nodes.ColumnDef
     # pure agg expression, only refs cols and consts
