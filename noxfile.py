@@ -33,11 +33,6 @@ FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
 MYPY_VERSION = "mypy==1.15.0"
 
-# TODO: switch to 3.14 once remote functions adds a runtime for it
-# https://cloud.google.com/run/docs/runtimes/python
-# https://cloud.google.com/functions/docs/runtime-support#python
-LATEST_FULLY_SUPPORTED_PYTHON = "3.13"
-
 # Notebook tests should match colab and BQ Studio.
 # Check with import sys; sys.version_info
 # on a fresh notebook runtime.
@@ -135,7 +130,7 @@ nox.options.sessions = [
     # from GitHub actions.
     "unit_noextras",
     "system-3.9",  # No extras.
-    f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
+    f"system-{DEFAULT_PYTHON_VERSION}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
     "cleanup",
@@ -419,7 +414,7 @@ def system(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def system_noextras(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -811,21 +806,6 @@ def notebook(session: nox.Session):
         # produce metrics for the performance benchmark script.
         "notebooks/dataframes/anywidget_mode.ipynb",
     ]
-
-    # TODO: remove exception for Python 3.14 once remote functions adds a runtime for it
-    # https://cloud.google.com/run/docs/runtimes/python
-    # https://cloud.google.com/functions/docs/runtime-support#python
-    # sys.exit(0) or pytest.skip(...).
-    # See: https://github.com/treebeardtech/nbmake/issues/134
-    if session.python == "3.14":
-        denylist.extend(
-            [
-                "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
-                "notebooks/remote_functions/remote_function_usecases.ipynb",
-                "notebooks/remote_functions/remote_function_vertex_claude_model.ipynb",
-                "notebooks/remote_functions/remote_function.ipynb",
-            ]
-        )
 
     # Convert each Path notebook object to a string using a list comprehension,
     # and remove tests that we choose not to test.
