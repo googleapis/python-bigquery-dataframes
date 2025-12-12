@@ -17,7 +17,7 @@ import pytest
 from bigframes.ml import forecasting
 from bigframes.testing import utils
 
-ARIMA_EVALUATE_OUTPUT_COL = [
+ARIMA_EVALUATE_OUTPUT_COLUMNS = [
     "non_seasonal_p",
     "non_seasonal_d",
     "non_seasonal_q",
@@ -106,9 +106,9 @@ def test_arima_plus_model_fit_summary(
     curr_model = arima_model_w_id if id_col_name else arima_model
     result = curr_model.summary().to_pandas()
     expected_columns = (
-        [id_col_name] + ARIMA_EVALUATE_OUTPUT_COL
+        [id_col_name] + ARIMA_EVALUATE_OUTPUT_COLUMNS
         if id_col_name
-        else ARIMA_EVALUATE_OUTPUT_COL
+        else ARIMA_EVALUATE_OUTPUT_COLUMNS
     )
     utils.check_pandas_df_schema_and_index(
         result, columns=expected_columns, index=2 if id_col_name else 1

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from typing import List, Optional
+import warnings
 
 from google.cloud import bigquery
 
@@ -234,8 +235,6 @@ class ARIMAPlus(base.SupervisedTrainableWithIdColPredictor):
         if self.data_frequency in ["hourly", "per_minute"]:
             timestamp_col = X.columns[0]
             if "date" in X[timestamp_col].dtype.name:
-                import warnings
-
                 warnings.warn(
                     f"Converting Date column '{timestamp_col}' to datetime for "
                     f"{self.data_frequency} frequency. This is required because "
