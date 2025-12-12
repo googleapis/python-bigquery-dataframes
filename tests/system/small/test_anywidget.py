@@ -956,11 +956,6 @@ def test_repr_in_anywidget_mode_should_not_be_deferred(
         assert "page_1_row_1" in representation
 
 
-# TODO(b/332316283): Add tests for custom index and multiindex
-# This may not be necessary for the SQL Cell use case but should be
-# considered for completeness.
-
-
 def test_dataframe_repr_mimebundle_anywidget_with_metadata(
     monkeypatch: pytest.MonkeyPatch,
     session: bigframes.Session,  # Add session as a fixture
@@ -1001,3 +996,8 @@ def test_dataframe_repr_mimebundle_anywidget_with_metadata(
         assert "text/plain" in data
         assert "application/vnd.jupyter.widget-view+json" in metadata
         assert "colab" in metadata["application/vnd.jupyter.widget-view+json"]
+
+
+# TODO(b/332316283): Add tests for custom index and multiindex
+# This may not be necessary for the SQL Cell use case but should be
+# considered for completeness.
