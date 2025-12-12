@@ -97,7 +97,7 @@ def hash_based_sample(
     uniq_row_id = ops.RowHash().as_expr(
         ex.DerefOp(rowhash_col_id), ex.DerefOp(dupe_count_col_id), ex.const(seed)
     )
-    result = nodes.ProjectionNode(root, ((uniq_row_id, unique_row_id_col_id),))
+    result = nodes.ProjectionNode(result, ((uniq_row_id, unique_row_id_col_id),))
 
     if fraction < 1:
         # The filtering is correlated with the ordering, but thats fine because the ordering is pseudo-random
