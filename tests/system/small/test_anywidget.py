@@ -1046,27 +1046,30 @@ def multiindex_bf_df(
     return session.read_pandas(multiindex_pandas_df)
 
 
-def test_widget_with_default_index_should_display_row_column(
+def test_widget_with_default_index_should_display_index_column_with_empty_header(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
     """
-    Given a DataFrame with a default index, when rendered,
-    then a "Row" index column should be visible.
+    Given a DataFrame with a default index, when the TableWidget is rendered,
+    then an index column should be visible with an empty header.
     """
+    import re
+
     from bigframes.display.anywidget import TableWidget
 
     with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
         widget = TableWidget(paginated_bf_df)
         html = widget.table_html
 
-    # The header for the index should now be "Row".
+    # The header for the index should be present but empty, matching the
+    # internal rendering logic.
     thead = html.split("<thead>")[1].split("</thead>")[0]
-    assert "Row" in thead
-
-    # The body rows should contain one header cell (`<th>`) for the "Row" index.
-    tbody = html.split("<tbody>")[1].split("</tbody>")[0]
-    first_row = tbody.split("<tr>")[1].split("</tr>")[0]
-    assert "<td" in first_row
+    # Find the first header cell and check that its content div is empty.
+    match = re.search(r"<th[^>]*><div[^>]*>([^<]*)</div></th>", thead)
+    assert match is not None, "Could not find table header cell in output."
+    assert (
+        match.group(1) == ""
+    ), f"Expected empty index header, but found: {match.group(1)}"
 
 
 def test_widget_with_custom_index_should_display_index_column(

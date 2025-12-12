@@ -297,13 +297,15 @@ class TableWidget(WIDGET_BASE):
         page_data = cached_data.iloc[start:end].copy()
 
         # Handle index display
-        if self._dataframe._block.has_index and page_data.index.name is not None:
-            # Custom named index - include it with its actual name
-            page_data.insert(0, page_data.index.name, page_data.index)
+        # TODO(b/332316283): Add tests for custom multiindex
+        if self._dataframe._block.has_index:
+            index_name = page_data.index.name
+            page_data.insert(
+                0, index_name if index_name is not None else "", page_data.index
+            )
         else:
             # Default index - include as "Row" column
             page_data.insert(0, "Row", range(start + 1, start + len(page_data) + 1))
-
         # Handle case where user navigated beyond available data with unknown row count
         is_unknown_count = self.row_count is None
         is_beyond_data = self._all_data_loaded and len(page_data) == 0 and self.page > 0
