@@ -13,10 +13,20 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
-from bigframes.ml import model_selection
+from bigframes.ml import core, model_selection
 import bigframes.ml.linear_model
 from bigframes.testing import utils
+
+
+@pytest.fixture(scope="function")
+def penguins_linear_model_w_global_explain(
+    penguins_bqml_linear_model: core.BqmlModel,
+) -> bigframes.ml.linear_model.LinearRegression:
+    bf_model = bigframes.ml.linear_model.LinearRegression(enable_global_explain=True)
+    bf_model._bqml_model = penguins_bqml_linear_model
+    return bf_model
 
 
 def test_linear_regression_configure_fit_score(penguins_df_default_index, dataset_id):
