@@ -18,7 +18,6 @@ import pytest
 
 import bigframes.core.utils as utils
 import bigframes.pandas as bpd
-from bigframes.testing.utils import assert_series_equal
 
 pytest.importorskip("polars")
 pytest.importorskip("pandas", minversion="2.0.0")
@@ -218,7 +217,7 @@ def test_groupby_series_iter_by_series(polars_session):
         bf_result = bf_group_series.to_pandas()
         pd_key, pd_result = pd_group
         assert bf_key == pd_key
-        assert_series_equal(
+        pandas.testing.assert_series_equal(
             bf_result, pd_result, check_dtype=False, check_index_type=False
         )
 
@@ -237,7 +236,7 @@ def test_groupby_series_iter_by_series_list_one_item(polars_session):
         bf_result = bf_group_series.to_pandas()
         pd_key, pd_result = pd_group
         assert bf_key == pd_key
-        assert_series_equal(
+        pandas.testing.assert_series_equal(
             bf_result, pd_result, check_dtype=False, check_index_type=False
         )
 
@@ -259,6 +258,6 @@ def test_groupby_series_iter_by_series_list_multiple(polars_session):
         bf_result = bf_group_series.to_pandas()
         pd_key, pd_result = pd_group
         assert bf_key == pd_key
-        assert_series_equal(
+        pandas.testing.assert_series_equal(
             bf_result, pd_result, check_dtype=False, check_index_type=False
         )
