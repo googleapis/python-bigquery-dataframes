@@ -66,8 +66,6 @@ E2E_TEST_PYTHON_VERSION = "3.12"
 
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
-    "mock",
-    "asyncmock",
     PYTEST_VERSION,
     "pytest-asyncio",
     "pytest-cov",
@@ -92,7 +90,6 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
 SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
-    "mock",
     "openpyxl",
     PYTEST_VERSION,
     "pytest-cov",
@@ -207,7 +204,10 @@ def lint_setup_py(session):
 
 def install_unittest_dependencies(session, install_test_extra, *constraints):
     standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
-    session.install(*standard_deps, *constraints)
+    session.install("setuptools", "wheel")
+    session.install(
+        "--extra-index-url", "https://pypi.org/simple/", *standard_deps, *constraints
+    )
 
     if UNIT_TEST_LOCAL_DEPENDENCIES:
         session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
@@ -224,6 +224,7 @@ def install_unittest_dependencies(session, install_test_extra, *constraints):
 
 def run_unit(session, install_test_extra):
     """Run the unit test suite."""
+    session.env["PIP_EXTRA_INDEX_URL"] = "https://pypi.org/simple/"
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
@@ -313,7 +314,13 @@ def install_systemtest_dependencies(session, install_test_extra, *constraints):
     # See https://github.com/grpc/grpc/pull/30642
     session.install("--pre", "grpcio!=1.49.0rc1")
 
-    session.install(*SYSTEM_TEST_STANDARD_DEPENDENCIES, *constraints)
+    session.install("setuptools", "wheel")
+    session.install(
+        "--extra-index-url",
+        "https://pypi.org/simple/",
+        *SYSTEM_TEST_STANDARD_DEPENDENCIES,
+        *constraints,
+    )
 
     if SYSTEM_TEST_EXTERNAL_DEPENDENCIES:
         session.install(*SYSTEM_TEST_EXTERNAL_DEPENDENCIES, *constraints)
@@ -349,7 +356,7 @@ def run_system(
     timeout_seconds=900,
     num_workers=20,
 ):
-    """Run the system test suite."""
+    session.env["PIP_EXTRA_INDEX_URL"] = "https://pypi.org/simple/"
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )

@@ -297,7 +297,7 @@ class TableWidget(WIDGET_BASE):
         page_data = cached_data.iloc[start:end].copy()
 
         # Handle index display
-        if page_data.index.name is not None:
+        if self._dataframe._block.has_index and page_data.index.name is not None:
             # Custom named index - include it with its actual name
             page_data.insert(0, page_data.index.name, page_data.index)
         else:
