@@ -101,7 +101,7 @@ def test_get_dummies_dataframe(scalars_dfs, kwargs):
     # dtype argument above is needed for pandas v1 only
 
     # adjust for expected dtype differences
-    for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
+    for column_name, type_name in zip(pd_result.columns, pd_result.dtypes):
         if type_name == "bool":
             pd_result[column_name] = pd_result[column_name].astype("boolean")
 
@@ -130,7 +130,7 @@ def test_get_dummies_dataframe_duplicate_labels(scalars_dfs):
     # dtype argument above is needed for pandas v1 only
 
     # adjust for expected dtype differences
-    for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
+    for column_name, type_name in zip(pd_result.columns, pd_result.dtypes):
         if type_name == "bool":
             pd_result[column_name] = pd_result[column_name].astype("boolean")
 
@@ -147,7 +147,7 @@ def test_get_dummies_series(scalars_dfs):
     # dtype argument above is needed for pandas v1 only
 
     # adjust for expected dtype differences
-    for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
+    for column_name, type_name in zip(pd_result.columns, pd_result.dtypes):
         if type_name == "bool":  # pragma: NO COVER
             pd_result[column_name] = pd_result[column_name].astype("boolean")
     pd_result.columns = pd_result.columns.astype(object)
@@ -168,7 +168,7 @@ def test_get_dummies_series_nameless(scalars_dfs):
     # dtype argument above is needed for pandas v1 only
 
     # adjust for expected dtype differences
-    for (column_name, type_name) in zip(pd_result.columns, pd_result.dtypes):
+    for column_name, type_name in zip(pd_result.columns, pd_result.dtypes):
         if type_name == "bool":  # pragma: NO COVER
             pd_result[column_name] = pd_result[column_name].astype("boolean")
     pd_result.columns = pd_result.columns.astype(object)
