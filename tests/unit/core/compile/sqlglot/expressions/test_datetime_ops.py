@@ -57,6 +57,22 @@ def test_dayofyear(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_datetime_to_integer_label(scalar_types_df: bpd.DataFrame, snapshot):
+    col_names = ["datetime_col", "timestamp_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {
+        "fixed_freq": ops.DatetimeToIntegerLabelOp(
+            freq=pd.tseries.offsets.Day(), origin="start", closed="left"  # type: ignore
+        ).as_expr("datetime_col", "timestamp_col"),
+        "non_fixed_freq_weekly": ops.DatetimeToIntegerLabelOp(
+            freq=pd.tseries.offsets.Week(weekday=6), origin="start", closed="left"  # type: ignore
+        ).as_expr("datetime_col", "timestamp_col"),
+    }
+
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_floor_dt(scalar_types_df: bpd.DataFrame, snapshot):
     col_names = ["datetime_col", "timestamp_col", "date_col"]
     bf_df = scalar_types_df[col_names]
@@ -143,12 +159,15 @@ def test_second(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_strftime(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "timestamp_col"
-    bf_df = scalar_types_df[[col_name]]
-    sql = utils._apply_ops_to_sql(
-        bf_df, [ops.StrftimeOp("%Y-%m-%d").as_expr(col_name)], [col_name]
-    )
+    bf_df = scalar_types_df[["timestamp_col", "datetime_col", "date_col", "time_col"]]
+    ops_map = {
+        "date_col": ops.StrftimeOp("%Y-%m-%d").as_expr("date_col"),
+        "datetime_col": ops.StrftimeOp("%Y-%m-%d").as_expr("datetime_col"),
+        "time_col": ops.StrftimeOp("%Y-%m-%d").as_expr("time_col"),
+        "timestamp_col": ops.StrftimeOp("%Y-%m-%d").as_expr("timestamp_col"),
+    }
 
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
     snapshot.assert_match(sql, "out.sql")
 
 
@@ -161,22 +180,26 @@ def test_time(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_to_datetime(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "int64_col"
-    bf_df = scalar_types_df[[col_name]]
-    sql = utils._apply_ops_to_sql(
-        bf_df, [ops.ToDatetimeOp().as_expr(col_name)], [col_name]
-    )
+    col_names = ["int64_col", "string_col", "float64_col"]
+    bf_df = scalar_types_df[col_names]
+    ops_map = {col_name: ops.ToDatetimeOp().as_expr(col_name) for col_name in col_names}
 
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
     snapshot.assert_match(sql, "out.sql")
 
 
 def test_to_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "int64_col"
-    bf_df = scalar_types_df[[col_name]]
-    sql = utils._apply_ops_to_sql(
-        bf_df, [ops.ToTimestampOp().as_expr(col_name)], [col_name]
-    )
+    bf_df = scalar_types_df[["int64_col", "string_col", "float64_col"]]
+    ops_map = {
+        "int64_col": ops.ToTimestampOp().as_expr("int64_col"),
+        "float64_col": ops.ToTimestampOp().as_expr("float64_col"),
+        "int64_col_s": ops.ToTimestampOp(unit="s").as_expr("int64_col"),
+        "int64_col_ms": ops.ToTimestampOp(unit="ms").as_expr("int64_col"),
+        "int64_col_us": ops.ToTimestampOp(unit="us").as_expr("int64_col"),
+        "int64_col_ns": ops.ToTimestampOp(unit="ns").as_expr("int64_col"),
+    }
 
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
     snapshot.assert_match(sql, "out.sql")
 
 

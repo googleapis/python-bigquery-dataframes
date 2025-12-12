@@ -245,27 +245,6 @@ def _cut_ops_w_intervals(
     return case_expr
 
 
-@UNARY_OP_REGISTRATION.register(agg_ops.DateSeriesDiffOp)
-def _(
-    op: agg_ops.DateSeriesDiffOp,
-    column: typed_expr.TypedExpr,
-    window: typing.Optional[window_spec.WindowSpec] = None,
-) -> sge.Expression:
-    if column.dtype != dtypes.DATE_DTYPE:
-        raise TypeError(f"Cannot perform date series diff on type {column.dtype}")
-    shift_op_impl = UNARY_OP_REGISTRATION[agg_ops.ShiftOp(0)]
-    shifted = shift_op_impl(agg_ops.ShiftOp(op.periods), column, window)
-    # Conversion factor from days to microseconds
-    conversion_factor = 24 * 60 * 60 * 1_000_000
-    return sge.Cast(
-        this=sge.DateDiff(
-            this=column.expr, expression=shifted, unit=sge.Identifier(this="DAY")
-        )
-        * sge.convert(conversion_factor),
-        to="INT64",
-    )
-
-
 @UNARY_OP_REGISTRATION.register(agg_ops.DenseRankOp)
 def _(
     op: agg_ops.DenseRankOp,
@@ -327,13 +306,27 @@ def _(
 ) -> sge.Expression:
     shift_op_impl = UNARY_OP_REGISTRATION[agg_ops.ShiftOp(0)]
     shifted = shift_op_impl(agg_ops.ShiftOp(op.periods), column, window)
-    if column.dtype in (dtypes.BOOL_DTYPE, dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
-        if column.dtype == dtypes.BOOL_DTYPE:
-            return sge.NEQ(this=column.expr, expression=shifted)
-        else:
-            return sge.Sub(this=column.expr, expression=shifted)
-    else:
-        raise TypeError(f"Cannot perform diff on type {column.dtype}")
+    if column.dtype == dtypes.BOOL_DTYPE:
+        return sge.NEQ(this=column.expr, expression=shifted)
+
+    if column.dtype in (dtypes.INT_DTYPE, dtypes.FLOAT_DTYPE):
+        return sge.Sub(this=column.expr, expression=shifted)
+
+    if column.dtype == dtypes.TIMESTAMP_DTYPE:
+        return sge.TimestampDiff(
+            this=column.expr,
+            expression=shifted,
+            unit=sge.Identifier(this="MICROSECOND"),
+        )
+
+    if column.dtype == dtypes.DATETIME_DTYPE:
+        return sge.DatetimeDiff(
+            this=column.expr,
+            expression=shifted,
+            unit=sge.Identifier(this="MICROSECOND"),
+        )
+
+    raise TypeError(f"Cannot perform diff on type {column.dtype}")
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.MaxOp)
@@ -386,6 +379,17 @@ def _(
     return apply_window_if_present(sge.func("MIN", column.expr), window)
 
 
+@UNARY_OP_REGISTRATION.register(agg_ops.NuniqueOp)
+def _(
+    op: agg_ops.NuniqueOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    return apply_window_if_present(
+        sge.func("COUNT", sge.Distinct(expressions=[column.expr])), window
+    )
+
+
 @UNARY_OP_REGISTRATION.register(agg_ops.PopVarOp)
 def _(
     op: agg_ops.PopVarOp,
@@ -398,6 +402,58 @@ def _(
 
     expr = sge.func("VAR_POP", expr)
     return apply_window_if_present(expr, window)
+
+
+@UNARY_OP_REGISTRATION.register(agg_ops.ProductOp)
+def _(
+    op: agg_ops.ProductOp,
+    column: typed_expr.TypedExpr,
+    window: typing.Optional[window_spec.WindowSpec] = None,
+) -> sge.Expression:
+    # Need to short-circuit as log with zeroes is illegal sql
+    is_zero = sge.EQ(this=column.expr, expression=sge.convert(0))
+
+    # There is no product sql aggregate function, so must implement as a sum of logs, and then
+    # apply power after. Note, log and power base must be equal! This impl uses natural log.
+    logs = (
+        sge.Case()
+        .when(is_zero, sge.convert(0))
+        .else_(sge.func("LN", sge.func("ABS", column.expr)))
+    )
+    logs_sum = apply_window_if_present(sge.func("SUM", logs), window)
+    magnitude = sge.func("EXP", logs_sum)
+
+    # Can't determine sign from logs, so have to determine parity of count of negative inputs
+    is_negative = (
+        sge.Case()
+        .when(
+            sge.LT(this=sge.func("SIGN", column.expr), expression=sge.convert(0)),
+            sge.convert(1),
+        )
+        .else_(sge.convert(0))
+    )
+    negative_count = apply_window_if_present(sge.func("SUM", is_negative), window)
+    negative_count_parity = sge.Mod(
+        this=negative_count, expression=sge.convert(2)
+    )  # 1 if result should be negative, otherwise 0
+
+    any_zeroes = apply_window_if_present(sge.func("LOGICAL_OR", is_zero), window)
+
+    float_result = (
+        sge.Case()
+        .when(any_zeroes, sge.convert(0))
+        .else_(
+            sge.Mul(
+                this=magnitude,
+                expression=sge.If(
+                    this=sge.EQ(this=negative_count_parity, expression=sge.convert(1)),
+                    true=sge.convert(-1),
+                    false=sge.convert(1),
+                ),
+            )
+        )
+    )
+    return float_result
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.QcutOp)
@@ -528,23 +584,6 @@ def _(
     # Will be null if all inputs are null. Pandas defaults to zero sum though.
     zero = pd.to_timedelta(0) if column.dtype == dtypes.TIMEDELTA_DTYPE else 0
     return sge.func("IFNULL", expr, ir._literal(zero, column.dtype))
-
-
-@UNARY_OP_REGISTRATION.register(agg_ops.TimeSeriesDiffOp)
-def _(
-    op: agg_ops.TimeSeriesDiffOp,
-    column: typed_expr.TypedExpr,
-    window: typing.Optional[window_spec.WindowSpec] = None,
-) -> sge.Expression:
-    if column.dtype != dtypes.TIMESTAMP_DTYPE:
-        raise TypeError(f"Cannot perform time series diff on type {column.dtype}")
-    shift_op_impl = UNARY_OP_REGISTRATION[agg_ops.ShiftOp(0)]
-    shifted = shift_op_impl(agg_ops.ShiftOp(op.periods), column, window)
-    return sge.TimestampDiff(
-        this=column.expr,
-        expression=shifted,
-        unit=sge.Identifier(this="MICROSECOND"),
-    )
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.VarOp)

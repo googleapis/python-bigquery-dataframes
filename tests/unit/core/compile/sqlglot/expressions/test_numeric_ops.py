@@ -196,6 +196,22 @@ def test_pos(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_pow(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df = scalar_types_df[["int64_col", "float64_col"]]
+
+    bf_df["int_pow_int"] = bf_df["int64_col"] ** bf_df["int64_col"]
+    bf_df["int_pow_float"] = bf_df["int64_col"] ** bf_df["float64_col"]
+    bf_df["float_pow_int"] = bf_df["float64_col"] ** bf_df["int64_col"]
+    bf_df["float_pow_float"] = bf_df["float64_col"] ** bf_df["float64_col"]
+
+    bf_df["int_pow_0"] = bf_df["int64_col"] ** 0
+    bf_df["float_pow_0"] = bf_df["float64_col"] ** 0
+    bf_df["int_pow_1"] = bf_df["int64_col"] ** 1
+    bf_df["float_pow_1"] = bf_df["float64_col"] ** 1
+
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
 def test_round(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col", "float64_col"]]
 
@@ -438,3 +454,36 @@ def test_sub_unsupported_raises(scalar_types_df: bpd.DataFrame):
 
     with pytest.raises(TypeError):
         utils._apply_binary_op(scalar_types_df, ops.sub_op, "int64_col", "string_col")
+
+
+def test_unsafe_pow_op(scalar_types_df: bpd.DataFrame, snapshot):
+    # Choose certain row so the sql execution won't fail even with unsafe_pow_op.
+    bf_df = scalar_types_df[
+        (scalar_types_df["int64_col"] >= 0) & (scalar_types_df["int64_col"] <= 10)
+    ]
+    bf_df = bf_df[["int64_col", "float64_col", "bool_col"]]
+
+    int64_col_id = bf_df["int64_col"]._value_column
+    float64_col_id = bf_df["float64_col"]._value_column
+    bool_col_id = bf_df["bool_col"]._value_column
+
+    sql = utils._apply_ops_to_sql(
+        bf_df,
+        [
+            ops.unsafe_pow_op.as_expr(int64_col_id, int64_col_id),
+            ops.unsafe_pow_op.as_expr(int64_col_id, float64_col_id),
+            ops.unsafe_pow_op.as_expr(float64_col_id, int64_col_id),
+            ops.unsafe_pow_op.as_expr(float64_col_id, float64_col_id),
+            ops.unsafe_pow_op.as_expr(int64_col_id, bool_col_id),
+            ops.unsafe_pow_op.as_expr(bool_col_id, int64_col_id),
+        ],
+        [
+            "int_pow_int",
+            "int_pow_float",
+            "float_pow_int",
+            "float_pow_float",
+            "int_pow_bool",
+            "bool_pow_int",
+        ],
+    )
+    snapshot.assert_match(sql, "out.sql")

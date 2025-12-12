@@ -2512,7 +2512,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         names: Union[None, Hashable, Sequence[Hashable]] = None,
     ) -> Optional[DataFrame]:
         block = self._block
-        if names:
+        if names is not None:
             if isinstance(names, blocks.Label) and not isinstance(names, tuple):
                 names = [names]
             else:
@@ -4989,8 +4989,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         keep: str = "first",
     ) -> DataFrame:
-        if keep is not False:
-            validations.enforce_ordered(self, "drop_duplicates(keep != False)")
         if subset is None:
             column_ids = self._block.value_columns
         elif utils.is_list_like(subset):
@@ -5004,8 +5002,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def duplicated(self, subset=None, keep: str = "first") -> bigframes.series.Series:
-        if keep is not False:
-            validations.enforce_ordered(self, "duplicated(keep != False)")
         if subset is None:
             column_ids = self._block.value_columns
         else:
