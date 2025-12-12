@@ -57,11 +57,6 @@ LINT_PATHS = [
 
 DEFAULT_PYTHON_VERSION = "3.14"
 
-# Cloud Run Functions supports Python versions up to 3.13
-# https://cloud.google.com/run/docs/runtimes/python
-# https://cloud.google.com/functions/docs/runtime-support#python
-E2E_TEST_PYTHON_VERSION = "3.13"
-
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
@@ -449,7 +444,7 @@ def doctest(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=E2E_TEST_PYTHON_VERSION)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def e2e(session: nox.sessions.Session):
     """Run the large tests in system test suite."""
     run_system(
