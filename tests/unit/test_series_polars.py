@@ -38,10 +38,11 @@ import bigframes.pandas
 import bigframes.pandas as bpd
 import bigframes.series as series
 from bigframes.testing.utils import (
-    assert_pandas_df_equal,
+    assert_frame_equal,
     assert_series_equal,
     convert_pandas_dtypes,
     get_first_file_from_wildcard,
+    pandas_major_version,
 )
 
 pytest.importorskip("polars")
@@ -147,7 +148,7 @@ def test_series_construct_timestamps():
     bf_result = series.Series(datetimes).to_pandas()
     pd_result = pd.Series(datetimes, dtype=pd.ArrowDtype(pa.timestamp("us")))
 
-    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+    assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_series_construct_copy_with_index(scalars_dfs):
@@ -313,9 +314,7 @@ def test_series_construct_geodata():
 
     series = bigframes.pandas.Series(pd_series)
 
-    pd.testing.assert_series_equal(
-        pd_series, series.to_pandas(), check_index_type=False
-    )
+    assert_series_equal(pd_series, series.to_pandas(), check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -581,6 +580,8 @@ def test_series___getitem__(scalars_dfs, index_col, key):
     ),
 )
 def test_series___getitem___with_int_key(scalars_dfs, key):
+    if pd.__version__.startswith("3."):
+        pytest.skip("pandas 3.0 dropped getitem with int key")
     col_name = "int64_too"
     index_col = "string_col"
     scalars_df, scalars_pandas_df = scalars_dfs
@@ -798,6 +799,8 @@ def test_series_replace_dict(scalars_dfs, replacement_dict):
 )
 def test_series_interpolate(method):
     pytest.importorskip("scipy")
+    if method == "pad" and pd.__version__.startswith("3."):
+        pytest.skip("pandas 3.0 dropped method='pad'")
 
     values = [None, 1, 2, None, None, 16, None]
     index = [-3.2, 11.4, 3.56, 4, 4.32, 5.55, 76.8]
@@ -810,11 +813,12 @@ def test_series_interpolate(method):
     bf_result = bf_series.interpolate(method=method).to_pandas()
 
     # pd uses non-null types, while bf uses nullable types
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         pd_result,
         bf_result,
         check_index_type=False,
         check_dtype=False,
+        nulls_are_nan=True,
     )
 
 
@@ -832,7 +836,7 @@ def test_series_dropna(scalars_dfs, ignore_index):
     col_name = "string_col"
     bf_result = scalars_df[col_name].dropna(ignore_index=ignore_index).to_pandas()
     pd_result = scalars_pandas_df[col_name].dropna(ignore_index=ignore_index)
-    pd.testing.assert_series_equal(pd_result, bf_result, check_index_type=False)
+    assert_series_equal(pd_result, bf_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -1176,7 +1180,7 @@ def test_mods(scalars_dfs, col_x, col_y, method):
     else:
         bf_result = bf_series.astype("Float64").to_pandas()
     pd_result = getattr(scalars_pandas_df[col_x], method)(scalars_pandas_df[col_y])
-    pd.testing.assert_series_equal(pd_result, bf_result)
+    assert_series_equal(pd_result, bf_result, nulls_are_nan=True)
 
 
 # We work around a pandas bug that doesn't handle correlating nullable dtypes by doing this
@@ -1783,7 +1787,7 @@ def test_take(scalars_dfs, indices):
     bf_result = scalars_df.take(indices).to_pandas()
     pd_result = scalars_pandas_df.take(indices)
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_nested_filter(scalars_dfs):
@@ -1875,6 +1879,10 @@ def test_series_binop_w_other_types(scalars_dfs, other):
 
     bf_result = (scalars_df["int64_col"].head(3) + other).to_pandas()
     pd_result = scalars_pandas_df["int64_col"].head(3) + other
+
+    if isinstance(other, pd.Series):
+        # pandas 3.0 preserves series name, bigframe, earlier pandas do not
+        pd_result.index.name = bf_result.index.name
 
     assert_series_equal(
         bf_result,
@@ -2739,12 +2747,9 @@ def test_diff(scalars_df_index, scalars_pandas_df_index, periods):
 def test_series_pct_change(scalars_df_index, scalars_pandas_df_index, periods):
     bf_result = scalars_df_index["int64_col"].pct_change(periods=periods).to_pandas()
     # cumsum does not behave well on nullable ints in pandas, produces object type and never ignores NA
-    pd_result = scalars_pandas_df_index["int64_col"].pct_change(periods=periods)
+    pd_result = scalars_pandas_df_index["int64_col"].ffill().pct_change(periods=periods)
 
-    pd.testing.assert_series_equal(
-        bf_result,
-        pd_result,
-    )
+    assert_series_equal(bf_result, pd_result, nulls_are_nan=True)
 
 
 @pytest.mark.skip(
@@ -3455,7 +3460,7 @@ def test_to_frame(scalars_dfs):
     bf_result = scalars_df["int64_col"].to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].to_frame()
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_to_frame_no_name(scalars_dfs):
@@ -3464,7 +3469,7 @@ def test_to_frame_no_name(scalars_dfs):
     bf_result = scalars_df["int64_col"].rename(None).to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].rename(None).to_frame()
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 @pytest.mark.skip(reason="fixture 'gcs_folder' not found")
@@ -3713,7 +3718,7 @@ def test_mask_default_value(scalars_dfs):
     pd_col_masked = pd_col.mask(pd_col % 2 == 1)
     pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_mask_custom_value(scalars_dfs):
@@ -3731,7 +3736,7 @@ def test_mask_custom_value(scalars_dfs):
     # odd so should be left as is, but it is being masked in pandas.
     # Accidentally the bigframes bahavior matches, but it should be updated
     # after the resolution of https://github.com/pandas-dev/pandas/issues/52955
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_mask_with_callable(scalars_df_index, scalars_pandas_df_index):
@@ -3962,7 +3967,7 @@ def test_string_astype_date():
     pd_result = pd_series.astype("date32[day][pyarrow]")  # type: ignore
     bf_result = bf_series.astype("date32[day][pyarrow]").to_pandas()
 
-    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+    assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_string_astype_datetime():
@@ -3975,7 +3980,7 @@ def test_string_astype_datetime():
     pd_result = pd_series.astype(pd.ArrowDtype(pa.timestamp("us")))
     bf_result = bf_series.astype(pd.ArrowDtype(pa.timestamp("us"))).to_pandas()
 
-    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+    assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 def test_string_astype_timestamp():
@@ -3994,7 +3999,7 @@ def test_string_astype_timestamp():
         pd.ArrowDtype(pa.timestamp("us", tz="UTC"))
     ).to_pandas()
 
-    pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
+    assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
 @pytest.mark.skip(reason="AssertionError: Series are different")
@@ -4194,7 +4199,7 @@ def test_loc_bool_series_default_index(
         scalars_pandas_df_default_index.bool_col
     ]
 
-    assert_pandas_df_equal(
+    assert_frame_equal(
         bf_result.to_frame(),
         pd_result.to_frame(),
     )
@@ -4615,7 +4620,7 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     bf_result = bf_col.apply(lambda_, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df[col]
-    if pd.__version__[:3] in ("2.2", "2.3"):
+    if pd.__version__[:3] in ("2.2", "2.3") or pandas_major_version() >= 3:
         pd_result = pd_col.apply(lambda_, by_row=False)
     else:
         pd_result = pd_col.apply(lambda_)
@@ -4623,7 +4628,12 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     # ignore dtype check, which are Int64 and object respectively
     # Some columns implicitly convert to floating point. Use check_exact=False to ensure we're "close enough"
     assert_series_equal(
-        bf_result, pd_result, check_dtype=False, check_exact=False, rtol=0.001
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_exact=False,
+        rtol=0.001,
+        nulls_are_nan=True,
     )
 
 
@@ -4696,7 +4706,7 @@ def test_series_apply_python_numeric_fns(scalars_dfs, ufunc, col):
 
     pd_result = pd_col.apply(wrapped)
 
-    assert_series_equal(bf_result, pd_result, check_dtype=False)
+    assert_series_equal(bf_result, pd_result, check_dtype=False, nulls_are_nan=True)
 
 
 @pytest.mark.parametrize(
@@ -4805,7 +4815,12 @@ def test_apply_simple_udf(scalars_dfs):
     # ignore dtype check, which are Int64 and object respectively
     # Some columns implicitly convert to floating point. Use check_exact=False to ensure we're "close enough"
     assert_series_equal(
-        bf_result, pd_result, check_dtype=False, check_exact=False, rtol=0.001
+        bf_result,
+        pd_result,
+        check_dtype=False,
+        check_exact=False,
+        rtol=0.001,
+        nulls_are_nan=True,
     )
 
 
@@ -4924,7 +4939,7 @@ def test_series_explode_w_index(index, ignore_index):
     s = bigframes.pandas.Series(data, index=index)
     pd_s = pd.Series(data, index=index)
     # TODO(b/340885567): fix type error
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         s.explode(ignore_index=ignore_index).to_pandas(),  # type: ignore
         pd_s.explode(ignore_index=ignore_index).astype(pd.Float64Dtype()),  # type: ignore
         check_index_type=False,
@@ -5109,3 +5124,18 @@ def test_series_item_with_empty(session):
 
     with pytest.raises(ValueError, match=re.escape(expected_message)):
         bf_s_empty.item()
+
+
+def test_series_dt_total_seconds(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index["duration_col"].dt.total_seconds().to_pandas()
+
+    pd_result = scalars_pandas_df_index["duration_col"].dt.total_seconds()
+
+    # Index will be object type in pandas, string type in bigframes, but same values
+    pd.testing.assert_series_equal(
+        bf_result,
+        pd_result,
+        check_index_type=False,
+        # bigframes uses Float64, newer pandas may use double[pyarrow]
+        check_dtype=False,
+    )
