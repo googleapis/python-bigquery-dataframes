@@ -72,7 +72,8 @@ class TensorFlowModel(base.Predictor):
                 Input DataFrame. Schema is defined by the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model.
+        """
 
         if not self._bqml_model:
             if self.model_path is None:
@@ -151,7 +152,8 @@ class ONNXModel(base.Predictor):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model.
+        """
 
         if not self._bqml_model:
             if self.model_path is None:
@@ -270,7 +272,8 @@ class XGBoostModel(base.Predictor):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model.
+        """
 
         if not self._bqml_model:
             if self.model_path is None:
