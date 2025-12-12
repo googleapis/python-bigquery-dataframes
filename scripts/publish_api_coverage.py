@@ -36,33 +36,15 @@ import bigframes.pandas as bpd
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 
 URL_PREFIX = {
-    "pandas": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.pandas#bigframes_pandas_"
-    ),
-    "dataframe": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.dataframe.DataFrame#bigframes_dataframe_DataFrame_"
-    ),
-    "dataframegroupby": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.groupby.DataFrameGroupBy#bigframes_core_groupby_DataFrameGroupBy_"
-    ),
-    "index": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.indexes.base.Index#bigframes_core_indexes_base_Index_"
-    ),
-    "series": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.series.Series#bigframes_series_Series_"
-    ),
-    "seriesgroupby": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.groupby.SeriesGroupBy#bigframes_core_groupby_SeriesGroupBy_"
-    ),
-    "datetimemethods": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.datetimes.DatetimeMethods#bigframes_operations_datetimes_DatetimeMethods_"
-    ),
-    "stringmethods": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.operations.strings.StringMethods#bigframes_operations_strings_StringMethods_"
-    ),
-    "window": (
-        "https://cloud.google.com/python/docs/reference/bigframes/latest/bigframes.core.window.Window#bigframes_core_window_Window_"
-    ),
+    "pandas": "bigframes.pandas",
+    "dataframe": "bigframes.pandas.DataFrame",
+    "dataframegroupby": "bigframes.core.groupby.DataFrameGroupBy",
+    "index": "bigframes.core.indexes.base.Index",
+    "series": "bigframes.pandas.Series",
+    "seriesgroupby": "bigframes.core.groupby.SeriesGroupBy",
+    "datetimemethods": "bigframes.operations.datetimes.DatetimeMethods",
+    "stringmethods": "bigframes.operations.strings.StringMethods",
+    "window": "bigframes.core.window.Window",
 }
 
 
@@ -308,11 +290,19 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
 def format_api(api_names, is_in_bigframes, api_prefix):
     api_names = api_names.str.slice(start=len(f"{api_prefix}."))
     formatted = "<code>" + api_names + "</code>"
-    url_prefix = URL_PREFIX.get(api_prefix)
-    if url_prefix is None:
+    url_base = URL_PREFIX.get(api_prefix)
+    if url_base is None:
         return formatted
 
-    linked = '<a href="' + url_prefix + api_names + '">' + formatted + "</a>"
+    linked = (
+        '<a href="https://dataframes.bigquery.dev/reference/api/'
+        + url_base
+        + "."
+        + api_names
+        + '.html">'
+        + formatted
+        + "</a>"
+    )
     return formatted.mask(is_in_bigframes, linked)
 
 
