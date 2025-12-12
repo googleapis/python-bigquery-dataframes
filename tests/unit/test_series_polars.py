@@ -38,7 +38,7 @@ import bigframes.pandas
 import bigframes.pandas as bpd
 import bigframes.series as series
 from bigframes.testing.utils import (
-    assert_pandas_df_equal,
+    assert_frame_equal,
     assert_series_equal,
     convert_pandas_dtypes,
     get_first_file_from_wildcard,
@@ -1786,7 +1786,7 @@ def test_take(scalars_dfs, indices):
     bf_result = scalars_df.take(indices).to_pandas()
     pd_result = scalars_pandas_df.take(indices)
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_nested_filter(scalars_dfs):
@@ -3455,7 +3455,7 @@ def test_to_frame(scalars_dfs):
     bf_result = scalars_df["int64_col"].to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].to_frame()
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_to_frame_no_name(scalars_dfs):
@@ -3464,7 +3464,7 @@ def test_to_frame_no_name(scalars_dfs):
     bf_result = scalars_df["int64_col"].rename(None).to_frame().to_pandas()
     pd_result = scalars_pandas_df["int64_col"].rename(None).to_frame()
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 @pytest.mark.skip(reason="fixture 'gcs_folder' not found")
@@ -3713,7 +3713,7 @@ def test_mask_default_value(scalars_dfs):
     pd_col_masked = pd_col.mask(pd_col % 2 == 1)
     pd_result = pd_col.to_frame().assign(int64_col_masked=pd_col_masked)
 
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_mask_custom_value(scalars_dfs):
@@ -3731,7 +3731,7 @@ def test_mask_custom_value(scalars_dfs):
     # odd so should be left as is, but it is being masked in pandas.
     # Accidentally the bigframes bahavior matches, but it should be updated
     # after the resolution of https://github.com/pandas-dev/pandas/issues/52955
-    assert_pandas_df_equal(bf_result, pd_result)
+    assert_frame_equal(bf_result, pd_result)
 
 
 def test_mask_with_callable(scalars_df_index, scalars_pandas_df_index):
@@ -4194,7 +4194,7 @@ def test_loc_bool_series_default_index(
         scalars_pandas_df_default_index.bool_col
     ]
 
-    assert_pandas_df_equal(
+    assert_frame_equal(
         bf_result.to_frame(),
         pd_result.to_frame(),
     )
