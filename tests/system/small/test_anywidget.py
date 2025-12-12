@@ -1132,6 +1132,6 @@ def test_widget_with_custom_index_matches_pandas_output(
     assert "row_4" not in html  # Verify it respects max_rows
 
 
-# TODO(b/332316283): Add tests for custom multiindex
+# TODO(b/438181139): Add tests for custom multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.

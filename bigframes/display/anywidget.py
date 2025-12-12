@@ -297,7 +297,7 @@ class TableWidget(WIDGET_BASE):
         page_data = cached_data.iloc[start:end].copy()
 
         # Handle index display
-        # TODO(b/332316283): Add tests for custom multiindex
+        # TODO(b/438181139): Add tests for custom multiindex
         if self._dataframe._block.has_index:
             index_name = page_data.index.name
             page_data.insert(
