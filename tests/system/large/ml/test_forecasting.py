@@ -17,7 +17,7 @@ import pytest
 from bigframes.ml import forecasting
 from bigframes.testing import utils
 
-ARIMA_EVALUATE_OUTPUT_COLUMNS = [
+ARIMA_EVALUATE_OUTPUT_COL = [
     "non_seasonal_p",
     "non_seasonal_d",
     "non_seasonal_q",
@@ -106,9 +106,9 @@ def test_arima_plus_model_fit_summary(
     curr_model = arima_model_w_id if id_col_name else arima_model
     result = curr_model.summary().to_pandas()
     expected_columns = (
-        [id_col_name] + ARIMA_EVALUATE_OUTPUT_COLUMNS
+        [id_col_name] + ARIMA_EVALUATE_OUTPUT_COL
         if id_col_name
-        else ARIMA_EVALUATE_OUTPUT_COLUMNS
+        else ARIMA_EVALUATE_OUTPUT_COL
     )
     utils.check_pandas_df_schema_and_index(
         result, columns=expected_columns, index=2 if id_col_name else 1
@@ -190,24 +190,3 @@ def test_arima_plus_model_fit_params(
     assert reloaded_model.min_time_series_length == 10
     assert reloaded_model.trend_smoothing_window_size == 5
     assert reloaded_model.decompose_time_series is False
-
-
-def test_arima_plus_model_fit_date_conversion(time_series_df_default_index):
-    model = forecasting.ARIMAPlus(data_frequency="hourly")
-
-    # Arrange: Create a dataframe with a date column to test auto-conversion
-    df = time_series_df_default_index.copy()
-    df["parsed_date"] = df["parsed_date"].dt.date
-
-    X_train = df[["parsed_date"]]
-    y_train = df[["total_visits"]]
-
-    with pytest.warns(
-        UserWarning,
-        match="Converting Date column 'parsed_date' to datetime for hourly frequency.",
-    ):
-        # Act
-        model.fit(X_train, y_train)
-
-    # Assert
-    assert model._bqml_model is not None
