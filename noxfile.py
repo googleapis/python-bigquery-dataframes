@@ -430,7 +430,7 @@ def system_noextras(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
+@nox.session(python="3.10")
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
