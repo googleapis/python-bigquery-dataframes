@@ -86,6 +86,7 @@ def train_test_split(
         stratify = stratify.rename("bigframes_stratify_col")  # avoid name conflicts
         merged_df = df.join(stratify.to_frame(), how="outer")
 
+        # TODO: This is very expensive, use analytic operators to do this instead
         train_dfs, test_dfs = [], []
         uniq = stratify.value_counts().index
         for value in uniq:
@@ -119,6 +120,7 @@ def train_test_split(
 
     results = []
     for array in arrays:
+        # TODO: This is not robust to repeated names in inputs
         columns = array.name if isinstance(array, bpd.Series) else array.columns
         results.append(joined_df_train[columns])
         results.append(joined_df_test[columns])

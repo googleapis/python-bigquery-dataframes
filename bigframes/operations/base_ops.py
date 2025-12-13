@@ -106,6 +106,20 @@ class NaryOp(ScalarOp):
 # These classes can be used to create simple ops that don't take local parameters
 # All is needed is a unique name, and to register an implementation in ibis_mappings.py
 @dataclasses.dataclass(frozen=True)
+class NullaryOp(ScalarOp):
+    @property
+    def arguments(self) -> int:
+        return 0
+
+    def as_expr(
+        self,
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.core.expression
+
+        return bigframes.core.expression.OpExpression(self, ())
+
+
+@dataclasses.dataclass(frozen=True)
 class UnaryOp(ScalarOp):
     @property
     def arguments(self) -> int:
