@@ -1146,13 +1146,15 @@ class Block:
             index_labels=self._index_labels,
         )
 
-    # This is a new experimental version of the project_exprs that supports mixing analytic and scalar expressions
     def project_block_exprs(
         self,
         exprs: Sequence[ex.Expression],
         labels: Union[Sequence[Label], pd.Index],
         drop=False,
     ) -> Block:
+        """
+        Version of the project_exprs that supports mixing analytic and scalar expressions
+        """
         new_array, _ = self.expr.compute_general_expression(exprs)
         if drop:
             new_array = new_array.drop_columns(self.value_columns)
@@ -1165,6 +1167,47 @@ class Block:
             if drop
             else self.column_labels.append(pd.Index(labels)),
             index_labels=self._index_labels,
+        )
+
+    def reduce_general(
+        self,
+        aggregations: typing.Sequence[ex.Expression] = (),
+        by_column_ids: typing.Sequence[str] = (),
+        column_labels: Optional[pd.Index] = None,
+        *,
+        dropna: bool = True,
+    ) -> typing.Tuple[Block, typing.Sequence[str]]:
+        """
+        Version of the aggregate that supports mixing analytic and scalar expressions.
+        """
+        if column_labels is None:
+            column_labels = pd.Index(range(len(aggregations)))
+
+        result_expr, output_col_ids = self.expr.compute_general_reduction(
+            aggregations, by_column_ids, dropna=dropna
+        )
+
+        names: typing.List[Label] = []
+        if len(by_column_ids) == 0:
+            result_expr, label_id = result_expr.create_constant(0, pd.Int64Dtype())
+            index_columns = (label_id,)
+            names = [None]
+        else:
+            index_columns = tuple(by_column_ids)  # type: ignore
+            for by_col_id in by_column_ids:
+                if by_col_id in self.value_columns:
+                    names.append(self.col_id_to_label[by_col_id])
+                else:
+                    names.append(self.col_id_to_index_name[by_col_id])
+
+        return (
+            Block(
+                result_expr,
+                index_columns=index_columns,
+                column_labels=column_labels,
+                index_labels=names,
+            ),
+            [id.name for id in output_col_ids],
         )
 
     def apply_window_op(
