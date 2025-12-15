@@ -189,7 +189,8 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         return self._aggregate(agg_ops.var_op)
 
     def size(self) -> series.Series:
-        agg_block, _ = self._block.aggregate_size(
+        agg_block = self._block.aggregate(
+            aggregations=[agg_ops.SizeOp().as_expr()],
             by_column_ids=self._by_col_ids,
             dropna=self._dropna,
         )

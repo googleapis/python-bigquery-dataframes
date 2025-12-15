@@ -182,7 +182,8 @@ class DataFrameGroupBy(vendored_pandas_groupby.DataFrameGroupBy):
         return len(self.agg([]))
 
     def size(self) -> typing.Union[df.DataFrame, series.Series]:
-        agg_block, _ = self._block.aggregate_size(
+        agg_block = self._block.aggregate(
+            aggregations=[agg_ops.SizeOp().as_expr()],
             by_column_ids=self._by_col_ids,
             dropna=self._dropna,
         )
