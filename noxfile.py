@@ -259,7 +259,7 @@ def unit_noextras(session):
     run_unit(session, install_test_extra=False)
 
 
-@nox.session(python=DEFAULT_PYTHON_VERSION)
+@nox.session(python="3.10")
 def mypy(session):
     """Run type checks with mypy."""
     # Editable mode is not compatible with mypy when there are multiple
