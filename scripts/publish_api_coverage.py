@@ -35,7 +35,7 @@ import bigframes.pandas as bpd
 
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 
-URL_PREFIX = {
+BIGFRAMES_OBJECT = {
     "pandas": "bigframes.pandas",
     "dataframe": "bigframes.pandas.DataFrame",
     "dataframegroupby": "bigframes.core.groupby.DataFrameGroupBy",
@@ -288,17 +288,17 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):
-    api_names = api_names.str.slice(start=len(f"{api_prefix}."))
-    formatted = "<code>" + api_names + "</code>"
-    url_base = URL_PREFIX.get(api_prefix)
-    if url_base is None:
+    api_name = api_names.str.slice(start=len(f"{api_prefix}."))
+    formatted = "<code>" + api_name + "</code>"
+    bigframes_object = BIGFRAMES_OBJECT.get(api_prefix)
+    if bigframes_object is None:
         return formatted
 
     linked = (
         '<a href="https://dataframes.bigquery.dev/reference/api/'
-        + url_base
+        + bigframes_object
         + "."
-        + api_names
+        + api_name
         + '.html">'
         + formatted
         + "</a>"
