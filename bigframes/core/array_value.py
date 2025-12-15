@@ -319,11 +319,8 @@ class ArrayValue:
                 is applied. Defaults to False.
 
         Returns:
-            Tuple[ArrayValue, Tuple[str, ...]]: A tuple containing:
-                - An `ArrayValue` wrapping the new root node representing the
-                  aggregation/group-by result.
-                - A tuple of strings representing the unique column IDs assigned to the
-                  resulting aggregate columns.
+            ArrayValue:
+               The new root node representing the aggregation/group-by result.
         """
         plan = self.node
 
@@ -357,8 +354,7 @@ class ArrayValue:
         new_root = expression_factoring.apply_agg_exprs_to_plan(
             plan, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
         )
-        target_ids = tuple(named_expr.id for named_expr in named_exprs)
-        return (ArrayValue(new_root), target_ids)
+        return ArrayValue(new_root)
 
     def project_to_id(self, expression: ex.Expression):
         array_val, ids = self.compute_values(
