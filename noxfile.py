@@ -420,7 +420,7 @@ def system_noextras(session: nox.sessions.Session):
     )
 
 
-@nox.session(python="3.14")
+@nox.session(python="3.12")
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -510,7 +510,7 @@ def cover(session):
     session.run("coverage", "erase")
 
 
-@nox.session(python="3.14")
+@nox.session(python="3.12")
 def docs(session):
     """Build the docs for this library."""
     session.install("-e", ".[scikit-learn]")
