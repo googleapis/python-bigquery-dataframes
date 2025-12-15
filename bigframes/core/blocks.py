@@ -1199,6 +1199,7 @@ class Block:
 
         grouping_col_labels: typing.List[Label] = []
         if len(by_column_ids) == 0:
+            # in the absence of grouping columns, there will be a single row output, assign 0 as its row label.
             result_expr, label_id = result_expr.create_constant(0, pd.Int64Dtype())
             index_columns = (label_id,)
             grouping_col_labels = [None]
