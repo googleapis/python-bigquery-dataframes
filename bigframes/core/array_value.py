@@ -323,6 +323,26 @@ class ArrayValue:
                   resulting aggregate columns.
         """
         plan = self.node
+
+        # shortcircuit to keep things simple if all aggs are simple
+        # TODO: Fully unify paths once rewriters are strong enough to simplify complexity from full path
+        def _is_direct_agg(agg_expr):
+            return isinstance(agg_expr, agg_expressions.Aggregation) and all(
+                isinstance(child, (ex.DerefOp, ex.ScalarConstantExpression))
+                for child in agg_expr.children
+            )
+
+        if all(_is_direct_agg(agg) for agg in assignments):
+            agg_defs = tuple((agg, ids.ColumnId.unique()) for agg in assignments)
+            return ArrayValue(
+                nodes.AggregateNode(
+                    child=self.node,
+                    aggregations=agg_defs,  # type: ignore
+                    by_column_ids=tuple(map(ex.deref, by_column_ids)),
+                    dropna=dropna,
+                )
+            )
+
         if dropna:
             for col_id in by_column_ids:
                 plan = nodes.FilterNode(plan, ops.notnull_op.as_expr(col_id))

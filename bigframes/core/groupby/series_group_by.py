@@ -222,9 +222,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             agg_ops.FirstNonNullOp(),
             window_spec=window_spec,
         )
-        block, _ = block.aggregate(
-            self._by_col_ids,
+        block = block.aggregate(
             (aggs.agg(firsts_id, agg_ops.AnyValueOp()),),
+            self._by_col_ids,
             dropna=self._dropna,
         )
         return series.Series(block.with_column_labels([self._value_name]))
@@ -246,9 +246,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
             agg_ops.LastNonNullOp(),
             window_spec=window_spec,
         )
-        block, _ = block.aggregate(
-            self._by_col_ids,
+        block = block.aggregate(
             (aggs.agg(firsts_id, agg_ops.AnyValueOp()),),
+            self._by_col_ids,
             dropna=self._dropna,
         )
         return series.Series(block.with_column_labels([self._value_name]))
@@ -270,7 +270,7 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         ]
         column_names = [agg_ops.lookup_agg_func(f)[1] for f in func]
 
-        agg_block, _ = self._block.aggregate(
+        agg_block = self._block.aggregate(
             by_column_ids=self._by_col_ids,
             aggregations=aggregations,
             dropna=self._dropna,
@@ -413,9 +413,9 @@ class SeriesGroupBy(vendored_pandas_groupby.SeriesGroupBy):
         )
 
     def _aggregate(self, aggregate_op: agg_ops.UnaryAggregateOp) -> series.Series:
-        result_block, _ = self._block.aggregate(
-            self._by_col_ids,
+        result_block = self._block.aggregate(
             (aggs.agg(self._value_column, aggregate_op),),
+            self._by_col_ids,
             dropna=self._dropna,
         )
 

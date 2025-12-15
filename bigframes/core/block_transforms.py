@@ -129,12 +129,12 @@ def quantile(
                 window_spec=window,
             )
             quantile_cols.append(quantile_col)
-    block, _ = block.aggregate(
-        grouping_column_ids,
+    block = block.aggregate(
         tuple(
             agg_expressions.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col))
             for col in quantile_cols
         ),
+        grouping_column_ids,
         column_labels=pd.Index(labels),
         dropna=dropna,
     )
@@ -358,12 +358,12 @@ def value_counts(
     if grouping_keys and drop_na:
         # only need this if grouping_keys is involved, otherwise the drop_na in the aggregation will handle it for us
         block = dropna(block, columns, how="any")
-    block, agg_ids = block.aggregate(
-        by_column_ids=(*grouping_keys, *columns),
+    block = block.aggregate(
         aggregations=[agg_expressions.NullaryAggregation(agg_ops.size_op)],
+        by_column_ids=(*grouping_keys, *columns),
         dropna=drop_na and not grouping_keys,
     )
-    count_id = agg_ids[0]
+    count_id = block.value_columns[0]
     if normalize:
         unbound_window = windows.unbound(grouping_keys=tuple(grouping_keys))
         block, total_count_id = block.apply_window_op(
@@ -641,7 +641,7 @@ def skew(
         skew_expr = _skew_from_moments_and_count(count_agg, moment3_agg, variance_agg)
         aggregations.append(skew_expr)
 
-    block, _ = block.reduce_general(
+    block = block.aggregate(
         aggregations, grouping_column_ids, column_labels=column_labels
     )
     if not grouping_column_ids:
@@ -674,7 +674,7 @@ def kurt(
         kurt_expr = _kurt_from_moments_and_count(count_agg, moment4_agg, variance_agg)
         kurt_exprs.append(kurt_expr)
 
-    block, _ = block.reduce_general(
+    block = block.aggregate(
         kurt_exprs, grouping_column_ids, column_labels=column_labels
     )
     if not grouping_column_ids:

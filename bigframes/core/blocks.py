@@ -1169,45 +1169,52 @@ class Block:
             index_labels=self._index_labels,
         )
 
-    def reduce_general(
+    def aggregate(
         self,
         aggregations: typing.Sequence[ex.Expression] = (),
         by_column_ids: typing.Sequence[str] = (),
         column_labels: Optional[pd.Index] = None,
         *,
         dropna: bool = True,
-    ) -> typing.Tuple[Block, typing.Sequence[str]]:
+    ) -> Block:
         """
-        Version of the aggregate that supports mixing analytic and scalar expressions.
+        Apply aggregations to the block.
+
+        Grouping columns will form the index of the result block.
+
+        Arguments:
+            aggregations: Aggregation expressions to apply
+            by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
+            dropna: whether null keys should be dropped
+
+        Returns:
+            Block
         """
         if column_labels is None:
             column_labels = pd.Index(range(len(aggregations)))
 
-        result_expr, output_col_ids = self.expr.compute_general_reduction(
+        result_expr = self.expr.compute_general_reduction(
             aggregations, by_column_ids, dropna=dropna
         )
 
-        names: typing.List[Label] = []
+        grouping_col_labels: typing.List[Label] = []
         if len(by_column_ids) == 0:
             result_expr, label_id = result_expr.create_constant(0, pd.Int64Dtype())
             index_columns = (label_id,)
-            names = [None]
+            grouping_col_labels = [None]
         else:
             index_columns = tuple(by_column_ids)  # type: ignore
             for by_col_id in by_column_ids:
                 if by_col_id in self.value_columns:
-                    names.append(self.col_id_to_label[by_col_id])
+                    grouping_col_labels.append(self.col_id_to_label[by_col_id])
                 else:
-                    names.append(self.col_id_to_index_name[by_col_id])
+                    grouping_col_labels.append(self.col_id_to_index_name[by_col_id])
 
-        return (
-            Block(
-                result_expr,
-                index_columns=index_columns,
-                column_labels=column_labels,
-                index_labels=names,
-            ),
-            [id.name for id in output_col_ids],
+        return Block(
+            result_expr,
+            index_columns=index_columns,
+            column_labels=column_labels,
+            index_labels=grouping_col_labels,
         )
 
     def apply_window_op(
@@ -1418,63 +1425,6 @@ class Block:
             for col_label in self.column_labels:
                 col_labels.append(remap_f(col_label))
         return self.with_column_labels(col_labels)
-
-    def aggregate(
-        self,
-        by_column_ids: typing.Sequence[str] = (),
-        aggregations: typing.Sequence[agg_expressions.Aggregation] = (),
-        column_labels: Optional[pd.Index] = None,
-        *,
-        dropna: bool = True,
-    ) -> typing.Tuple[Block, typing.Sequence[str]]:
-        """
-        Apply aggregations to the block.
-
-        Arguments:
-            by_column_id: column id of the aggregation key, this is preserved through the transform and used as index.
-            aggregations: input_column_id, operation tuples
-            dropna: whether null keys should be dropped
-
-        Returns:
-            Tuple[Block, Sequence[str]]:
-                The first element is the grouped block. The second is the
-                column IDs corresponding to each applied aggregation.
-        """
-        if column_labels is None:
-            column_labels = pd.Index(range(len(aggregations)))
-
-        agg_specs = [
-            (
-                aggregation,
-                guid.generate_guid(),
-            )
-            for aggregation in aggregations
-        ]
-        output_col_ids = [agg_spec[1] for agg_spec in agg_specs]
-        result_expr = self.expr.aggregate(agg_specs, by_column_ids, dropna=dropna)
-
-        names: typing.List[Label] = []
-        if len(by_column_ids) == 0:
-            result_expr, label_id = result_expr.create_constant(0, pd.Int64Dtype())
-            index_columns = (label_id,)
-            names = [None]
-        else:
-            index_columns = tuple(by_column_ids)  # type: ignore
-            for by_col_id in by_column_ids:
-                if by_col_id in self.value_columns:
-                    names.append(self.col_id_to_label[by_col_id])
-                else:
-                    names.append(self.col_id_to_index_name[by_col_id])
-
-        return (
-            Block(
-                result_expr,
-                index_columns=index_columns,
-                column_labels=column_labels,
-                index_labels=names,
-            ),
-            output_col_ids,
-        )
 
     def get_stat(
         self,
@@ -1835,7 +1785,7 @@ class Block:
             agg_expressions.UnaryAggregation(agg_ops.AnyValueOp(), ex.deref(col_id))
             for col_id in column_ids
         ]
-        result_block, _ = block.aggregate(
+        result_block = block.aggregate(
             by_column_ids=self.index_columns,
             aggregations=aggregations,
             dropna=True,
@@ -2289,7 +2239,7 @@ class Block:
                 self.select_columns(columns), columns
             )
         else:
-            unique_value_block, _ = self.aggregate(by_column_ids=columns, dropna=False)
+            unique_value_block = self.aggregate(by_column_ids=columns, dropna=False)
             col_labels = self._get_labels_for_columns(columns)
             unique_value_block = unique_value_block.reset_index(
                 drop=False
