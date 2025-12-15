@@ -122,7 +122,7 @@ def generate_pandas_api_coverage():
             missing_parameters = ""
 
             # skip private functions and properties
-            if member[0] == "_" and member[1] != "_":
+            if member[0] == "_":
                 continue
 
             # skip members that are also common python methods
@@ -289,7 +289,6 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
 
 def format_api(api_names, is_in_bigframes, api_prefix):
     api_names = api_names.str.slice(start=len(f"{api_prefix}."))
-    api_names = api_names[~(api_names.str.startswith("_"))]
     formatted = "<code>" + api_names + "</code>"
     bigframes_object = BIGFRAMES_OBJECT.get(api_prefix)
     if bigframes_object is None:
