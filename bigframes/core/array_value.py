@@ -306,6 +306,9 @@ class ArrayValue:
         multiple input rows into a single scalar value per group. If grouping keys are
         provided, the operation is performed per group; otherwise, it is a global reduction.
 
+        Note: Intermediate aggregations (those that are inputs to further aggregations)
+        must be windowizable. Notably excluded are approx quantile, top count ops.
+
         Args:
             assignments (Sequence[ex.Expression]): A sequence of aggregation expressions
                 to be calculated.

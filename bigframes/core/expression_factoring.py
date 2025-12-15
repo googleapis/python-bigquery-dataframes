@@ -134,6 +134,8 @@ def windowize(
 ) -> expression.Expression:
     def windowize_local(expr: expression.Expression):
         if isinstance(expr, agg_expressions.Aggregation):
+            if expr.op.can_be_windowized:
+                raise ValueError(f"Op: {expr.op} cannot be windowized.")
             return agg_expressions.WindowExpression(expr, window)
         if isinstance(expr, agg_expressions.WindowExpression):
             raise ValueError(f"Expression {expr} already windowed!")
