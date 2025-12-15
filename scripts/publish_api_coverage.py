@@ -38,13 +38,13 @@ REPO_ROOT = pathlib.Path(__file__).parent.parent
 BIGFRAMES_OBJECT = {
     "pandas": "bigframes.pandas",
     "dataframe": "bigframes.pandas.DataFrame",
-    "dataframegroupby": "bigframes.core.groupby.DataFrameGroupBy",
-    "index": "bigframes.core.indexes.base.Index",
+    "dataframegroupby": "bigframes.pandas.api.typing.DataFrameGroupBy",
+    "index": "bigframes.pandas.Index",
     "series": "bigframes.pandas.Series",
-    "seriesgroupby": "bigframes.core.groupby.SeriesGroupBy",
-    "datetimemethods": "bigframes.operations.datetimes.DatetimeMethods",
-    "stringmethods": "bigframes.operations.strings.StringMethods",
-    "window": "bigframes.core.window.Window",
+    "seriesgroupby": "bigframes.pandas.api.typing.SeriesGroupBy",
+    "datetimemethods": "bigframes.pandas.api.typing.DatetimeMethods",
+    "stringmethods": "bigframes.pandas.api.typing.StringMethods",
+    "window": "bigframes.pandas.api.typing.Window",
 }
 
 
@@ -288,8 +288,9 @@ def build_api_coverage_table(bigframes_version: str, release_version: str):
 
 
 def format_api(api_names, is_in_bigframes, api_prefix):
-    api_name = api_names.str.slice(start=len(f"{api_prefix}."))
-    formatted = "<code>" + api_name + "</code>"
+    api_names = api_names.str.slice(start=len(f"{api_prefix}."))
+    api_names = api_names[~(api_names.str.startswith("_"))]
+    formatted = "<code>" + api_names + "</code>"
     bigframes_object = BIGFRAMES_OBJECT.get(api_prefix)
     if bigframes_object is None:
         return formatted
@@ -298,7 +299,7 @@ def format_api(api_names, is_in_bigframes, api_prefix):
         '<a href="https://dataframes.bigquery.dev/reference/api/'
         + bigframes_object
         + "."
-        + api_name
+        + api_names
         + '.html">'
         + formatted
         + "</a>"
