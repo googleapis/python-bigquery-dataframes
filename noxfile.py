@@ -510,7 +510,7 @@ def cover(session):
     session.run("coverage", "erase")
 
 
-@nox.session(python="3.12")
+@nox.session(python="3.13")
 def docs(session):
     """Build the docs for this library."""
     session.install("-e", ".[scikit-learn]")
