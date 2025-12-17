@@ -515,6 +515,7 @@ class Session(
     ) -> pandas.Series:
         ...
 
+    @log_adapter.method_logger
     @log_adapter.log_name_override("read_gbq_colab")
     def _read_gbq_colab(
         self,
