@@ -22,13 +22,21 @@ import numpy
 import pandas
 import pytest
 
+import bigframes.core.log_adapter
 from bigframes.testing import mocks
 
 
 def test_read_gbq_colab_includes_label():
     """Make sure we can tell direct colab usage apart from regular read_gbq usage."""
     session = mocks.create_bigquery_session()
-    _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
+
+    # The mock session does not fully simulate the logging of API methods, so
+    # we patch the global list of API methods to ensure the label is set.
+    with mock.patch.object(
+        bigframes.core.log_adapter, "_api_methods", ["session-read_gbq_colab"]
+    ):
+        _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
+
     configs = session._job_configs  # type: ignore
 
     label_values = []
