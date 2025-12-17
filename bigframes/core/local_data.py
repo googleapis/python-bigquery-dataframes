@@ -126,6 +126,7 @@ class ManagedArrowTable:
         duration_type: Literal["int", "duration"] = "duration",
         json_type: Literal["string"] = "string",
         sample_rate: Optional[float] = None,
+        max_chunksize: Optional[int] = None,
     ) -> tuple[pa.Schema, Iterable[pa.RecordBatch]]:
         if geo_format != "wkt":
             raise NotImplementedError(f"geo format {geo_format} not yet implemented")
@@ -138,7 +139,7 @@ class ManagedArrowTable:
             to_take = numpy.random.rand(data.num_rows) < sample_rate
             data = data.filter(to_take)
 
-        batches = data.to_batches()
+        batches = data.to_batches(max_chunksize=max_chunksize)
         schema = self.data.schema
         if duration_type == "int":
             schema = _schema_durations_to_ints(schema)

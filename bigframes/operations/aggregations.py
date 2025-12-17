@@ -68,6 +68,11 @@ class WindowOp:
     def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
         ...
 
+    @property
+    def can_be_windowized(self):
+        # this is more of an engine property, but will treat feasibility in bigquery sql as source of truth
+        return True
+
 
 @dataclasses.dataclass(frozen=True)
 class NullaryWindowOp(WindowOp):
@@ -183,6 +188,10 @@ class SizeOp(NullaryAggregateOp):
 class SizeUnaryOp(UnaryAggregateOp):
     name: ClassVar[str] = "size"
 
+    @property
+    def skips_nulls(self):
+        return False
+
     def output_type(self, *input_types: dtypes.ExpressionType):
         return dtypes.INT_DTYPE
 
@@ -253,6 +262,10 @@ class ApproxQuartilesOp(UnaryAggregateOp):
             raise TypeError(f"Type {input_types[0]} is not orderable")
         return input_types[0]
 
+    @property
+    def can_be_windowized(self):
+        return False
+
 
 @dataclasses.dataclass(frozen=True)
 class ApproxTopCountOp(UnaryAggregateOp):
@@ -269,6 +282,10 @@ class ApproxTopCountOp(UnaryAggregateOp):
             pa.field("count", pa.int64()),
         ]
         return pd.ArrowDtype(pa.list_(pa.struct(fields)))
+
+    @property
+    def can_be_windowized(self):
+        return False
 
 
 @dataclasses.dataclass(frozen=True)

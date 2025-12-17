@@ -521,14 +521,20 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if self._block.has_index:
             index_type = "MultiIndex" if self.index.nlevels > 1 else "Index"
 
-            # These accessses are kind of expensive, maybe should try to skip?
-            first_indice = self.index[0]
-            last_indice = self.index[-1]
-            obuf.write(
-                f"{index_type}: {n_rows} entries, {first_indice} to {last_indice}\n"
-            )
+            index_stats = f"{n_rows} entries"
+            if n_rows > 0:
+                # These accessses are kind of expensive, maybe should try to skip?
+                first_indice = self.index[0]
+                last_indice = self.index[-1]
+                index_stats += f", {first_indice} to {last_indice}"
+            obuf.write(f"{index_type}: {index_stats}\n")
         else:
             obuf.write("NullIndex\n")
+
+        if n_columns == 0:
+            # We don't display any more information if the dataframe has no columns
+            obuf.write("Empty DataFrame\n")
+            return
 
         dtype_strings = self.dtypes.astype("string")
         if show_all_columns:
@@ -783,9 +789,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
         opts = bigframes.options.display
         max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
-        # for faster execution
-        if opts.repr_mode in ("deferred", "anywidget"):
+        if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
@@ -823,68 +827,149 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         lines.append(f"[{row_count} rows x {column_count} columns]")
         return "\n".join(lines)
 
-    def _repr_html_(self) -> str:
-        """
-        Returns an html string primarily for use by notebooks for displaying
-        a representation of the DataFrame. Displays 20 rows by default since
-        many notebooks are not configured for large tables.
-        """
-        opts = bigframes.options.display
-        max_results = opts.max_rows
-        if opts.repr_mode == "deferred":
-            return formatter.repr_query_job(self._compute_dry_run())
-
-        # Process blob columns first, regardless of display mode
-        self._cached()
-        df = self.copy()
+    def _get_display_df_and_blob_cols(self) -> tuple[DataFrame, list[str]]:
+        """Process blob columns for display."""
+        df = self
+        blob_cols = []
         if bigframes.options.display.blob_display:
             blob_cols = [
                 series_name
-                for series_name, series in df.items()
+                for series_name, series in self.items()
                 if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
             ]
-            for col in blob_cols:
-                # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
-                df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
-        else:
-            blob_cols = []
+            if blob_cols:
+                df = self.copy()
+                for col in blob_cols:
+                    # TODO(garrettwu): Not necessary to get access urls for all the rows. Update when having a to get URLs from local data.
+                    df[col] = df[col].blob._get_runtime(mode="R", with_metadata=True)
+        return df, blob_cols
 
+    def _get_anywidget_bundle(
+        self, include=None, exclude=None
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """
+        Helper method to create and return the anywidget mimebundle.
+        This function encapsulates the logic for anywidget display.
+        """
+        from bigframes import display
+
+        df, blob_cols = self._get_display_df_and_blob_cols()
+
+        # Create and display the widget
+        widget = display.TableWidget(df)
+        widget_repr_result = widget._repr_mimebundle_(include=include, exclude=exclude)
+
+        # Handle both tuple (data, metadata) and dict returns
+        if isinstance(widget_repr_result, tuple):
+            widget_repr, widget_metadata = widget_repr_result
+        else:
+            widget_repr = widget_repr_result
+            widget_metadata = {}
+
+        widget_repr = dict(widget_repr)
+
+        # At this point, we have already executed the query as part of the
+        # widget construction. Let's use the information available to render
+        # the HTML and plain text versions.
+        widget_repr["text/html"] = self._create_html_representation(
+            widget._cached_data,
+            widget.row_count,
+            len(self.columns),
+            blob_cols,
+        )
+
+        widget_repr["text/plain"] = self._create_text_representation(
+            widget._cached_data, widget.row_count
+        )
+
+        return widget_repr, widget_metadata
+
+    def _create_text_representation(
+        self, pandas_df: pandas.DataFrame, total_rows: typing.Optional[int]
+    ) -> str:
+        """Create a text representation of the DataFrame."""
+        opts = bigframes.options.display
+        with display_options.pandas_repr(opts):
+            import pandas.io.formats
+
+            # safe to mutate this, this dict is owned by this code, and does not affect global config
+            to_string_kwargs = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not self._has_index:
+                to_string_kwargs.update({"index": False})
+
+            # We add our own dimensions string, so don't want pandas to.
+            to_string_kwargs.update({"show_dimensions": False})
+            repr_string = pandas_df.to_string(**to_string_kwargs)
+
+        lines = repr_string.split("\n")
+
+        if total_rows is not None and total_rows > len(pandas_df):
+            lines.append("...")
+
+        lines.append("")
+        column_count = len(self.columns)
+        lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
+        return "\n".join(lines)
+
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        """
+        Custom display method for IPython/Jupyter environments.
+        This is called by IPython's display system when the object is displayed.
+        """
+        # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+        # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
+        opts = bigframes.options.display
+        # Only handle widget display in anywidget mode
         if opts.repr_mode == "anywidget":
             try:
-                from IPython.display import display as ipython_display
+                return self._get_anywidget_bundle(include=include, exclude=exclude)
 
-                from bigframes import display
-
-                # Always create a new widget instance for each display call
-                # This ensures that each cell gets its own widget and prevents
-                # unintended sharing between cells
-                widget = display.TableWidget(df.copy())
-
-                ipython_display(widget)
-                return ""  # Return empty string since we used display()
-
-            except (AttributeError, ValueError, ImportError):
-                # Fallback if anywidget is not available
+            except ImportError:
+                # Anywidget is an optional dependency, so warn rather than fail.
+                # TODO(shuowei): When Anywidget becomes the default for all repr modes,
+                # remove this warning.
                 warnings.warn(
                     "Anywidget mode is not available. "
                     "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
-                    f"Falling back to deferred mode. Error: {traceback.format_exc()}"
+                    f"Falling back to static HTML. Error: {traceback.format_exc()}"
                 )
-                return formatter.repr_query_job(self._compute_dry_run())
 
-        # Continue with regular HTML rendering for non-anywidget modes
-        # TODO(swast): pass max_columns and get the true column count back. Maybe
-        # get 1 more column than we have requested so that pandas can add the
-        # ... for us?
+        # In non-anywidget mode, fetch data once and use it for both HTML
+        # and plain text representations to avoid multiple queries.
+        opts = bigframes.options.display
+        max_results = opts.max_rows
+
+        df, blob_cols = self._get_display_df_and_blob_cols()
+
         pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
             max_results
         )
-
         self._set_internal_query_job(query_job)
         column_count = len(pandas_df.columns)
 
+        html_string = self._create_html_representation(
+            pandas_df, row_count, column_count, blob_cols
+        )
+
+        text_representation = self._create_text_representation(pandas_df, row_count)
+
+        return {"text/html": html_string, "text/plain": text_representation}
+
+    def _create_html_representation(
+        self,
+        pandas_df: pandas.DataFrame,
+        row_count: int,
+        column_count: int,
+        blob_cols: list[str],
+    ) -> str:
+        """Create an HTML representation of the DataFrame."""
+        opts = bigframes.options.display
         with display_options.pandas_repr(opts):
-            # Allows to preview images in the DataFrame. The implementation changes the string repr as well, that it doesn't truncate strings or escape html charaters such as "<" and ">". We may need to implement a full-fledged repr module to better support types not in pandas.
+            # TODO(shuowei, b/464053870): Escaping HTML would be useful, but
+            # `escape=False` is needed to show images. We may need to implement
+            # a full-fledged repr module to better support types not in pandas.
             if bigframes.options.display.blob_display and blob_cols:
 
                 def obj_ref_rt_to_html(obj_ref_rt) -> str:
@@ -913,15 +998,12 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
                 # set max_colwidth so not to truncate the image url
                 with pandas.option_context("display.max_colwidth", None):
-                    max_rows = pandas.get_option("display.max_rows")
-                    max_cols = pandas.get_option("display.max_columns")
-                    show_dimensions = pandas.get_option("display.show_dimensions")
                     html_string = pandas_df.to_html(
                         escape=False,
                         notebook=True,
-                        max_rows=max_rows,
-                        max_cols=max_cols,
-                        show_dimensions=show_dimensions,
+                        max_rows=pandas.get_option("display.max_rows"),
+                        max_cols=pandas.get_option("display.max_columns"),
+                        show_dimensions=pandas.get_option("display.show_dimensions"),
                         formatters=formatters,  # type: ignore
                     )
             else:
@@ -1428,7 +1510,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
         labels = utils.cross_indices(uniq_orig_columns, uniq_orig_columns)
 
-        block, _ = block.aggregate(aggregations=aggregations, column_labels=labels)
+        block = block.aggregate(aggregations=aggregations, column_labels=labels)
 
         block = block.stack(levels=orig_columns.nlevels + 1)
         # The aggregate operation crated a index level with just 0, need to drop it
@@ -1683,7 +1765,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             r_block.column_labels, how="outer"
         ).difference(labels)
 
-        block, _ = block.aggregate(
+        block = block.aggregate(
             aggregations=tuple(
                 agg_expressions.BinaryAggregation(agg_ops.CorrOp(), left_ex, right_ex)
                 for left_ex, right_ex in expr_pairs
@@ -2506,7 +2588,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         names: Union[None, Hashable, Sequence[Hashable]] = None,
     ) -> Optional[DataFrame]:
         block = self._block
-        if names:
+        if names is not None:
             if isinstance(names, blocks.Label) and not isinstance(names, tuple):
                 names = [names]
             else:
@@ -3311,13 +3393,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             if any(utils.is_list_like(v) for v in func.values()):
                 new_index, _ = self.columns.reindex(labels)
                 new_index = utils.combine_indices(new_index, pandas.Index(funcnames))
-                agg_block, _ = self._block.aggregate(
+                agg_block = self._block.aggregate(
                     aggregations=aggs, column_labels=new_index
                 )
                 return DataFrame(agg_block).stack().droplevel(0, axis="index")
             else:
                 new_index, _ = self.columns.reindex(labels)
-                agg_block, _ = self._block.aggregate(
+                agg_block = self._block.aggregate(
                     aggregations=aggs, column_labels=new_index
                 )
                 return bigframes.series.Series(
@@ -4153,7 +4235,22 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             op,
             window_spec=window_spec,
         )
-        return DataFrame(block.select_columns(result_ids))
+        if op.skips_nulls:
+            block = block.project_exprs(
+                tuple(
+                    bigframes.operations.where_op.as_expr(
+                        r_col,
+                        bigframes.operations.notnull_op.as_expr(og_col),
+                        ex.const(None),
+                    )
+                    for og_col, r_col in zip(self._block.value_columns, result_ids)
+                ),
+                labels=self._block.column_labels,
+                drop=True,
+            )
+        else:
+            block = block.select_columns(result_ids)
+        return DataFrame(block)
 
     @validations.requires_ordering()
     def sample(
@@ -4968,8 +5065,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         *,
         keep: str = "first",
     ) -> DataFrame:
-        if keep is not False:
-            validations.enforce_ordered(self, "drop_duplicates(keep != False)")
         if subset is None:
             column_ids = self._block.value_columns
         elif utils.is_list_like(subset):
@@ -4983,8 +5078,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return DataFrame(block)
 
     def duplicated(self, subset=None, keep: str = "first") -> bigframes.series.Series:
-        if keep is not False:
-            validations.enforce_ordered(self, "duplicated(keep != False)")
         if subset is None:
             column_ids = self._block.value_columns
         else:
@@ -4995,7 +5088,7 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(
             block.select_column(
                 indicator,
-            )
+            ).with_column_labels(pandas.Index([None])),
         )
 
     def rank(

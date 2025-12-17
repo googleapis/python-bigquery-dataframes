@@ -64,11 +64,13 @@ def rewrite_timedelta_expressions(root: nodes.BigFrameNode) -> nodes.BigFrameNod
     if isinstance(root, nodes.WindowOpNode):
         return nodes.WindowOpNode(
             root.child,
-            _rewrite_aggregation(root.expression, root.schema),
+            tuple(
+                nodes.ColumnDef(
+                    _rewrite_aggregation(cdef.expression, root.schema), cdef.id
+                )
+                for cdef in root.agg_exprs
+            ),
             root.window_spec,
-            root.output_name,
-            root.never_skip_nulls,
-            root.skip_reproject_unsafe,
         )
 
     if isinstance(root, nodes.AggregateNode):
@@ -112,6 +114,8 @@ def _rewrite_expressions(expr: ex.Expression, schema: schema.ArraySchema) -> _Ty
 
 
 def _rewrite_scalar_constant_expr(expr: ex.ScalarConstantExpression) -> _TypedExpr:
+    if expr.value is None:
+        return _TypedExpr(ex.const(None, expr.dtype), expr.dtype)
     if expr.dtype == dtypes.TIMEDELTA_DTYPE:
         int_repr = utils.timedelta_to_micros(expr.value)  # type: ignore
         return _TypedExpr(ex.const(int_repr, expr.dtype), expr.dtype)

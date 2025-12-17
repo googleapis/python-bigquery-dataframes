@@ -71,9 +71,6 @@ def bind_schema_to_node(
             left_col=ex.ResolvedDerefOp.from_field(
                 node.left_child.field_by_id[node.left_col.id]
             ),
-            right_col=ex.ResolvedDerefOp.from_field(
-                node.right_child.field_by_id[node.right_col.id]
-            ),
         )
 
     if isinstance(node, nodes.AggregateNode):
@@ -110,7 +107,13 @@ def bind_schema_to_node(
         )
         return dataclasses.replace(
             node,
-            expression=_bind_schema_to_aggregation_expr(node.expression, node.child),
+            agg_exprs=tuple(
+                nodes.ColumnDef(
+                    _bind_schema_to_aggregation_expr(cdef.expression, node.child),  # type: ignore
+                    cdef.id,
+                )
+                for cdef in node.agg_exprs
+            ),
             window_spec=window_spec,
         )
 

@@ -128,7 +128,7 @@ def compile_isin(
     return left.isin_join(
         right=right,
         indicator_col=node.indicator_col.sql,
-        conditions=(node.left_col.id.sql, node.right_col.id.sql),
+        conditions=(node.left_col.id.sql, list(node.right_child.ids)[0].sql),
         join_nulls=node.joins_nulls,
     )
 
@@ -265,12 +265,13 @@ def compile_aggregate(node: nodes.AggregateNode, child: compiled.UnorderedIR):
 
 @_compile_node.register
 def compile_window(node: nodes.WindowOpNode, child: compiled.UnorderedIR):
-    result = child.project_window_op(
-        node.expression,
-        node.window_spec,
-        node.output_name.sql,
-        never_skip_nulls=node.never_skip_nulls,
-    )
+    result = child
+    for cdef in node.agg_exprs:
+        result = result.project_window_op(
+            cdef.expression,  # type: ignore
+            node.window_spec,
+            cdef.id.sql,
+        )
     return result
 
 

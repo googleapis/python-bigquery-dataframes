@@ -16,7 +16,6 @@ from __future__ import annotations
 import dataclasses
 import functools
 import itertools
-import operator
 from typing import cast, Literal, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 
 import pandas as pd
@@ -153,6 +152,11 @@ if polars_installed:
                 value = None
             if expression.dtype is None:
                 return pl.lit(None)
+
+            # Polars lit does not handle pandas timedelta well at v1.36
+            if isinstance(value, pd.Timedelta):
+                value = value.to_pytimedelta()
+
             return pl.lit(value, _bigframes_dtype_to_polars_dtype(expression.dtype))
 
         @compile_expression.register
@@ -548,6 +552,9 @@ if polars_installed:
                 return pl.col(*inputs).first()
             if isinstance(op, agg_ops.LastOp):
                 return pl.col(*inputs).last()
+            if isinstance(op, agg_ops.RowNumberOp):
+                # pl.row_index is not yet stable enough to use here, and only supports polars>=1.32
+                return pl.int_range(pl.len(), dtype=pl.Int64)
             if isinstance(op, agg_ops.ShiftOp):
                 return pl.col(*inputs).shift(op.periods)
             if isinstance(op, agg_ops.DiffOp):
@@ -700,12 +707,11 @@ if polars_installed:
         @compile_node.register
         def compile_isin(self, node: nodes.InNode):
             left = self.compile_node(node.left_child)
-            right = self.compile_node(node.right_child).unique(node.right_col.id.sql)
+            right = self.compile_node(node.right_child).unique()
             right = right.with_columns(pl.lit(True).alias(node.indicator_col.sql))
 
-            left_ex, right_ex = lowering._coerce_comparables(
-                node.left_col, node.right_col
-            )
+            right_col = ex.ResolvedDerefOp.from_field(node.right_child.fields[0])
+            left_ex, right_ex = lowering._coerce_comparables(node.left_col, right_col)
 
             left_pl_ex = self.expr_compiler.compile_expression(left_ex)
             right_pl_ex = self.expr_compiler.compile_expression(right_ex)
@@ -855,40 +861,23 @@ if polars_installed:
                     "min_period not yet supported for polars engine"
                 )
 
-            if (window.bounds is None) or (window.is_unbounded):
-                # polars will automatically broadcast the aggregate to the matching input rows
-                agg_pl = self.agg_compiler.compile_agg_expr(node.expression)
-                if window.grouping_keys:
-                    agg_pl = agg_pl.over(
-                        self.expr_compiler.compile_expression(key)
-                        for key in window.grouping_keys
+            result = df
+            for cdef in node.agg_exprs:
+                assert isinstance(cdef.expression, agg_expressions.Aggregation)
+                if (window.bounds is None) or (window.is_unbounded):
+                    # polars will automatically broadcast the aggregate to the matching input rows
+                    agg_pl = self.agg_compiler.compile_agg_expr(cdef.expression)
+                    if window.grouping_keys:
+                        agg_pl = agg_pl.over(
+                            self.expr_compiler.compile_expression(key)
+                            for key in window.grouping_keys
+                        )
+                    result = result.with_columns(agg_pl.alias(cdef.id.sql))
+                else:  # row-bounded window
+                    window_result = self._calc_row_analytic_func(
+                        result, cdef.expression, node.window_spec, cdef.id.sql
                     )
-                result = df.with_columns(agg_pl.alias(node.output_name.sql))
-            else:  # row-bounded window
-                window_result = self._calc_row_analytic_func(
-                    df, node.expression, node.window_spec, node.output_name.sql
-                )
-                result = pl.concat([df, window_result], how="horizontal")
-
-            # Probably easier just to pull this out as a rewriter
-            if (
-                node.expression.op.skips_nulls
-                and not node.never_skip_nulls
-                and node.expression.column_references
-            ):
-                nullity_expr = functools.reduce(
-                    operator.or_,
-                    (
-                        pl.col(column.sql).is_null()
-                        for column in node.expression.column_references
-                    ),
-                )
-                result = result.with_columns(
-                    pl.when(nullity_expr)
-                    .then(None)
-                    .otherwise(pl.col(node.output_name.sql))
-                    .alias(node.output_name.sql)
-                )
+                    result = pl.concat([result, window_result], how="horizontal")
             return result
 
         def _calc_row_analytic_func(

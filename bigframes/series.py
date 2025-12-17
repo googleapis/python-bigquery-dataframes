@@ -1486,7 +1486,7 @@ class Series(vendored_pandas_series.Series):
     def mode(self) -> Series:
         block = self._block
         # Approach: Count each value, return each value for which count(x) == max(counts))
-        block, agg_ids = block.aggregate(
+        block = block.aggregate(
             by_column_ids=[self._value_column],
             aggregations=(
                 agg_expressions.UnaryAggregation(
@@ -1494,7 +1494,7 @@ class Series(vendored_pandas_series.Series):
                 ),
             ),
         )
-        value_count_col_id = agg_ids[0]
+        value_count_col_id = block.value_columns[0]
         block, max_value_count_col_id = block.apply_window_op(
             value_count_col_id,
             agg_ops.max_op,
@@ -1780,7 +1780,11 @@ class Series(vendored_pandas_series.Series):
         block, result_id = block.apply_window_op(
             self._value_column, op, window_spec=window_spec, result_label=self.name
         )
-        return Series(block.select_column(result_id))
+        result = Series(block.select_column(result_id))
+        if op.skips_nulls:
+            return result.where(self.notna(), None)
+        else:
+            return result
 
     def value_counts(
         self,
@@ -2223,8 +2227,6 @@ class Series(vendored_pandas_series.Series):
         return self.reindex(other.index, validate=validate)
 
     def drop_duplicates(self, *, keep: str = "first") -> Series:
-        if keep is not False:
-            validations.enforce_ordered(self, "drop_duplicates(keep != False)")
         block = block_ops.drop_duplicates(self._block, (self._value_column,), keep)
         return Series(block)
 
@@ -2232,21 +2234,19 @@ class Series(vendored_pandas_series.Series):
         if keep_order:
             validations.enforce_ordered(self, "unique(keep_order != False)")
             return self.drop_duplicates()
-        block, result = self._block.aggregate(
-            [self._value_column],
+        block = self._block.aggregate(
             [
                 agg_expressions.UnaryAggregation(
                     agg_ops.AnyValueOp(), ex.deref(self._value_column)
                 )
             ],
+            [self._value_column],
             column_labels=self._block.column_labels,
             dropna=False,
         )
-        return Series(block.select_columns(result).reset_index())
+        return Series(block.reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
-        if keep is not False:
-            validations.enforce_ordered(self, "duplicated(keep != False)")
         block, indicator = block_ops.indicate_duplicates(
             self._block, (self._value_column,), keep
         )
@@ -2303,7 +2303,7 @@ class Series(vendored_pandas_series.Series):
         *,
         allow_large_results: Optional[bool] = None,
     ) -> typing.Mapping:
-        return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into))  # type: ignore
+        return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into=into))  # type: ignore
 
     def to_excel(
         self, excel_writer, sheet_name="Sheet1", *, allow_large_results=None, **kwargs
@@ -2653,9 +2653,10 @@ class Series(vendored_pandas_series.Series):
     ) -> Series:
         """Applies a unary operator to the series."""
         block, result_id = self._block.apply_unary_op(
-            self._value_column, op, result_label=self._name
+            self._value_column,
+            op,
         )
-        return Series(block.select_column(result_id))
+        return Series(block.select_column(result_id), name=self.name)  # type: ignore
 
     def _apply_binary_op(
         self,
@@ -2683,8 +2684,9 @@ class Series(vendored_pandas_series.Series):
             expr = op.as_expr(
                 other_col if reverse else self_col, self_col if reverse else other_col
             )
-            block, result_id = block.project_expr(expr, name)
-            return Series(block.select_column(result_id))
+            block, result_id = block.project_expr(expr)
+            block = block.select_column(result_id).with_column_labels([name])
+            return Series(block)  # type: ignore
 
         else:  # Scalar binop
             name = self._name
@@ -2692,8 +2694,9 @@ class Series(vendored_pandas_series.Series):
                 ex.const(other) if reverse else self._value_column,
                 self._value_column if reverse else ex.const(other),
             )
-            block, result_id = self._block.project_expr(expr, name)
-            return Series(block.select_column(result_id))
+            block, result_id = self._block.project_expr(expr)
+            block = block.select_column(result_id).with_column_labels([name])
+            return Series(block)  # type: ignore
 
     def _apply_nary_op(
         self,

@@ -26,6 +26,7 @@ def apply_window_if_present(
     value: sge.Expression,
     window: typing.Optional[window_spec.WindowSpec] = None,
     include_framing_clauses: bool = True,
+    order_by_override: typing.Optional[typing.List[sge.Ordered]] = None,
 ) -> sge.Expression:
     if window is None:
         return value
@@ -44,7 +45,11 @@ def apply_window_if_present(
     else:
         order_by = get_window_order_by(window.ordering)
 
-    order = sge.Order(expressions=order_by) if order_by else None
+    order = None
+    if order_by_override is not None and len(order_by_override) > 0:
+        order = sge.Order(expressions=order_by_override)
+    elif order_by:
+        order = sge.Order(expressions=order_by)
 
     group_by = (
         [
@@ -57,10 +62,10 @@ def apply_window_if_present(
 
     # This is the key change. Don't create a spec for the default window frame
     # if there's no ordering. This avoids generating an `ORDER BY NULL` clause.
-    if not window.bounds and not order:
+    if window.is_unbounded and not order:
         return sge.Window(this=value, partition_by=group_by)
 
-    if not window.bounds and not include_framing_clauses:
+    if window.is_unbounded and not include_framing_clauses:
         return sge.Window(this=value, partition_by=group_by, order=order)
 
     kind = (

@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import datetime
 import functools
-import itertools
 import typing
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -267,21 +266,95 @@ class ArrayValue:
         )
 
     def compute_general_expression(self, assignments: Sequence[ex.Expression]):
+        """
+        Applies arbitrary column expressions to the current execution block.
+
+        This method transforms the logical plan by applying a sequence of expressions that
+        preserve the length of the input columns. It supports both scalar operations
+        and window functions. Each expression is assigned a unique internal column identifier.
+
+        Args:
+            assignments (Sequence[ex.Expression]): A sequence of expression objects
+                representing the transformations to apply to the columns.
+
+        Returns:
+            Tuple[ArrayValue, Tuple[str, ...]]: A tuple containing:
+                - An `ArrayValue` wrapping the new root node of the updated logical plan.
+                - A tuple of strings representing the unique column IDs generated for
+                  each expression in the assignments.
+        """
         named_exprs = [
-            expression_factoring.NamedExpression(expr, ids.ColumnId.unique())
-            for expr in assignments
+            nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
         ]
         # TODO: Push this to rewrite later to go from block expression to planning form
-        # TODO: Jointly fragmentize expressions to more efficiently reuse common sub-expressions
-        fragments = tuple(
-            itertools.chain.from_iterable(
-                expression_factoring.fragmentize_expression(expr)
-                for expr in named_exprs
-            )
-        )
-        target_ids = tuple(named_expr.name for named_expr in named_exprs)
-        new_root = expression_factoring.push_into_tree(self.node, fragments, target_ids)
+        new_root = expression_factoring.apply_col_exprs_to_plan(self.node, named_exprs)
+
+        target_ids = tuple(named_expr.id for named_expr in named_exprs)
         return (ArrayValue(new_root), target_ids)
+
+    def compute_general_reduction(
+        self,
+        assignments: Sequence[ex.Expression],
+        by_column_ids: typing.Sequence[str] = (),
+        *,
+        dropna: bool = False,
+    ):
+        """
+        Applies arbitrary aggregation expressions to the block, optionally grouped by keys.
+
+        This method handles reduction operations (e.g., sum, mean, count) that collapse
+        multiple input rows into a single scalar value per group. If grouping keys are
+        provided, the operation is performed per group; otherwise, it is a global reduction.
+
+        Note: Intermediate aggregations (those that are inputs to further aggregations)
+        must be windowizable. Notably excluded are approx quantile, top count ops.
+
+        Args:
+            assignments (Sequence[ex.Expression]): A sequence of aggregation expressions
+                to be calculated.
+            by_column_ids (typing.Sequence[str], optional): A sequence of column IDs
+                to use as grouping keys. Defaults to an empty tuple (global reduction).
+            dropna (bool, optional): If True, rows containing null values in the
+                `by_column_ids` columns will be filtered out before the reduction
+                is applied. Defaults to False.
+
+        Returns:
+            ArrayValue:
+               The new root node representing the aggregation/group-by result.
+        """
+        plan = self.node
+
+        # shortcircuit to keep things simple if all aggs are simple
+        # TODO: Fully unify paths once rewriters are strong enough to simplify complexity from full path
+        def _is_direct_agg(agg_expr):
+            return isinstance(agg_expr, agg_expressions.Aggregation) and all(
+                isinstance(child, (ex.DerefOp, ex.ScalarConstantExpression))
+                for child in agg_expr.children
+            )
+
+        if all(_is_direct_agg(agg) for agg in assignments):
+            agg_defs = tuple((agg, ids.ColumnId.unique()) for agg in assignments)
+            return ArrayValue(
+                nodes.AggregateNode(
+                    child=self.node,
+                    aggregations=agg_defs,  # type: ignore
+                    by_column_ids=tuple(map(ex.deref, by_column_ids)),
+                    dropna=dropna,
+                )
+            )
+
+        if dropna:
+            for col_id in by_column_ids:
+                plan = nodes.FilterNode(plan, ops.notnull_op.as_expr(col_id))
+
+        named_exprs = [
+            nodes.ColumnDef(expr, ids.ColumnId.unique()) for expr in assignments
+        ]
+        # TODO: Push this to rewrite later to go from block expression to planning form
+        new_root = expression_factoring.apply_agg_exprs_to_plan(
+            plan, named_exprs, grouping_keys=[ex.deref(by) for by in by_column_ids]
+        )
+        return ArrayValue(new_root)
 
     def project_to_id(self, expression: ex.Expression):
         array_val, ids = self.compute_values(
@@ -401,62 +474,38 @@ class ArrayValue:
             )
         )
 
-    def project_window_op(
-        self,
-        column_name: str,
-        op: agg_ops.UnaryWindowOp,
-        window_spec: WindowSpec,
-        *,
-        never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
-    ) -> Tuple[ArrayValue, str]:
-        """
-        Creates a new expression based on this expression with unary operation applied to one column.
-        column_name: the id of the input column present in the expression
-        op: the windowable operator to apply to the input column
-        window_spec: a specification of the window over which to apply the operator
-        output_name: the id to assign to the output of the operator, by default will replace input col if distinct output id not provided
-        never_skip_nulls: will disable null skipping for operators that would otherwise do so
-        skip_reproject_unsafe: skips the reprojection step, can be used when performing many non-dependent window operations, user responsible for not nesting window expressions, or using outputs as join, filter or aggregation keys before a reprojection
-        """
-
-        return self.project_window_expr(
-            agg_expressions.UnaryAggregation(op, ex.deref(column_name)),
-            window_spec,
-            never_skip_nulls,
-            skip_reproject_unsafe,
-        )
-
     def project_window_expr(
         self,
-        expression: agg_expressions.Aggregation,
+        expressions: Sequence[agg_expressions.Aggregation],
         window: WindowSpec,
-        never_skip_nulls=False,
-        skip_reproject_unsafe: bool = False,
     ):
-        output_name = self._gen_namespaced_uid()
+        id_strings = [self._gen_namespaced_uid() for _ in expressions]
+        agg_exprs = tuple(
+            nodes.ColumnDef(expression, ids.ColumnId(id_str))
+            for expression, id_str in zip(expressions, id_strings)
+        )
+
         return (
             ArrayValue(
                 nodes.WindowOpNode(
                     child=self.node,
-                    expression=expression,
+                    agg_exprs=agg_exprs,
                     window_spec=window,
-                    output_name=ids.ColumnId(output_name),
-                    never_skip_nulls=never_skip_nulls,
-                    skip_reproject_unsafe=skip_reproject_unsafe,
                 )
             ),
-            output_name,
+            id_strings,
         )
 
     def isin(
-        self, other: ArrayValue, lcol: str, rcol: str
+        self,
+        other: ArrayValue,
+        lcol: str,
     ) -> typing.Tuple[ArrayValue, str]:
+        assert len(other.column_ids) == 1
         node = nodes.InNode(
             self.node,
             other.node,
             ex.deref(lcol),
-            ex.deref(rcol),
             indicator_col=ids.ColumnId.unique(),
         )
         return ArrayValue(node), node.indicator_col.name

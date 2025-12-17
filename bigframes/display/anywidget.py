@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Interactive, paginated table widget for BigFrames DataFrames."""
+
 from __future__ import annotations
 
+import dataclasses
 from importlib import resources
 import functools
 import math
@@ -26,6 +29,7 @@ import bigframes
 from bigframes.core import blocks
 import bigframes.dataframe
 import bigframes.display.html
+import bigframes.dtypes as dtypes
 
 # anywidget and traitlets are optional dependencies. We don't want the import of
 # this module to fail if they aren't installed, though. Instead, we try to
@@ -46,6 +50,12 @@ else:
     WIDGET_BASE = object
 
 
+@dataclasses.dataclass(frozen=True)
+class _SortState:
+    column: str
+    ascending: bool
+
+
 class TableWidget(WIDGET_BASE):
     """An interactive, paginated table widget for BigFrames DataFrames.
 
@@ -55,8 +65,15 @@ class TableWidget(WIDGET_BASE):
 
     page = traitlets.Int(0).tag(sync=True)
     page_size = traitlets.Int(0).tag(sync=True)
-    row_count = traitlets.Int(0).tag(sync=True)
+    row_count = traitlets.Union(
+        [traitlets.Int(), traitlets.Instance(type(None))],
+        default_value=None,
+        allow_none=True,
+    ).tag(sync=True)
     table_html = traitlets.Unicode().tag(sync=True)
+    sort_column = traitlets.Unicode("").tag(sync=True)
+    sort_ascending = traitlets.Bool(True).tag(sync=True)
+    orderable_columns = traitlets.List(traitlets.Unicode(), []).tag(sync=True)
     _initial_load_complete = traitlets.Bool(False).tag(sync=True)
     _batches: Optional[blocks.PandasBatches] = None
     _error_message = traitlets.Unicode(allow_none=True, default_value=None).tag(
@@ -83,23 +100,38 @@ class TableWidget(WIDGET_BASE):
         self._all_data_loaded = False
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: List[pd.DataFrame] = []
+        self._last_sort_state: Optional[_SortState] = None
 
         # respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
 
         # set traitlets properties that trigger observers
+        # TODO(b/462525985): Investigate and improve TableWidget UX for DataFrames with a large number of columns.
         self.page_size = initial_page_size
+        # TODO(b/463754889): Support non-string column labels for sorting.
+        if all(isinstance(col, str) for col in dataframe.columns):
+            self.orderable_columns = [
+                str(col_name)
+                for col_name, dtype in dataframe.dtypes.items()
+                if dtypes.is_orderable(dtype)
+            ]
+        else:
+            self.orderable_columns = []
 
-        # len(dataframe) is expensive, since it will trigger a
-        # SELECT COUNT(*) query. It is a must have however.
+        # obtain the row counts
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
-        # TODO(b/452747934): Allow row_count to be None and check to see if
-        # there are multiple pages and show "page 1 of many" in this case
         self._reset_batches_for_new_page_size()
-        if self._batches is None or self._batches.total_rows is None:
-            self._error_message = "Could not determine total row count. Data might be unavailable or an error occurred."
-            self.row_count = 0
+
+        if self._batches is None:
+            self._error_message = "Could not retrieve data batches. Data might be unavailable or an error occurred."
+            self.row_count = None
+        elif self._batches.total_rows is None:
+            # Total rows is unknown, this is an expected state.
+            # TODO(b/461536343): Cheaply discover if we have exactly 1 page.
+            # There are cases where total rows is not set, but there are no additional
+            # pages. We could disable the "next" button in these cases.
+            self.row_count = None
         else:
             self.row_count = self._batches.total_rows
 
@@ -109,6 +141,11 @@ class TableWidget(WIDGET_BASE):
         # Signals to the frontend that the initial data load is complete.
         # Also used as a guard to prevent observers from firing during initialization.
         self._initial_load_complete = True
+
+    @traitlets.observe("_initial_load_complete")
+    def _on_initial_load_complete(self, change: Dict[str, Any]):
+        if change["new"]:
+            self._set_table_html()
 
     @functools.cached_property
     def _esm(self):
@@ -131,10 +168,21 @@ class TableWidget(WIDGET_BASE):
         Returns:
             The validated and clamped page number as an integer.
         """
-
         value = proposal["value"]
+
+        if value < 0:
+            raise ValueError("Page number cannot be negative.")
+
+        # If truly empty or invalid page size, stay on page 0.
+        # This handles cases where row_count is 0 or page_size is 0, preventing
+        # division by zero or nonsensical pagination, regardless of row_count being None.
         if self.row_count == 0 or self.page_size == 0:
             return 0
+
+        # If row count is unknown, allow any non-negative page. The previous check
+        # ensures that invalid page_size (0) is already handled.
+        if self.row_count is None:
+            return value
 
         # Calculate the zero-indexed maximum page number.
         max_page = max(0, math.ceil(self.row_count / self.page_size) - 1)
@@ -197,15 +245,19 @@ class TableWidget(WIDGET_BASE):
         """Combine all cached batches into a single DataFrame."""
         if not self._cached_batches:
             return pd.DataFrame(columns=self._dataframe.columns)
-        return pd.concat(self._cached_batches, ignore_index=True)
+        return pd.concat(self._cached_batches)
+
+    def _reset_batch_cache(self) -> None:
+        """Resets batch caching attributes."""
+        self._cached_batches = []
+        self._batch_iter = None
+        self._all_data_loaded = False
 
     def _reset_batches_for_new_page_size(self) -> None:
         """Reset the batch iterator when page size changes."""
         self._batches = self._dataframe._to_pandas_batches(page_size=self.page_size)
 
-        self._cached_batches = []
-        self._batch_iter = None
-        self._all_data_loaded = False
+        self._reset_batch_cache()
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
@@ -214,6 +266,21 @@ class TableWidget(WIDGET_BASE):
                 f"<div class='bigframes-error-message'>{self._error_message}</div>"
             )
             return
+
+        # Apply sorting if a column is selected
+        df_to_display = self._dataframe
+        if self.sort_column:
+            # TODO(b/463715504): Support sorting by index columns.
+            df_to_display = df_to_display.sort_values(
+                by=self.sort_column, ascending=self.sort_ascending
+            )
+
+        # Reset batches when sorting changes
+        if self._last_sort_state != _SortState(self.sort_column, self.sort_ascending):
+            self._batches = df_to_display._to_pandas_batches(page_size=self.page_size)
+            self._reset_batch_cache()
+            self._last_sort_state = _SortState(self.sort_column, self.sort_ascending)
+            self.page = 0  # Reset to first page
 
         start = self.page * self.page_size
         end = start + self.page_size
@@ -227,13 +294,46 @@ class TableWidget(WIDGET_BASE):
                 break
 
         # Get the data for the current page
-        page_data = cached_data.iloc[start:end]
+        page_data = cached_data.iloc[start:end].copy()
+
+        # Handle index display
+        # TODO(b/438181139): Add tests for custom multiindex
+        if self._dataframe._block.has_index:
+            index_name = page_data.index.name
+            page_data.insert(
+                0, index_name if index_name is not None else "", page_data.index
+            )
+        else:
+            # Default index - include as "Row" column
+            page_data.insert(0, "Row", range(start + 1, start + len(page_data) + 1))
+        # Handle case where user navigated beyond available data with unknown row count
+        is_unknown_count = self.row_count is None
+        is_beyond_data = self._all_data_loaded and len(page_data) == 0 and self.page > 0
+        if is_unknown_count and is_beyond_data:
+            # Calculate the last valid page (zero-indexed)
+            total_rows = len(cached_data)
+            if total_rows > 0:
+                last_valid_page = max(0, math.ceil(total_rows / self.page_size) - 1)
+                # Navigate back to the last valid page
+                self.page = last_valid_page
+                # Recursively call to display the correct page
+                return self._set_table_html()
+            else:
+                # If no data at all, stay on page 0 with empty display
+                self.page = 0
+                return self._set_table_html()
 
         # Generate HTML table
         self.table_html = bigframes.display.html.render_html(
             dataframe=page_data,
             table_id=f"table-{self._table_id}",
+            orderable_columns=self.orderable_columns,
         )
+
+    @traitlets.observe("sort_column", "sort_ascending")
+    def _sort_changed(self, _change: Dict[str, Any]):
+        """Handler for when sorting parameters change from the frontend."""
+        self._set_table_html()
 
     @traitlets.observe("page")
     def _page_changed(self, _change: Dict[str, Any]) -> None:
@@ -249,6 +349,9 @@ class TableWidget(WIDGET_BASE):
             return
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
+        # Reset the sort state to default (no sort)
+        self.sort_column = ""
+        self.sort_ascending = True
 
         # Reset batches to use new page size for future data fetching
         self._reset_batches_for_new_page_size()

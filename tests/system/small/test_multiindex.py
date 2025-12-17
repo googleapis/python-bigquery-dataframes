@@ -17,7 +17,7 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-from bigframes.testing.utils import assert_pandas_df_equal
+from bigframes.testing.utils import assert_frame_equal
 
 # Sample MultiIndex for testing DataFrames where() method.
 _MULTI_INDEX = pandas.MultiIndex.from_tuples(
@@ -110,6 +110,7 @@ def test_set_multi_index(scalars_df_index, scalars_pandas_df_index):
         ("bool_col", True),
         (["float64_col", "int64_too"], True),
         ([2, 0], False),
+        (0, True),
     ],
 )
 def test_df_reset_multi_index(scalars_df_index, scalars_pandas_df_index, level, drop):
@@ -124,7 +125,7 @@ def test_df_reset_multi_index(scalars_df_index, scalars_pandas_df_index, level, 
 
     # Pandas uses int64 instead of Int64 (nullable) dtype.
     if pd_result.index.dtype != bf_result.index.dtype:
-        pd_result.index = pd_result.index.astype(pandas.Int64Dtype())
+        pd_result.index = pd_result.index.astype(bf_result.index.dtype)
 
     pandas.testing.assert_frame_equal(bf_result, pd_result)
 
@@ -582,7 +583,7 @@ def test_multi_index_dataframe_join(scalars_dfs, how):
         (["bool_col", "rowindex_2"])
     )[["float64_col"]]
     pd_result = pd_df_a.join(pd_df_b, how=how)
-    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+    assert_frame_equal(bf_result, pd_result, ignore_order=True)
 
 
 @all_joins
@@ -603,7 +604,7 @@ def test_multi_index_dataframe_join_on(scalars_dfs, how):
     pd_df_a = pd_df_a.assign(rowindex_2=pd_df_a["rowindex_2"] + 2)
     pd_df_b = pd_df[["float64_col"]]
     pd_result = pd_df_a.join(pd_df_b, on="rowindex_2", how=how)
-    assert_pandas_df_equal(bf_result, pd_result, ignore_order=True)
+    assert_frame_equal(bf_result, pd_result, ignore_order=True)
 
 
 def test_multi_index_dataframe_where_series_cond_none_other(
