@@ -160,6 +160,12 @@ def create_bigquery_session(
     )
     session._queries = queries  # type: ignore
     session._job_configs = job_configs  # type: ignore
+
+    # Reset the log adapter to clear any session creation tracking
+    import bigframes.core.log_adapter as log_adapter
+
+    log_adapter.get_and_reset_api_methods()
+
     return session
 
 
