@@ -28,22 +28,38 @@ from bigframes.testing import mocks
 def test_read_gbq_colab_includes_label():
     """Make sure we can tell direct colab usage apart from regular read_gbq usage."""
     import bigframes.core.log_adapter as log_adapter
+    import bigframes.session._io.bigquery as bq_io
 
-    # Store the original get_and_reset_api_methods
-    original_get_and_reset = log_adapter.get_and_reset_api_methods
+    # Store the original add_and_trim_labels
+    original_add_and_trim = bq_io.add_and_trim_labels
 
-    # Create a wrapper that preserves methods for the test
-    preserved_methods = []
+    # Track API methods
+    tracked_methods = []
 
-    def debug_get_and_reset(dry_run=False):
-        methods = original_get_and_reset(dry_run)
-        if methods and "session-read_gbq_colab" in methods:
-            # Preserve the methods for later use in job labeling
-            preserved_methods.extend(methods)
-            print(f"Preserved methods for job labeling: {methods}")
-        return methods
+    def debug_add_api_method(name):
+        tracked_methods.append(name)
 
-    log_adapter.get_and_reset_api_methods = debug_get_and_reset
+    log_adapter.add_api_method = debug_add_api_method
+
+    def intercept_add_and_trim_labels(job_config):
+        # Ensure tracked methods are available before creating labels
+        if tracked_methods and "session-read_gbq_colab" in tracked_methods:
+            # Temporarily restore the methods for label creation
+            original_methods = list(log_adapter._api_methods)
+            log_adapter._api_methods.clear()
+            log_adapter._api_methods.extend(tracked_methods)
+
+            # Call the original function
+            original_add_and_trim(job_config)
+
+            # Restore original state
+            log_adapter._api_methods.clear()
+            log_adapter._api_methods.extend(original_methods)
+        else:
+            original_add_and_trim(job_config)
+
+    # Monkey patch add_and_trim_labels
+    bq_io.add_and_trim_labels = intercept_add_and_trim_labels
 
     # Clear any existing call stack and API methods
     log_adapter._call_stack.clear()
@@ -55,10 +71,6 @@ def test_read_gbq_colab_includes_label():
     log_adapter._call_stack.clear()
 
     _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
-
-    # Restore the preserved methods before checking job configs
-    if preserved_methods:
-        log_adapter._api_methods.extend(preserved_methods)
 
     configs = session._job_configs  # type: ignore
 
