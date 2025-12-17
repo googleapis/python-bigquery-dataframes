@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -57,4 +58,21 @@ def test_compile_readlocal_w_json_df(
     snapshot,
 ):
     bf_df = bpd.DataFrame(json_pandas_df, session=compiler_session_w_json_types)
+    snapshot.assert_match(bf_df.sql, "out.sql")
+
+
+def test_compile_readlocal_w_special_values(
+    compiler_session: bigframes.Session, snapshot
+):
+    df = pd.DataFrame(
+        {
+            "col_none": [None, 1, 2],
+            "col_inf": [np.inf, 1.0, 2.0],
+            "col_neginf": [-np.inf, 1.0, 2.0],
+            "col_nan": [np.nan, 1.0, 2.0],
+            "col_int_none": [None, 10, 20],
+            "col_bool_none": [True, None, False],
+        }
+    )
+    bf_df = bpd.DataFrame(df, session=compiler_session)
     snapshot.assert_match(bf_df.sql, "out.sql")
