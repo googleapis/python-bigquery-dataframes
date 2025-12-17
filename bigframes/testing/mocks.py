@@ -27,7 +27,10 @@ import pytest
 import bigframes
 import bigframes.clients
 import bigframes.core.global_session
+import bigframes.core.log_adapter
 import bigframes.dataframe
+import bigframes.session._io.bigquery
+from bigframes.session._io.bigquery import create_job_configs_labels
 import bigframes.session.clients
 
 """Utilities for creating test resources."""
@@ -116,6 +119,18 @@ def create_bigquery_session(
         return query_job
 
     def query_and_wait_mock(query, *args, job_config=None, **kwargs):
+        job_config = (
+            job_config
+            if job_config is not None
+            else google.cloud.bigquery.QueryJobConfig()
+        )
+        api_methods = bigframes.core.log_adapter.get_and_reset_api_methods(
+            dry_run=job_config.dry_run
+        )
+        job_config.labels = create_job_configs_labels(
+            job_configs_labels=job_config.labels,
+            api_methods=api_methods,
+        )
         queries.append(query)
         job_configs.append(copy.deepcopy(job_config))
 
