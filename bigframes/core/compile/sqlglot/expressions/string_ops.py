@@ -253,79 +253,12 @@ def _(expr: TypedExpr, op: ops.StringSplitOp) -> sge.Expression:
 
 @register_unary_op(ops.StrGetOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.StrGetOp) -> sge.Expression:
-    sub_str = sge.Substring(
-        this=expr.expr,
-        start=sge.convert(op.i + 1),
-        length=sge.convert(1),
-    )
-
-    return sge.If(
-        this=sge.NEQ(this=sub_str, expression=sge.convert("")),
-        true=sub_str,
-        false=sge.Null(),
-    )
+    return string_index(expr, op.i)
 
 
 @register_unary_op(ops.StrSliceOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.StrSliceOp) -> sge.Expression:
-    column_length = sge.Length(this=expr.expr)
-    if op.start is None:
-        start = 0
-    else:
-        start = op.start
-
-    start_expr = sge.convert(start) if start < 0 else sge.convert(start + 1)
-    length_expr: typing.Optional[sge.Expression]
-    if op.end is None:
-        length_expr = None
-    elif op.end < 0:
-        if start < 0:
-            start_expr = sge.Greatest(
-                expressions=[
-                    sge.convert(1),
-                    column_length + sge.convert(start + 1),
-                ]
-            )
-            length_expr = sge.Greatest(
-                expressions=[
-                    sge.convert(0),
-                    column_length + sge.convert(op.end),
-                ]
-            ) - sge.Greatest(
-                expressions=[
-                    sge.convert(0),
-                    column_length + sge.convert(start),
-                ]
-            )
-        else:
-            length_expr = sge.Greatest(
-                expressions=[
-                    sge.convert(0),
-                    column_length + sge.convert(op.end - start),
-                ]
-            )
-    else:  # op.end >= 0
-        if start < 0:
-            start_expr = sge.Greatest(
-                expressions=[
-                    sge.convert(1),
-                    column_length + sge.convert(start + 1),
-                ]
-            )
-            length_expr = sge.convert(op.end) - sge.Greatest(
-                expressions=[
-                    sge.convert(0),
-                    column_length + sge.convert(start),
-                ]
-            )
-        else:
-            length_expr = sge.convert(op.end - start)
-
-    return sge.Substring(
-        this=expr.expr,
-        start=start_expr,
-        length=length_expr,
-    )
+    return string_slice(expr, op.start, op.end)
 
 
 @register_unary_op(ops.upper_op)
@@ -365,4 +298,80 @@ def _(expr: TypedExpr, op: ops.ZfillOp) -> sge.Expression:
             )
         ],
         default=sge.func("LPAD", expr.expr, length_expr, sge.convert("0")),
+    )
+
+
+def string_index(expr: TypedExpr, index: int) -> sge.Expression:
+    sub_str = sge.Substring(
+        this=expr.expr,
+        start=sge.convert(index + 1),
+        length=sge.convert(1),
+    )
+    return sge.If(
+        this=sge.NEQ(this=sub_str, expression=sge.convert("")),
+        true=sub_str,
+        false=sge.Null(),
+    )
+
+
+def string_slice(
+    expr: TypedExpr, op_start: typing.Optional[int], op_end: typing.Optional[int]
+) -> sge.Expression:
+    column_length = sge.Length(this=expr.expr)
+    if op_start is None:
+        start = 0
+    else:
+        start = op_start
+
+    start_expr = sge.convert(start) if start < 0 else sge.convert(start + 1)
+    length_expr: typing.Optional[sge.Expression]
+    if op_end is None:
+        length_expr = None
+    elif op_end < 0:
+        if start < 0:
+            start_expr = sge.Greatest(
+                expressions=[
+                    sge.convert(1),
+                    column_length + sge.convert(start + 1),
+                ]
+            )
+            length_expr = sge.Greatest(
+                expressions=[
+                    sge.convert(0),
+                    column_length + sge.convert(op_end),
+                ]
+            ) - sge.Greatest(
+                expressions=[
+                    sge.convert(0),
+                    column_length + sge.convert(start),
+                ]
+            )
+        else:
+            length_expr = sge.Greatest(
+                expressions=[
+                    sge.convert(0),
+                    column_length + sge.convert(op_end - start),
+                ]
+            )
+    else:  # op.end >= 0
+        if start < 0:
+            start_expr = sge.Greatest(
+                expressions=[
+                    sge.convert(1),
+                    column_length + sge.convert(start + 1),
+                ]
+            )
+            length_expr = sge.convert(op_end) - sge.Greatest(
+                expressions=[
+                    sge.convert(0),
+                    column_length + sge.convert(start),
+                ]
+            )
+        else:
+            length_expr = sge.convert(op_end - start)
+
+    return sge.Substring(
+        this=expr.expr,
+        start=start_expr,
+        length=length_expr,
     )
