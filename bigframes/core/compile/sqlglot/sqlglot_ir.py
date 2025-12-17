@@ -29,7 +29,7 @@ import sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes.core import guid, local_data, schema, utils
-from bigframes.core.compile.sqlglot.expressions import typed_expr
+from bigframes.core.compile.sqlglot.expressions import constants, typed_expr
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
 
 # shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
@@ -677,6 +677,10 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
         return sge.func("ST_GEOGFROMTEXT", sge.convert(wkt))
     elif dtype == dtypes.TIMEDELTA_DTYPE:
         return sge.convert(utils.timedelta_to_micros(value))
+    elif dtype == dtypes.FLOAT_DTYPE:
+        if np.isinf(value):
+            return constants._INF if value > 0 else constants._NEG_INF
+        return sge.convert(value)
     else:
         if isinstance(value, np.generic):
             value = value.item()
