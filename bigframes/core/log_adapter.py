@@ -15,12 +15,14 @@
 import functools
 import inspect
 import threading
-from typing import List, Optional
+from typing import Optional
 
 from google.cloud import bigquery
 import pandas
 
-_lock = threading.Lock()
+_thread_local_data = threading.local()
+_thread_local_data._api_methods = []
+_thread_local_data._call_stack = []
 
 # The limit is 64 (https://cloud.google.com/bigquery/docs/labels-intro#requirements),
 # but leave a few spare for internal labels to be added.
@@ -30,11 +32,7 @@ PANDAS_API_TRACKING_TASK = "pandas_api_tracking"
 PANDAS_PARAM_TRACKING_TASK = "pandas_param_tracking"
 LOG_OVERRIDE_NAME = "__log_override_name__"
 
-_api_methods: List = []
 _excluded_methods = ["__setattr__", "__getattr__"]
-
-# Stack to track method calls
-_call_stack: List = []
 
 
 def submit_pandas_labels(
@@ -172,11 +170,14 @@ def method_logger(method=None, /, *, custom_base_name: Optional[str] = None):
                 base_name = custom_base_name
 
             full_method_name = f"{base_name.lower()}-{api_method_name}"
+            if not hasattr(_thread_local_data, "_call_stack"):
+                _thread_local_data._call_stack = []
+
             # Track directly called methods
-            if len(_call_stack) == 0:
+            if len(_thread_local_data._call_stack) == 0:
                 add_api_method(full_method_name)
 
-            _call_stack.append(full_method_name)
+            _thread_local_data._call_stack.append(full_method_name)
 
             try:
                 return method(*args, **kwargs)
@@ -185,7 +186,7 @@ def method_logger(method=None, /, *, custom_base_name: Optional[str] = None):
                 # or not fully supported (NotImplementedError) in BigFrames.
                 # Logging is currently supported only when we can access the bqclient through
                 # _block.session.bqclient.
-                if len(_call_stack) == 1:
+                if len(_thread_local_data._call_stack) == 1:
                     submit_pandas_labels(
                         _get_bq_client(*args, **kwargs),
                         base_name,
@@ -196,7 +197,7 @@ def method_logger(method=None, /, *, custom_base_name: Optional[str] = None):
                     )
                 raise e
             finally:
-                _call_stack.pop()
+                _thread_local_data._call_stack.pop()
 
         return wrapper
 
@@ -214,19 +215,21 @@ def property_logger(prop):
     def shared_wrapper(prop):
         @functools.wraps(prop)
         def wrapped(*args, **kwargs):
+            if not hasattr(_thread_local_data, "_call_stack"):
+                _thread_local_data._call_stack = []
             qualname_parts = getattr(prop, "__qualname__", prop.__name__).split(".")
             class_name = qualname_parts[-2] if len(qualname_parts) > 1 else ""
             property_name = prop.__name__
             full_property_name = f"{class_name.lower()}-{property_name.lower()}"
 
-            if len(_call_stack) == 0:
+            if len(_thread_local_data._call_stack) == 0:
                 add_api_method(full_property_name)
 
-            _call_stack.append(full_property_name)
+            _thread_local_data._call_stack.append(full_property_name)
             try:
                 return prop(*args, **kwargs)
             finally:
-                _call_stack.pop()
+                _thread_local_data._call_stack.pop()
 
         return wrapped
 
@@ -251,23 +254,26 @@ def log_name_override(name: str):
 
 
 def add_api_method(api_method_name):
-    global _lock
-    global _api_methods
-    with _lock:
-        # Push the method to the front of the _api_methods list
-        _api_methods.insert(0, api_method_name.replace("<", "").replace(">", ""))
-        # Keep the list length within the maximum limit (adjust MAX_LABELS_COUNT as needed)
-        _api_methods = _api_methods[:MAX_LABELS_COUNT]
+    if not hasattr(_thread_local_data, "_api_methods"):
+        _thread_local_data._api_methods = []
+
+    # Push the method to the front of the _api_methods list
+    _thread_local_data._api_methods.insert(
+        0, api_method_name.replace("<", "").replace(">", "")
+    )
+    # Keep the list length within the maximum limit
+    _thread_local_data._api_methods = _thread_local_data._api_methods[:MAX_LABELS_COUNT]
 
 
 def get_and_reset_api_methods(dry_run: bool = False):
-    global _lock
-    with _lock:
-        previous_api_methods = list(_api_methods)
+    if not hasattr(_thread_local_data, "_api_methods"):
+        _thread_local_data._api_methods = []
 
-        # dry_run might not make a job resource, so only reset the log on real queries.
-        if not dry_run:
-            _api_methods.clear()
+    previous_api_methods = list(_thread_local_data._api_methods)
+
+    # dry_run might not make a job resource, so only reset the log on real queries.
+    if not dry_run:
+        _thread_local_data._api_methods.clear()
     return previous_api_methods
 
 
