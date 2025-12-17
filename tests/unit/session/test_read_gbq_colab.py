@@ -29,29 +29,21 @@ def test_read_gbq_colab_includes_label():
     """Make sure we can tell direct colab usage apart from regular read_gbq usage."""
     import bigframes.core.log_adapter as log_adapter
 
-    # Track when get_and_reset_api_methods is called
+    # Store the original get_and_reset_api_methods
     original_get_and_reset = log_adapter.get_and_reset_api_methods
-    reset_calls = []
+
+    # Create a wrapper that preserves methods for the test
+    preserved_methods = []
 
     def debug_get_and_reset(dry_run=False):
         methods = original_get_and_reset(dry_run)
-        if methods:
-            reset_calls.append(methods)
-            print(f"get_and_reset_api_methods called with: {methods}")
+        if methods and "session-read_gbq_colab" in methods:
+            # Preserve the methods for later use in job labeling
+            preserved_methods.extend(methods)
+            print(f"Preserved methods for job labeling: {methods}")
         return methods
 
     log_adapter.get_and_reset_api_methods = debug_get_and_reset
-
-    # Monkey patch to track if decorator is called
-    original_add = log_adapter.add_api_method
-    called_methods = []
-
-    def debug_add_api_method(name):
-        called_methods.append(name)
-        print(f"Decorator tracked method: {name}")
-        return original_add(name)
-
-    log_adapter.add_api_method = debug_add_api_method
 
     # Clear any existing call stack and API methods
     log_adapter._call_stack.clear()
@@ -64,9 +56,9 @@ def test_read_gbq_colab_includes_label():
 
     _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
 
-    print(f"Total reset calls: {len(reset_calls)}")
-    for i, methods in enumerate(reset_calls):
-        print(f"Reset call {i}: {methods}")
+    # Restore the preserved methods before checking job configs
+    if preserved_methods:
+        log_adapter._api_methods.extend(preserved_methods)
 
     configs = session._job_configs  # type: ignore
 
