@@ -40,8 +40,10 @@ from bigframes.operations.base_ops import (
 )
 from bigframes.operations.blob_ops import (
     obj_fetch_metadata_op,
+    obj_make_ref_json_op,
     obj_make_ref_op,
     ObjGetAccessUrl,
+    ObjGetAccessUrlWithDuration,
 )
 from bigframes.operations.bool_ops import and_op, or_op, xor_op
 from bigframes.operations.comparison_ops import (
@@ -365,6 +367,8 @@ __all__ = [
     "ArrayToStringOp",
     # Blob ops
     "ObjGetAccessUrl",
+    "ObjGetAccessUrlWithDuration",
+    "obj_make_ref_json_op",
     "obj_make_ref_op",
     "obj_fetch_metadata_op",
     # Struct ops

@@ -29,11 +29,25 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("OBJ.FETCH_METADATA", expr.expr)
 
 
-@register_unary_op(ops.ObjGetAccessUrl)
-def _(expr: TypedExpr) -> sge.Expression:
-    return sge.func("OBJ.GET_ACCESS_URL", expr.expr)
+@register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
+def _(expr: TypedExpr, op: ops.ObjGetAccessUrl) -> sge.Expression:
+    return sge.func("OBJ.GET_ACCESS_URL", expr.expr, sge.Literal.string(op.mode))
+
+
+@register_binary_op(ops.ObjGetAccessUrlWithDuration, pass_op=True)
+def _(
+    left: TypedExpr, right: TypedExpr, op: ops.ObjGetAccessUrlWithDuration
+) -> sge.Expression:
+    return sge.func(
+        "OBJ.GET_ACCESS_URL", left.expr, sge.Literal.string(op.mode), right.expr
+    )
 
 
 @register_binary_op(ops.obj_make_ref_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.func("OBJ.MAKE_REF", left.expr, right.expr)
+
+
+@register_unary_op(ops.obj_make_ref_json_op)
+def _(expr: TypedExpr) -> sge.Expression:
+    return sge.func("OBJ.MAKE_REF", expr.expr)
