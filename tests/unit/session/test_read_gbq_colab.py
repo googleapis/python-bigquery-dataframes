@@ -27,7 +27,17 @@ from bigframes.testing import mocks
 
 def test_read_gbq_colab_includes_label():
     """Make sure we can tell direct colab usage apart from regular read_gbq usage."""
+    import bigframes.core.log_adapter as log_adapter
+
+    # Clear any existing call stack and API methods
+    log_adapter._call_stack.clear()
+    log_adapter.get_and_reset_api_methods()
+
     session = mocks.create_bigquery_session()
+
+    # Ensure call stack is empty before calling the method
+    log_adapter._call_stack.clear()
+
     _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
     configs = session._job_configs  # type: ignore
 
