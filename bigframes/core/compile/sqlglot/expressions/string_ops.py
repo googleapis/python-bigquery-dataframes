@@ -153,12 +153,15 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 @register_unary_op(ops.isdecimal_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\d+$"))
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^(\p{Nd})+$"))
 
 
 @register_unary_op(ops.isdigit_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.RegexpLike(this=expr.expr, expression=sge.convert(r"^\p{Nd}+$"))
+    regexp_pattern = (
+        r"^[\p{Nd}\x{00B9}\x{00B2}\x{00B3}\x{2070}\x{2074}-\x{2079}\x{2080}-\x{2089}]+$"
+    )
+    return sge.RegexpLike(this=expr.expr, expression=sge.convert(regexp_pattern))
 
 
 @register_unary_op(ops.islower_op)
