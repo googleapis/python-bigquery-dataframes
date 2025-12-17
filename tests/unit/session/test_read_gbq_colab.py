@@ -29,6 +29,17 @@ def test_read_gbq_colab_includes_label():
     """Make sure we can tell direct colab usage apart from regular read_gbq usage."""
     import bigframes.core.log_adapter as log_adapter
 
+    # Monkey patch to track if decorator is called
+    original_add = log_adapter.add_api_method
+    called_methods = []
+
+    def debug_add_api_method(name):
+        called_methods.append(name)
+        print(f"Decorator tracked method: {name}")
+        return original_add(name)
+
+    log_adapter.add_api_method = debug_add_api_method
+
     # Clear any existing call stack and API methods
     log_adapter._call_stack.clear()
     log_adapter.get_and_reset_api_methods()
@@ -37,8 +48,12 @@ def test_read_gbq_colab_includes_label():
 
     # Ensure call stack is empty before calling the method
     log_adapter._call_stack.clear()
+    print(f"Call stack before call: {log_adapter._call_stack}")
 
     _ = session._read_gbq_colab("SELECT 'read-gbq-colab-test'")
+    print(f"Call stack after call: {log_adapter._call_stack}")
+    print(f"Methods tracked by decorator: {called_methods}")
+
     configs = session._job_configs  # type: ignore
 
     label_values = []

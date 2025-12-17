@@ -154,6 +154,12 @@ def create_bigquery_session(
         location=location,
         ordering_mode=ordering_mode,
     )
+
+    # Reset the log adapter to clear any session creation tracking
+    import bigframes.core.log_adapter as log_adapter
+
+    log_adapter.get_and_reset_api_methods()
+
     session = bigframes.Session(context=bqoptions, clients_provider=clients_provider)
     session._bq_connection_manager = mock.create_autospec(
         bigframes.clients.BqConnectionManager, instance=True
