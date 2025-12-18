@@ -644,6 +644,8 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
             raise ValueError(f"Cannot infer SQLGlot type from None dtype: {value}")
         return sge.Null()
 
+    if value is None:
+        return _cast(sge.Null(), sqlglot_type)
     if dtypes.is_struct_like(dtype):
         items = [
             _literal(value=value[field_name], dtype=field_dtype).as_(
@@ -658,10 +660,10 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
             expressions=[_literal(value=v, dtype=value_type) for v in value]
         )
         return values if len(value) > 0 else _cast(values, sqlglot_type)
-    elif dtype == dtypes.JSON_DTYPE:
-        return sge.ParseJSON(this=sge.convert(str(value)))
     elif pd.isna(value):
         return _cast(sge.Null(), sqlglot_type)
+    elif dtype == dtypes.JSON_DTYPE:
+        return sge.ParseJSON(this=sge.convert(str(value)))
     elif dtype == dtypes.BYTES_DTYPE:
         return _cast(str(value), sqlglot_type)
     elif dtypes.is_time_like(dtype):
