@@ -39,7 +39,6 @@ def test_read_gbq_colab_includes_label():
         bqclient._query_and_wait_bigframes.call_args_list,
         bqclient.query.call_args_list,
     ):
-        breakpoint()
         job_config = kall.kwargs.get("job_config")
         if job_config is None:
             continue
