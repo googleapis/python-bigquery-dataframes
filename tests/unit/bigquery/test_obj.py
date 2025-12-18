@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import datetime
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 import bigframes.bigquery.obj as obj
 import bigframes.operations as ops
 import bigframes.series as series
+
 
 def test_fetch_metadata_op_structure():
     op = ops.obj_fetch_metadata_op
