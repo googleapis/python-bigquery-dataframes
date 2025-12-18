@@ -1247,16 +1247,12 @@ def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
 
 @scalar_op_compiler.register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
 def obj_get_access_url_op_impl(obj_ref: ibis_types.Value, op: ops.ObjGetAccessUrl):
+    if op.duration is not None:
+        duration_value = ibis_types.literal(op.duration).to_interval("us")
+        return obj_get_access_url_with_duration(
+            obj_ref=obj_ref, mode=op.mode, duration=duration_value
+        )
     return obj_get_access_url(obj_ref=obj_ref, mode=op.mode)
-
-
-@scalar_op_compiler.register_binary_op(ops.ObjGetAccessUrlWithDuration, pass_op=True)
-def obj_get_access_url_with_duration_op_impl(
-    obj_ref: ibis_types.Value, duration: ibis_types.Value, op: ops.ObjGetAccessUrlWithDuration
-):
-    return obj_get_access_url_with_duration(
-        obj_ref=obj_ref, mode=op.mode, duration=duration
-    )
 
 
 ### Binary Ops

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import bigframes.bigquery.obj as obj
 import bigframes.operations as ops
@@ -27,11 +28,13 @@ def test_get_access_url_op_structure():
     op = ops.ObjGetAccessUrl(mode="r")
     assert op.name == "obj_get_access_url"
     assert op.mode == "r"
+    assert op.duration is None
 
 def test_get_access_url_with_duration_op_structure():
-    op = ops.ObjGetAccessUrlWithDuration(mode="rw")
-    assert op.name == "obj_get_access_url_with_duration"
+    op = ops.ObjGetAccessUrl(mode="rw", duration=3600000000)
+    assert op.name == "obj_get_access_url"
     assert op.mode == "rw"
+    assert op.duration == 3600000000
 
 def test_make_ref_op_structure():
     op = ops.obj_make_ref_op
@@ -59,18 +62,20 @@ def test_get_access_url_calls_apply_unary_op_without_duration():
     args, _ = s._apply_unary_op.call_args
     assert isinstance(args[0], ops.ObjGetAccessUrl)
     assert args[0].mode == "r"
+    assert args[0].duration is None
 
-def test_get_access_url_calls_apply_binary_op_with_duration():
+def test_get_access_url_calls_apply_unary_op_with_duration():
     s = MagicMock(spec=series.Series)
-    duration = MagicMock(spec=series.Series)
+    duration = datetime.timedelta(hours=1)
 
     obj.get_access_url(s, mode="rw", duration=duration)
 
-    s._apply_binary_op.assert_called_once()
-    args, kwargs = s._apply_binary_op.call_args
-    assert args[0] == duration
-    assert isinstance(args[1], ops.ObjGetAccessUrlWithDuration)
-    assert args[1].mode == "rw"
+    s._apply_unary_op.assert_called_once()
+    args, kwargs = s._apply_unary_op.call_args
+    assert isinstance(args[0], ops.ObjGetAccessUrl)
+    assert args[0].mode == "rw"
+    # 1 hour = 3600 seconds = 3600 * 1000 * 1000 microseconds
+    assert args[0].duration == 3600000000
 
 def test_make_ref_calls_apply_binary_op_with_authorizer():
     uri = MagicMock(spec=series.Series)

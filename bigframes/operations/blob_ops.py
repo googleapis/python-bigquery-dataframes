@@ -29,15 +29,7 @@ obj_fetch_metadata_op = ObjFetchMetadataOp()
 class ObjGetAccessUrl(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "obj_get_access_url"
     mode: str  # access mode, e.g. R read, W write, RW read & write
-
-    def output_type(self, *input_types):
-        return dtypes.JSON_DTYPE
-
-
-@dataclasses.dataclass(frozen=True)
-class ObjGetAccessUrlWithDuration(base_ops.BinaryOp):
-    name: typing.ClassVar[str] = "obj_get_access_url_with_duration"
-    mode: str  # access mode, e.g. R read, W write, RW read & write
+    duration: typing.Optional[int] = None  # duration in microseconds
 
     def output_type(self, *input_types):
         return dtypes.JSON_DTYPE

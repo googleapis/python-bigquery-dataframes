@@ -21,7 +21,11 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/object-ref-functio
 
 from __future__ import annotations
 
+import datetime
 from typing import Optional, Union
+
+import numpy as np
+import pandas as pd
 
 import bigframes.core.utils as utils
 import bigframes.operations as ops
@@ -48,7 +52,9 @@ def fetch_metadata(
 def get_access_url(
     objectref: series.Series,
     mode: str,
-    duration: Optional[series.Series] = None,
+    duration: Optional[
+        Union[datetime.timedelta, pd.Timedelta, np.timedelta64]
+    ] = None,
 ) -> series.Series:
     """The OBJ.GET_ACCESS_URL function returns JSON that contains reference information for the input ObjectRef value, and also access URLs that you can use to read or modify the Cloud Storage object.
 
@@ -59,17 +65,19 @@ def get_access_url(
             A STRING value that identifies the type of URL that you want to be returned. The following values are supported:
             'r': Returns a URL that lets you read the object.
             'rw': Returns two URLs, one that lets you read the object, and one that lets you modify the object.
-        duration (bigframes.series.Series, optional):
+        duration (Union[datetime.timedelta, pandas.Timedelta, numpy.timedelta64], optional):
             An optional INTERVAL value that specifies how long the generated access URLs remain valid. You can specify a value between 30 minutes and 6 hours. For example, you could specify INTERVAL 2 HOUR to generate URLs that expire after 2 hours. The default value is 6 hours.
 
     Returns:
         bigframes.series.Series: A JSON value that contains the Cloud Storage object reference information from the input ObjectRef value, and also one or more URLs that you can use to access the Cloud Storage object.
     """
+    duration_micros = None
     if duration is not None:
-        return objectref._apply_binary_op(
-            duration, ops.ObjGetAccessUrlWithDuration(mode=mode)
-        )
-    return objectref._apply_unary_op(ops.ObjGetAccessUrl(mode=mode))
+        duration_micros = utils.timedelta_to_micros(duration)
+
+    return objectref._apply_unary_op(
+        ops.ObjGetAccessUrl(mode=mode, duration=duration_micros)
+    )
 
 
 @utils.preview(name="The ObjectRef API `make_ref`")
