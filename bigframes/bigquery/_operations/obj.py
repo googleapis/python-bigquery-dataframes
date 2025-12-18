@@ -27,12 +27,13 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 
+from bigframes.core import log_adapter
 import bigframes.core.utils as utils
 import bigframes.operations as ops
 import bigframes.series as series
 
 
-@utils.preview(name="The ObjectRef API `fetch_metadata`")
+@log_adapter.method_logger(custom_base_name="bigquery_obj")
 def fetch_metadata(
     objectref: series.Series,
 ) -> series.Series:
@@ -48,7 +49,7 @@ def fetch_metadata(
     return objectref._apply_unary_op(ops.obj_fetch_metadata_op)
 
 
-@utils.preview(name="The ObjectRef API `get_access_url`")
+@log_adapter.method_logger(custom_base_name="bigquery_obj")
 def get_access_url(
     objectref: series.Series,
     mode: str,
@@ -80,7 +81,7 @@ def get_access_url(
     )
 
 
-@utils.preview(name="The ObjectRef API `make_ref`")
+@log_adapter.method_logger(custom_base_name="bigquery_obj")
 def make_ref(
     uri_or_json: series.Series,
     authorizer: Optional[series.Series] = None,
