@@ -22,7 +22,6 @@ import inspect
 import itertools
 import numbers
 import textwrap
-import traceback
 import typing
 from typing import (
     Any,
@@ -49,7 +48,6 @@ from pandas.api import extensions as pd_ext
 import pyarrow as pa
 import typing_extensions
 
-import bigframes._config.display_options as display_options
 import bigframes.core
 from bigframes.core import agg_expressions, groupby, log_adapter
 import bigframes.core.block_transforms as block_ops
@@ -570,104 +568,14 @@ class Series(vendored_pandas_series.Series):
                 block = block.assign_label(self._value_column, name)
             return bigframes.dataframe.DataFrame(block)
 
-    def _get_anywidget_bundle(
-        self, include=None, exclude=None
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """
-        Helper method to create and return the anywidget mimebundle for Series.
-        """
-        from bigframes import display
-
-        # Convert Series to DataFrame for TableWidget
-        series_df = self.to_frame()
-
-        # Create and display the widget
-        widget = display.TableWidget(series_df)
-        widget_repr_result = widget._repr_mimebundle_(include=include, exclude=exclude)
-
-        # Handle both tuple (data, metadata) and dict returns
-        if isinstance(widget_repr_result, tuple):
-            widget_repr, widget_metadata = widget_repr_result
-        else:
-            widget_repr = widget_repr_result
-            widget_metadata = {}
-
-        widget_repr = dict(widget_repr)
-
-        # Add text representation
-        widget_repr["text/plain"] = self._create_text_representation(
-            widget._cached_data, widget.row_count
-        )
-
-        return widget_repr, widget_metadata
-
-    def _create_text_representation(
-        self, pandas_df: pandas.DataFrame, total_rows: typing.Optional[int]
-    ) -> str:
-        """Create a text representation of the Series."""
-        opts = bigframes.options.display
-        with display_options.pandas_repr(opts):
-            # Get the first column since Series DataFrame has only one column
-            pd_series = pandas_df.iloc[:, 0]
-            if len(self._block.index_columns) == 0:
-                repr_string = pd_series.to_string(
-                    length=False, index=False, name=True, dtype=True
-                )
-            else:
-                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
-
-        is_truncated = total_rows is not None and total_rows > len(pd_series)
-
-        if is_truncated:
-            lines = repr_string.split("\n")
-            lines.append("...")
-            lines.append("")
-            lines.append(f"[{total_rows} rows]")
-            return "\n".join(lines)
-        else:
-            return repr_string
-
     def _repr_mimebundle_(self, include=None, exclude=None):
         """
         Custom display method for IPython/Jupyter environments.
         This is called by IPython's display system when the object is displayed.
         """
-        opts = bigframes.options.display
+        from bigframes.display import html
 
-        # Only handle widget display in anywidget mode
-        if opts.repr_mode == "anywidget":
-            try:
-                return self._get_anywidget_bundle(include=include, exclude=exclude)
-
-            except ImportError:
-                # Anywidget is an optional dependency, so warn rather than fail.
-                warnings.warn(
-                    "Anywidget mode is not available. "
-                    "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
-                    f"Falling back to static HTML. Error: {traceback.format_exc()}"
-                )
-                # Fall back to regular HTML representation
-                pass
-
-        # Continue with regular HTML rendering for non-anywidget modes
-        self._cached()
-        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
-            opts.max_rows
-        )
-        self._set_internal_query_job(query_job)
-
-        pd_series = pandas_df.iloc[:, 0]
-
-        # Use pandas Series _repr_html_ if available, otherwise create basic HTML
-        try:
-            html_string = pd_series._repr_html_()
-        except AttributeError:
-            # Fallback for pandas versions without _repr_html_
-            html_string = f"<pre>{pd_series.to_string()}</pre>"
-
-        text_representation = self._create_text_representation(pandas_df, row_count)
-
-        return {"text/html": html_string, "text/plain": text_representation}
+        return html.repr_mimebundle(self, include=include, exclude=exclude)
 
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
@@ -675,24 +583,18 @@ class Series(vendored_pandas_series.Series):
         if not hasattr(self, "_block"):
             return object.__repr__(self)
 
-        # TODO(swast): Add a timeout here? If the query is taking a long time,
-        # maybe we just print the job metadata that we have so far?
-        # TODO(swast): Avoid downloading the whole series by using job
-        # metadata, like we do with DataFrame.
         opts = bigframes.options.display
-        max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
-        # for faster execution
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
         pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
-            max_results
+            opts.max_rows
         )
         self._set_internal_query_job(query_job)
+        from bigframes.display import html
 
-        return self._create_text_representation(pandas_df, row_count)
+        return html.create_text_representation(self, pandas_df, row_count)
 
     def astype(
         self,

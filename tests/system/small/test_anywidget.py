@@ -942,6 +942,19 @@ def test_repr_mimebundle_should_return_widget_view_if_anywidget_is_available(
         assert "text/plain" in data
 
 
+def test_repr_in_anywidget_mode_should_not_be_deferred(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """
+    Test that repr(df) is not deferred in anywidget mode.
+    This is to ensure that print(df) works as expected.
+    """
+    with bigframes.option_context("display.repr_mode", "anywidget"):
+        representation = repr(paginated_bf_df)
+        assert "Computation deferred" not in representation
+        assert "page_1_row_1" in representation
+
+
 def test_dataframe_repr_mimebundle_should_return_widget_with_metadata_in_anywidget_mode(
     monkeypatch: pytest.MonkeyPatch,
     session: bigframes.Session,  # Add session as a fixture
@@ -971,7 +984,7 @@ def test_dataframe_repr_mimebundle_should_return_widget_with_metadata_in_anywidg
 
         # Patch the class method directly
         with mock.patch(
-            "bigframes.dataframe.DataFrame._get_anywidget_bundle",
+            "bigframes.display.html.get_anywidget_bundle",
             return_value=mock_get_anywidget_bundle_return_value,
         ):
             result = test_df._repr_mimebundle_()
