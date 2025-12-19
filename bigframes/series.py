@@ -607,26 +607,25 @@ class Series(vendored_pandas_series.Series):
         """Create a text representation of the Series."""
         opts = bigframes.options.display
         with display_options.pandas_repr(opts):
-            import pandas.io.formats
-
-            # safe to mutate this, this dict is owned by this code, and does not affect global config
-            to_string_kwargs = (
-                pandas.io.formats.format.get_series_repr_params()  # type: ignore
-            )
-            if len(self._block.index_columns) == 0:
-                to_string_kwargs.update({"index": False})
             # Get the first column since Series DataFrame has only one column
             pd_series = pandas_df.iloc[:, 0]
-            repr_string = pd_series.to_string(**to_string_kwargs)
+            if len(self._block.index_columns) == 0:
+                repr_string = pd_series.to_string(
+                    length=False, index=False, name=True, dtype=True
+                )
+            else:
+                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
 
-        lines = repr_string.split("\n")
+        is_truncated = total_rows is not None and total_rows > len(pd_series)
 
-        if total_rows is not None and total_rows > len(pd_series):
+        if is_truncated:
+            lines = repr_string.split("\n")
             lines.append("...")
-
-        lines.append("")
-        lines.append(f"[{total_rows} rows]")
-        return "\n".join(lines)
+            lines.append("")
+            lines.append(f"[{total_rows} rows]")
+            return "\n".join(lines)
+        else:
+            return repr_string
 
     def _repr_mimebundle_(self, include=None, exclude=None):
         """
