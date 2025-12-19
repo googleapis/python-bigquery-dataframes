@@ -126,6 +126,7 @@ def create_temp_table(
     schema: Optional[Iterable[bigquery.SchemaField]] = None,
     cluster_columns: Optional[list[str]] = None,
     kms_key: Optional[str] = None,
+    session=None,
 ) -> str:
     """Create an empty table with an expiration in the desired session.
 
@@ -153,6 +154,7 @@ def create_temp_view(
     *,
     expiration: datetime.datetime,
     sql: str,
+    session=None,
 ) -> str:
     """Create an empty table with an expiration in the desired session.
 

@@ -309,10 +309,19 @@ def _find_session(*args, **kwargs):
     from bigframes.session import Session
 
     if args and isinstance(args[0], Session):
-        return args[0]
+        # In unit tests, we might be working with a mock Session object that
+        # passes isinstance but doesn't have the instance attributes set in
+        # __init__.
+        session = args[0]
+        if hasattr(session, "_api_methods_lock") and hasattr(session, "_api_methods"):
+            return session
 
     session = kwargs.get("session")
     if session is not None and isinstance(session, Session):
-        return session
+        # In unit tests, we might be working with a mock Session object that
+        # passes isinstance but doesn't have the instance attributes set in
+        # __init__.
+        if hasattr(session, "_api_methods_lock") and hasattr(session, "_api_methods"):
+            return session
 
     return None
