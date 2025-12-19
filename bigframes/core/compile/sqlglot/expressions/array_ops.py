@@ -20,6 +20,10 @@ import sqlglot as sg
 import sqlglot.expressions as sge
 
 from bigframes import operations as ops
+from bigframes.core.compile.sqlglot.expressions.string_ops import (
+    string_index,
+    string_slice,
+)
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.dtypes as dtypes
@@ -30,9 +34,12 @@ register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
 
 @register_unary_op(ops.ArrayIndexOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.ArrayIndexOp) -> sge.Expression:
+    if expr.dtype == dtypes.STRING_DTYPE:
+        return string_index(expr, op.index)
+
     return sge.Bracket(
         this=expr.expr,
-        expressions=[sge.Literal.number(op.index)],
+        expressions=[sge.convert(op.index)],
         safe=True,
         offset=False,
     )
@@ -68,29 +75,10 @@ def _(expr: TypedExpr, op: ops.ArrayReduceOp) -> sge.Expression:
 
 @register_unary_op(ops.ArraySliceOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.ArraySliceOp) -> sge.Expression:
-    slice_idx = sg.to_identifier("slice_idx")
-
-    conditions: typing.List[sge.Predicate] = [slice_idx >= op.start]
-
-    if op.stop is not None:
-        conditions.append(slice_idx < op.stop)
-
-    # local name for each element in the array
-    el = sg.to_identifier("el")
-
-    selected_elements = (
-        sge.select(el)
-        .from_(
-            sge.Unnest(
-                expressions=[expr.expr],
-                alias=sge.TableAlias(columns=[el]),
-                offset=slice_idx,
-            )
-        )
-        .where(*conditions)
-    )
-
-    return sge.array(selected_elements)
+    if expr.dtype == dtypes.STRING_DTYPE:
+        return string_slice(expr, op.start, op.stop)
+    else:
+        return _array_slice(expr, op)
 
 
 @register_unary_op(ops.ArrayToStringOp, pass_op=True)
@@ -115,3 +103,53 @@ def _coerce_bool_to_int(typed_expr: TypedExpr) -> sge.Expression:
     if typed_expr.dtype == dtypes.BOOL_DTYPE:
         return sge.Cast(this=typed_expr.expr, to="INT64")
     return typed_expr.expr
+
+
+def _string_slice(expr: TypedExpr, op: ops.ArraySliceOp) -> sge.Expression:
+    # local name for each element in the array
+    el = sg.to_identifier("el")
+    # local name for the index in the array
+    slice_idx = sg.to_identifier("slice_idx")
+
+    conditions: typing.List[sge.Predicate] = [slice_idx >= op.start]
+    if op.stop is not None:
+        conditions.append(slice_idx < op.stop)
+
+    selected_elements = (
+        sge.select(el)
+        .from_(
+            sge.Unnest(
+                expressions=[expr.expr],
+                alias=sge.TableAlias(columns=[el]),
+                offset=slice_idx,
+            )
+        )
+        .where(*conditions)
+    )
+
+    return sge.array(selected_elements)
+
+
+def _array_slice(expr: TypedExpr, op: ops.ArraySliceOp) -> sge.Expression:
+    # local name for each element in the array
+    el = sg.to_identifier("el")
+    # local name for the index in the array
+    slice_idx = sg.to_identifier("slice_idx")
+
+    conditions: typing.List[sge.Predicate] = [slice_idx >= op.start]
+    if op.stop is not None:
+        conditions.append(slice_idx < op.stop)
+
+    selected_elements = (
+        sge.select(el)
+        .from_(
+            sge.Unnest(
+                expressions=[expr.expr],
+                alias=sge.TableAlias(columns=[el]),
+                offset=slice_idx,
+            )
+        )
+        .where(*conditions)
+    )
+
+    return sge.array(selected_elements)
