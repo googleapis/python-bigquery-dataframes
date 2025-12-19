@@ -256,16 +256,16 @@ def add_api_method(api_method_name, session=None):
     global _lock
     global _api_methods
 
+    clean_method_name = api_method_name.replace("<", "").replace(">", "")
+
     if session is not None:
         with session._api_methods_lock:
-            session._api_methods.insert(
-                0, api_method_name.replace("<", "").replace(">", "")
-            )
+            session._api_methods.insert(0, clean_method_name)
             session._api_methods = session._api_methods[:MAX_LABELS_COUNT]
     else:
         with _lock:
             # Push the method to the front of the _api_methods list
-            _api_methods.insert(0, api_method_name.replace("<", "").replace(">", ""))
+            _api_methods.insert(0, clean_method_name)
             # Keep the list length within the maximum limit (adjust MAX_LABELS_COUNT as needed)
             _api_methods = _api_methods[:MAX_LABELS_COUNT]
 
