@@ -230,15 +230,18 @@ def repr_mimebundle(
                 f"Falling back to static HTML. Error: {traceback.format_exc()}"
             )
 
+    blob_cols: list[str]
     if isinstance(obj, bigframes.series.Series):
-        df = obj
-        blob_cols: list[str] = []
+        pandas_df, row_count, query_job = obj._block.retrieve_repr_request_results(
+            opts.max_rows
+        )
+        blob_cols = []
     else:
         df, blob_cols = obj._get_display_df_and_blob_cols()
+        pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
+            opts.max_rows
+        )
 
-    pandas_df, row_count, query_job = df._block.retrieve_repr_request_results(
-        opts.max_rows
-    )
     obj._set_internal_query_job(query_job)
     column_count = len(pandas_df.columns)
 
