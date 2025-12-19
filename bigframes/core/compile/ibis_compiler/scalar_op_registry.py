@@ -2153,6 +2153,43 @@ def str_lstrip_op(  # type: ignore[empty-body]
     """Remove leading and trailing characters."""
 
 
+@scalar_op_compiler.register_unary_op(ops.SearchOp, pass_op=True)
+def search_op_impl(x: ibis_types.Value, op: ops.SearchOp):
+    values = [
+        typing.cast(ibis_generic.Value, x.op()),
+        typing.cast(ibis_generic.Value, ibis_types.literal(op.search_query).op()),
+    ]
+    sql_template = "SEARCH({0}, {1}"
+    arg_index = 2
+    if op.json_scope is not None:
+        values.append(
+            typing.cast(ibis_generic.Value, ibis_types.literal(op.json_scope).op())
+        )
+        sql_template += f", json_scope=>{{{arg_index}}}"
+        arg_index += 1
+    if op.analyzer is not None:
+        values.append(
+            typing.cast(ibis_generic.Value, ibis_types.literal(op.analyzer).op())
+        )
+        sql_template += f", analyzer=>{{{arg_index}}}"
+        arg_index += 1
+    if op.analyzer_options is not None:
+        values.append(
+            typing.cast(
+                ibis_generic.Value, ibis_types.literal(op.analyzer_options).op()
+            )
+        )
+        sql_template += f", analyzer_options=>{{{arg_index}}}"
+        arg_index += 1
+    sql_template += ")"
+
+    return ibis_generic.SqlScalar(
+        ibis_generic.Literal(sql_template, dtype=ibis_dtypes.string),
+        values=tuple(values),
+        output_type=ibis_dtypes.boolean,
+    ).to_expr()
+
+
 @ibis_udf.scalar.builtin(name="rtrim")
 def str_rstrip_op(  # type: ignore[empty-body]
     x: ibis_dtypes.String, to_strip: ibis_dtypes.String
