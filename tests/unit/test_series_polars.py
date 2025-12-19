@@ -2020,9 +2020,8 @@ def test_series_small_repr(scalars_dfs):
     bf_series = scalars_df[col_name]
     pd_series = scalars_pandas_df[col_name]
     with bigframes.pandas.option_context("display.repr_mode", "head"):
-        assert repr(bf_series) == pd_series.to_string(
-            length=False, dtype=True, name=True
-        )
+        pd_string = pd_series.to_string(length=True, dtype=True, name=True)
+        assert repr(bf_series) == f"{pd_string}\n\n[{len(pd_series)} rows]"
 
 
 def test_sum(scalars_dfs):
