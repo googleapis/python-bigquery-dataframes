@@ -63,6 +63,11 @@ class ComputeOptions:
     their operations to resume. The default value is 0. Set the value to None
     to turn off the guard.
 
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.compute.ai_ops_confirmation_threshold = 100
+
     Returns:
         Optional[int]: Number of rows.
     """
@@ -72,6 +77,11 @@ class ComputeOptions:
     Guards against unexpected processing of large amount of rows by semantic operators.
 
     When set to True, the operation automatically fails without asking for user inputs.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.compute.ai_ops_threshold_autofail = True
 
     Returns:
         bool: True if the guard is enabled.
@@ -85,6 +95,10 @@ class ComputeOptions:
     10 GB for potentially faster execution; BigQuery will raise an error if this
     limit is exceeded. Setting to True removes this result size limit.
 
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.compute.allow_large_results = True
 
     Returns:
         bool | None: True if results > 10 GB are enabled.
@@ -97,6 +111,10 @@ class ComputeOptions:
     query engine to handle. However this comes at the cost of increase cost and
     latency.
 
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.compute.enable_multi_query_execution = True
 
     Returns:
         bool | None: True if enabled.
@@ -121,6 +139,11 @@ class ComputeOptions:
     default.  See `maximum_bytes_billed`:
     https://cloud.google.com/python/docs/reference/bigquery/latest/google.cloud.bigquery.job.QueryJobConfig#google_cloud_bigquery_job_QueryJobConfig_maximum_bytes_billed.
 
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.compute.maximum_bytes_billed = 1000
+
     Returns:
         int | None: Number of bytes, if set.
     """
@@ -135,6 +158,11 @@ class ComputeOptions:
     option restricts the number of rows that can be downloaded.  If the number
     of rows to be downloaded exceeds this limit, a
     ``bigframes.exceptions.MaximumResultRowsExceeded`` exception is raised.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.compute.maximum_result_rows = 1000
 
     Returns:
         int | None: Number of rows, if set.
