@@ -20,10 +20,11 @@ from typing import Collection, Literal, Mapping, Optional, Union
 
 import google.cloud.bigquery as bigquery
 
+import bigframes.core.sql
+import bigframes.dataframe
 import bigframes.ml.utils as utils
 
 if typing.TYPE_CHECKING:
-    import bigframes.dataframe as dataframe
     import bigframes.series as series
     import bigframes.session
 
@@ -91,7 +92,7 @@ def create_vector_index(
 def vector_search(
     base_table: str,
     column_to_search: str,
-    query: Union["dataframe.DataFrame", "series.Series"],
+    query: Union[bigframes.dataframe.DataFrame, series.Series],
     *,
     query_column_to_search: Optional[str] = None,
     top_k: Optional[int] = None,
@@ -99,7 +100,7 @@ def vector_search(
     fraction_lists_to_search: Optional[float] = None,
     use_brute_force: Optional[bool] = None,
     allow_large_results: Optional[bool] = None,
-) -> dataframe.DataFrame:
+) -> bigframes.dataframe.DataFrame:
     """
     Conduct vector search which searches embeddings to find semantically similar entities.
 
@@ -107,7 +108,6 @@ def vector_search(
     <https://cloud.google.com/bigquery/docs/reference/standard-sql/search_functions#vector_search>`_.
 
     **Examples:**
-
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
@@ -250,12 +250,8 @@ def vector_search(
 
 
 def search(
-    data_to_search: Union["dataframe.DataFrame", "series.Series"],
+    data_to_search: Union[bigframes.dataframe.DataFrame, series.Series],
     search_query: str,
-    *,
-    json_scope: Optional[str] = None,
-    analyzer: Optional[str] = None,
-    analyzer_options: Optional[str] = None,
 ) -> series.Series:
     """
     The SEARCH function checks to see whether a BigQuery table or other search
@@ -288,18 +284,6 @@ def search(
         search_query (str):
             A STRING literal, or a STRING constant expression that represents
             the terms of the search query.
-        json_scope (str, optional):
-            A named argument with a STRING value. Takes one of the following
-            values to indicate the scope of JSON data to be searched. It has no
-            effect if data_to_search isn't a JSON value or doesn't contain a
-            JSON field.
-        analyzer (str, optional):
-            A named argument with a STRING value. Takes one of the following
-            values to indicate the text analyzer to use: 'LOG_ANALYZER',
-            'NO_OP_ANALYZER', 'PATTERN_ANALYZER'.
-        analyzer_options (str, optional):
-            A named argument with a JSON-formatted STRING value. Takes a list
-            of text analysis rules.
 
     Returns:
         bigframes.series.Series: A new Series with the boolean result.
@@ -307,27 +291,21 @@ def search(
     import bigframes.operations.search_ops as search_ops
     import bigframes.series
 
-    if not isinstance(data_to_search, (bigframes.series.Series, bigframes.dataframe.DataFrame)):
+    if not isinstance(
+        data_to_search, (bigframes.series.Series, bigframes.dataframe.DataFrame)
+    ):
         raise ValueError("data_to_search must be a Series or DataFrame")
 
     if isinstance(data_to_search, bigframes.dataframe.DataFrame):
-        # SEARCH on a table (or dataframe) treats it as a STRUCT
-        # We need to apply the op on the dataframe, which should handle it as a struct or row
-        # However, unary ops are usually applied on Series.
-        # But DataFrame can be passed if we convert it to a struct first?
-        # Or does DataFrame support _apply_unary_op?
-        # bigframes.dataframe.DataFrame does not have _apply_unary_op.
-        # We can convert DataFrame to a Series of Structs.
-        # But SEARCH in BigQuery can take a table reference which is evaluated as a STRUCT.
-        # So creating a struct from all columns seems correct.
+        # SEARCH on a table (or dataframe) treats it as a STRUCT.  For easier
+        # application of a scalar unary op, we convert to a struct proactively
+        # in the expression.
         import bigframes.bigquery._operations.struct as struct_ops
+
         data_to_search = struct_ops.struct(data_to_search)
 
     return data_to_search._apply_unary_op(
         search_ops.SearchOp(
             search_query=search_query,
-            json_scope=json_scope,
-            analyzer=analyzer,
-            analyzer_options=analyzer_options,
         )
     )

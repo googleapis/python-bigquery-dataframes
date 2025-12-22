@@ -23,9 +23,6 @@ from bigframes.operations import base_ops
 class SearchOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "search"
     search_query: str
-    json_scope: typing.Optional[str] = None
-    analyzer: typing.Optional[str] = None
-    analyzer_options: typing.Optional[str] = None
 
     def output_type(self, *input_types):
         return dtypes.BOOL_DTYPE
