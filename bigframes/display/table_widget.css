@@ -82,6 +82,7 @@
 	z-index: 1;
 }
 
+/* TODO(b/460861328): Fix color theme of table. */
 .bigframes-widget .bf-header-content {
 	box-sizing: border-box;
 	height: 100%;
