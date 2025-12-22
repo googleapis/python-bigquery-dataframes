@@ -26,6 +26,8 @@
 
 .bigframes-widget .footer {
 	align-items: center;
+	/* TODO(b/460861328): We will support dark mode in a media selector once we
+	 * determine how to override the background colors as well. */
 	color: black;
 	display: flex;
 	font-family:
@@ -70,6 +72,8 @@
 
 .bigframes-widget table {
 	border-collapse: collapse;
+	/* TODO(b/460861328): We will support dark mode in a media selector once we
+	 * determine how to override the background colors as well. */
 	color: black;
 	text-align: left;
 }
@@ -82,7 +86,6 @@
 	z-index: 1;
 }
 
-/* TODO(b/460861328): Fix color theme of table. */
 .bigframes-widget .bf-header-content {
 	box-sizing: border-box;
 	height: 100%;
