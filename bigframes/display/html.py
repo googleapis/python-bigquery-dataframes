@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import html
 import traceback
+import typing
 from typing import Any, Union
 import warnings
 
@@ -25,10 +26,8 @@ import pandas as pd
 import pandas.api.types
 
 import bigframes
-from bigframes._config import options
+from bigframes._config import display_options, options
 import bigframes.dataframe
-from bigframes.display import plaintext
-import bigframes.formatting_helpers
 import bigframes.series
 
 
@@ -100,6 +99,53 @@ def render_html(
     return "\n".join(table_html)
 
 
+def create_text_representation(
+    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+    pandas_df: pd.DataFrame,
+    total_rows: typing.Optional[int],
+) -> str:
+    """Create a text representation of the DataFrame or Series."""
+    opts = bigframes.options.display
+    with display_options.pandas_repr(opts):
+        if isinstance(obj, bigframes.series.Series):
+            pd_series = pandas_df.iloc[:, 0]
+            if len(obj._block.index_columns) == 0:
+                repr_string = pd_series.to_string(
+                    length=False, index=False, name=True, dtype=True
+                )
+            else:
+                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
+        else:
+            import pandas.io.formats
+
+            to_string_kwargs = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not obj._has_index:
+                to_string_kwargs.update({"index": False})
+            to_string_kwargs.update({"show_dimensions": False})
+            repr_string = pandas_df.to_string(**to_string_kwargs)
+
+    lines = repr_string.split("\n")
+    is_truncated = total_rows is not None and total_rows > len(pandas_df)
+
+    if is_truncated:
+        lines.append("...")
+        lines.append("")  # Add empty line for spacing only if truncated
+        if isinstance(obj, bigframes.series.Series):
+            lines.append(f"[{total_rows} rows]")
+        else:
+            column_count = len(obj.columns)
+            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
+    elif isinstance(obj, bigframes.dataframe.DataFrame):
+        # For non-truncated DataFrames, we still need to add dimensions if show_dimensions was False
+        column_count = len(obj.columns)
+        lines.append("")
+        lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
+
+    return "\n".join(lines)
+
+
 def create_html_representation(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     pandas_df: pd.DataFrame,
@@ -108,9 +154,17 @@ def create_html_representation(
     blob_cols: list[str],
 ) -> str:
     """Create an HTML representation of the DataFrame or Series."""
-    return obj._create_html_representation(
-        pandas_df, total_rows, total_columns, blob_cols
-    )
+    if isinstance(obj, bigframes.series.Series):
+        pd_series = pandas_df.iloc[:, 0]
+        try:
+            html_string = pd_series._repr_html_()
+        except AttributeError:
+            html_string = f"<pre>{pd_series.to_string()}</pre>"
+    else:
+        html_string = obj._create_html_representation(
+            pandas_df, total_rows, total_columns, blob_cols
+        )
+    return html_string
 
 
 def get_anywidget_bundle(
@@ -152,19 +206,19 @@ def get_anywidget_bundle(
         total_columns,
         blob_cols if "blob_cols" in locals() else [],
     )
-    widget_repr["text/plain"] = plaintext.create_text_representation(
-        obj, cached_pd, total_rows
-    )
+    widget_repr["text/plain"] = create_text_representation(obj, cached_pd, total_rows)
 
     return widget_repr, widget_metadata
 
 
-def repr_mimebundle_head(
+def repr_mimebundle(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     include=None,
     exclude=None,
 ):
-    """Mimebundle display for the start of the data."""
+    """
+    Custom display method for IPython/Jupyter environments.
+    """
     opts = bigframes.options.display
     if opts.repr_mode == "anywidget":
         try:
@@ -195,37 +249,6 @@ def repr_mimebundle_head(
         obj, pandas_df, row_count, column_count, blob_cols
     )
 
-    text_representation = plaintext.create_text_representation(
-        obj, pandas_df, row_count
-    )
+    text_representation = create_text_representation(obj, pandas_df, row_count)
 
     return {"text/html": html_string, "text/plain": text_representation}
-
-
-def repr_mimebundle_deferred(
-    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
-):
-    """Mimebundle display for deferred execution mode."""
-    # We don't need the mimetype for the deferred case, but we need to match
-    # the signature of the other repr_mimebundle_* methods.
-    # TODO(swast): Add an HTML representation for deferred queries that simply
-    # prints the SQL.
-    query_job = obj._compute_dry_run()
-    text_representation = bigframes.formatting_helpers.repr_query_job(query_job)
-    return {"text/plain": text_representation}
-
-
-def repr_mimebundle(
-    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
-):
-    """
-    Custom display method for IPython/Jupyter environments.
-    """
-    if options.display.repr_mode == "deferred":
-        return repr_mimebundle_deferred(obj, include=include, exclude=exclude)
-    else:
-        return repr_mimebundle_head(obj, include=include, exclude=exclude)

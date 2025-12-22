@@ -577,54 +577,6 @@ class Series(vendored_pandas_series.Series):
 
         return html.repr_mimebundle(self, include=include, exclude=exclude)
 
-    def _create_text_representation(
-        self,
-        pandas_df: pandas.DataFrame,
-        total_rows: typing.Optional[int],
-    ) -> str:
-        """Create a text representation of the Series."""
-        opts = bigframes.options.display
-        with bigframes._config.display_options.pandas_repr(opts):
-            pd_series = pandas_df.iloc[:, 0]
-            if len(self._block.index_columns) == 0:
-                repr_string = pd_series.to_string(
-                    length=False, index=False, name=True, dtype=True
-                )
-            else:
-                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
-
-        lines = repr_string.split("\n")
-        is_truncated = total_rows is not None and total_rows > len(pandas_df)
-
-        if is_truncated:
-            lines.append("...")
-            lines.append("")  # Add empty line for spacing only if truncated
-            lines.append(f"[{total_rows} rows]")
-
-        return "\n".join(lines)
-
-    def _create_html_representation(
-        self,
-        pandas_df: pandas.DataFrame,
-        total_rows: int,
-        total_columns: int,
-        blob_cols: typing.List[str],
-    ) -> str:
-        """Create an HTML representation of the Series."""
-        pd_series = pandas_df.iloc[:, 0]
-        try:
-            # Not all pandas Series have a _repr_html_ method, so we fall back
-            # to a simple text representation in an HTML <pre> tag.
-            html_string = pd_series._repr_html_()
-        except AttributeError:
-            html_string = f"<pre>{pd_series.to_string()}</pre>"
-
-        is_truncated = total_rows is not None and total_rows > len(pandas_df)
-        if is_truncated:
-            html_string += f"<p>... [{total_rows} rows in total]</p>"
-
-        return html_string
-
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
@@ -635,11 +587,14 @@ class Series(vendored_pandas_series.Series):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        self._cached()
         pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
             opts.max_rows
         )
         self._set_internal_query_job(query_job)
-        return self._create_text_representation(pandas_df, row_count)
+        from bigframes.display import html
+
+        return html.create_text_representation(self, pandas_df, row_count)
 
     def astype(
         self,

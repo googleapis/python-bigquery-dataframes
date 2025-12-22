@@ -796,7 +796,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         )
 
         self._set_internal_query_job(query_job)
-        return self._create_text_representation(pandas_df, row_count)
+        from bigframes.display import html
+
+        return html.create_text_representation(self, pandas_df, row_count)
 
     def _get_display_df_and_blob_cols(self) -> tuple[DataFrame, list[str]]:
         """Process blob columns for display."""
@@ -823,40 +825,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         from bigframes.display import html
 
         return html.repr_mimebundle(self, include=include, exclude=exclude)
-
-    def _create_text_representation(
-        self,
-        pandas_df: pandas.DataFrame,
-        total_rows: typing.Optional[int],
-    ) -> str:
-        """Create a text representation of the DataFrame."""
-        opts = bigframes.options.display
-        with display_options.pandas_repr(opts):
-            import pandas.io.formats
-
-            to_string_kwargs = (
-                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
-            )
-            if not self._has_index:
-                to_string_kwargs.update({"index": False})
-            to_string_kwargs.update({"show_dimensions": False})
-            repr_string = pandas_df.to_string(**to_string_kwargs)
-
-        lines = repr_string.split("\n")
-        is_truncated = total_rows is not None and total_rows > len(pandas_df)
-
-        if is_truncated:
-            lines.append("...")
-            lines.append("")  # Add empty line for spacing only if truncated
-            column_count = len(self.columns)
-            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
-        else:
-            # For non-truncated DataFrames, we still need to add dimensions if show_dimensions was False
-            column_count = len(self.columns)
-            lines.append("")
-            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
-
-        return "\n".join(lines)
 
     def _create_html_representation(
         self,
