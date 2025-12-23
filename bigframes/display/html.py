@@ -29,6 +29,7 @@ import pandas.api.types
 import bigframes
 from bigframes._config import display_options, options
 from bigframes.display import plaintext
+import bigframes.formatting_helpers as formatter
 
 if typing.TYPE_CHECKING:
     import bigframes.dataframe
@@ -114,16 +115,16 @@ def create_html_representation(
     from bigframes.series import Series
 
     if isinstance(obj, Series):
+        # Fallback to pandas string representation if the object is not a Series.
+        # This protects against cases where obj might be something else unexpectedly,
+        # or if the pandas Series implementation changes.
         pd_series = pandas_df.iloc[:, 0]
         try:
             html_string = pd_series._repr_html_()
         except AttributeError:
             html_string = f"<pre>{pd_series.to_string()}</pre>"
 
-        # Series doesn't typically show total rows/cols like DF in HTML repr here?
-        # But let's check what it was doing.
-        # Original code just returned _repr_html_ or wrapped to_string.
-        # It didn't append row/col count string for Series (wait, Series usually has length in repr).
+        html_string += f"[{total_rows} rows]"
         return html_string
     else:
         # It's a DataFrame
@@ -225,32 +226,21 @@ def get_anywidget_bundle(
     return widget_repr, widget_metadata
 
 
-def repr_mimebundle(
+def _repr_mimebundle_deferred(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
-):
-    """
-    Custom display method for IPython/Jupyter environments.
-    """
-    # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
-    # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
+) -> dict[str, str]:
+    return {
+        "text/plain": formatter.repr_query_job(obj._compute_dry_run()),
+        "text/html": formatter.repr_query_job_html(obj._compute_dry_run()),
+    }
+
+
+def _repr_mimebundle_head(
+    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+) -> dict[str, str]:
     from bigframes.series import Series
 
     opts = options.display
-    if opts.repr_mode == "anywidget":
-        try:
-            return get_anywidget_bundle(obj, include=include, exclude=exclude)
-        except ImportError:
-            # Anywidget is an optional dependency, so warn rather than fail.
-            # TODO(shuowei): When Anywidget becomes the default for all repr modes,
-            # remove this warning.
-            warnings.warn(
-                "Anywidget mode is not available. "
-                "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
-                f"Falling back to static HTML. Error: {traceback.format_exc()}"
-            )
-
     blob_cols: list[str]
     if isinstance(obj, Series):
         pandas_df, row_count, query_job = obj._block.retrieve_repr_request_results(
@@ -275,3 +265,34 @@ def repr_mimebundle(
     )
 
     return {"text/html": html_string, "text/plain": text_representation}
+
+
+def repr_mimebundle(
+    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+    include=None,
+    exclude=None,
+):
+    """
+    Custom display method for IPython/Jupyter environments.
+    """
+    # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+    # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
+
+    opts = options.display
+    if opts.repr_mode == "deferred":
+        return _repr_mimebundle_deferred(obj)
+
+    if opts.repr_mode == "anywidget":
+        try:
+            return get_anywidget_bundle(obj, include=include, exclude=exclude)
+        except ImportError:
+            # Anywidget is an optional dependency, so warn rather than fail.
+            # TODO(shuowei): When Anywidget becomes the default for all repr modes,
+            # remove this warning.
+            warnings.warn(
+                "Anywidget mode is not available. "
+                "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "
+                f"Falling back to static HTML. Error: {traceback.format_exc()}"
+            )
+
+    return _repr_mimebundle_head(obj)
