@@ -179,6 +179,19 @@ def create_html_representation(
         return html_string
 
 
+def _get_obj_metadata(
+    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
+) -> tuple[bool, bool]:
+    from bigframes.series import Series
+
+    is_series = isinstance(obj, Series)
+    if is_series:
+        has_index = len(obj._block.index_columns) > 0
+    else:
+        has_index = obj._has_index
+    return is_series, has_index
+
+
 def get_anywidget_bundle(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     include=None,
@@ -219,11 +232,7 @@ def get_anywidget_bundle(
         total_columns,
         blob_cols if "blob_cols" in locals() else [],
     )
-    is_series = isinstance(obj, Series)
-    if is_series:
-        has_index = len(obj._block.index_columns) > 0
-    else:
-        has_index = obj._has_index
+    is_series, has_index = _get_obj_metadata(obj)
     widget_repr["text/plain"] = plaintext.create_text_representation(
         cached_pd,
         total_rows,
@@ -269,11 +278,7 @@ def repr_mimebundle_head(
         obj, pandas_df, row_count, column_count, blob_cols
     )
 
-    is_series = isinstance(obj, Series)
-    if is_series:
-        has_index = len(obj._block.index_columns) > 0
-    else:
-        has_index = obj._has_index
+    is_series, has_index = _get_obj_metadata(obj)
     text_representation = plaintext.create_text_representation(
         pandas_df,
         row_count,
