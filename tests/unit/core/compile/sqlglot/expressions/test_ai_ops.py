@@ -14,7 +14,6 @@
 
 import json
 
-from packaging import version
 import pytest
 
 from bigframes import dataframe

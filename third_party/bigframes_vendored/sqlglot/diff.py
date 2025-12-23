@@ -289,7 +289,7 @@ class ChangeDistiller:
             _lcs(
                 source_args,
                 target_args,
-                lambda l, r: matchings.get(t.cast(int, l)) == r,
+                lambda ll, r: matchings.get(t.cast(int, ll)) == r,
             )
         )
 
@@ -326,10 +326,10 @@ class ChangeDistiller:
                 target_node = self._target_index[target_node_id]
                 if _is_same_type(source_node, target_node):
                     source_leaf_ids = {
-                        id(l) for l in _get_expression_leaves(source_node)
+                        id(ll) for ll in _get_expression_leaves(source_node)
                     }
                     target_leaf_ids = {
-                        id(l) for l in _get_expression_leaves(target_node)
+                        id(ll) for ll in _get_expression_leaves(target_node)
                     }
 
                     max_leaves_num = max(len(source_leaf_ids), len(target_leaf_ids))

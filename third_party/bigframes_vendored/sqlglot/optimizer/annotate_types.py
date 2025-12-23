@@ -97,8 +97,8 @@ def _coerce_date(
 
 def swap_args(func: BinaryCoercionFunc) -> BinaryCoercionFunc:
     @functools.wraps(func)
-    def _swapped(l: exp.Expression, r: exp.Expression) -> exp.DataType.Type:
-        return func(r, l)
+    def _swapped(ll: exp.Expression, r: exp.Expression) -> exp.DataType.Type:
+        return func(r, ll)
 
     return _swapped
 
@@ -167,8 +167,8 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
     BINARY_COERCIONS: BinaryCoercions = {
         **swap_all(
             {
-                (t, exp.DataType.Type.INTERVAL): lambda l, r: _coerce_date_literal(
-                    l, r.args.get("unit")
+                (t, exp.DataType.Type.INTERVAL): lambda ll, r: _coerce_date_literal(
+                    ll, r.args.get("unit")
                 )
                 for t in exp.DataType.TEXT_TYPES
             }
@@ -176,9 +176,9 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         **swap_all(
             {
                 # text + numeric will yield the numeric type to match most dialects' semantics
-                (text, numeric): lambda l, r: t.cast(
+                (text, numeric): lambda ll, r: t.cast(
                     exp.DataType.Type,
-                    l.type if l.type in exp.DataType.NUMERIC_TYPES else r.type,
+                    ll.type if ll.type in exp.DataType.NUMERIC_TYPES else r.type,
                 )
                 for text in exp.DataType.TEXT_TYPES
                 for numeric in exp.DataType.NUMERIC_TYPES
@@ -189,7 +189,7 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
                 (
                     exp.DataType.Type.DATE,
                     exp.DataType.Type.INTERVAL,
-                ): lambda l, r: _coerce_date(l, r.args.get("unit")),
+                ): lambda ll, r: _coerce_date(ll, r.args.get("unit")),
             }
         ),
     }

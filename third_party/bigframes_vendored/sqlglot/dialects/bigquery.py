@@ -46,7 +46,6 @@ from bigframes_vendored.sqlglot.typing.bigquery import EXPRESSION_METADATA
 
 if t.TYPE_CHECKING:
     from bigframes_vendored.sqlglot._typing import Lit
-    from bigframes_vendored.sqlglot.optimizer.annotate_types import TypeAnnotator
 
 logger = logging.getLogger("sqlglot")
 

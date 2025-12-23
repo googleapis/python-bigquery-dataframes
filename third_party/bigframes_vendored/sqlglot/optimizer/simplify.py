@@ -564,15 +564,15 @@ class Simplifier:
     DATETRUNC_BINARY_COMPARISONS: t.Dict[
         t.Type[exp.Expression], DateTruncBinaryTransform
     ] = {
-        exp.LT: lambda l, dt, u, d, t: l
+        exp.LT: lambda ll, dt, u, d, t: ll
         < date_literal(
             dt if dt == date_floor(dt, u, d) else date_floor(dt, u, d) + interval(u), t
         ),
-        exp.GT: lambda l, dt, u, d, t: l
+        exp.GT: lambda ll, dt, u, d, t: ll
         >= date_literal(date_floor(dt, u, d) + interval(u), t),
-        exp.LTE: lambda l, dt, u, d, t: l
+        exp.LTE: lambda ll, dt, u, d, t: ll
         < date_literal(date_floor(dt, u, d) + interval(u), t),
-        exp.GTE: lambda l, dt, u, d, t: l >= date_literal(date_ceil(dt, u, d), t),
+        exp.GTE: lambda ll, dt, u, d, t: ll >= date_literal(date_ceil(dt, u, d), t),
         exp.EQ: _datetrunc_eq,
         exp.NEQ: _datetrunc_neq,
     }
@@ -896,28 +896,30 @@ class Simplifier:
 
             if matching and columns:
                 try:
-                    l = first(largs - columns)
+                    l0 = first(largs - columns)
                     r = first(rargs - columns)
                 except StopIteration:
                     return expression
 
-                if l.is_number and r.is_number:
-                    l = l.to_py()
+                if l0.is_number and r.is_number:
+                    l0 = l0.to_py()
                     r = r.to_py()
-                elif l.is_string and r.is_string:
-                    l = l.name
+                elif l0.is_string and r.is_string:
+                    l0 = l0.name
                     r = r.name
                 else:
-                    l = extract_date(l)
-                    if not l:
+                    l0 = extract_date(l0)
+                    if not l0:
                         return None
                     r = extract_date(r)
                     if not r:
                         return None
                     # python won't compare date and datetime, but many engines will upcast
-                    l, r = cast_as_datetime(l), cast_as_datetime(r)
+                    l0, r = cast_as_datetime(l0), cast_as_datetime(r)
 
-                for (a, av), (b, bv) in itertools.permutations(((left, l), (right, r))):
+                for (a, av), (b, bv) in itertools.permutations(
+                    ((left, l0), (right, r))
+                ):
                     if isinstance(a, self.LT_LTE) and isinstance(b, self.LT_LTE):
                         return left if (av > bv if or_ else av <= bv) else right
                     if isinstance(a, self.GT_GTE) and isinstance(b, self.GT_GTE):
@@ -1094,9 +1096,9 @@ class Simplifier:
             a   b
         """
         if isinstance(expression, self.COMPARISONS):
-            l, r = expression.left, expression.right
+            ll, r = expression.left, expression.right
 
-            if l.__class__ not in self.INVERSE_OPS:
+            if ll.__class__ not in self.INVERSE_OPS:
                 return expression
 
             if r.is_number:
@@ -1108,13 +1110,13 @@ class Simplifier:
             else:
                 return expression
 
-            if l.__class__ in self.INVERSE_DATE_OPS:
-                l = t.cast(exp.IntervalOp, l)
-                a = l.this
-                b = l.interval()
+            if ll.__class__ in self.INVERSE_DATE_OPS:
+                ll = t.cast(exp.IntervalOp, ll)
+                a = ll.this
+                b = ll.interval()
             else:
-                l = t.cast(exp.Binary, l)
-                a, b = l.left, l.right
+                ll = t.cast(exp.Binary, ll)
+                a, b = ll.left, ll.right
 
             if not a_predicate(a) and b_predicate(b):
                 pass
@@ -1124,7 +1126,7 @@ class Simplifier:
                 return expression
 
             return expression.__class__(
-                this=a, expression=self.INVERSE_OPS[l.__class__](this=r, expression=b)
+                this=a, expression=self.INVERSE_OPS[ll.__class__](this=r, expression=b)
             )
         return expression
 
@@ -1425,14 +1427,14 @@ class Simplifier:
             return expression
 
         if isinstance(expression, exp.Binary):
-            l, r = expression.left, expression.right
+            ll, r = expression.left, expression.right
 
-            if not self._is_datetrunc_predicate(l, r):
+            if not self._is_datetrunc_predicate(ll, r):
                 return expression
 
-            l = t.cast(exp.DateTrunc, l)
-            trunc_arg = l.this
-            unit = l.unit.name.lower()
+            ll = t.cast(exp.DateTrunc, ll)
+            trunc_arg = ll.this
+            unit = ll.unit.name.lower()
             date = extract_date(r)
 
             if not date:
@@ -1446,12 +1448,12 @@ class Simplifier:
             )
 
         if isinstance(expression, exp.In):
-            l = expression.this
+            ll = expression.this
             rs = expression.expressions
 
-            if rs and all(self._is_datetrunc_predicate(l, r) for r in rs):
-                l = t.cast(exp.DateTrunc, l)
-                unit = l.unit.name.lower()
+            if rs and all(self._is_datetrunc_predicate(ll, r) for r in rs):
+                ll = t.cast(exp.DateTrunc, ll)
+                unit = ll.unit.name.lower()
 
                 ranges = []
                 for r in rs:
@@ -1470,7 +1472,7 @@ class Simplifier:
 
                 return exp.or_(
                     *[
-                        _datetrunc_eq_expression(l, drange, target_type)
+                        _datetrunc_eq_expression(ll, drange, target_type)
                         for drange in ranges
                     ],
                     copy=False,

@@ -11,45 +11,59 @@ import logging
 import typing as t
 
 from bigframes_vendored.sqlglot import expressions as exp
-from bigframes_vendored.sqlglot.dialects.dialect import Dialect as Dialect
-from bigframes_vendored.sqlglot.dialects.dialect import Dialects as Dialects
-from bigframes_vendored.sqlglot.diff import diff as diff
+from bigframes_vendored.sqlglot.dialects.dialect import Dialect as Dialect  # noqa: F401
+from bigframes_vendored.sqlglot.dialects.dialect import (  # noqa: F401
+    Dialects as Dialects,
+)
+from bigframes_vendored.sqlglot.diff import diff as diff  # noqa: F401
 from bigframes_vendored.sqlglot.errors import ErrorLevel as ErrorLevel
 from bigframes_vendored.sqlglot.errors import ParseError as ParseError
-from bigframes_vendored.sqlglot.errors import TokenError as TokenError
-from bigframes_vendored.sqlglot.errors import UnsupportedError as UnsupportedError
-from bigframes_vendored.sqlglot.expressions import alias_ as alias
-from bigframes_vendored.sqlglot.expressions import and_ as and_
-from bigframes_vendored.sqlglot.expressions import case as case
-from bigframes_vendored.sqlglot.expressions import cast as cast
-from bigframes_vendored.sqlglot.expressions import column as column
-from bigframes_vendored.sqlglot.expressions import condition as condition
-from bigframes_vendored.sqlglot.expressions import delete as delete
-from bigframes_vendored.sqlglot.expressions import except_ as except_
-from bigframes_vendored.sqlglot.expressions import Expression as Expression
-from bigframes_vendored.sqlglot.expressions import find_tables as find_tables
-from bigframes_vendored.sqlglot.expressions import from_ as from_
-from bigframes_vendored.sqlglot.expressions import func as func
-from bigframes_vendored.sqlglot.expressions import insert as insert
-from bigframes_vendored.sqlglot.expressions import intersect as intersect
-from bigframes_vendored.sqlglot.expressions import maybe_parse as maybe_parse
-from bigframes_vendored.sqlglot.expressions import merge as merge
-from bigframes_vendored.sqlglot.expressions import not_ as not_
-from bigframes_vendored.sqlglot.expressions import or_ as or_
-from bigframes_vendored.sqlglot.expressions import select as select
-from bigframes_vendored.sqlglot.expressions import subquery as subquery
-from bigframes_vendored.sqlglot.expressions import table_ as table
-from bigframes_vendored.sqlglot.expressions import to_column as to_column
-from bigframes_vendored.sqlglot.expressions import to_identifier as to_identifier
-from bigframes_vendored.sqlglot.expressions import to_table as to_table
-from bigframes_vendored.sqlglot.expressions import union as union
-from bigframes_vendored.sqlglot.generator import Generator as Generator
-from bigframes_vendored.sqlglot.parser import Parser as Parser
-from bigframes_vendored.sqlglot.schema import MappingSchema as MappingSchema
-from bigframes_vendored.sqlglot.schema import Schema as Schema
-from bigframes_vendored.sqlglot.tokens import Token as Token
-from bigframes_vendored.sqlglot.tokens import Tokenizer as Tokenizer
-from bigframes_vendored.sqlglot.tokens import TokenType as TokenType
+from bigframes_vendored.sqlglot.errors import TokenError as TokenError  # noqa: F401
+from bigframes_vendored.sqlglot.errors import (  # noqa: F401
+    UnsupportedError as UnsupportedError,
+)
+from bigframes_vendored.sqlglot.expressions import alias_ as alias  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import and_ as and_  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import case as case  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import cast as cast  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import column as column  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import condition as condition  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import delete as delete  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import except_ as except_  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import (  # noqa: F401
+    Expression as Expression,
+)
+from bigframes_vendored.sqlglot.expressions import (  # noqa: F401
+    find_tables as find_tables,
+)
+from bigframes_vendored.sqlglot.expressions import from_ as from_  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import func as func  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import insert as insert  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import intersect as intersect  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import (  # noqa: F401
+    maybe_parse as maybe_parse,
+)
+from bigframes_vendored.sqlglot.expressions import merge as merge  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import not_ as not_  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import or_ as or_  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import select as select  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import subquery as subquery  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import table_ as table  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import to_column as to_column  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import (  # noqa: F401
+    to_identifier as to_identifier,
+)
+from bigframes_vendored.sqlglot.expressions import to_table as to_table  # noqa: F401
+from bigframes_vendored.sqlglot.expressions import union as union  # noqa: F401
+from bigframes_vendored.sqlglot.generator import Generator as Generator  # noqa: F401
+from bigframes_vendored.sqlglot.parser import Parser as Parser  # noqa: F401
+from bigframes_vendored.sqlglot.schema import (  # noqa: F401
+    MappingSchema as MappingSchema,
+)
+from bigframes_vendored.sqlglot.schema import Schema as Schema  # noqa: F401
+from bigframes_vendored.sqlglot.tokens import Token as Token  # noqa: F401
+from bigframes_vendored.sqlglot.tokens import Tokenizer as Tokenizer  # noqa: F401
+from bigframes_vendored.sqlglot.tokens import TokenType as TokenType  # noqa: F401
 
 if t.TYPE_CHECKING:
     from bigframes_vendored.sqlglot._typing import E
@@ -59,7 +73,10 @@ logger = logging.getLogger("sqlglot")
 
 
 try:
-    from bigframes_vendored.sqlglot._version import __version__, __version_tuple__
+    from bigframes_vendored.sqlglot._version import (  # noqa: F401
+        __version__,
+        __version_tuple__,
+    )
 except ImportError:
     logger.error(
         "Unable to set __version__, run `pip install -e .` or `python setup.py develop` first."
