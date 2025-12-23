@@ -19,6 +19,11 @@ from __future__ import annotations
 import typing
 from typing import Union
 
+import pandas
+import pandas.io.formats
+
+from bigframes._config import display_options, options
+
 if typing.TYPE_CHECKING:
     import pandas as pd
 
@@ -32,6 +37,55 @@ def create_text_representation(
     total_rows: typing.Optional[int],
 ) -> str:
     """Create a text representation of the DataFrame or Series."""
-    # TODO(swast): This module should probably just be removed and combined
-    # with the html module.
-    return obj._create_text_representation(pandas_df, total_rows)
+    from bigframes.series import Series
+
+    opts = options.display
+
+    if isinstance(obj, Series):
+        with display_options.pandas_repr(opts):
+            pd_series = pandas_df.iloc[:, 0]
+            if len(obj._block.index_columns) == 0:
+                repr_string = pd_series.to_string(
+                    length=False, index=False, name=True, dtype=True
+                )
+            else:
+                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
+
+        lines = repr_string.split("\n")
+        is_truncated = total_rows is not None and total_rows > len(pandas_df)
+
+        if is_truncated:
+            lines.append("...")
+            lines.append("")  # Add empty line for spacing only if truncated
+            lines.append(f"[{total_rows} rows]")
+
+        return "\n".join(lines)
+
+    else:
+        # DataFrame
+        with display_options.pandas_repr(opts):
+            # safe to mutate this, this dict is owned by this code, and does not affect global config
+            to_string_kwargs = (
+                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
+            )
+            if not obj._has_index:
+                to_string_kwargs.update({"index": False})
+
+            # We add our own dimensions string, so don't want pandas to.
+            to_string_kwargs.update({"show_dimensions": False})
+            repr_string = pandas_df.to_string(**to_string_kwargs)
+
+        lines = repr_string.split("\n")
+        is_truncated = total_rows is not None and total_rows > len(pandas_df)
+
+        if is_truncated:
+            lines.append("...")
+            lines.append("")  # Add empty line for spacing only if truncated
+            column_count = len(obj.columns)
+            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
+        else:
+            # For non-truncated DataFrames, we still need to add dimensions if show_dimensions was False
+            column_count = len(obj.columns)
+            lines.append("")
+            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
+        return "\n".join(lines)

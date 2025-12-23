@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import html
+import json
 import traceback
 import typing
 from typing import Any, Union
@@ -26,7 +27,7 @@ import pandas as pd
 import pandas.api.types
 
 import bigframes
-from bigframes._config import options
+from bigframes._config import display_options, options
 from bigframes.display import plaintext
 
 if typing.TYPE_CHECKING:
@@ -110,12 +111,6 @@ def create_html_representation(
     blob_cols: list[str],
 ) -> str:
     """Create an HTML representation of the DataFrame or Series."""
-    # Note: We need to import Series here to avoid circular imports, but only if we use isinstance.
-    # To check if it is a Series without importing, we can check if it has the _repr_html_ method
-    # or rely on duck typing. However, the original code used isinstance.
-    # Let's import inside the function if needed, or rely on attribute checks.
-    # But wait, type checking imports are not available at runtime.
-    # We can check __class__.__name__ or similar, or just import locally.
     from bigframes.series import Series
 
     if isinstance(obj, Series):
@@ -124,12 +119,63 @@ def create_html_representation(
             html_string = pd_series._repr_html_()
         except AttributeError:
             html_string = f"<pre>{pd_series.to_string()}</pre>"
+
+        # Series doesn't typically show total rows/cols like DF in HTML repr here?
+        # But let's check what it was doing.
+        # Original code just returned _repr_html_ or wrapped to_string.
+        # It didn't append row/col count string for Series (wait, Series usually has length in repr).
+        return html_string
     else:
         # It's a DataFrame
-        html_string = obj._create_html_representation(
-            pandas_df, total_rows, total_columns, blob_cols
-        )
-    return html_string
+        opts = options.display
+        with display_options.pandas_repr(opts):
+            # TODO(shuowei, b/464053870): Escaping HTML would be useful, but
+            # `escape=False` is needed to show images. We may need to implement
+            # a full-fledged repr module to better support types not in pandas.
+            if options.display.blob_display and blob_cols:
+
+                def obj_ref_rt_to_html(obj_ref_rt) -> str:
+                    obj_ref_rt_json = json.loads(obj_ref_rt)
+                    obj_ref_details = obj_ref_rt_json["objectref"]["details"]
+                    if "gcs_metadata" in obj_ref_details:
+                        gcs_metadata = obj_ref_details["gcs_metadata"]
+                        content_type = typing.cast(
+                            str, gcs_metadata.get("content_type", "")
+                        )
+                        if content_type.startswith("image"):
+                            size_str = ""
+                            if options.display.blob_display_width:
+                                size_str = (
+                                    f' width="{options.display.blob_display_width}"'
+                                )
+                            if options.display.blob_display_height:
+                                size_str = (
+                                    size_str
+                                    + f' height="{options.display.blob_display_height}"'
+                                )
+                            url = obj_ref_rt_json["access_urls"]["read_url"]
+                            return f'<img src="{url}"{size_str}>'
+
+                    return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
+
+                formatters = {blob_col: obj_ref_rt_to_html for blob_col in blob_cols}
+
+                # set max_colwidth so not to truncate the image url
+                with pandas.option_context("display.max_colwidth", None):
+                    html_string = pandas_df.to_html(
+                        escape=False,
+                        notebook=True,
+                        max_rows=pandas.get_option("display.max_rows"),
+                        max_cols=pandas.get_option("display.max_columns"),
+                        show_dimensions=pandas.get_option("display.show_dimensions"),
+                        formatters=formatters,  # type: ignore
+                    )
+            else:
+                # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
+                html_string = pandas_df._repr_html_()  # type:ignore
+
+        html_string += f"[{total_rows} rows x {total_columns} columns in total]"
+        return html_string
 
 
 def get_anywidget_bundle(
@@ -189,7 +235,7 @@ def repr_mimebundle(
     """
     from bigframes.series import Series
 
-    opts = bigframes.options.display
+    opts = options.display
     if opts.repr_mode == "anywidget":
         try:
             return get_anywidget_bundle(obj, include=include, exclude=exclude)

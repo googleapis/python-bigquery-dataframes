@@ -568,32 +568,6 @@ class Series(vendored_pandas_series.Series):
                 block = block.assign_label(self._value_column, name)
             return bigframes.dataframe.DataFrame(block)
 
-    def _create_text_representation(
-        self,
-        pandas_df: pandas.DataFrame,
-        total_rows: typing.Optional[int],
-    ) -> str:
-        """Create a text representation of the Series."""
-        opts = bigframes.options.display
-        with bigframes._config.display_options.pandas_repr(opts):
-            pd_series = pandas_df.iloc[:, 0]
-            if len(self._block.index_columns) == 0:
-                repr_string = pd_series.to_string(
-                    length=False, index=False, name=True, dtype=True
-                )
-            else:
-                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
-
-        lines = repr_string.split("\n")
-        is_truncated = total_rows is not None and total_rows > len(pandas_df)
-
-        if is_truncated:
-            lines.append("...")
-            lines.append("")  # Add empty line for spacing only if truncated
-            lines.append(f"[{total_rows} rows]")
-
-        return "\n".join(lines)
-
     def _repr_mimebundle_(self, include=None, exclude=None):
         """
         Custom display method for IPython/Jupyter environments.
@@ -609,6 +583,10 @@ class Series(vendored_pandas_series.Series):
         if not hasattr(self, "_block"):
             return object.__repr__(self)
 
+        # TODO(swast): Add a timeout here? If the query is taking a long time,
+        # maybe we just print the job metadata that we have so far?
+        # TODO(swast): Avoid downloading the whole series by using job
+        # metadata, like we do with DataFrame.
         opts = bigframes.options.display
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())

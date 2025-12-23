@@ -19,7 +19,6 @@ from __future__ import annotations
 import datetime
 import inspect
 import itertools
-import json
 import re
 import sys
 import textwrap
@@ -54,7 +53,6 @@ import pandas.io.formats.format
 import pyarrow
 import tabulate
 
-import bigframes._config.display_options as display_options
 import bigframes.constants
 import bigframes.core
 from bigframes.core import agg_expressions, log_adapter
@@ -790,6 +788,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
+        # TODO(swast): pass max_columns and get the true column count back. Maybe
+        # get 1 more column than we have requested so that pandas can add the
+        # ... for us?
         max_results = opts.max_rows
         pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
             max_results
@@ -825,96 +826,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         from bigframes.display import html
 
         return html.repr_mimebundle(self, include=include, exclude=exclude)
-
-    def _create_text_representation(
-        self,
-        pandas_df: pandas.DataFrame,
-        total_rows: typing.Optional[int],
-    ) -> str:
-        """Create a text representation of the DataFrame."""
-        opts = bigframes.options.display
-        with display_options.pandas_repr(opts):
-            import pandas.io.formats
-
-            to_string_kwargs = (
-                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
-            )
-            if not self._has_index:
-                to_string_kwargs.update({"index": False})
-            to_string_kwargs.update({"show_dimensions": False})
-            repr_string = pandas_df.to_string(**to_string_kwargs)
-
-        lines = repr_string.split("\n")
-        is_truncated = total_rows is not None and total_rows > len(pandas_df)
-
-        if is_truncated:
-            lines.append("...")
-            lines.append("")  # Add empty line for spacing only if truncated
-            column_count = len(self.columns)
-            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
-        else:
-            # For non-truncated DataFrames, we still need to add dimensions if show_dimensions was False
-            column_count = len(self.columns)
-            lines.append("")
-            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
-
-        return "\n".join(lines)
-
-    def _create_html_representation(
-        self,
-        pandas_df: pandas.DataFrame,
-        row_count: int,
-        column_count: int,
-        blob_cols: list[str],
-    ) -> str:
-        """Create an HTML representation of the DataFrame."""
-        opts = bigframes.options.display
-        with display_options.pandas_repr(opts):
-            # TODO(shuowei, b/464053870): Escaping HTML would be useful, but
-            # `escape=False` is needed to show images. We may need to implement
-            # a full-fledged repr module to better support types not in pandas.
-            if bigframes.options.display.blob_display and blob_cols:
-
-                def obj_ref_rt_to_html(obj_ref_rt) -> str:
-                    obj_ref_rt_json = json.loads(obj_ref_rt)
-                    obj_ref_details = obj_ref_rt_json["objectref"]["details"]
-                    if "gcs_metadata" in obj_ref_details:
-                        gcs_metadata = obj_ref_details["gcs_metadata"]
-                        content_type = typing.cast(
-                            str, gcs_metadata.get("content_type", "")
-                        )
-                        if content_type.startswith("image"):
-                            size_str = ""
-                            if bigframes.options.display.blob_display_width:
-                                size_str = f' width="{bigframes.options.display.blob_display_width}"'
-                            if bigframes.options.display.blob_display_height:
-                                size_str = (
-                                    size_str
-                                    + f' height="{bigframes.options.display.blob_display_height}"'
-                                )
-                            url = obj_ref_rt_json["access_urls"]["read_url"]
-                            return f'<img src="{url}"{size_str}>'
-
-                    return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
-
-                formatters = {blob_col: obj_ref_rt_to_html for blob_col in blob_cols}
-
-                # set max_colwidth so not to truncate the image url
-                with pandas.option_context("display.max_colwidth", None):
-                    html_string = pandas_df.to_html(
-                        escape=False,
-                        notebook=True,
-                        max_rows=pandas.get_option("display.max_rows"),
-                        max_cols=pandas.get_option("display.max_columns"),
-                        show_dimensions=pandas.get_option("display.show_dimensions"),
-                        formatters=formatters,  # type: ignore
-                    )
-            else:
-                # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
-                html_string = pandas_df._repr_html_()  # type:ignore
-
-        html_string += f"[{row_count} rows x {column_count} columns in total]"
-        return html_string
 
     def __delitem__(self, key: str):
         df = self.drop(columns=[key])
