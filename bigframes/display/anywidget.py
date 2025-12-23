@@ -99,9 +99,8 @@ class TableWidget(_WIDGET_BASE):
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: list[pd.DataFrame] = []
         self._last_sort_state: Optional[_SortState] = None
-        # RLock is needed because _set_table_html can be re-entrant when
-        # self.page is updated within the method, triggering the observer.
-        self._setting_html_lock = threading.RLock()
+        # Lock to ensure only one thread at a time is updating the table HTML.
+        self._setting_html_lock = threading.Lock()
 
         # respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
@@ -270,6 +269,7 @@ class TableWidget(_WIDGET_BASE):
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
+        new_page = None
         with self._setting_html_lock:
             if self._error_message:
                 self.table_html = (
@@ -297,55 +297,63 @@ class TableWidget(_WIDGET_BASE):
                 self._last_sort_state = _SortState(
                     self.sort_column, self.sort_ascending
                 )
-                self.page = 0  # Reset to first page
+                if self.page != 0:
+                    new_page = 0  # Reset to first page
 
-            start = self.page * self.page_size
-            end = start + self.page_size
+            if new_page is None:
+                start = self.page * self.page_size
+                end = start + self.page_size
 
-            # fetch more data if the requested page is outside our cache
-            cached_data = self._cached_data
-            while len(cached_data) < end and not self._all_data_loaded:
-                if self._get_next_batch():
-                    cached_data = self._cached_data
-                else:
-                    break
+                # fetch more data if the requested page is outside our cache
+                cached_data = self._cached_data
+                while len(cached_data) < end and not self._all_data_loaded:
+                    if self._get_next_batch():
+                        cached_data = self._cached_data
+                    else:
+                        break
 
-            # Get the data for the current page
-            page_data = cached_data.iloc[start:end].copy()
+                # Get the data for the current page
+                page_data = cached_data.iloc[start:end].copy()
 
-            # Handle case where user navigated beyond available data with unknown row count
-            is_unknown_count = self.row_count is None
-            is_beyond_data = (
-                self._all_data_loaded and len(page_data) == 0 and self.page > 0
-            )
-            if is_unknown_count and is_beyond_data:
-                # Calculate the last valid page (zero-indexed)
-                total_rows = len(cached_data)
-                last_valid_page = max(0, math.ceil(total_rows / self.page_size) - 1)
-                # Navigate back to the last valid page.
-                # This triggers the observer, which will re-enter _set_table_html (allowed by RLock).
-                self.page = last_valid_page
-                return
-
-            # Handle index display
-            if self._dataframe._block.has_index:
-                is_unnamed_single_index = (
-                    page_data.index.name is None
-                    and not isinstance(page_data.index, pd.MultiIndex)
+                # Handle case where user navigated beyond available data with unknown row count
+                is_unknown_count = self.row_count is None
+                is_beyond_data = (
+                    self._all_data_loaded and len(page_data) == 0 and self.page > 0
                 )
-                page_data = page_data.reset_index()
-                if is_unnamed_single_index and "index" in page_data.columns:
-                    page_data.rename(columns={"index": ""}, inplace=True)
+                if is_unknown_count and is_beyond_data:
+                    # Calculate the last valid page (zero-indexed)
+                    total_rows = len(cached_data)
+                    last_valid_page = max(0, math.ceil(total_rows / self.page_size) - 1)
+                    if self.page != last_valid_page:
+                        new_page = last_valid_page
 
-            # Default index - include as "Row" column if no index was present originally
-            if not self._dataframe._block.has_index:
-                page_data.insert(0, "Row", range(start + 1, start + len(page_data) + 1))
+            if new_page is None:
+                # Handle index display
+                if self._dataframe._block.has_index:
+                    is_unnamed_single_index = (
+                        page_data.index.name is None
+                        and not isinstance(page_data.index, pd.MultiIndex)
+                    )
+                    page_data = page_data.reset_index()
+                    if is_unnamed_single_index and "index" in page_data.columns:
+                        page_data.rename(columns={"index": ""}, inplace=True)
 
-            # Generate HTML table
-            self.table_html = bigframes.display.html.render_html(
-                dataframe=page_data,
-                table_id=f"table-{self._table_id}",
-            )
+                # Default index - include as "Row" column if no index was present originally
+                if not self._dataframe._block.has_index:
+                    page_data.insert(
+                        0, "Row", range(start + 1, start + len(page_data) + 1)
+                    )
+
+                # Generate HTML table
+                self.table_html = bigframes.display.html.render_html(
+                    dataframe=page_data,
+                    table_id=f"table-{self._table_id}",
+                )
+
+        if new_page is not None:
+            # Navigate to the new page. This triggers the observer, which will
+            # re-enter _set_table_html. Since we've released the lock, this is safe.
+            self.page = new_page
 
     @traitlets.observe("sort_column", "sort_ascending")
     def _sort_changed(self, _change: dict[str, Any]):
