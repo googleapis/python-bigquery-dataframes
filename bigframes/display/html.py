@@ -233,6 +233,8 @@ def repr_mimebundle(
     """
     Custom display method for IPython/Jupyter environments.
     """
+    # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+    # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
     from bigframes.series import Series
 
     opts = options.display
@@ -240,6 +242,9 @@ def repr_mimebundle(
         try:
             return get_anywidget_bundle(obj, include=include, exclude=exclude)
         except ImportError:
+            # Anywidget is an optional dependency, so warn rather than fail.
+            # TODO(shuowei): When Anywidget becomes the default for all repr modes,
+            # remove this warning.
             warnings.warn(
                 "Anywidget mode is not available. "
                 "Please `pip install anywidget traitlets` or `pip install 'bigframes[anywidget]'` to use interactive tables. "

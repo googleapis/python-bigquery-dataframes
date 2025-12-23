@@ -573,6 +573,8 @@ class Series(vendored_pandas_series.Series):
         Custom display method for IPython/Jupyter environments.
         This is called by IPython's display system when the object is displayed.
         """
+        # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+        # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
         from bigframes.display import html
 
         return html.repr_mimebundle(self, include=include, exclude=exclude)
