@@ -43,6 +43,10 @@ try:
     _ANYWIDGET_INSTALLED = True
 except Exception:
     _ANYWIDGET_INSTALLED = False
+    # Define dummy traitlets to avoid NameError at class definition time
+    import unittest.mock
+
+    traitlets = unittest.mock.MagicMock()
 
 _WIDGET_BASE: type[Any]
 if _ANYWIDGET_INSTALLED:
