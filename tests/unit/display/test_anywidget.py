@@ -59,11 +59,15 @@ def test_navigation_to_invalid_page_resets_to_valid_page_without_deadlock():
     widget._initial_load_complete = True
 
     # Setup timeout to fail fast if deadlock occurs
-    def handler(signum, frame):
-        raise TimeoutError("Deadlock detected!")
+    # signal.SIGALRM is not available on Windows
+    has_sigalrm = hasattr(signal, "SIGALRM")
+    if has_sigalrm:
 
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(2)  # 2 seconds timeout
+        def handler(signum, frame):
+            raise TimeoutError("Deadlock detected!")
+
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(2)  # 2 seconds timeout
 
     try:
         # Trigger navigation to page 5 (invalid), which should reset to page 0
@@ -72,4 +76,5 @@ def test_navigation_to_invalid_page_resets_to_valid_page_without_deadlock():
         assert widget.page == 0
 
     finally:
-        signal.alarm(0)
+        if has_sigalrm:
+            signal.alarm(0)
