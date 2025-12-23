@@ -1022,7 +1022,7 @@ class Dialect(metaclass=_Dialect):
 
     def __eq__(self, other: t.Any) -> bool:
         # Does not currently take dialect state into account
-        return type(self) == other
+        return isinstance(self, other.__class__)
 
     def __hash__(self) -> int:
         # Does not currently take dialect state into account

@@ -20,7 +20,6 @@ import functools
 import typing
 
 import bigframes_vendored.sqlglot as sg
-import bigframes_vendored.sqlglot.dialects.bigquery
 import bigframes_vendored.sqlglot.expressions as sge
 from google.cloud import bigquery
 import numpy as np

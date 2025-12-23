@@ -14,8 +14,6 @@
 
 from unittest import mock
 
-import bigframes_vendored.sqlglot
-from packaging import version
 import pandas as pd
 import pyarrow as pa
 import pytest

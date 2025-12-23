@@ -63,29 +63,29 @@ parser.add_argument(
 parser.add_argument(
     "--version",
     action="version",
-    version=sqlglot.__version__,
+    version=bigframes_vendored.sqlglot.__version__,
     help="Display the SQLGlot version",
 )
 
 
 args = parser.parse_args()
-error_level = sqlglot.ErrorLevel[args.error_level.upper()]
+error_level = bigframes_vendored.sqlglot.ErrorLevel[args.error_level.upper()]
 
 sql = sys.stdin.read() if args.sql == "-" else args.sql
 
 if args.parse:
-    objs: t.Union[t.List[str], t.List[sqlglot.tokens.Token]] = [
+    objs: t.Union[t.List[str], t.List[bigframes_vendored.sqlglot.tokens.Token]] = [
         repr(expression)
-        for expression in sqlglot.parse(
+        for expression in bigframes_vendored.sqlglot.parse(
             sql,
             read=args.read,
             error_level=error_level,
         )
     ]
 elif args.tokenize:
-    objs = sqlglot.Dialect.get_or_raise(args.read).tokenize(sql)
+    objs = bigframes_vendored.sqlglot.Dialect.get_or_raise(args.read).tokenize(sql)
 else:
-    objs = sqlglot.transpile(
+    objs = bigframes_vendored.sqlglot.transpile(
         sql,
         read=args.read,
         write=args.write,
