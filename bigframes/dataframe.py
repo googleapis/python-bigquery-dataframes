@@ -799,7 +799,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         self._set_internal_query_job(query_job)
         from bigframes.display import plaintext
 
-        return plaintext.create_text_representation(self, pandas_df, row_count)
+        return plaintext.create_text_representation(
+            pandas_df,
+            row_count,
+            is_series=False,
+            has_index=self._has_index,
+            column_count=len(self.columns),
+        )
 
     def _get_display_df_and_blob_cols(self) -> tuple[DataFrame, list[str]]:
         """Process blob columns for display."""

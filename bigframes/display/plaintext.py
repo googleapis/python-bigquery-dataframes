@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import typing
-from typing import Union
 
 import pandas
 import pandas.io.formats
@@ -27,24 +26,38 @@ from bigframes._config import display_options, options
 if typing.TYPE_CHECKING:
     import pandas as pd
 
-    import bigframes.dataframe
-    import bigframes.series
-
 
 def create_text_representation(
-    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     pandas_df: pd.DataFrame,
     total_rows: typing.Optional[int],
+    is_series: bool,
+    has_index: bool = True,
+    column_count: int = 0,
 ) -> str:
-    """Create a text representation of the DataFrame or Series."""
-    from bigframes.series import Series
+    """Create a text representation of the DataFrame or Series.
 
+    Args:
+        pandas_df:
+            The pandas DataFrame containing the data to represent.
+        total_rows:
+            The total number of rows in the original BigFrames object.
+        is_series:
+            Whether the object being represented is a Series.
+        has_index:
+            Whether the object has an index to display.
+        column_count:
+            The total number of columns in the original BigFrames object.
+            Only used for DataFrames.
+
+    Returns:
+        A plaintext string representation.
+    """
     opts = options.display
 
-    if isinstance(obj, Series):
+    if is_series:
         with display_options.pandas_repr(opts):
             pd_series = pandas_df.iloc[:, 0]
-            if len(obj._block.index_columns) == 0:
+            if not has_index:
                 repr_string = pd_series.to_string(
                     length=False, index=False, name=True, dtype=True
                 )
@@ -68,7 +81,7 @@ def create_text_representation(
             to_string_kwargs = (
                 pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
             )
-            if not obj._has_index:
+            if not has_index:
                 to_string_kwargs.update({"index": False})
 
             # We add our own dimensions string, so don't want pandas to.
@@ -81,11 +94,9 @@ def create_text_representation(
         if is_truncated:
             lines.append("...")
             lines.append("")  # Add empty line for spacing only if truncated
-            column_count = len(obj.columns)
             lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
         else:
             # For non-truncated DataFrames, we still need to add dimensions if show_dimensions was False
-            column_count = len(obj.columns)
             lines.append("")
             lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
         return "\n".join(lines)

@@ -600,7 +600,12 @@ class Series(vendored_pandas_series.Series):
         self._set_internal_query_job(query_job)
         from bigframes.display import plaintext
 
-        return plaintext.create_text_representation(self, pandas_df, row_count)
+        return plaintext.create_text_representation(
+            pandas_df,
+            row_count,
+            is_series=True,
+            has_index=len(self._block.index_columns) > 0,
+        )
 
     def astype(
         self,

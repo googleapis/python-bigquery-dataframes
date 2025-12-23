@@ -219,8 +219,17 @@ def get_anywidget_bundle(
         total_columns,
         blob_cols if "blob_cols" in locals() else [],
     )
+    is_series = isinstance(obj, Series)
+    if is_series:
+        has_index = len(obj._block.index_columns) > 0
+    else:
+        has_index = obj._has_index
     widget_repr["text/plain"] = plaintext.create_text_representation(
-        obj, cached_pd, total_rows
+        cached_pd,
+        total_rows,
+        is_series=is_series,
+        has_index=has_index,
+        column_count=len(df.columns) if not is_series else 0,
     )
 
     return widget_repr, widget_metadata
@@ -260,8 +269,17 @@ def repr_mimebundle_head(
         obj, pandas_df, row_count, column_count, blob_cols
     )
 
+    is_series = isinstance(obj, Series)
+    if is_series:
+        has_index = len(obj._block.index_columns) > 0
+    else:
+        has_index = obj._has_index
     text_representation = plaintext.create_text_representation(
-        obj, pandas_df, row_count
+        pandas_df,
+        row_count,
+        is_series=is_series,
+        has_index=has_index,
+        column_count=len(pandas_df.columns) if not is_series else 0,
     )
 
     return {"text/html": html_string, "text/plain": text_representation}
