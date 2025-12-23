@@ -23,13 +23,6 @@ import bigframes.pandas as bpd
 pytest.importorskip("pytest_snapshot")
 
 
-if sys.version_info < (3, 12):
-    pytest.skip(
-        "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        allow_module_level=True,
-    )
-
-
 def test_compile_window_w_skips_nulls_op(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[["int64_col"]].sort_index()
     # The SumOp's skips_nulls is True
