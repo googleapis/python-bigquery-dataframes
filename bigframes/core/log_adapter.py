@@ -258,7 +258,8 @@ def add_api_method(api_method_name, session=None):
 
     clean_method_name = api_method_name.replace("<", "").replace(">", "")
 
-    if session is not None:
+    # The log adapter can get called before the Session has fully initialized.
+    if session is not None and hasattr(session, "_api_methods_lock"):
         with session._api_methods_lock:
             session._api_methods.insert(0, clean_method_name)
             session._api_methods = session._api_methods[:MAX_LABELS_COUNT]
@@ -273,7 +274,9 @@ def add_api_method(api_method_name, session=None):
 def get_and_reset_api_methods(dry_run: bool = False, session=None):
     global _lock
     methods = []
-    if session is not None:
+
+    # The log adapter can get called before the Session has fully initialized.
+    if session is not None and hasattr(session, "_api_methods_lock"):
         with session._api_methods_lock:
             methods.extend(session._api_methods)
             if not dry_run:
