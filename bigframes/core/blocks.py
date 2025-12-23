@@ -3471,6 +3471,28 @@ def _pd_index_to_array_value(
     Create an ArrayValue from a list of label tuples.
     The last column will be row offsets.
     """
+    if index.empty:
+        id_gen = bigframes.core.identifiers.standard_id_strings()
+        col_ids = [next(id_gen) for _ in range(index.nlevels + 1)]
+
+        data_dict = {}
+        if isinstance(index, pd.MultiIndex):
+            dtypes = index.dtypes.values.tolist()
+        else:
+            dtypes = [index.dtype]
+
+        for col_id, dtype in zip(col_ids[:-1], dtypes):
+            try:
+                bf_dtype = bigframes.dtypes.bigframes_type(dtype)
+                pa_type = bigframes.dtypes.bigframes_dtype_to_arrow_dtype(bf_dtype)
+            except TypeError:
+                pa_type = pa.string()
+            data_dict[col_id] = pa.array([], type=pa_type)
+
+        data_dict[col_ids[-1]] = pa.array([], type=pa.int64())
+        table = pa.Table.from_pydict(data_dict)
+        return core.ArrayValue.from_pyarrow(table, session=session)
+
     rows = []
     labels_as_tuples = utils.index_as_tuples(index)
     for row_offset in range(len(index)):
