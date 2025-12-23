@@ -272,9 +272,7 @@ def repr_mimebundle(
     include=None,
     exclude=None,
 ):
-    """
-    Custom display method for IPython/Jupyter environments.
-    """
+    """Custom display method for IPython/Jupyter environments."""
     # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
     # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
 
