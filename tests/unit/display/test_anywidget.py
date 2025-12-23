@@ -18,12 +18,11 @@ import unittest.mock as mock
 import pandas as pd
 import pytest
 
+import bigframes.dataframe
+
 # Skip if anywidget/traitlets not installed, though they should be in the dev env
 pytest.importorskip("anywidget")
 pytest.importorskip("traitlets")
-
-import bigframes.dataframe  # noqa: E402
-import bigframes.display.anywidget as anywidget  # noqa: E402
 
 
 class TestTableWidget:
@@ -34,6 +33,8 @@ class TestTableWidget:
         This behavior relies on _set_table_html releasing the lock before updating self.page,
         preventing re-entrancy issues where the observer triggers a new update on the same thread.
         """
+        from bigframes.display import TableWidget
+
         mock_df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
         mock_df.columns = ["col1"]
         mock_df.dtypes = {"col1": "object"}
@@ -43,8 +44,8 @@ class TestTableWidget:
         mock_df._block = mock_block
 
         # We mock _initial_load to avoid complex setup
-        with mock.patch.object(anywidget.TableWidget, "_initial_load"):
-            widget = anywidget.TableWidget(mock_df)
+        with mock.patch.object(TableWidget, "_initial_load"):
+            widget = TableWidget(mock_df)
 
         # Simulate "loaded data but unknown total rows" state
         widget.page_size = 10
