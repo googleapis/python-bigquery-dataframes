@@ -104,6 +104,24 @@ def render_html(
     return "\n".join(table_html)
 
 
+def _obj_ref_rt_to_html(obj_ref_rt: str) -> str:
+    obj_ref_rt_json = json.loads(obj_ref_rt)
+    obj_ref_details = obj_ref_rt_json["objectref"]["details"]
+    if "gcs_metadata" in obj_ref_details:
+        gcs_metadata = obj_ref_details["gcs_metadata"]
+        content_type = typing.cast(str, gcs_metadata.get("content_type", ""))
+        if content_type.startswith("image"):
+            size_str = ""
+            if options.display.blob_display_width:
+                size_str = f' width="{options.display.blob_display_width}"'
+            if options.display.blob_display_height:
+                size_str = size_str + f' height="{options.display.blob_display_height}"'
+            url = obj_ref_rt_json["access_urls"]["read_url"]
+            return f'<img src="{url}"{size_str}>'
+
+    return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
+
+
 def create_html_representation(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     pandas_df: pd.DataFrame,
@@ -114,52 +132,30 @@ def create_html_representation(
     """Create an HTML representation of the DataFrame or Series."""
     from bigframes.series import Series
 
-    if isinstance(obj, Series):
-        # Some pandas objects may not have a _repr_html_ method, or it might
-        # fail in certain environments. We fall back to a pre-formatted
-        # string representation to ensure something is always displayed.
-        pd_series = pandas_df.iloc[:, 0]
-        try:
-            html_string = pd_series._repr_html_()
-        except AttributeError:
-            html_string = f"<pre>{pd_series.to_string()}</pre>"
+    opts = options.display
+    with display_options.pandas_repr(opts):
+        if isinstance(obj, Series):
+            # Some pandas objects may not have a _repr_html_ method, or it might
+            # fail in certain environments. We fall back to a pre-formatted
+            # string representation to ensure something is always displayed.
+            pd_series = pandas_df.iloc[:, 0]
+            try:
+                # TODO(b/464053870): Support rich display for blob Series.
+                html_string = pd_series._repr_html_()
+            except AttributeError:
+                html_string = f"<pre>{pd_series.to_string()}</pre>"
 
-        html_string += f"[{total_rows} rows]"
-        return html_string
-    else:
-        # It's a DataFrame
-        opts = options.display
-        with display_options.pandas_repr(opts):
+            is_truncated = total_rows is not None and total_rows > len(pandas_df)
+            if is_truncated:
+                html_string += f"<p>[{total_rows} rows]</p>"
+            return html_string
+        else:
+            # It's a DataFrame
             # TODO(shuowei, b/464053870): Escaping HTML would be useful, but
             # `escape=False` is needed to show images. We may need to implement
             # a full-fledged repr module to better support types not in pandas.
             if options.display.blob_display and blob_cols:
-
-                def obj_ref_rt_to_html(obj_ref_rt) -> str:
-                    obj_ref_rt_json = json.loads(obj_ref_rt)
-                    obj_ref_details = obj_ref_rt_json["objectref"]["details"]
-                    if "gcs_metadata" in obj_ref_details:
-                        gcs_metadata = obj_ref_details["gcs_metadata"]
-                        content_type = typing.cast(
-                            str, gcs_metadata.get("content_type", "")
-                        )
-                        if content_type.startswith("image"):
-                            size_str = ""
-                            if options.display.blob_display_width:
-                                size_str = (
-                                    f' width="{options.display.blob_display_width}"'
-                                )
-                            if options.display.blob_display_height:
-                                size_str = (
-                                    size_str
-                                    + f' height="{options.display.blob_display_height}"'
-                                )
-                            url = obj_ref_rt_json["access_urls"]["read_url"]
-                            return f'<img src="{url}"{size_str}>'
-
-                    return f'uri: {obj_ref_rt_json["objectref"]["uri"]}, authorizer: {obj_ref_rt_json["objectref"]["authorizer"]}'
-
-                formatters = {blob_col: obj_ref_rt_to_html for blob_col in blob_cols}
+                formatters = {blob_col: _obj_ref_rt_to_html for blob_col in blob_cols}
 
                 # set max_colwidth so not to truncate the image url
                 with pandas.option_context("display.max_colwidth", None):
@@ -175,8 +171,8 @@ def create_html_representation(
                 # _repr_html_ stub is missing so mypy thinks it's a Series. Ignore mypy.
                 html_string = pandas_df._repr_html_()  # type:ignore
 
-        html_string += f"[{total_rows} rows x {total_columns} columns in total]"
-        return html_string
+            html_string += f"[{total_rows} rows x {total_columns} columns in total]"
+            return html_string
 
 
 def _get_obj_metadata(
