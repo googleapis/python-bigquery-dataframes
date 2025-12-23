@@ -26,9 +26,12 @@ import pandas as pd
 import pandas.api.types
 
 import bigframes
-from bigframes._config import display_options, options
-import bigframes.dataframe
-import bigframes.series
+from bigframes._config import options
+from bigframes.display import plaintext
+
+if typing.TYPE_CHECKING:
+    import bigframes.dataframe
+    import bigframes.series
 
 
 def _is_dtype_numeric(dtype: Any) -> bool:
@@ -99,53 +102,6 @@ def render_html(
     return "\n".join(table_html)
 
 
-def create_text_representation(
-    obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    pandas_df: pd.DataFrame,
-    total_rows: typing.Optional[int],
-) -> str:
-    """Create a text representation of the DataFrame or Series."""
-    opts = bigframes.options.display
-    with display_options.pandas_repr(opts):
-        if isinstance(obj, bigframes.series.Series):
-            pd_series = pandas_df.iloc[:, 0]
-            if len(obj._block.index_columns) == 0:
-                repr_string = pd_series.to_string(
-                    length=False, index=False, name=True, dtype=True
-                )
-            else:
-                repr_string = pd_series.to_string(length=False, name=True, dtype=True)
-        else:
-            import pandas.io.formats
-
-            to_string_kwargs = (
-                pandas.io.formats.format.get_dataframe_repr_params()  # type: ignore
-            )
-            if not obj._has_index:
-                to_string_kwargs.update({"index": False})
-            to_string_kwargs.update({"show_dimensions": False})
-            repr_string = pandas_df.to_string(**to_string_kwargs)
-
-    lines = repr_string.split("\n")
-    is_truncated = total_rows is not None and total_rows > len(pandas_df)
-
-    if is_truncated:
-        lines.append("...")
-        lines.append("")  # Add empty line for spacing only if truncated
-        if isinstance(obj, bigframes.series.Series):
-            lines.append(f"[{total_rows} rows]")
-        else:
-            column_count = len(obj.columns)
-            lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
-    elif isinstance(obj, bigframes.dataframe.DataFrame):
-        # For non-truncated DataFrames, we still need to add dimensions if show_dimensions was False
-        column_count = len(obj.columns)
-        lines.append("")
-        lines.append(f"[{total_rows or '?'} rows x {column_count} columns]")
-
-    return "\n".join(lines)
-
-
 def create_html_representation(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
     pandas_df: pd.DataFrame,
@@ -154,13 +110,22 @@ def create_html_representation(
     blob_cols: list[str],
 ) -> str:
     """Create an HTML representation of the DataFrame or Series."""
-    if isinstance(obj, bigframes.series.Series):
+    # Note: We need to import Series here to avoid circular imports, but only if we use isinstance.
+    # To check if it is a Series without importing, we can check if it has the _repr_html_ method
+    # or rely on duck typing. However, the original code used isinstance.
+    # Let's import inside the function if needed, or rely on attribute checks.
+    # But wait, type checking imports are not available at runtime.
+    # We can check __class__.__name__ or similar, or just import locally.
+    from bigframes.series import Series
+
+    if isinstance(obj, Series):
         pd_series = pandas_df.iloc[:, 0]
         try:
             html_string = pd_series._repr_html_()
         except AttributeError:
             html_string = f"<pre>{pd_series.to_string()}</pre>"
     else:
+        # It's a DataFrame
         html_string = obj._create_html_representation(
             pandas_df, total_rows, total_columns, blob_cols
         )
@@ -177,8 +142,9 @@ def get_anywidget_bundle(
     This function encapsulates the logic for anywidget display.
     """
     from bigframes import display
+    from bigframes.series import Series
 
-    if isinstance(obj, bigframes.series.Series):
+    if isinstance(obj, Series):
         df = obj.to_frame()
     else:
         df, blob_cols = obj._get_display_df_and_blob_cols()
@@ -206,7 +172,9 @@ def get_anywidget_bundle(
         total_columns,
         blob_cols if "blob_cols" in locals() else [],
     )
-    widget_repr["text/plain"] = create_text_representation(obj, cached_pd, total_rows)
+    widget_repr["text/plain"] = plaintext.create_text_representation(
+        obj, cached_pd, total_rows
+    )
 
     return widget_repr, widget_metadata
 
@@ -219,6 +187,8 @@ def repr_mimebundle(
     """
     Custom display method for IPython/Jupyter environments.
     """
+    from bigframes.series import Series
+
     opts = bigframes.options.display
     if opts.repr_mode == "anywidget":
         try:
@@ -231,7 +201,7 @@ def repr_mimebundle(
             )
 
     blob_cols: list[str]
-    if isinstance(obj, bigframes.series.Series):
+    if isinstance(obj, Series):
         pandas_df, row_count, query_job = obj._block.retrieve_repr_request_results(
             opts.max_rows
         )
@@ -249,6 +219,8 @@ def repr_mimebundle(
         obj, pandas_df, row_count, column_count, blob_cols
     )
 
-    text_representation = create_text_representation(obj, pandas_df, row_count)
+    text_representation = plaintext.create_text_representation(
+        obj, pandas_df, row_count
+    )
 
     return {"text/html": html_string, "text/plain": text_representation}
