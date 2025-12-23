@@ -96,11 +96,10 @@ class TableWidget(_WIDGET_BASE):
         # Initialize attributes that might be needed by observers first
         self._table_id = str(uuid.uuid4())
         self._all_data_loaded = False
-        self._batch_iter: Iterator[pd.DataFrame] | None = None
+        self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: list[pd.DataFrame] = []
         self._last_sort_state: Optional[_SortState] = None
-        self._setting_html_lock = threading.Lock()
-        self._setting_html = False
+        self._setting_html_lock = threading.RLock()
 
         # respect display options for initial page size
         initial_page_size = bigframes.options.display.max_rows
@@ -270,18 +269,11 @@ class TableWidget(_WIDGET_BASE):
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
         with self._setting_html_lock:
-            if self._setting_html:
-                return
-            self._setting_html = True
-
-        try:
             if self._error_message:
-                with self._setting_html_lock:
-                    self.table_html = (
-                        f"<div class='bigframes-error-message'>"
-                        f"{self._error_message}</div>"
-                    )
-                    self._setting_html = False
+                self.table_html = (
+                    f"<div class='bigframes-error-message'>"
+                    f"{self._error_message}</div>"
+                )
                 return
 
             # Apply sorting if a column is selected
@@ -305,22 +297,6 @@ class TableWidget(_WIDGET_BASE):
                 )
                 self.page = 0  # Reset to first page
 
-            page_data = self._get_page_data()
-            page_data = self._prepare_dataframe_for_display(page_data)
-
-            # Generate HTML table
-            self.table_html = bigframes.display.html.render_html(
-                dataframe=page_data,
-                table_id=f"table-{self._table_id}",
-            )
-        finally:
-            with self._setting_html_lock:
-                self._setting_html = False
-
-    def _get_page_data(self) -> pd.DataFrame:
-        """Get the data for the current page, handling unknown row count."""
-        # This loop is to handle auto-correction of page number when row count is unknown
-        while True:
             start = self.page * self.page_size
             end = start + self.page_size
 
@@ -344,31 +320,30 @@ class TableWidget(_WIDGET_BASE):
                 # Calculate the last valid page (zero-indexed)
                 total_rows = len(cached_data)
                 last_valid_page = max(0, math.ceil(total_rows / self.page_size) - 1)
-                # Navigate back to the last valid page
+                # Navigate back to the last valid page.
+                # This triggers the observer, which will re-enter _set_table_html (allowed by RLock).
                 self.page = last_valid_page
-                # Continue the loop to re-calculate page data
-                continue
+                return
 
-            # If page is valid, break out of the loop.
-            return page_data
+            # Handle index display
+            if self._dataframe._block.has_index:
+                is_unnamed_single_index = (
+                    page_data.index.name is None
+                    and not isinstance(page_data.index, pd.MultiIndex)
+                )
+                page_data = page_data.reset_index()
+                if is_unnamed_single_index and "index" in page_data.columns:
+                    page_data.rename(columns={"index": ""}, inplace=True)
 
-    def _prepare_dataframe_for_display(self, page_data: pd.DataFrame) -> pd.DataFrame:
-        """Prepare the DataFrame for display, handling index and row numbers."""
-        start = self.page * self.page_size
-        # Handle index display
-        if self._dataframe._block.has_index:
-            is_unnamed_single_index = page_data.index.name is None and not isinstance(
-                page_data.index, pd.MultiIndex
+            # Default index - include as "Row" column if no index was present originally
+            if not self._dataframe._block.has_index:
+                page_data.insert(0, "Row", range(start + 1, start + len(page_data) + 1))
+
+            # Generate HTML table
+            self.table_html = bigframes.display.html.render_html(
+                dataframe=page_data,
+                table_id=f"table-{self._table_id}",
             )
-            page_data = page_data.reset_index()
-            if is_unnamed_single_index and "index" in page_data.columns:
-                page_data.rename(columns={"index": ""}, inplace=True)
-
-        # Default index - include as "Row" column if no index was present originally
-        if not self._dataframe._block.has_index:
-            page_data.insert(0, "Row", range(start + 1, start + len(page_data) + 1))
-
-        return page_data
 
     @traitlets.observe("sort_column", "sort_ascending")
     def _sort_changed(self, _change: dict[str, Any]):
