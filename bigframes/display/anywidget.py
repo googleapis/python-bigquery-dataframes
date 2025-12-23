@@ -99,6 +99,8 @@ class TableWidget(_WIDGET_BASE):
         self._batch_iter: Optional[Iterator[pd.DataFrame]] = None
         self._cached_batches: list[pd.DataFrame] = []
         self._last_sort_state: Optional[_SortState] = None
+        # RLock is needed because _set_table_html can be re-entrant when
+        # self.page is updated within the method, triggering the observer.
         self._setting_html_lock = threading.RLock()
 
         # respect display options for initial page size
