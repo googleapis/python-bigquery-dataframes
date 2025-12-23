@@ -115,9 +115,9 @@ def create_html_representation(
     from bigframes.series import Series
 
     if isinstance(obj, Series):
-        # Fallback to pandas string representation if the object is not a Series.
-        # This protects against cases where obj might be something else unexpectedly,
-        # or if the pandas Series implementation changes.
+        # Some pandas objects may not have a _repr_html_ method, or it might
+        # fail in certain environments. We fall back to a pre-formatted
+        # string representation to ensure something is always displayed.
         pd_series = pandas_df.iloc[:, 0]
         try:
             html_string = pd_series._repr_html_()
@@ -226,7 +226,7 @@ def get_anywidget_bundle(
     return widget_repr, widget_metadata
 
 
-def _repr_mimebundle_deferred(
+def repr_mimebundle_deferred(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
 ) -> dict[str, str]:
     return {
@@ -235,7 +235,7 @@ def _repr_mimebundle_deferred(
     }
 
 
-def _repr_mimebundle_head(
+def repr_mimebundle_head(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
 ) -> dict[str, str]:
     from bigframes.series import Series
@@ -280,7 +280,7 @@ def repr_mimebundle(
 
     opts = options.display
     if opts.repr_mode == "deferred":
-        return _repr_mimebundle_deferred(obj)
+        return repr_mimebundle_deferred(obj)
 
     if opts.repr_mode == "anywidget":
         try:
@@ -295,4 +295,4 @@ def repr_mimebundle(
                 f"Falling back to static HTML. Error: {traceback.format_exc()}"
             )
 
-    return _repr_mimebundle_head(obj)
+    return repr_mimebundle_head(obj)
