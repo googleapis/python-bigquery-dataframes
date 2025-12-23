@@ -18,12 +18,12 @@ import unittest.mock as mock
 import pandas as pd
 import pytest
 
-import bigframes.dataframe
-import bigframes.display.anywidget as anywidget
-
 # Skip if anywidget/traitlets not installed, though they should be in the dev env
 pytest.importorskip("anywidget")
 pytest.importorskip("traitlets")
+
+import bigframes.dataframe  # noqa: E402
+import bigframes.display.anywidget as anywidget  # noqa: E402
 
 
 class TestTableWidget:
