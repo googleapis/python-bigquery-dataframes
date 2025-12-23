@@ -785,13 +785,13 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             return object.__repr__(self)
 
         opts = bigframes.options.display
+        max_results = opts.max_rows
         if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
         # TODO(swast): pass max_columns and get the true column count back. Maybe
         # get 1 more column than we have requested so that pandas can add the
         # ... for us?
-        max_results = opts.max_rows
         pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
             max_results
         )
