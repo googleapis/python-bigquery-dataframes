@@ -20,12 +20,6 @@ import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
 
-if sys.version_info < (3, 12):
-    pytest.skip(
-        "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        allow_module_level=True,
-    )
-
 
 def test_compile_isin(scalar_types_df: bpd.DataFrame, snapshot):
     bf_isin = scalar_types_df["int64_col"].isin(scalar_types_df["int64_too"]).to_frame()

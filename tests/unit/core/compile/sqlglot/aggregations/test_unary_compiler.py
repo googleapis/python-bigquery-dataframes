@@ -260,10 +260,6 @@ def test_diff_w_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_first(scalar_types_df: bpd.DataFrame, snapshot):
-    if sys.version_info < (3, 12):
-        pytest.skip(
-            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(agg_ops.FirstOp(), expression.deref(col_name))
@@ -274,10 +270,6 @@ def test_first(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_first_non_null(scalar_types_df: bpd.DataFrame, snapshot):
-    if sys.version_info < (3, 12):
-        pytest.skip(
-            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(
@@ -290,10 +282,6 @@ def test_first_non_null(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_last(scalar_types_df: bpd.DataFrame, snapshot):
-    if sys.version_info < (3, 12):
-        pytest.skip(
-            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(agg_ops.LastOp(), expression.deref(col_name))
@@ -304,10 +292,6 @@ def test_last(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_last_non_null(scalar_types_df: bpd.DataFrame, snapshot):
-    if sys.version_info < (3, 12):
-        pytest.skip(
-            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(
@@ -475,11 +459,6 @@ def test_product(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
-    if sys.version_info < (3, 12):
-        pytest.skip(
-            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
-        )
-
     col_name = "int64_col"
     bf = scalar_types_df[[col_name]]
     bf["qcut_w_int"] = bpd.qcut(bf[col_name], q=4, labels=False, duplicates="drop")
