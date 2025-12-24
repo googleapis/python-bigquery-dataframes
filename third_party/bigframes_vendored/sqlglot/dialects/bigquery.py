@@ -12,7 +12,6 @@ from bigframes_vendored.sqlglot import (
     tokens,
     transforms,
 )
-from bigframes_vendored.sqlglot._typing import E
 from bigframes_vendored.sqlglot.dialects.dialect import (
     arg_max_or_min_no_count,
     binary_from_function,
