@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/helper.py
+
 from __future__ import annotations
 
 from collections.abc import Collection, Set

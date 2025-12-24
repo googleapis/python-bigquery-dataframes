@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/optimizer/pushdown_predicates.py
+
 from bigframes_vendored.sqlglot import Dialect, exp
 from bigframes_vendored.sqlglot.optimizer.normalize import normalized
 from bigframes_vendored.sqlglot.optimizer.scope import build_scope, find_in_scope

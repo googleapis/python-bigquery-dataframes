@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/optimizer/unnest_subqueries.py
+
 from bigframes_vendored.sqlglot import exp
 from bigframes_vendored.sqlglot.helper import name_sequence
 from bigframes_vendored.sqlglot.optimizer.scope import (

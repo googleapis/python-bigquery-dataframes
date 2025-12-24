@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/__main__.py
+
 from __future__ import annotations
 
 import argparse

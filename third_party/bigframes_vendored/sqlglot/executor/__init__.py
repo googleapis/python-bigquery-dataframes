@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/executor/__init__.py
+
 """
 .. include:: ../../posts/python_sql_engine.md
 

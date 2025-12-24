@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/optimizer/eliminate_joins.py
+
 from bigframes_vendored.sqlglot import expressions as exp
 from bigframes_vendored.sqlglot.optimizer.normalize import normalized
 from bigframes_vendored.sqlglot.optimizer.scope import Scope, traverse_scope

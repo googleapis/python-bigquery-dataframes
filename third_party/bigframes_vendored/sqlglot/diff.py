@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/diff.py
+
 """
 .. include:: ../posts/sql_diff.md
 

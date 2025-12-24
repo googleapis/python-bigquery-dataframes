@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/optimizer/isolate_table_selects.py
+
 from __future__ import annotations
 
 import typing as t

@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/typing/__init__.py
+
 import typing as t
 
 from bigframes_vendored.sqlglot import exp

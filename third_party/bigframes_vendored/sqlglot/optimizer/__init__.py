@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/optimizer/__init__.py
+
 # ruff: noqa: F401
 
 from bigframes_vendored.sqlglot.optimizer.optimizer import (  # noqa: F401

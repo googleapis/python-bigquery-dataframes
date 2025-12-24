@@ -1,3 +1,5 @@
+# Contains code from https://github.com/tobymao/sqlglot/blob/v28.5.0/sqlglot/executor/env.py
+
 import datetime
 from functools import wraps
 import inspect
