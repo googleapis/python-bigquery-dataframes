@@ -30,6 +30,13 @@ class ExperimentOptions:
 
     @property
     def semantic_operators(self) -> bool:
+        """Deprecated.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.experiments.semantic_operators = True
+        """
         return self._semantic_operators
 
     @semantic_operators.setter
@@ -43,6 +50,13 @@ class ExperimentOptions:
 
     @property
     def ai_operators(self) -> bool:
+        """If True, allow using the AI operators.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.experiments.ai_operators = True
+        """
         return self._ai_operators
 
     @ai_operators.setter
