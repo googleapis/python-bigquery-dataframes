@@ -1,8 +1,7 @@
 WITH `bfcte_0` AS (
   SELECT
-    *,
-    RAND() AS `bfcol_16`
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN, `bfcol_1` BYTES, `bfcol_2` DATE, `bfcol_3` DATETIME, `bfcol_4` GEOGRAPHY, `bfcol_5` INT64, `bfcol_6` INT64, `bfcol_7` NUMERIC, `bfcol_8` FLOAT64, `bfcol_9` INT64, `bfcol_10` INT64, `bfcol_11` STRING, `bfcol_12` TIME, `bfcol_13` TIMESTAMP, `bfcol_14` INT64, `bfcol_15` INT64>>[STRUCT(
+    *
+  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` BOOLEAN, `bfcol_1` BYTES, `bfcol_2` DATE, `bfcol_3` DATETIME, `bfcol_4` GEOGRAPHY, `bfcol_5` INT64, `bfcol_6` INT64, `bfcol_7` NUMERIC, `bfcol_8` FLOAT64, `bfcol_9` INT64, `bfcol_10` INT64, `bfcol_11` STRING, `bfcol_12` TIME, `bfcol_13` TIMESTAMP, `bfcol_14` INT64>>[STRUCT(
     TRUE,
     CAST(b'Hello, World!' AS BYTES),
     CAST('2021-07-21' AS DATE),
@@ -17,8 +16,7 @@ WITH `bfcte_0` AS (
     'Hello, World!',
     CAST('11:41:43.076160' AS TIME),
     CAST('2021-07-21T17:43:43.945289+00:00' AS TIMESTAMP),
-    4,
-    0
+    4
   ), STRUCT(
     FALSE,
     CAST(b'\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf' AS BYTES),
@@ -34,8 +32,7 @@ WITH `bfcte_0` AS (
     'こんにちは',
     CAST('11:14:34.701606' AS TIME),
     CAST('2021-07-21T17:43:43.945289+00:00' AS TIMESTAMP),
-    -1000000,
-    1
+    -1000000
   ), STRUCT(
     TRUE,
     CAST(b'\xc2\xa1Hola Mundo!' AS BYTES),
@@ -51,8 +48,7 @@ WITH `bfcte_0` AS (
     '  ¡Hola Mundo!  ',
     CAST('23:59:59.999999' AS TIME),
     CAST('2023-03-01T10:55:13.250125+00:00' AS TIMESTAMP),
-    0,
-    2
+    0
   ), STRUCT(
     CAST(NULL AS BOOLEAN),
     CAST(NULL AS BYTES),
@@ -68,8 +64,7 @@ WITH `bfcte_0` AS (
     CAST(NULL AS STRING),
     CAST(NULL AS TIME),
     CAST(NULL AS TIMESTAMP),
-    CAST(NULL AS INT64),
-    3
+    CAST(NULL AS INT64)
   ), STRUCT(
     FALSE,
     CAST(b'\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf' AS BYTES),
@@ -85,8 +80,7 @@ WITH `bfcte_0` AS (
     'Hello, World!',
     CAST(NULL AS TIME),
     CAST(NULL AS TIMESTAMP),
-    31540000000000,
-    4
+    31540000000000
   ), STRUCT(
     FALSE,
     CAST(b'G\xc3\xbcten Tag' AS BYTES),
@@ -102,8 +96,7 @@ WITH `bfcte_0` AS (
     'Güten Tag!',
     CAST('15:16:17.181921' AS TIME),
     CAST('1980-03-14T15:16:17.181921+00:00' AS TIMESTAMP),
-    4,
-    5
+    4
   ), STRUCT(
     TRUE,
     CAST(b'Hello\tBigFrames!\x07' AS BYTES),
@@ -119,8 +112,7 @@ WITH `bfcte_0` AS (
     'capitalize, This ',
     CAST('01:02:03.456789' AS TIME),
     CAST('2023-05-23T11:42:55.000001+00:00' AS TIMESTAMP),
-    CAST(NULL AS INT64),
-    6
+    CAST(NULL AS INT64)
   ), STRUCT(
     TRUE,
     CAST(NULL AS BYTES),
@@ -136,8 +128,7 @@ WITH `bfcte_0` AS (
     ' سلام',
     CAST('12:00:00.000001' AS TIME),
     CAST('2038-01-19T03:14:17.999999+00:00' AS TIMESTAMP),
-    4,
-    7
+    4
   ), STRUCT(
     FALSE,
     CAST(NULL AS BYTES),
@@ -153,15 +144,19 @@ WITH `bfcte_0` AS (
     'T',
     CAST(NULL AS TIME),
     CAST(NULL AS TIMESTAMP),
-    432000000000,
-    8
+    432000000000
   )])
 ), `bfcte_1` AS (
   SELECT
-    *
+    *,
+    GENERATE_UUID() AS `bfcol_15`
   FROM `bfcte_0`
+), `bfcte_2` AS (
+  SELECT
+    *
+  FROM `bfcte_1`
   WHERE
-    `bfcol_16` < 0.1
+    `bfcol_15` < 0.1
 )
 SELECT
   `bfcol_0` AS `bool_col`,
@@ -179,6 +174,6 @@ SELECT
   `bfcol_12` AS `time_col`,
   `bfcol_13` AS `timestamp_col`,
   `bfcol_14` AS `duration_col`
-FROM `bfcte_1`
+FROM `bfcte_2`
 ORDER BY
   `bfcol_15` ASC NULLS LAST

@@ -614,13 +614,22 @@ class ArrayValue:
         offsets = tuple(ex.deref(id) for id in column_ids)
         return ArrayValue(nodes.ExplodeNode(child=self.node, column_ids=offsets))
 
-    def _uniform_sampling(self, fraction: float) -> ArrayValue:
+    def _uniform_sampling(
+        self, fraction: float, shuffle: bool, seed: Optional[int] = None
+    ) -> ArrayValue:
         """Sampling the table on given fraction.
 
         .. warning::
             The row numbers of result is non-deterministic, avoid to use.
         """
-        return ArrayValue(nodes.RandomSampleNode(self.node, fraction))
+        return ArrayValue(
+            nodes.RandomSampleNode(self.node, fraction, shuffle=shuffle, seed=seed)
+        )
+
+    def _shuffle(self, seed: Optional[int] = None):
+        return ArrayValue(
+            nodes.RandomSampleNode(self.node, fraction=1.0, shuffle=True, seed=seed)
+        )
 
     # Deterministically generate namespaced ids for new variables
     # These new ids are only unique within the current namespace.
