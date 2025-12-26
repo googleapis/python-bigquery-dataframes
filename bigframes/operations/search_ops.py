@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Compiler for BigFrames expression to Ibis expression.
+import dataclasses
+import typing
 
-Make sure to import all ibis_compiler implementations here so that they get
-registered.
-"""
+from bigframes import dtypes
+from bigframes.operations import base_ops
 
-from __future__ import annotations
 
-import bigframes.core.compile.ibis_compiler.operations.generic_ops  # noqa: F401
-import bigframes.core.compile.ibis_compiler.operations.geo_ops  # noqa: F401
-import bigframes.core.compile.ibis_compiler.operations.search_ops  # noqa: F401
-import bigframes.core.compile.ibis_compiler.scalar_op_registry  # noqa: F401
+@dataclasses.dataclass(frozen=True)
+class SearchOp(base_ops.UnaryOp):
+    name: typing.ClassVar[str] = "search"
+    search_query: str
+
+    def output_type(self, *input_types):
+        return dtypes.BOOL_DTYPE
