@@ -248,31 +248,40 @@ def _flatten_struct_columns(
     clear_on_continuation_cols: list[str],
     nested_originated_columns: set[str],
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Flatten regular STRUCT columns using pandas accessor."""
+    """Flatten regular STRUCT columns."""
     result_df = dataframe.copy()
     for col_name in struct_columns:
-        # Use pandas struct accessor to explode the struct column into a DataFrame of its fields
-        exploded_struct = result_df[col_name].struct.explode()
+        col_data = result_df[col_name]
+        if isinstance(col_data.dtype, pd.ArrowDtype):
+            pa_type = cast(pd.ArrowDtype, col_data.dtype).pyarrow_dtype
 
-        # Rename columns to 'parent.child' format
-        exploded_struct.columns = [
-            f"{col_name}.{sub_col}" for sub_col in exploded_struct.columns
-        ]
+        # Use PyArrow to flatten the struct column without row iteration
+        # combine_chunks() ensures we have a single array if it was chunked
+        arrow_array = pa.array(col_data)
+        flattened_fields = arrow_array.flatten()
 
-        # Update metadata
-        for new_col in exploded_struct.columns:
-            nested_originated_columns.add(new_col)
-            clear_on_continuation_cols.append(new_col)
+        new_cols_to_add = {}
+        for field_idx in range(pa_type.num_fields):
+            field = pa_type.field(field_idx)
+            new_col_name = f"{col_name}.{field.name}"
+            nested_originated_columns.add(new_col_name)
+            clear_on_continuation_cols.append(new_col_name)
 
-        # Replace the original struct column with the new field columns
+            # Create a new Series from the flattened array
+            new_cols_to_add[new_col_name] = pd.Series(
+                flattened_fields[field_idx].to_pylist(),
+                dtype=pd.ArrowDtype(field.type),
+                index=result_df.index,
+            )
+
         col_idx = result_df.columns.to_list().index(col_name)
+        new_cols_df = pd.DataFrame(new_cols_to_add, index=result_df.index)
         result_df = pd.concat(
             [
                 result_df.iloc[:, :col_idx],
-                exploded_struct,
+                new_cols_df,
                 result_df.iloc[:, col_idx + 1 :],
             ],
             axis=1,
         )
-
     return result_df, clear_on_continuation_cols
