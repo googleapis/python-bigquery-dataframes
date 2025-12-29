@@ -25,7 +25,6 @@ import warnings
 
 import pandas as pd
 import pandas.api.types
-import pyarrow as pa
 
 import bigframes
 from bigframes._config import display_options, options
@@ -39,11 +38,6 @@ if typing.TYPE_CHECKING:
 
 def _is_dtype_numeric(dtype: Any) -> bool:
     """Check if a dtype is numeric for alignment purposes."""
-    # Arrays should always be left-aligned, even if they contain numeric elements
-    if isinstance(dtype, pd.ArrowDtype) and isinstance(
-        dtype.pyarrow_dtype, pa.ListType
-    ):
-        return False
     return pandas.api.types.is_numeric_dtype(dtype)
 
 
@@ -350,9 +344,8 @@ def repr_mimebundle(
     exclude=None,
 ):
     """Custom display method for IPython/Jupyter environments."""
-    # TODO(b/467647693): Anywidget integration has been tested in Jupyter,
-    # VS Code, and BQ Studio, but there is a known compatibility issue with
-    # Marimo that needs to be addressed.
+    # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+    # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
 
     opts = options.display
     if opts.repr_mode == "deferred":
