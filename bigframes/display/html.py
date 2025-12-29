@@ -25,10 +25,11 @@ import warnings
 
 import pandas as pd
 import pandas.api.types
+import pyarrow as pa
 
 import bigframes
 from bigframes._config import display_options, options
-from bigframes.display import plaintext
+from bigframes.display import _flatten, plaintext
 import bigframes.formatting_helpers as formatter
 
 if typing.TYPE_CHECKING:
@@ -38,6 +39,11 @@ if typing.TYPE_CHECKING:
 
 def _is_dtype_numeric(dtype: Any) -> bool:
     """Check if a dtype is numeric for alignment purposes."""
+    # Arrays should always be left-aligned, even if they contain numeric elements
+    if isinstance(dtype, pd.ArrowDtype) and isinstance(
+        dtype.pyarrow_dtype, pa.ListType
+    ):
+        return False
     return pandas.api.types.is_numeric_dtype(dtype)
 
 
@@ -47,12 +53,27 @@ def render_html(
     table_id: str,
     orderable_columns: list[str] | None = None,
 ) -> str:
-    """Render a pandas DataFrame to HTML with specific styling."""
+    """Render a pandas DataFrame to HTML with specific styling and nested data support."""
+    # Flatten nested data first
+    (
+        flattened_df,
+        array_row_groups,
+        clear_on_continuation,
+        nested_originated_columns,
+    ) = _flatten.flatten_nested_data(dataframe)
+
     orderable_columns = orderable_columns or []
     classes = "dataframe table table-striped table-hover"
     table_html_parts = [f'<table border="1" class="{classes}" id="{table_id}">']
-    table_html_parts.append(_render_table_header(dataframe, orderable_columns))
-    table_html_parts.append(_render_table_body(dataframe))
+    table_html_parts.append(_render_table_header(flattened_df, orderable_columns))
+    table_html_parts.append(
+        _render_table_body(
+            flattened_df,
+            array_row_groups,
+            clear_on_continuation,
+            nested_originated_columns,
+        )
+    )
     table_html_parts.append("</table>")
     return "".join(table_html_parts)
 
@@ -73,32 +94,69 @@ def _render_table_header(dataframe: pd.DataFrame, orderable_columns: list[str]) 
     return "\n".join(header_parts)
 
 
-def _render_table_body(dataframe: pd.DataFrame) -> str:
+def _render_table_body(
+    dataframe: pd.DataFrame,
+    array_row_groups: dict[str, list[int]],
+    clear_on_continuation: list[str],
+    nested_originated_columns: set[str],
+) -> str:
     """Render the body of the HTML table."""
     body_parts = ["  <tbody>"]
     precision = options.display.precision
 
     for i in range(len(dataframe)):
-        body_parts.append("    <tr>")
+        row_class = ""
+        orig_row_idx = None
+        is_continuation = False
+        for orig_key, row_indices in array_row_groups.items():
+            if i in row_indices and row_indices[0] != i:
+                row_class = "array-continuation"
+                orig_row_idx = orig_key
+                is_continuation = True
+                break
+
+        if row_class:
+            body_parts.append(
+                f'    <tr class="{row_class}" data-orig-row="{orig_row_idx}">'
+            )
+        else:
+            body_parts.append("    <tr>")
+
         row = dataframe.iloc[i]
         for col_name, value in row.items():
+            col_name_str = str(col_name)
+            if is_continuation and col_name_str in clear_on_continuation:
+                body_parts.append("      <td></td>")
+                continue
             dtype = dataframe.dtypes.loc[col_name]  # type: ignore
-            align = "right" if _is_dtype_numeric(dtype) else "left"
 
-            if pandas.api.types.is_scalar(value) and pd.isna(value):
-                body_parts.append(
-                    f'      <td class="cell-align-{align}">'
-                    '<em class="null-value">&lt;NA&gt;</em></td>'
-                )
+            if col_name_str in nested_originated_columns:
+                align = "left"
             else:
-                if isinstance(value, float):
-                    cell_content = f"{value:.{precision}f}"
+                align = "right" if _is_dtype_numeric(dtype) else "left"
+
+            cell_content = ""
+            if pandas.api.types.is_scalar(value) and pd.isna(value):
+                if is_continuation:
+                    # For padding nulls in continuation rows, show empty cell
+                    body_parts.append(f'      <td class="cell-align-{align}"></td>')
                 else:
-                    cell_content = str(value)
-                body_parts.append(
-                    f'      <td class="cell-align-{align}">'
-                    f"{html.escape(cell_content)}</td>"
-                )
+                    # For primary nulls, keep showing the <NA> indicator but maybe styled
+                    body_parts.append(
+                        f'      <td class="cell-align-{align}">'
+                        '<em class="null-value">&lt;NA&gt;</em></td>'
+                    )
+                continue
+            elif isinstance(value, float):
+                cell_content = f"{value:.{precision}f}"
+            else:
+                cell_content = str(value)
+
+            # Use classes for alignment
+            body_parts.append(
+                f'      <td class="cell-align-{align}">'
+                f"{html.escape(cell_content)}</td>"
+            )
         body_parts.append("    </tr>")
     body_parts.append("  </tbody>")
     return "\n".join(body_parts)
@@ -292,8 +350,9 @@ def repr_mimebundle(
     exclude=None,
 ):
     """Custom display method for IPython/Jupyter environments."""
-    # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
-    # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
+    # TODO(b/467647693): Anywidget integration has been tested in Jupyter,
+    # VS Code, and BQ Studio, but there is a known compatibility issue with
+    # Marimo that needs to be addressed.
 
     opts = options.display
     if opts.repr_mode == "deferred":

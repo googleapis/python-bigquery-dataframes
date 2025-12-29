@@ -259,4 +259,129 @@ describe("TableWidget", () => {
 		expect(headers[0].textContent).toBe("");
 		expect(headers[1].textContent).toBe("value");
 	});
+
+	it("should highlight all rows in a group when hovering over a nested data row", () => {
+		// Mock HTML with nested data structure (flattened rows)
+		model.get.mockImplementation((property) => {
+			if (property === "table_html") {
+				return `<table><tbody>
+				  <tr data-orig-row="0"><td>Row 1 Part A</td></tr>
+				  <tr data-orig-row="0"><td>Row 1 Part B</td></tr>
+				  <tr data-orig-row="1"><td>Row 2</td></tr>
+				</tbody></table>`;
+			}
+			if (property === "orderable_columns") {
+				return [];
+			}
+			return null;
+		});
+
+		render({ model, el });
+
+		// Manually trigger the table_html change handler
+		const tableHtmlChangeHandler = model.on.mock.calls.find(
+			(call) => call[0] === "change:table_html",
+		)[1];
+		tableHtmlChangeHandler();
+
+		const firstRowCell = el.querySelector('tr[data-orig-row="0"] td');
+		const rowsInGroup = el.querySelectorAll('tr[data-orig-row="0"] td');
+
+		// Simulate mouseover
+		const mouseOverEvent = new MouseEvent("mouseover", {
+			bubbles: true,
+			cancelable: true,
+		});
+		firstRowCell.dispatchEvent(mouseOverEvent);
+
+		// Check if row-hover class is added to all cells in the group
+
+		rowsInGroup.forEach((cell) => {
+			expect(cell.classList.contains("row-hover")).toBe(true);
+		});
+
+		// Simulate mouseout
+		const mouseOutEvent = new MouseEvent("mouseout", {
+			bubbles: true,
+			cancelable: true,
+		});
+		firstRowCell.dispatchEvent(mouseOutEvent);
+
+		// Check if row-hover class is removed
+
+		rowsInGroup.forEach((cell) => {
+			expect(cell.classList.contains("row-hover")).toBe(false);
+		});
+	});
+
+	it("should not highlight unrelated rows when hovering over a nested data row", () => {
+		// Mock HTML with nested data structure
+		model.get.mockImplementation((property) => {
+			if (property === "table_html") {
+				return `<table><tbody>
+				  <tr data-orig-row="0"><td>Row 1 Part A</td></tr>
+				  <tr data-orig-row="0"><td>Row 1 Part B</td></tr>
+				  <tr data-orig-row="1"><td>Row 2</td></tr>
+				</tbody></table>`;
+			}
+			if (property === "orderable_columns") {
+				return [];
+			}
+			return null;
+		});
+
+		render({ model, el });
+
+		const tableHtmlChangeHandler = model.on.mock.calls.find(
+			(call) => call[0] === "change:table_html",
+		)[1];
+		tableHtmlChangeHandler();
+
+		const row1Cell = el.querySelector('tr[data-orig-row="0"] td');
+		const row2Cell = el.querySelector('tr[data-orig-row="1"] td');
+
+		const mouseOverEvent = new MouseEvent("mouseover", {
+			bubbles: true,
+			cancelable: true,
+		});
+		row1Cell.dispatchEvent(mouseOverEvent);
+
+		// Row 2 should NOT have the hover class
+		expect(row2Cell.classList.contains("row-hover")).toBe(false);
+	});
+
+	it("should not highlight other rows when hovering over a non-nested row", () => {
+		// Mock HTML with mixed data structure
+		model.get.mockImplementation((property) => {
+			if (property === "table_html") {
+				return `<table><tbody>
+				  <tr><td>Standard Row</td></tr>
+				  <tr data-orig-row="0"><td>Nested Row</td></tr>
+				</tbody></table>`;
+			}
+			if (property === "orderable_columns") {
+				return [];
+			}
+			return null;
+		});
+
+		render({ model, el });
+
+		const tableHtmlChangeHandler = model.on.mock.calls.find(
+			(call) => call[0] === "change:table_html",
+		)[1];
+		tableHtmlChangeHandler();
+
+		const standardCell = el.querySelector("tr:not([data-orig-row]) td");
+		const nestedCell = el.querySelector('tr[data-orig-row="0"] td');
+
+		const mouseOverEvent = new MouseEvent("mouseover", {
+			bubbles: true,
+			cancelable: true,
+		});
+		standardCell.dispatchEvent(mouseOverEvent);
+
+		// The nested row should NOT have the hover class
+		expect(nestedCell.classList.contains("row-hover")).toBe(false);
+	});
 });
