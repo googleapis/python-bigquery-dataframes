@@ -85,8 +85,6 @@ def _render_table_body(dataframe: pd.DataFrame) -> str:
             dtype = dataframe.dtypes.loc[col_name]  # type: ignore
             align = "right" if _is_dtype_numeric(dtype) else "left"
 
-            # TODO(b/438181139): Consider semi-exploding ARRAY/STRUCT columns
-            # into multiple rows/columns like the BQ UI does.
             if pandas.api.types.is_scalar(value) and pd.isna(value):
                 body_parts.append(
                     f'      <td class="cell-align-{align}">'
