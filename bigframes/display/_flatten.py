@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Callable, cast
 
 import pandas as pd
 import pyarrow as pa
@@ -39,12 +39,54 @@ def flatten_nested_data(
         nested_originated_columns,
     ) = _classify_columns(result_df)
 
-    result_df, array_columns = _flatten_array_of_struct_columns(
-        result_df, array_of_struct_columns, array_columns, nested_originated_columns
+    # Flatten ARRAY of STRUCT columns
+    def update_array_columns(col_name: str, new_col_names: list[str]) -> None:
+        array_columns.remove(col_name)
+        array_columns.extend(new_col_names)
+
+    def create_list_series(
+        original_arr: pa.Array, field_arr: pa.Array, index: pd.Index, field: pa.Field
+    ) -> pd.Series:
+        new_list_array = pa.ListArray.from_arrays(
+            original_arr.offsets, field_arr, mask=original_arr.is_null()
+        )
+        return pd.Series(
+            new_list_array.to_pylist(),
+            dtype=pd.ArrowDtype(pa.list_(field.type)),
+            index=index,
+        )
+
+    result_df = _flatten_and_replace_columns(
+        result_df,
+        array_of_struct_columns,
+        nested_originated_columns,
+        get_struct_type=lambda t: t.value_type,
+        get_field_values=lambda arr: arr.values.flatten(),
+        create_series=create_list_series,
+        update_metadata=update_array_columns,
     )
 
-    result_df, clear_on_continuation_cols = _flatten_struct_columns(
-        result_df, struct_columns, clear_on_continuation_cols, nested_originated_columns
+    # Flatten regular STRUCT columns
+    def update_clear_on_continuation(col_name: str, new_col_names: list[str]) -> None:
+        clear_on_continuation_cols.extend(new_col_names)
+
+    def create_struct_series(
+        original_arr: pa.Array, field_arr: pa.Array, index: pd.Index, field: pa.Field
+    ) -> pd.Series:
+        return pd.Series(
+            field_arr.to_pylist(),
+            dtype=pd.ArrowDtype(field.type),
+            index=index,
+        )
+
+    result_df = _flatten_and_replace_columns(
+        result_df,
+        struct_columns,
+        nested_originated_columns,
+        get_struct_type=lambda t: t,
+        get_field_values=lambda arr: arr.flatten(),
+        create_series=create_struct_series,
+        update_metadata=update_clear_on_continuation,
     )
 
     # Now handle ARRAY columns (including the newly created ones from ARRAY of STRUCT)
@@ -104,45 +146,36 @@ def _classify_columns(
     )
 
 
-def _flatten_array_of_struct_columns(
+def _flatten_and_replace_columns(
     dataframe: pd.DataFrame,
-    array_of_struct_columns: list[str],
-    array_columns: list[str],
+    columns: list[str],
     nested_originated_columns: set[str],
-) -> tuple[pd.DataFrame, list[str]]:
-    """Flatten ARRAY of STRUCT columns into separate array columns for each field."""
+    get_struct_type: Callable[[pa.DataType], pa.DataType],
+    get_field_values: Callable[[pa.Array], list[pa.Array]],
+    create_series: Callable[[pa.Array, pa.Array, pd.Index, pa.Field], pd.Series],
+    update_metadata: Callable[[str, list[str]], None],
+) -> pd.DataFrame:
+    """Generic helper to flatten structure-like columns and replace them in the DataFrame."""
     result_df = dataframe.copy()
-    for col_name in array_of_struct_columns:
+    for col_name in columns:
         col_data = result_df[col_name]
         pa_type = cast(pd.ArrowDtype, col_data.dtype).pyarrow_dtype
-        struct_type = pa_type.value_type
+        struct_type = get_struct_type(pa_type)
 
-        # Use PyArrow to reshape the list<struct> into multiple list<field> arrays
         arrow_array = pa.array(col_data)
-        offsets = arrow_array.offsets
-        values = arrow_array.values  # StructArray
-        flattened_fields = values.flatten()  # List[Array]
+        flattened_fields = get_field_values(arrow_array)
 
         new_cols_to_add = {}
-        new_array_col_names = []
+        new_col_names = []
 
-        # Create new columns for each struct field
         for field_idx in range(struct_type.num_fields):
             field = struct_type.field(field_idx)
             new_col_name = f"{col_name}.{field.name}"
             nested_originated_columns.add(new_col_name)
-            new_array_col_names.append(new_col_name)
+            new_col_names.append(new_col_name)
 
-            # Reconstruct ListArray for this field
-            # Use mask=arrow_array.is_null() to preserve nulls from the original list
-            new_list_array = pa.ListArray.from_arrays(
-                offsets, flattened_fields[field_idx], mask=arrow_array.is_null()
-            )
-
-            new_cols_to_add[new_col_name] = pd.Series(
-                new_list_array.to_pylist(),
-                dtype=pd.ArrowDtype(pa.list_(field.type)),
-                index=result_df.index,
+            new_cols_to_add[new_col_name] = create_series(
+                arrow_array, flattened_fields[field_idx], result_df.index, field
             )
 
         col_idx = result_df.columns.to_list().index(col_name)
@@ -157,11 +190,9 @@ def _flatten_array_of_struct_columns(
             axis=1,
         )
 
-        # Update array_columns list
-        array_columns.remove(col_name)
-        # Add the new array columns
-        array_columns.extend(new_array_col_names)
-    return result_df, array_columns
+        update_metadata(col_name, new_col_names)
+
+    return result_df
 
 
 def _explode_array_columns(
@@ -240,48 +271,3 @@ def _explode_array_columns(
         return exploded_df, array_row_groups
     else:
         return dataframe, array_row_groups
-
-
-def _flatten_struct_columns(
-    dataframe: pd.DataFrame,
-    struct_columns: list[str],
-    clear_on_continuation_cols: list[str],
-    nested_originated_columns: set[str],
-) -> tuple[pd.DataFrame, list[str]]:
-    """Flatten regular STRUCT columns."""
-    result_df = dataframe.copy()
-    for col_name in struct_columns:
-        col_data = result_df[col_name]
-        if isinstance(col_data.dtype, pd.ArrowDtype):
-            pa_type = cast(pd.ArrowDtype, col_data.dtype).pyarrow_dtype
-
-        # Use PyArrow to flatten the struct column without row iteration
-        # combine_chunks() ensures we have a single array if it was chunked
-        arrow_array = pa.array(col_data)
-        flattened_fields = arrow_array.flatten()
-
-        new_cols_to_add = {}
-        for field_idx in range(pa_type.num_fields):
-            field = pa_type.field(field_idx)
-            new_col_name = f"{col_name}.{field.name}"
-            nested_originated_columns.add(new_col_name)
-            clear_on_continuation_cols.append(new_col_name)
-
-            # Create a new Series from the flattened array
-            new_cols_to_add[new_col_name] = pd.Series(
-                flattened_fields[field_idx].to_pylist(),
-                dtype=pd.ArrowDtype(field.type),
-                index=result_df.index,
-            )
-
-        col_idx = result_df.columns.to_list().index(col_name)
-        new_cols_df = pd.DataFrame(new_cols_to_add, index=result_df.index)
-        result_df = pd.concat(
-            [
-                result_df.iloc[:, :col_idx],
-                new_cols_df,
-                result_df.iloc[:, col_idx + 1 :],
-            ],
-            axis=1,
-        )
-    return result_df, clear_on_continuation_cols
