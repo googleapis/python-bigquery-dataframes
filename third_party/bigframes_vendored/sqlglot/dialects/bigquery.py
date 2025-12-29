@@ -39,6 +39,7 @@ from bigframes_vendored.sqlglot.dialects.dialect import (
     ts_or_ds_add_cast,
     unit_to_var,
 )
+from bigframes_vendored.sqlglot.expressions import Expression as E
 from bigframes_vendored.sqlglot.generator import unsupported_args
 from bigframes_vendored.sqlglot.helper import seq_get, split_num_words
 from bigframes_vendored.sqlglot.optimizer.annotate_types import TypeAnnotator
