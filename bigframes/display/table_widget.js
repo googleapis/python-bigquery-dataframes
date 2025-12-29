@@ -21,7 +21,7 @@ const ModelProperty = {
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
 	SORT_ASCENDING: "sort_ascending",
-	SORT_COLUMN: "sort_column",
+	SORT_COLUMNS: "sort_columns",
 	TABLE_HTML: "table_html",
 };
 
@@ -141,7 +141,7 @@ function render({ model, el }) {
 
 		// Get sortable columns from backend
 		const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
-		const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
+		const currentSortColumns = model.get(ModelProperty.SORT_COLUMNS);
 		const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
 
 		// Add click handlers to column headers for sorting
@@ -161,8 +161,10 @@ function render({ model, el }) {
 
 				// Determine sort indicator and initial visibility
 				let indicator = "●"; // Default: unsorted (dot)
-				if (currentSortColumn === columnName) {
-					indicator = currentSortAscending ? "▲" : "▼";
+				const sortIndex = currentSortColumns.indexOf(columnName);
+				if (sortIndex !== -1) {
+					const isAscending = currentSortAscending[sortIndex];
+					indicator = isAscending ? "▲" : "▼";
 					indicatorSpan.style.visibility = "visible"; // Sorted arrows always visible
 				} else {
 					indicatorSpan.style.visibility = "hidden"; // Unsorted dot hidden by default
@@ -178,32 +180,57 @@ function render({ model, el }) {
 
 				// Add hover effects for unsorted columns only
 				header.addEventListener("mouseover", () => {
-					if (currentSortColumn !== columnName) {
+					if (currentSortColumns.indexOf(columnName) === -1) {
 						indicatorSpan.style.visibility = "visible";
 					}
 				});
 				header.addEventListener("mouseout", () => {
-					if (currentSortColumn !== columnName) {
+					if (currentSortColumns.indexOf(columnName) === -1) {
 						indicatorSpan.style.visibility = "hidden";
 					}
 				});
 
 				// Add click handler for three-state toggle
-				header.addEventListener(Event.CLICK, () => {
-					if (currentSortColumn === columnName) {
-						if (currentSortAscending) {
-							// Currently ascending → switch to descending
-							model.set(ModelProperty.SORT_ASCENDING, false);
+				header.addEventListener(Event.CLICK, (event) => {
+					const sortIndex = currentSortColumns.indexOf(columnName);
+					let newColumns = [...currentSortColumns];
+					let newAscending = [...currentSortAscending];
+
+					if (event.shiftKey) {
+						if (sortIndex !== -1) {
+							// Already sorted. Toggle or Remove.
+							if (newAscending[sortIndex]) {
+								// Asc -> Desc
+								newAscending[sortIndex] = false;
+							} else {
+								// Desc -> Remove
+								newColumns.splice(sortIndex, 1);
+								newAscending.splice(sortIndex, 1);
+							}
 						} else {
-							// Currently descending → clear sort (back to unsorted)
-							model.set(ModelProperty.SORT_COLUMN, "");
-							model.set(ModelProperty.SORT_ASCENDING, true);
+							// Not sorted -> Append Asc
+							newColumns.push(columnName);
+							newAscending.push(true);
 						}
 					} else {
-						// Not currently sorted → sort ascending
-						model.set(ModelProperty.SORT_COLUMN, columnName);
-						model.set(ModelProperty.SORT_ASCENDING, true);
+						// No shift key. Single column mode.
+						if (sortIndex !== -1 && newColumns.length === 1) {
+							// Already only this column. Toggle or Remove.
+							if (newAscending[sortIndex]) {
+								newAscending[sortIndex] = false;
+							} else {
+								newColumns = [];
+								newAscending = [];
+							}
+						} else {
+							// Start fresh with this column
+							newColumns = [columnName];
+							newAscending = [true];
+						}
 					}
+
+					model.set(ModelProperty.SORT_COLUMNS, newColumns);
+					model.set(ModelProperty.SORT_ASCENDING, newAscending);
 					model.save_changes();
 				});
 			}
