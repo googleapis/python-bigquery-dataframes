@@ -83,8 +83,11 @@ describe("TableWidget", () => {
 				if (property === "orderable_columns") {
 					return ["col1"];
 				}
-				if (property === "sort_column") {
-					return "";
+				if (property === "sort_columns") {
+					return [];
+				}
+				if (property === "sort_ascending") {
+					return [];
 				}
 				return null;
 			});
@@ -100,8 +103,8 @@ describe("TableWidget", () => {
 			const header = el.querySelector("th");
 			header.click();
 
-			expect(model.set).toHaveBeenCalledWith("sort_column", "col1");
-			expect(model.set).toHaveBeenCalledWith("sort_ascending", true);
+			expect(model.set).toHaveBeenCalledWith("sort_columns", ["col1"]);
+			expect(model.set).toHaveBeenCalledWith("sort_ascending", [true]);
 			expect(model.save_changes).toHaveBeenCalled();
 		});
 
@@ -114,11 +117,11 @@ describe("TableWidget", () => {
 				if (property === "orderable_columns") {
 					return ["col1"];
 				}
-				if (property === "sort_column") {
-					return "col1";
+				if (property === "sort_columns") {
+					return ["col1"];
 				}
 				if (property === "sort_ascending") {
-					return true;
+					return [true];
 				}
 				return null;
 			});
@@ -134,7 +137,7 @@ describe("TableWidget", () => {
 			const header = el.querySelector("th");
 			header.click();
 
-			expect(model.set).toHaveBeenCalledWith("sort_ascending", false);
+			expect(model.set).toHaveBeenCalledWith("sort_ascending", [false]);
 			expect(model.save_changes).toHaveBeenCalled();
 		});
 
@@ -147,11 +150,11 @@ describe("TableWidget", () => {
 				if (property === "orderable_columns") {
 					return ["col1"];
 				}
-				if (property === "sort_column") {
-					return "col1";
+				if (property === "sort_columns") {
+					return ["col1"];
 				}
 				if (property === "sort_ascending") {
-					return false;
+					return [false];
 				}
 				return null;
 			});
@@ -167,8 +170,8 @@ describe("TableWidget", () => {
 			const header = el.querySelector("th");
 			header.click();
 
-			expect(model.set).toHaveBeenCalledWith("sort_column", "");
-			expect(model.set).toHaveBeenCalledWith("sort_ascending", true);
+			expect(model.set).toHaveBeenCalledWith("sort_columns", []);
+			expect(model.set).toHaveBeenCalledWith("sort_ascending", []);
 			expect(model.save_changes).toHaveBeenCalled();
 		});
 
@@ -181,11 +184,11 @@ describe("TableWidget", () => {
 				if (property === "orderable_columns") {
 					return ["col1", "col2"];
 				}
-				if (property === "sort_column") {
-					return "col1";
+				if (property === "sort_columns") {
+					return ["col1"];
 				}
 				if (property === "sort_ascending") {
-					return true;
+					return [true];
 				}
 				return null;
 			});
@@ -204,6 +207,48 @@ describe("TableWidget", () => {
 
 			expect(indicator1.textContent).toBe("▲");
 			expect(indicator2.textContent).toBe("●");
+		});
+
+		it("should add a column to sort when Shift+Click is used", () => {
+			// Mock the initial state: already sorted by col1 asc
+			model.get.mockImplementation((property) => {
+				if (property === "table_html") {
+					return "<table><thead><tr><th><div>col1</div></th><th><div>col2</div></th></tr></thead></table>";
+				}
+				if (property === "orderable_columns") {
+					return ["col1", "col2"];
+				}
+				if (property === "sort_columns") {
+					return ["col1"];
+				}
+				if (property === "sort_ascending") {
+					return [true];
+				}
+				return null;
+			});
+
+			render({ model, el });
+
+			// Manually trigger the table_html change handler
+			const tableHtmlChangeHandler = model.on.mock.calls.find(
+				(call) => call[0] === "change:table_html",
+			)[1];
+			tableHtmlChangeHandler();
+
+			const headers = el.querySelectorAll("th");
+			const header2 = headers[1]; // col2
+
+			// Simulate Shift+Click
+			const clickEvent = new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+				shiftKey: true,
+			});
+			header2.dispatchEvent(clickEvent);
+
+			expect(model.set).toHaveBeenCalledWith("sort_columns", ["col1", "col2"]);
+			expect(model.set).toHaveBeenCalledWith("sort_ascending", [true, true]);
+			expect(model.save_changes).toHaveBeenCalled();
 		});
 	});
 
