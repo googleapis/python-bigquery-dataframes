@@ -774,8 +774,8 @@ def test_widget_sort_should_sort_ascending_on_first_click(
     Given a widget, when a column header is clicked for the first time,
     then the data should be sorted by that column in ascending order.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_ascending = [True]
+    table_widget.sort_columns = ["id"]
 
     expected_slice = paginated_pandas_df.sort_values("id", ascending=True).iloc[0:2]
     html = table_widget.table_html
@@ -790,11 +790,11 @@ def test_widget_sort_should_sort_descending_on_second_click(
     Given a widget sorted by a column, when the same column header is clicked again,
     then the data should be sorted by that column in descending order.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_ascending = [True]
+    table_widget.sort_columns = ["id"]
 
     # Second click
-    table_widget.sort_ascending = False
+    table_widget.sort_ascending = [False]
 
     expected_slice = paginated_pandas_df.sort_values("id", ascending=False).iloc[0:2]
     html = table_widget.table_html
@@ -809,12 +809,12 @@ def test_widget_sort_should_switch_column_and_sort_ascending(
     Given a widget sorted by a column, when a different column header is clicked,
     then the data should be sorted by the new column in ascending order.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_ascending = [True]
+    table_widget.sort_columns = ["id"]
 
     # Click on a different column
-    table_widget.sort_column = "value"
-    table_widget.sort_ascending = True
+    table_widget.sort_ascending = [True]
+    table_widget.sort_columns = ["value"]
 
     expected_slice = paginated_pandas_df.sort_values("value", ascending=True).iloc[0:2]
     html = table_widget.table_html
@@ -829,8 +829,8 @@ def test_widget_sort_should_be_maintained_after_pagination(
     Given a sorted widget, when the user navigates to the next page,
     then the sorting should be maintained.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_ascending = [True]
+    table_widget.sort_columns = ["id"]
 
     # Go to the second page
     table_widget.page = 1
@@ -848,8 +848,8 @@ def test_widget_sort_should_reset_on_page_size_change(
     Given a sorted widget, when the page size is changed,
     then the sorting should be reset.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_ascending = [True]
+    table_widget.sort_columns = ["id"]
 
     table_widget.page_size = 3
 
