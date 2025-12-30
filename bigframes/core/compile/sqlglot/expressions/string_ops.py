@@ -53,7 +53,9 @@ def _(expr: TypedExpr, op: ops.StrExtractOp) -> sge.Expression:
     else:
         pat_expr = sge.func("CONCAT", sge.convert(".*?("), pat_expr, sge.convert(").*"))
 
-    rex_replace = sge.func("REGEXP_REPLACE", expr.expr, pat_expr, sge.convert(r"\1"))
+    rex_replace = sge.func(
+        "REGEXP_REPLACE", expr.expr, pat_expr, sge.convert(f"\\{op.n}")
+    )
     rex_contains = sge.func("REGEXP_CONTAINS", expr.expr, sge.convert(op.pat))
     return sge.If(this=rex_contains, true=rex_replace, false=sge.null())
 
