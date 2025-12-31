@@ -171,6 +171,11 @@
 	color: gray;
 }
 
+/*
+   Dark Mode Styles
+   Applied via @media query OR .bigframes-dark-mode class (detected via JS)
+*/
+
 @media (prefers-color-scheme: dark) {
 	.bigframes-widget .footer,
 	.bigframes-widget table {
@@ -216,4 +221,48 @@
 	.bigframes-widget .null-value {
 		color: #aaa;
 	}
+}
+
+/* Duplicated Dark Mode rules for explicit class detection */
+.bigframes-widget.bigframes-dark-mode .footer,
+.bigframes-widget.bigframes-dark-mode table {
+	color: var(
+		--colab-primary-text-color,
+		var(--jp-ui-font-color0, var(--vscode-editor-foreground, white))
+	);
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, #202124))
+	);
+}
+
+.bigframes-widget.bigframes-dark-mode th {
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, black))
+	);
+}
+
+.bigframes-widget.bigframes-dark-mode table tbody tr:nth-child(odd) td {
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, #383838))
+	);
+}
+
+.bigframes-widget.bigframes-dark-mode table tbody tr:nth-child(even) td {
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, #202124))
+	);
+}
+
+.bigframes-widget.bigframes-dark-mode .bigframes-error-message {
+	background-color: #511;
+	border: 1px solid #f88;
+	color: #fcc;
+}
+
+.bigframes-widget.bigframes-dark-mode .null-value {
+	color: #aaa;
 }
