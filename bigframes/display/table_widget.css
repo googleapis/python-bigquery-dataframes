@@ -84,10 +84,11 @@
 	text-align: left;
 }
 
+/* Light Mode Header: Light Gray */
 .bigframes-widget th {
 	background-color: var(
 		--colab-primary-surface-color,
-		var(--jp-layout-color0, var(--vscode-editor-background, white))
+		var(--jp-layout-color0, var(--vscode-editor-background, #f5f5f5))
 	);
 	padding: 0;
 	position: sticky;
@@ -96,11 +97,22 @@
 	z-index: 1;
 }
 
-/* Ensure rows have a background to override external striping if needed */
-.bigframes-widget table tbody tr {
+.bigframes-widget td {
+	padding: 0.5em;
+}
+
+/* Light Mode Stripes: Odd = White, Even = Light Gray */
+.bigframes-widget table tbody tr:nth-child(odd) td {
 	background-color: var(
 		--colab-primary-surface-color,
 		var(--jp-layout-color0, var(--vscode-editor-background, white))
+	);
+}
+
+.bigframes-widget table tbody tr:nth-child(even) td {
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, #f5f5f5))
 	);
 }
 
@@ -159,18 +171,6 @@
 	color: gray;
 }
 
-.bigframes-widget td {
-	padding: 0.5em;
-}
-
-.bigframes-widget tr:hover td,
-.bigframes-widget td.row-hover {
-	background-color: var(
-		--colab-hover-surface-color,
-		var(--jp-layout-color2, var(--vscode-list-hoverBackground, #f5f5f5))
-	);
-}
-
 @media (prefers-color-scheme: dark) {
 	.bigframes-widget .footer,
 	.bigframes-widget table {
@@ -184,15 +184,23 @@
 		);
 	}
 
+	/* Dark Mode Header: Black or Theme Background */
 	.bigframes-widget th {
+		background-color: var(
+			--colab-primary-surface-color,
+			var(--jp-layout-color0, var(--vscode-editor-background, black))
+		);
+	}
+
+	/* Dark Mode Stripes: Odd = Charcoal (#383838), Even = Dark Gray (#202124) */
+	.bigframes-widget table tbody tr:nth-child(odd) td {
 		background-color: var(
 			--colab-primary-surface-color,
 			var(--jp-layout-color0, var(--vscode-editor-background, #383838))
 		);
 	}
 
-	/* Force dark background on rows to override white stripes from external CSS */
-	.bigframes-widget table tbody tr {
+	.bigframes-widget table tbody tr:nth-child(even) td {
 		background-color: var(
 			--colab-primary-surface-color,
 			var(--jp-layout-color0, var(--vscode-editor-background, #202124))
@@ -207,13 +215,5 @@
 
 	.bigframes-widget .null-value {
 		color: #aaa;
-	}
-
-	.bigframes-widget tr:hover td,
-	.bigframes-widget td.row-hover {
-		background-color: var(
-			--colab-hover-surface-color,
-			var(--jp-layout-color2, var(--vscode-list-hoverBackground, #444))
-		);
 	}
 }
