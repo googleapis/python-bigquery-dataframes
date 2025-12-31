@@ -20,8 +20,7 @@ const ModelProperty = {
 	PAGE: "page",
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
-	SORT_ASCENDING: "sort_ascending",
-	SORT_COLUMNS: "sort_columns",
+	SORT_CONTEXT: "sort_context",
 	TABLE_HTML: "table_html",
 };
 
@@ -141,8 +140,10 @@ function render({ model, el }) {
 
 		// Get sortable columns from backend
 		const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
-		const currentSortColumns = model.get(ModelProperty.SORT_COLUMNS);
-		const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
+		const currentSortContext = model.get(ModelProperty.SORT_CONTEXT) || [];
+
+		const getSortIndex = (colName) =>
+			currentSortContext.findIndex((item) => item.column === colName);
 
 		// Add click handlers to column headers for sorting
 		const headers = tableContainer.querySelectorAll("th");
@@ -161,9 +162,10 @@ function render({ model, el }) {
 
 				// Determine sort indicator and initial visibility
 				let indicator = "●"; // Default: unsorted (dot)
-				const sortIndex = currentSortColumns.indexOf(columnName);
+				const sortIndex = getSortIndex(columnName);
+
 				if (sortIndex !== -1) {
-					const isAscending = currentSortAscending[sortIndex];
+					const isAscending = currentSortContext[sortIndex].ascending;
 					indicator = isAscending ? "▲" : "▼";
 					indicatorSpan.style.visibility = "visible"; // Sorted arrows always visible
 				} else {
@@ -180,57 +182,58 @@ function render({ model, el }) {
 
 				// Add hover effects for unsorted columns only
 				header.addEventListener("mouseover", () => {
-					if (currentSortColumns.indexOf(columnName) === -1) {
+					if (getSortIndex(columnName) === -1) {
 						indicatorSpan.style.visibility = "visible";
 					}
 				});
 				header.addEventListener("mouseout", () => {
-					if (currentSortColumns.indexOf(columnName) === -1) {
+					if (getSortIndex(columnName) === -1) {
 						indicatorSpan.style.visibility = "hidden";
 					}
 				});
 
 				// Add click handler for three-state toggle
 				header.addEventListener(Event.CLICK, (event) => {
-					const sortIndex = currentSortColumns.indexOf(columnName);
-					let newColumns = [...currentSortColumns];
-					let newAscending = [...currentSortAscending];
+					const sortIndex = getSortIndex(columnName);
+					let newContext = [...currentSortContext];
 
 					if (event.shiftKey) {
 						if (sortIndex !== -1) {
 							// Already sorted. Toggle or Remove.
-							if (newAscending[sortIndex]) {
+							if (newContext[sortIndex].ascending) {
 								// Asc -> Desc
-								newAscending[sortIndex] = false;
+								// Clone object to avoid mutation issues
+								newContext[sortIndex] = {
+									...newContext[sortIndex],
+									ascending: false,
+								};
 							} else {
 								// Desc -> Remove
-								newColumns.splice(sortIndex, 1);
-								newAscending.splice(sortIndex, 1);
+								newContext.splice(sortIndex, 1);
 							}
 						} else {
 							// Not sorted -> Append Asc
-							newColumns.push(columnName);
-							newAscending.push(true);
+							newContext.push({ column: columnName, ascending: true });
 						}
 					} else {
 						// No shift key. Single column mode.
-						if (sortIndex !== -1 && newColumns.length === 1) {
+						if (sortIndex !== -1 && newContext.length === 1) {
 							// Already only this column. Toggle or Remove.
-							if (newAscending[sortIndex]) {
-								newAscending[sortIndex] = false;
+							if (newContext[sortIndex].ascending) {
+								newContext[sortIndex] = {
+									...newContext[sortIndex],
+									ascending: false,
+								};
 							} else {
-								newColumns = [];
-								newAscending = [];
+								newContext = [];
 							}
 						} else {
 							// Start fresh with this column
-							newColumns = [columnName];
-							newAscending = [true];
+							newContext = [{ column: columnName, ascending: true }];
 						}
 					}
 
-					model.set(ModelProperty.SORT_COLUMNS, newColumns);
-					model.set(ModelProperty.SORT_ASCENDING, newAscending);
+					model.set(ModelProperty.SORT_CONTEXT, newContext);
 					model.save_changes();
 				});
 			}

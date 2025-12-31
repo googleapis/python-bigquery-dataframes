@@ -110,12 +110,10 @@ def test_sorting_single_column(mock_df):
         widget = TableWidget(mock_df)
 
     # Verify initial state
-    assert widget.sort_columns == []
-    assert widget.sort_ascending == []
+    assert widget.sort_context == []
 
     # Apply sort
-    widget.sort_columns = ["col1"]
-    widget.sort_ascending = [True]
+    widget.sort_context = [{"column": "col1", "ascending": True}]
 
     # This should trigger _sort_changed -> _set_table_html
     # which calls df.sort_values
@@ -130,8 +128,10 @@ def test_sorting_multi_column(mock_df):
         widget = TableWidget(mock_df)
 
     # Apply multi-column sort
-    widget.sort_columns = ["col1", "col2"]
-    widget.sort_ascending = [True, False]
+    widget.sort_context = [
+        {"column": "col1", "ascending": True},
+        {"column": "col2", "ascending": False},
+    ]
 
     mock_df.sort_values.assert_called_with(by=["col1", "col2"], ascending=[True, False])
 
@@ -143,15 +143,13 @@ def test_page_size_change_resets_sort(mock_df):
         widget = TableWidget(mock_df)
 
     # Set sort state
-    widget.sort_columns = ["col1"]
-    widget.sort_ascending = [True]
+    widget.sort_context = [{"column": "col1", "ascending": True}]
 
     # Change page size
     widget.page_size = 50
 
     # Sort should be reset
-    assert widget.sort_columns == []
-    assert widget.sort_ascending == []
+    assert widget.sort_context == []
 
     # to_pandas_batches called again (reset)
     assert mock_df.to_pandas_batches.call_count >= 2
