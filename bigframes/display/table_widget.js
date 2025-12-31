@@ -48,6 +48,15 @@ function render({ model, el }) {
 	const footer = document.createElement("footer");
 	footer.classList.add("footer");
 
+	// Debug info container
+	const debugInfo = document.createElement("div");
+	debugInfo.classList.add("debug-info");
+	debugInfo.style.fontSize = "10px";
+	debugInfo.style.color = "gray";
+	debugInfo.style.marginTop = "8px";
+	debugInfo.style.borderTop = "1px solid #ccc";
+	debugInfo.style.paddingTop = "4px";
+
 	// Pagination controls
 	const paginationContainer = document.createElement("div");
 	paginationContainer.classList.add("pagination");
@@ -133,6 +142,28 @@ function render({ model, el }) {
 		model.save_changes();
 	}
 
+	function updateDebugInfo() {
+		const computedStyle = getComputedStyle(el);
+		const prefersDark = window.matchMedia(
+			"(prefers-color-scheme: dark)",
+		).matches;
+		const vscodeFg = computedStyle.getPropertyValue(
+			"--vscode-editor-foreground",
+		);
+		const vscodeBg = computedStyle.getPropertyValue(
+			"--vscode-editor-background",
+		);
+
+		debugInfo.innerHTML = `
+            <strong>Debug Info:</strong><br>
+            Prefers Dark Scheme: ${prefersDark}<br>
+            VSCode Foreground: ${vscodeFg || "Not Set"}<br>
+            VSCode Background: ${vscodeBg || "Not Set"}<br>
+            Computed Color: ${computedStyle.color}<br>
+            Computed Bg: ${computedStyle.backgroundColor}
+        `;
+	}
+
 	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
 		// Note: Using innerHTML is safe here because the content is generated
@@ -209,42 +240,8 @@ function render({ model, el }) {
 			}
 		});
 
-		const table = tableContainer.querySelector("table");
-		if (table) {
-			const tableBody = table.querySelector("tbody");
-
-			/**
-			 * Handles row hover events.
-			 * @param {!Event} event - The mouse event.
-			 * @param {boolean} isHovering - True to add hover class, false to remove.
-			 */
-			function handleRowHover(event, isHovering) {
-				const cell = event.target.closest("td");
-				if (cell) {
-					const row = cell.closest("tr");
-					const origRowId = row.dataset.origRow;
-					if (origRowId) {
-						const allCellsInGroup = tableBody.querySelectorAll(
-							`tr[data-orig-row="${origRowId}"] td`,
-						);
-						allCellsInGroup.forEach((c) => {
-							c.classList.toggle("row-hover", isHovering);
-						});
-					}
-				}
-			}
-
-			if (tableBody) {
-				tableBody.addEventListener("mouseover", (event) =>
-					handleRowHover(event, true),
-				);
-				tableBody.addEventListener("mouseout", (event) =>
-					handleRowHover(event, false),
-				);
-			}
-		}
-
 		updateButtonStates();
+		updateDebugInfo();
 	}
 
 	// Add error message handler
@@ -288,6 +285,7 @@ function render({ model, el }) {
 	footer.appendChild(rowCountLabel);
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
+	footer.appendChild(debugInfo);
 
 	el.appendChild(errorContainer);
 	el.appendChild(tableContainer);
