@@ -39,6 +39,33 @@ function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
+	// Theme detection logic
+	function updateTheme() {
+		const body = document.body;
+		// Check for common dark mode indicators in VS Code / Jupyter
+		const isDark =
+			body.classList.contains("vscode-dark") ||
+			body.classList.contains("theme-dark") ||
+			body.dataset.theme === "dark" ||
+			body.getAttribute("data-vscode-theme-kind") === "vscode-dark";
+
+		if (isDark) {
+			el.classList.add("bigframes-dark-mode");
+		} else {
+			el.classList.remove("bigframes-dark-mode");
+		}
+	}
+
+	// Initial check
+	updateTheme();
+
+	// Observe body attribute changes to react to theme switching
+	const observer = new MutationObserver(updateTheme);
+	observer.observe(document.body, {
+		attributes: true,
+		attributeFilter: ["class", "data-theme", "data-vscode-theme-kind"],
+	});
+
 	// Add error message container at the top
 	const errorContainer = document.createElement("div");
 	errorContainer.classList.add("error-message");
@@ -47,15 +74,6 @@ function render({ model, el }) {
 	tableContainer.classList.add("table-container");
 	const footer = document.createElement("footer");
 	footer.classList.add("footer");
-
-	// Debug info container
-	const debugInfo = document.createElement("div");
-	debugInfo.classList.add("debug-info");
-	debugInfo.style.fontSize = "10px";
-	debugInfo.style.color = "gray";
-	debugInfo.style.marginTop = "8px";
-	debugInfo.style.borderTop = "1px solid #ccc";
-	debugInfo.style.paddingTop = "4px";
 
 	// Pagination controls
 	const paginationContainer = document.createElement("div");
@@ -142,28 +160,6 @@ function render({ model, el }) {
 		model.save_changes();
 	}
 
-	function updateDebugInfo() {
-		const computedStyle = getComputedStyle(el);
-		const prefersDark = window.matchMedia(
-			"(prefers-color-scheme: dark)",
-		).matches;
-		const vscodeFg = computedStyle.getPropertyValue(
-			"--vscode-editor-foreground",
-		);
-		const vscodeBg = computedStyle.getPropertyValue(
-			"--vscode-editor-background",
-		);
-
-		debugInfo.innerHTML = `
-            <strong>Debug Info:</strong><br>
-            Prefers Dark Scheme: ${prefersDark}<br>
-            VSCode Foreground: ${vscodeFg || "Not Set"}<br>
-            VSCode Background: ${vscodeBg || "Not Set"}<br>
-            Computed Color: ${computedStyle.color}<br>
-            Computed Bg: ${computedStyle.backgroundColor}
-        `;
-	}
-
 	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
 		// Note: Using innerHTML is safe here because the content is generated
@@ -241,7 +237,6 @@ function render({ model, el }) {
 		});
 
 		updateButtonStates();
-		updateDebugInfo();
 	}
 
 	// Add error message handler
@@ -285,7 +280,6 @@ function render({ model, el }) {
 	footer.appendChild(rowCountLabel);
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
-	footer.appendChild(debugInfo);
 
 	el.appendChild(errorContainer);
 	el.appendChild(tableContainer);
