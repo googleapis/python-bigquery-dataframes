@@ -65,17 +65,22 @@ function render({ model, el }) {
 			// Clear background of ancestors to remove "white frame" from containers.
 			let parent = el.parentElement;
 			while (parent && parent !== document.body) {
-				parent.style.setProperty("background-color", "transparent");
-				parent.style.setProperty("padding", "0");
+				parent.style.setProperty(
+					"background-color",
+					"transparent",
+					"important",
+				);
+				parent.style.setProperty("padding", "0", "important");
 				parent = parent.parentElement;
 			}
 
 			if (body) {
-				body.style.setProperty("background-color", "#202124");
-				body.style.setProperty("margin", "0");
+				body.style.setProperty("background-color", "#202124", "important");
+				body.style.setProperty("margin", "0", "important");
 				document.documentElement.style.setProperty(
 					"background-color",
 					"#202124",
+					"important",
 				);
 			}
 		} else {
