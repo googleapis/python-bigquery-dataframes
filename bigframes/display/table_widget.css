@@ -17,26 +17,25 @@
 .bigframes-widget {
 	/* Default Light Mode Variables */
 	--bf-bg: white;
-	--bf-fg: black;
-	--bf-header-bg: #f5f5f5;
-	--bf-row-odd-bg: white;
-	--bf-row-even-bg: #f5f5f5;
 	--bf-border-color: #ccc;
-	--bf-null-fg: gray;
 	--bf-error-bg: #fbe;
 	--bf-error-border: red;
 	--bf-error-fg: black;
+	--bf-fg: black;
+	--bf-header-bg: #f5f5f5;
+	--bf-null-fg: gray;
+	--bf-row-even-bg: #f5f5f5;
+	--bf-row-odd-bg: white;
 
+	background-color: var(--bf-bg) !important;
+	box-sizing: border-box;
+	color: var(--bf-fg) !important;
 	display: flex;
 	flex-direction: column;
-	/* Double class to increase specificity + !important to override framework styles */
-	background-color: var(--bf-bg) !important;
-	color: var(--bf-fg) !important;
 	font-family:
 		"-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", sans-serif;
-	padding: 0 !important;
 	margin: 0 !important;
-	box-sizing: border-box;
+	padding: 0 !important;
 }
 
 .bigframes-widget * {
@@ -47,48 +46,48 @@
 @media (prefers-color-scheme: dark) {
 	.bigframes-widget {
 		--bf-bg: var(--vscode-editor-background, #202124);
-		--bf-fg: white;
-		--bf-header-bg: var(--vscode-editor-background, black);
-		--bf-row-odd-bg: #383838;
-		--bf-row-even-bg: #202124;
 		--bf-border-color: #444;
-		--bf-null-fg: #aaa;
 		--bf-error-bg: #511;
 		--bf-error-border: #f88;
 		--bf-error-fg: #fcc;
+		--bf-fg: white;
+		--bf-header-bg: var(--vscode-editor-background, black);
+		--bf-null-fg: #aaa;
+		--bf-row-even-bg: #202124;
+		--bf-row-odd-bg: #383838;
 	}
 }
 
 /* Dark Mode Overrides via Explicit Class */
 .bigframes-widget.bigframes-dark-mode.bigframes-dark-mode {
 	--bf-bg: var(--vscode-editor-background, #202124);
-	--bf-fg: white;
-	--bf-header-bg: var(--vscode-editor-background, black);
-	--bf-row-odd-bg: #383838;
-	--bf-row-even-bg: #202124;
 	--bf-border-color: #444;
-	--bf-null-fg: #aaa;
 	--bf-error-bg: #511;
 	--bf-error-border: #f88;
 	--bf-error-fg: #fcc;
+	--bf-fg: white;
+	--bf-header-bg: var(--vscode-editor-background, black);
+	--bf-null-fg: #aaa;
+	--bf-row-even-bg: #202124;
+	--bf-row-odd-bg: #383838;
 }
 
 .bigframes-widget .table-container {
+	background-color: var(--bf-bg);
+	margin: 0;
 	max-height: 620px;
 	overflow: auto;
-	background-color: var(--bf-bg);
 	padding: 0;
-	margin: 0;
 }
 
 .bigframes-widget .footer {
 	align-items: center;
+	background-color: var(--bf-bg);
+	color: var(--bf-fg);
 	display: flex;
 	font-size: 0.8rem;
 	justify-content: space-between;
 	padding: 8px;
-	background-color: var(--bf-bg);
-	color: var(--bf-fg);
 }
 
 .bigframes-widget .footer > * {
@@ -126,17 +125,17 @@
 
 .bigframes-widget table,
 .bigframes-widget table.dataframe {
-	border-collapse: collapse !important;
-	border-spacing: 0 !important;
-	text-align: left;
-	width: auto !important; /* Fix stretching */
 	background-color: var(--bf-bg) !important;
-	color: var(--bf-fg) !important;
 	/* Explicitly override border="1" defaults */
 	border: 1px solid var(--bf-border-color) !important;
+	border-collapse: collapse !important;
+	border-spacing: 0 !important;
 	box-shadow: none !important;
-	outline: none !important;
+	color: var(--bf-fg) !important;
 	margin: 0 !important;
+	outline: none !important;
+	text-align: left;
+	width: auto !important; /* Fix stretching */
 }
 
 .bigframes-widget tr {
@@ -145,19 +144,19 @@
 
 .bigframes-widget th {
 	background-color: var(--bf-header-bg) !important;
+	border: 1px solid var(--bf-border-color) !important;
 	color: var(--bf-fg) !important;
 	padding: 0;
 	position: sticky;
 	text-align: left;
 	top: 0;
 	z-index: 1;
-	border: 1px solid var(--bf-border-color) !important;
 }
 
 .bigframes-widget td {
-	padding: 0.5em;
 	border: 1px solid var(--bf-border-color) !important;
 	color: var(--bf-fg) !important;
+	padding: 0.5em;
 }
 
 .bigframes-widget table tbody tr:nth-child(odd),
@@ -189,17 +188,17 @@
 }
 
 .bigframes-widget button {
+	background-color: transparent;
+	border: 1px solid currentColor;
+	border-radius: 4px;
+	color: inherit;
 	cursor: pointer;
 	display: inline-block;
+	padding: 2px 8px;
 	text-align: center;
 	text-decoration: none;
 	user-select: none;
 	vertical-align: middle;
-	color: inherit;
-	background-color: transparent;
-	border: 1px solid currentColor;
-	border-radius: 4px;
-	padding: 2px 8px;
 }
 
 .bigframes-widget button:disabled {
@@ -210,8 +209,8 @@
 .bigframes-widget .bigframes-error-message {
 	background-color: var(--bf-error-bg);
 	border: 1px solid var(--bf-error-border);
-	color: var(--bf-error-fg);
 	border-radius: 4px;
+	color: var(--bf-error-fg);
 	font-size: 14px;
 	margin-bottom: 8px;
 	padding: 8px;

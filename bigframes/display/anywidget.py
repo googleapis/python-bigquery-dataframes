@@ -68,6 +68,7 @@ class TableWidget(_WIDGET_BASE):
     page_size = traitlets.Int(0).tag(sync=True)
     row_count = traitlets.Int(allow_none=True, default_value=None).tag(sync=True)
     table_html = traitlets.Unicode("").tag(sync=True)
+    css_styles = traitlets.Unicode("").tag(sync=True)
     sort_column = traitlets.Unicode("").tag(sync=True)
     sort_ascending = traitlets.Bool(True).tag(sync=True)
     orderable_columns = traitlets.List(traitlets.Unicode(), []).tag(sync=True)
@@ -118,6 +119,9 @@ class TableWidget(_WIDGET_BASE):
             ]
         else:
             self.orderable_columns = []
+
+        # Load CSS manually to ensure it's available for JS injection if needed
+        self.css_styles = self._css
 
         self._initial_load()
 

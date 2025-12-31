@@ -49,7 +49,7 @@ def render_html(
 ) -> str:
     """Render a pandas DataFrame to HTML with specific styling."""
     orderable_columns = orderable_columns or []
-    classes = "dataframe table"
+    classes = "dataframe table table-striped table-hover"
     table_html_parts = [f'<table border="1" class="{classes}" id="{table_id}">']
     table_html_parts.append(_render_table_header(dataframe, orderable_columns))
     table_html_parts.append(_render_table_body(dataframe))

@@ -23,6 +23,7 @@ const ModelProperty = {
 	SORT_ASCENDING: "sort_ascending",
 	SORT_COLUMN: "sort_column",
 	TABLE_HTML: "table_html",
+	CSS_STYLES: "css_styles",
 };
 
 const Event = {
@@ -36,10 +37,16 @@ const Event = {
  * @param {{ model: any, el: !HTMLElement }} props - The widget properties.
  */
 function render({ model, el }) {
-	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
-	// Add error message container at the top
+	// Inject CSS styles passed from the backend.
+	const cssStyles = model.get(ModelProperty.CSS_STYLES);
+	if (cssStyles) {
+		const style = document.createElement("style");
+		style.textContent = cssStyles;
+		el.appendChild(style);
+	}
+
 	const errorContainer = document.createElement("div");
 	errorContainer.classList.add("error-message");
 
@@ -48,10 +55,50 @@ function render({ model, el }) {
 	const footer = document.createElement("footer");
 	footer.classList.add("footer");
 
-	// Theme detection logic
+	/**
+	 * Adjusts container styles to prevent white frames in dark mode environments.
+	 * @param {boolean} isDark - Whether dark mode is active.
+	 */
+	function setContainerStyles(isDark) {
+		const body = document.body;
+		if (isDark) {
+			// Clear ancestor backgrounds to reveal the dark body background
+			try {
+				let parent = el.parentElement;
+				while (parent && parent !== body) {
+					parent.style.setProperty(
+						"background-color",
+						"transparent",
+						"important",
+					);
+					parent.style.setProperty("padding", "0", "important");
+					parent = parent.parentElement;
+				}
+			} catch (e) {}
+
+			// Force body and html to dark background to cover full iframe area
+			if (body) {
+				body.style.setProperty("background-color", "#202124", "important");
+				body.style.setProperty("margin", "0", "important");
+				document.documentElement.style.setProperty(
+					"background-color",
+					"#202124",
+					"important",
+				);
+			}
+		} else {
+			// Cleanup styles when switching back to light mode
+			if (body) {
+				body.style.removeProperty("background-color");
+				body.style.removeProperty("margin");
+				document.documentElement.style.removeProperty("background-color");
+			}
+		}
+	}
+
+	/** Detects theme and applies necessary style overrides. */
 	function updateTheme() {
 		const body = document.body;
-		// Check for common dark mode indicators in VS Code / Jupyter
 		const isDark =
 			body.classList.contains("vscode-dark") ||
 			body.classList.contains("theme-dark") ||
@@ -60,15 +107,19 @@ function render({ model, el }) {
 
 		if (isDark) {
 			el.classList.add("bigframes-dark-mode");
+			el.style.colorScheme = "dark";
+			setContainerStyles(true);
 		} else {
 			el.classList.remove("bigframes-dark-mode");
+			el.style.colorScheme = "light";
+			setContainerStyles(false);
 		}
 	}
 
-	// Initial check
 	updateTheme();
+	// Re-check after mount to ensure parent styling is applied.
+	setTimeout(updateTheme, 300);
 
-	// Observe body attribute changes to react to theme switching
 	const observer = new MutationObserver(updateTheme);
 	observer.observe(document.body, {
 		attributes: true,
@@ -95,7 +146,6 @@ function render({ model, el }) {
 	nextPage.textContent = ">";
 	pageSizeLabel.textContent = "Page size:";
 
-	// Page size options
 	const pageSizes = [10, 25, 50, 100];
 	for (const size of pageSizes) {
 		const option = document.createElement("option");
@@ -107,103 +157,77 @@ function render({ model, el }) {
 		pageSizeInput.appendChild(option);
 	}
 
-	/** Updates the footer states and page label based on the model. */
 	function updateButtonStates() {
 		const currentPage = model.get(ModelProperty.PAGE);
 		const pageSize = model.get(ModelProperty.PAGE_SIZE);
 		const rowCount = model.get(ModelProperty.ROW_COUNT);
 
 		if (rowCount === null) {
-			// Unknown total rows
 			rowCountLabel.textContent = "Total rows unknown";
-			pageIndicator.textContent = `Page ${(
-				currentPage + 1
-			).toLocaleString()} of many`;
+			pageIndicator.textContent = `Page ${(currentPage + 1).toLocaleString()} of many`;
 			prevPage.disabled = currentPage === 0;
-			nextPage.disabled = false; // Allow navigation until we hit the end
+			nextPage.disabled = false;
 		} else if (rowCount === 0) {
-			// Empty dataset
 			rowCountLabel.textContent = "0 total rows";
 			pageIndicator.textContent = "Page 1 of 1";
 			prevPage.disabled = true;
 			nextPage.disabled = true;
 		} else {
-			// Known total rows
 			const totalPages = Math.ceil(rowCount / pageSize);
 			rowCountLabel.textContent = `${rowCount.toLocaleString()} total rows`;
-			pageIndicator.textContent = `Page ${(
-				currentPage + 1
-			).toLocaleString()} of ${totalPages.toLocaleString()}`;
+			pageIndicator.textContent = `Page ${(currentPage + 1).toLocaleString()} of ${totalPages.toLocaleString()}`;
 			prevPage.disabled = currentPage === 0;
 			nextPage.disabled = currentPage >= totalPages - 1;
 		}
 		pageSizeInput.value = pageSize;
 	}
 
-	/**
-	 * Handles page navigation.
-	 * @param {number} direction - The direction to navigate (-1 for previous, 1 for next).
-	 */
 	function handlePageChange(direction) {
 		const currentPage = model.get(ModelProperty.PAGE);
 		model.set(ModelProperty.PAGE, currentPage + direction);
 		model.save_changes();
 	}
 
-	/**
-	 * Handles page size changes.
-	 * @param {number} newSize - The new page size.
-	 */
 	function handlePageSizeChange(newSize) {
 		model.set(ModelProperty.PAGE_SIZE, newSize);
-		model.set(ModelProperty.PAGE, 0); // Reset to first page
+		model.set(ModelProperty.PAGE, 0);
 		model.save_changes();
 	}
 
-	/** Updates the HTML in the table container and refreshes button states. */
 	function handleTableHTMLChange() {
-		// Note: Using innerHTML is safe here because the content is generated
-		// by a trusted backend (DataFrame.to_html).
 		tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
 
-		// Get sortable columns from backend
 		const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
 		const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
 		const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
 
-		// Add click handlers to column headers for sorting
 		const headers = tableContainer.querySelectorAll("th");
 		headers.forEach((header) => {
 			const headerDiv = header.querySelector("div");
 			const columnName = headerDiv.textContent.trim();
 
-			// Only add sorting UI for sortable columns
 			if (columnName && sortableColumns.includes(columnName)) {
 				header.style.cursor = "pointer";
 
-				// Create a span for the indicator
 				const indicatorSpan = document.createElement("span");
 				indicatorSpan.classList.add("sort-indicator");
 				indicatorSpan.style.paddingLeft = "5px";
 
-				// Determine sort indicator and initial visibility
-				let indicator = "●"; // Default: unsorted (dot)
+				let indicator = "●";
 				if (currentSortColumn === columnName) {
 					indicator = currentSortAscending ? "▲" : "▼";
-					indicatorSpan.style.visibility = "visible"; // Sorted arrows always visible
+					indicatorSpan.style.visibility = "visible";
 				} else {
-					indicatorSpan.style.visibility = "hidden"; // Unsorted dot hidden by default
+					indicatorSpan.style.visibility = "hidden";
 				}
 				indicatorSpan.textContent = indicator;
 
-				// Add indicator to the header, replacing the old one if it exists
 				const existingIndicator = headerDiv.querySelector(".sort-indicator");
 				if (existingIndicator) {
 					headerDiv.removeChild(existingIndicator);
 				}
 				headerDiv.appendChild(indicatorSpan);
 
-				// Add hover effects for unsorted columns only
 				header.addEventListener("mouseover", () => {
 					if (currentSortColumn !== columnName) {
 						indicatorSpan.style.visibility = "visible";
@@ -215,19 +239,15 @@ function render({ model, el }) {
 					}
 				});
 
-				// Add click handler for three-state toggle
 				header.addEventListener(Event.CLICK, () => {
 					if (currentSortColumn === columnName) {
 						if (currentSortAscending) {
-							// Currently ascending → switch to descending
 							model.set(ModelProperty.SORT_ASCENDING, false);
 						} else {
-							// Currently descending → clear sort (back to unsorted)
 							model.set(ModelProperty.SORT_COLUMN, "");
 							model.set(ModelProperty.SORT_ASCENDING, true);
 						}
 					} else {
-						// Not currently sorted → sort ascending
 						model.set(ModelProperty.SORT_COLUMN, columnName);
 						model.set(ModelProperty.SORT_ASCENDING, true);
 					}
@@ -239,7 +259,6 @@ function render({ model, el }) {
 		updateButtonStates();
 	}
 
-	// Add error message handler
 	function handleErrorMessageChange() {
 		const errorMsg = model.get(ModelProperty.ERROR_MESSAGE);
 		if (errorMsg) {
@@ -250,7 +269,6 @@ function render({ model, el }) {
 		}
 	}
 
-	// Add event listeners
 	prevPage.addEventListener(Event.CLICK, () => handlePageChange(-1));
 	nextPage.addEventListener(Event.CLICK, () => handlePageChange(1));
 	pageSizeInput.addEventListener(Event.CHANGE, (e) => {
@@ -259,24 +277,20 @@ function render({ model, el }) {
 			handlePageSizeChange(newSize);
 		}
 	});
+
 	model.on(Event.CHANGE_TABLE_HTML, handleTableHTMLChange);
 	model.on(`change:${ModelProperty.ROW_COUNT}`, updateButtonStates);
 	model.on(`change:${ModelProperty.ERROR_MESSAGE}`, handleErrorMessageChange);
 	model.on(`change:_initial_load_complete`, (val) => {
-		if (val) {
-			updateButtonStates();
-		}
+		if (val) updateButtonStates();
 	});
 	model.on(`change:${ModelProperty.PAGE}`, updateButtonStates);
 
-	// Assemble the DOM
 	paginationContainer.appendChild(prevPage);
 	paginationContainer.appendChild(pageIndicator);
 	paginationContainer.appendChild(nextPage);
-
 	pageSizeContainer.appendChild(pageSizeLabel);
 	pageSizeContainer.appendChild(pageSizeInput);
-
 	footer.appendChild(rowCountLabel);
 	footer.appendChild(paginationContainer);
 	footer.appendChild(pageSizeContainer);
@@ -285,7 +299,6 @@ function render({ model, el }) {
 	el.appendChild(tableContainer);
 	el.appendChild(footer);
 
-	// Initial render
 	handleTableHTMLChange();
 	handleErrorMessageChange();
 }
