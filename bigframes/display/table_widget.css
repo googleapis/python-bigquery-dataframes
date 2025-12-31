@@ -28,7 +28,7 @@
 	align-items: center;
 	color: var(
 		--colab-primary-text-color,
-		var(--jp-ui-font-color0, var(--vscode-editor-foreground, inherit))
+		var(--jp-ui-font-color0, var(--vscode-editor-foreground, black))
 	);
 	display: flex;
 	font-family:
@@ -75,7 +75,11 @@
 	border-collapse: collapse;
 	color: var(
 		--colab-primary-text-color,
-		var(--jp-ui-font-color0, var(--vscode-editor-foreground, inherit))
+		var(--jp-ui-font-color0, var(--vscode-editor-foreground, black))
+	);
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, white))
 	);
 	text-align: left;
 }
@@ -83,13 +87,21 @@
 .bigframes-widget th {
 	background-color: var(
 		--colab-primary-surface-color,
-		var(--jp-layout-color0, var(--vscode-editor-background, Canvas))
+		var(--jp-layout-color0, var(--vscode-editor-background, white))
 	);
 	padding: 0;
 	position: sticky;
 	text-align: left;
 	top: 0;
 	z-index: 1;
+}
+
+/* Ensure rows have a background to override external striping if needed */
+.bigframes-widget table tbody tr {
+	background-color: var(
+		--colab-primary-surface-color,
+		var(--jp-layout-color0, var(--vscode-editor-background, white))
+	);
 }
 
 .bigframes-widget .bf-header-content {
@@ -155,10 +167,7 @@
 .bigframes-widget td.row-hover {
 	background-color: var(
 		--colab-hover-surface-color,
-		var(
-			--jp-layout-color2,
-			var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1))
-		)
+		var(--jp-layout-color2, var(--vscode-list-hoverBackground, #f5f5f5))
 	);
 }
 
@@ -167,14 +176,26 @@
 	.bigframes-widget table {
 		color: var(
 			--colab-primary-text-color,
-			var(--jp-ui-font-color0, var(--vscode-editor-foreground, inherit))
+			var(--jp-ui-font-color0, var(--vscode-editor-foreground, white))
+		);
+		background-color: var(
+			--colab-primary-surface-color,
+			var(--jp-layout-color0, var(--vscode-editor-background, #202124))
 		);
 	}
 
 	.bigframes-widget th {
 		background-color: var(
 			--colab-primary-surface-color,
-			var(--jp-layout-color0, var(--vscode-editor-background, Canvas))
+			var(--jp-layout-color0, var(--vscode-editor-background, #383838))
+		);
+	}
+
+	/* Force dark background on rows to override white stripes from external CSS */
+	.bigframes-widget table tbody tr {
+		background-color: var(
+			--colab-primary-surface-color,
+			var(--jp-layout-color0, var(--vscode-editor-background, #202124))
 		);
 	}
 
@@ -192,10 +213,7 @@
 	.bigframes-widget td.row-hover {
 		background-color: var(
 			--colab-hover-surface-color,
-			var(
-				--jp-layout-color2,
-				var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1))
-			)
+			var(--jp-layout-color2, var(--vscode-list-hoverBackground, #444))
 		);
 	}
 }
