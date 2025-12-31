@@ -39,6 +39,15 @@ function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
 	el.classList.add("bigframes-widget");
 
+	// Add error message container at the top
+	const errorContainer = document.createElement("div");
+	errorContainer.classList.add("error-message");
+
+	const tableContainer = document.createElement("div");
+	tableContainer.classList.add("table-container");
+	const footer = document.createElement("footer");
+	footer.classList.add("footer");
+
 	// Theme detection logic
 	function updateTheme() {
 		const body = document.body;
@@ -65,15 +74,6 @@ function render({ model, el }) {
 		attributes: true,
 		attributeFilter: ["class", "data-theme", "data-vscode-theme-kind"],
 	});
-
-	// Add error message container at the top
-	const errorContainer = document.createElement("div");
-	errorContainer.classList.add("error-message");
-
-	const tableContainer = document.createElement("div");
-	tableContainer.classList.add("table-container");
-	const footer = document.createElement("footer");
-	footer.classList.add("footer");
 
 	// Pagination controls
 	const paginationContainer = document.createElement("div");
