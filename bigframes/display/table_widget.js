@@ -62,28 +62,20 @@ function render({ model, el }) {
 	function setContainerStyles(isDark) {
 		const body = document.body;
 		if (isDark) {
-			// Clear ancestor backgrounds to reveal the dark body background
-			try {
-				let parent = el.parentElement;
-				while (parent && parent !== body) {
-					parent.style.setProperty(
-						"background-color",
-						"transparent",
-						"important",
-					);
-					parent.style.setProperty("padding", "0", "important");
-					parent = parent.parentElement;
-				}
-			} catch (e) {}
+			// Clear background of ancestors to remove "white frame" from containers.
+			let parent = el.parentElement;
+			while (parent && parent !== document.body) {
+				parent.style.setProperty("background-color", "transparent");
+				parent.style.setProperty("padding", "0");
+				parent = parent.parentElement;
+			}
 
-			// Force body and html to dark background to cover full iframe area
 			if (body) {
-				body.style.setProperty("background-color", "#202124", "important");
-				body.style.setProperty("margin", "0", "important");
+				body.style.setProperty("background-color", "#202124");
+				body.style.setProperty("margin", "0");
 				document.documentElement.style.setProperty(
 					"background-color",
 					"#202124",
-					"important",
 				);
 			}
 		} else {
