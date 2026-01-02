@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
@@ -67,6 +67,11 @@ def _(expr: TypedExpr, op: ops.JSONValueArray) -> sge.Expression:
 @register_unary_op(ops.ParseJSON)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("PARSE_JSON", expr.expr)
+
+
+@register_unary_op(ops.ToJSON)
+def _(expr: TypedExpr) -> sge.Expression:
+    return sge.func("TO_JSON", expr.expr)
 
 
 @register_unary_op(ops.ToJSONString)
