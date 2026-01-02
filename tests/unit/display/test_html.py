@@ -19,6 +19,7 @@ import pyarrow as pa
 import pytest
 
 import bigframes as bf
+from bigframes.display._flatten import flatten_nested_data
 import bigframes.display.html as bf_html
 
 
@@ -106,7 +107,7 @@ import bigframes.display.html as bf_html
             {
                 "array_col": "left",
             },
-            ["[1, 2, 3]", "[4, 5, 6]", "[7, 8, 9]"],
+            ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
             id="array",
         ),
         pytest.param(
@@ -119,7 +120,7 @@ import bigframes.display.html as bf_html
             {
                 "struct_col": "left",
             },
-            ["{&#x27;v&#x27;: 1}", "{&#x27;v&#x27;: 2}", "{&#x27;v&#x27;: 3}"],
+            ["1", "2", "3"],
             id="struct",
         ),
     ],
@@ -148,3 +149,48 @@ def test_render_html_precision():
     # Make sure we reset to default
     html = bf_html.render_html(dataframe=df, table_id="test-table")
     assert "3.141593" in html
+
+
+def test_flatten_nested_data_flattens_structs():
+    """Verify that flatten_nested_data correctly flattens STRUCT columns."""
+    struct_data = pd.DataFrame(
+        {
+            "id": [1, 2],
+            "struct_col": pd.Series(
+                [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}],
+                dtype=pd.ArrowDtype(
+                    pa.struct([("name", pa.string()), ("age", pa.int64())])
+                ),
+            ),
+        }
+    )
+
+    flattened, _, _, nested_originated_columns = flatten_nested_data(struct_data)
+
+    assert "struct_col.name" in flattened.columns
+    assert "struct_col.age" in flattened.columns
+    assert flattened["struct_col.name"].tolist() == ["Alice", "Bob"]
+    assert "struct_col" in nested_originated_columns
+    assert "struct_col.name" in nested_originated_columns
+    assert "struct_col.age" in nested_originated_columns
+
+
+def test_flatten_nested_data_explodes_arrays():
+    """Verify that flatten_nested_data correctly explodes ARRAY columns."""
+    array_data = pd.DataFrame(
+        {
+            "id": [1, 2],
+            "array_col": pd.Series(
+                [[10, 20, 30], [40, 50]], dtype=pd.ArrowDtype(pa.list_(pa.int64()))
+            ),
+        }
+    )
+
+    flattened, groups, _, nested_originated_columns = flatten_nested_data(array_data)
+
+    assert len(flattened) == 5  # 3 + 2 array elements
+    assert "0" in groups  # First original row
+    assert len(groups["0"]) == 3  # Three array elements
+    assert "1" in groups
+    assert len(groups["1"]) == 2
+    assert "array_col" in nested_originated_columns
