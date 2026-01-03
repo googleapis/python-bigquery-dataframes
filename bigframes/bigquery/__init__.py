@@ -57,7 +57,11 @@ from bigframes.bigquery._operations.json import (
     to_json,
     to_json_string,
 )
-from bigframes.bigquery._operations.search import create_vector_index, vector_search
+from bigframes.bigquery._operations.search import (
+    create_vector_index,
+    search,
+    vector_search,
+)
 from bigframes.bigquery._operations.sql import sql_scalar
 from bigframes.bigquery._operations.struct import struct
 from bigframes.core import log_adapter
@@ -99,6 +103,7 @@ _functions = [
     to_json_string,
     # search ops
     create_vector_index,
+    search,
     vector_search,
     # sql ops
     sql_scalar,
@@ -150,6 +155,7 @@ __all__ = [
     "to_json_string",
     # search ops
     "create_vector_index",
+    "search",
     "vector_search",
     # sql ops
     "sql_scalar",
