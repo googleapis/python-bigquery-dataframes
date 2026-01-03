@@ -19,7 +19,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable, List, Literal, Mapping, Tuple, Union
+from typing import Any, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -385,6 +385,91 @@ def generate_double(
     )
 
     return series_list[0]._apply_nary_op(operator, series_list[1:])
+
+
+@log_adapter.method_logger(custom_base_name="bigquery_ai")
+def generate_embedding(
+    model_name: str,
+    data: Union[dataframe.DataFrame, series.Series, pd.DataFrame, pd.Series],
+    *,
+    output_dimensionality: Optional[int] = None,
+    start_second: Optional[float] = None,
+    end_second: Optional[float] = None,
+    interval_seconds: Optional[float] = None,
+) -> dataframe.DataFrame:
+    """
+    Creates embeddings that describe an entity—for example, a piece of text or an image.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import bigframes.bigquery as bbq
+        >>> df = bpd.DataFrame({"content": ["apple", "bear", "pear"]})
+        >>> bbq.ai.generate_embedding(
+        ...     "project.dataset.model_name",
+        ...     df
+        ... ) # doctest: +SKIP
+
+    Args:
+        model_name (str):
+            The name of a remote model over a Vertex AI multimodalembedding@001 model.
+        data (DataFrame or Series):
+            The data to generate embeddings for. If a Series is provided, it is treated as the 'content' column.
+            If a DataFrame is provided, it must contain a 'content' column, or you must rename the column you wish to embed to 'content'.
+        output_dimensionality (int, optional):
+            The number of dimensions to use when generating embeddings. Valid values are 128, 256, 512, and 1408. The default value is 1408.
+        start_second (float, optional):
+            The second in the video at which to start the embedding. The default value is 0.
+        end_second (float, optional):
+            The second in the video at which to end the embedding. The default value is 120.
+        interval_seconds (float, optional):
+            The interval to use when creating embeddings. The default value is 16.
+
+    Returns:
+        bigframes.dataframe.DataFrame:
+            A new DataFrame with the generated embeddings. It contains the input table columns and the following columns:
+            * "embedding": an ARRAY<FLOAT64> value that contains the generated embedding vector.
+            * "status": a STRING value that contains the API response status for the corresponding row.
+            * "video_start_sec": for video content, an INT64 value that contains the starting second.
+            * "video_end_sec": for video content, an INT64 value that contains the ending second.
+    """
+    if isinstance(data, (pd.DataFrame, pd.Series)):
+        data = bpd.read_pandas(data)
+
+    if isinstance(data, series.Series):
+        # Rename series to 'content' and convert to DataFrame
+        data_df = data.rename("content").to_frame()
+    elif isinstance(data, dataframe.DataFrame):
+        data_df = data
+    else:
+        raise ValueError(f"Unsupported data type: {type(data)}")
+
+    # We need to get the SQL for the input data to pass as a subquery to the TVF
+    source_sql = data_df.sql
+
+    struct_fields = []
+    if output_dimensionality is not None:
+        struct_fields.append(f"{output_dimensionality} AS output_dimensionality")
+    if start_second is not None:
+        struct_fields.append(f"{start_second} AS start_second")
+    if end_second is not None:
+        struct_fields.append(f"{end_second} AS end_second")
+    if interval_seconds is not None:
+        struct_fields.append(f"{interval_seconds} AS interval_seconds")
+
+    struct_args = ", ".join(struct_fields)
+
+    # Construct the TVF query
+    query = f"""
+        SELECT *
+        FROM AI.GENERATE_EMBEDDING(
+            MODEL `{model_name}`,
+            ({source_sql}),
+            STRUCT({struct_args})
+        )
+    """
+
+    return data_df._session.read_gbq(query)
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_ai")
