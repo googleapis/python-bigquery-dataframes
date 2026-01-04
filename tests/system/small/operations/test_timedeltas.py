@@ -24,6 +24,7 @@ import pyarrow as pa
 import pytest
 
 from bigframes import dtypes
+from bigframes.testing.utils import assert_frame_equal, assert_series_equal
 
 
 @pytest.fixture(scope="module")
@@ -72,15 +73,11 @@ def temporal_dfs(session):
 def _assert_series_equal(actual: pd.Series, expected: pd.Series):
     """Helper function specifically for timedelta testsing. Don't use it outside of this module."""
     if actual.dtype == dtypes.FLOAT_DTYPE:
-        pandas.testing.assert_series_equal(
-            actual, expected.astype("Float64"), check_index_type=False
-        )
+        assert_series_equal(actual, expected.astype("Float64"), check_index_type=False)
     elif actual.dtype == dtypes.INT_DTYPE:
-        pandas.testing.assert_series_equal(
-            actual, expected.astype("Int64"), check_index_type=False
-        )
+        assert_series_equal(actual, expected.astype("Int64"), check_index_type=False)
     else:
-        pandas.testing.assert_series_equal(
+        assert_series_equal(
             actual.astype("timedelta64[ns]"),
             expected.dt.floor("us"),  # in BF the precision is microsecond
             check_index_type=False,
@@ -181,9 +178,7 @@ def test_timestamp_add__ts_series_plus_td_series(temporal_dfs, column, pd_dtype)
     )
 
     expected_result = pd_df[column] + pd_df["timedelta_col_1"]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize("column", ["datetime_col", "timestamp_col"])
@@ -212,9 +207,7 @@ def test_timestamp_add__ts_series_plus_td_literal(temporal_dfs, literal):
     )
 
     expected_result = pd_df["timestamp_col"] + literal
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -232,9 +225,7 @@ def test_timestamp_add__td_series_plus_ts_series(temporal_dfs, column, pd_dtype)
     )
 
     expected_result = pd_df["timedelta_col_1"] + pd_df[column]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timestamp_add__td_literal_plus_ts_series(temporal_dfs):
@@ -244,9 +235,7 @@ def test_timestamp_add__td_literal_plus_ts_series(temporal_dfs):
     actual_result = (timedelta + bf_df["datetime_col"]).to_pandas().astype("<M8[ns]")
 
     expected_result = timedelta + pd_df["datetime_col"]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timestamp_add__ts_literal_plus_td_series(temporal_dfs):
@@ -258,9 +247,7 @@ def test_timestamp_add__ts_literal_plus_td_series(temporal_dfs):
     )
 
     expected_result = timestamp + pd_df["timedelta_col_1"]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -278,9 +265,7 @@ def test_timestamp_add_with_numpy_op(temporal_dfs, column, pd_dtype):
     )
 
     expected_result = np.add(pd_df[column], pd_df["timedelta_col_1"])
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timestamp_add_dataframes(temporal_dfs):
@@ -295,9 +280,7 @@ def test_timestamp_add_dataframes(temporal_dfs):
     )
 
     expected_result = pd_df[columns] + timedelta
-    pandas.testing.assert_frame_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_frame_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -315,9 +298,7 @@ def test_timestamp_sub__ts_series_minus_td_series(temporal_dfs, column, pd_dtype
     )
 
     expected_result = pd_df[column] - pd_df["timedelta_col_1"]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -334,9 +315,7 @@ def test_timestamp_sub__ts_series_minus_td_literal(temporal_dfs, column, pd_dtyp
     actual_result = (bf_df[column] - literal).to_pandas().astype(pd_dtype)
 
     expected_result = pd_df[column] - literal
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timestamp_sub__ts_literal_minus_td_series(temporal_dfs):
@@ -346,9 +325,7 @@ def test_timestamp_sub__ts_literal_minus_td_series(temporal_dfs):
     actual_result = (literal - bf_df["timedelta_col_1"]).to_pandas().astype("<M8[ns]")
 
     expected_result = literal - pd_df["timedelta_col_1"]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -368,9 +345,7 @@ def test_timestamp_sub_with_numpy_op(temporal_dfs, column, pd_dtype):
     )
 
     expected_result = np.subtract(pd_df[column], pd_df["timedelta_col_1"])
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timestamp_sub_dataframes(temporal_dfs):
@@ -385,9 +360,7 @@ def test_timestamp_sub_dataframes(temporal_dfs):
     )
 
     expected_result = pd_df[columns] - timedelta
-    pandas.testing.assert_frame_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_frame_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -406,9 +379,7 @@ def test_date_add__series_add_series(temporal_dfs, left_col, right_col):
     actual_result = (bf_df[left_col] + bf_df[right_col]).to_pandas()
 
     expected_result = (pd_df[left_col] + pd_df[right_col]).astype(dtypes.DATETIME_DTYPE)
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 # Pandas does not support date literal + timedelta series so we don't test it here.
@@ -419,9 +390,7 @@ def test_date_add__literal_add_series(temporal_dfs):
     actual_result = (literal + bf_df["date_col"]).to_pandas()
 
     expected_result = (literal + pd_df["date_col"]).astype(dtypes.DATETIME_DTYPE)
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 # Pandas does not support timedelta series + date literal so we don't test it here.
@@ -432,9 +401,7 @@ def test_date_add__series_add_literal(temporal_dfs):
     actual_result = (bf_df["date_col"] + literal).to_pandas()
 
     expected_result = (pd_df["date_col"] + literal).astype(dtypes.DATETIME_DTYPE)
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_date_sub__series_sub_series(temporal_dfs):
@@ -448,9 +415,7 @@ def test_date_sub__series_sub_series(temporal_dfs):
     expected_result = (pd_df["date_col"] - pd_df["timedelta_col_1"]).astype(
         dtypes.DATETIME_DTYPE
     )
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_date_sub__series_sub_literal(temporal_dfs):
@@ -460,9 +425,7 @@ def test_date_sub__series_sub_literal(temporal_dfs):
     actual_result = (bf_df["date_col"] - literal).to_pandas()
 
     expected_result = (pd_df["date_col"] - literal).astype(dtypes.DATETIME_DTYPE)
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -486,9 +449,7 @@ def test_timedelta_series_comparison(temporal_dfs, compare_func):
     expected_result = compare_func(
         pd_df["timedelta_col_1"], pd_df["timedelta_col_2"]
     ).astype("boolean")
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -509,9 +470,7 @@ def test_timedelta_series_and_literal_comparison(temporal_dfs, compare_func):
     actual_result = compare_func(literal, bf_df["timedelta_col_2"]).to_pandas()
 
     expected_result = compare_func(literal, pd_df["timedelta_col_2"]).astype("boolean")
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timedelta_filtering(session):
@@ -532,9 +491,7 @@ def test_timedelta_filtering(session):
     )
 
     expected_result = pd_series[(pd_series - timestamp) > pd.Timedelta(1, "h")]
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timedelta_ordering(session):
@@ -562,9 +519,7 @@ def test_timedelta_ordering(session):
     )
 
     expected_result = (pd_df["col_2"] - pd_df["col_1"]).sort_values()
-    pandas.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_timedelta_cumsum(temporal_dfs):
@@ -629,6 +584,6 @@ def test_timestamp_diff_after_type_casting(temporal_dfs):
     expected_result = pd_df["timestamp_col"] - pd_df["positive_int_col"].astype(
         "datetime64[us, UTC]"
     )
-    pandas.testing.assert_series_equal(
+    assert_series_equal(
         actual_result, expected_result, check_index_type=False, check_dtype=False
     )
