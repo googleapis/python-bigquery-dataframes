@@ -80,6 +80,24 @@ def test_navigation_to_invalid_page_resets_to_valid_page_without_deadlock():
             signal.alarm(0)
 
 
+def test_css_contains_dark_mode_media_query():
+    from bigframes.display.anywidget import TableWidget
+
+    mock_df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
+    # mock_df.columns and mock_df.dtypes are needed for __init__
+    mock_df.columns = ["col1"]
+    mock_df.dtypes = {"col1": "object"}
+
+    # Mock _block to avoid AttributeError during _set_table_html
+    mock_block = mock.Mock()
+    mock_block.has_index = False
+    mock_df._block = mock_block
+
+    with mock.patch.object(TableWidget, "_initial_load"):
+        widget = TableWidget(mock_df)
+        assert "@media (prefers-color-scheme: dark)" in widget._css
+
+
 @pytest.fixture
 def mock_df():
     df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)

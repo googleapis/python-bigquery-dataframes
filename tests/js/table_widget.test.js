@@ -241,6 +241,49 @@ describe("TableWidget", () => {
 		});
 	});
 
+	describe("Theme detection", () => {
+		beforeEach(() => {
+			jest.useFakeTimers();
+			// Mock the initial state for theme detection tests
+			model.get.mockImplementation((property) => {
+				if (property === "table_html") {
+					return "";
+				}
+				if (property === "row_count") {
+					return 100;
+				}
+				if (property === "error_message") {
+					return null;
+				}
+				if (property === "page_size") {
+					return 10;
+				}
+				if (property === "page") {
+					return 0;
+				}
+				return null;
+			});
+		});
+
+		afterEach(() => {
+			jest.useRealTimers();
+			document.body.classList.remove("vscode-dark");
+		});
+
+		it("should add bigframes-dark-mode class in dark mode", () => {
+			document.body.classList.add("vscode-dark");
+			render({ model, el });
+			jest.runAllTimers();
+			expect(el.classList.contains("bigframes-dark-mode")).toBe(true);
+		});
+
+		it("should not add bigframes-dark-mode class in light mode", () => {
+			render({ model, el });
+			jest.runAllTimers();
+			expect(el.classList.contains("bigframes-dark-mode")).toBe(false);
+		});
+	});
+
 	it("should render the series as a table with an index and one value column", () => {
 		// Mock the initial state
 		model.get.mockImplementation((property) => {
