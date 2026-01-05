@@ -81,6 +81,7 @@ def test_navigation_to_invalid_page_resets_to_valid_page_without_deadlock():
 
 
 def test_css_contains_dark_mode_media_query():
+    """Test that the CSS for dark mode is loaded."""
     from bigframes.display.anywidget import TableWidget
 
     mock_df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
@@ -100,6 +101,7 @@ def test_css_contains_dark_mode_media_query():
 
 @pytest.fixture
 def mock_df():
+    """A mock DataFrame that can be used in multiple tests."""
     df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
     df.columns = ["col1", "col2"]
     df.dtypes = {"col1": "int64", "col2": "int64"}
@@ -122,6 +124,7 @@ def mock_df():
 
 
 def test_sorting_single_column(mock_df):
+    """Test that the widget can be sorted by a single column."""
     from bigframes.display.anywidget import TableWidget
 
     with bigframes.option_context("display.repr_mode", "anywidget"):
@@ -140,6 +143,7 @@ def test_sorting_single_column(mock_df):
 
 
 def test_sorting_multi_column(mock_df):
+    """Test that the widget can be sorted by multiple columns."""
     from bigframes.display.anywidget import TableWidget
 
     with bigframes.option_context("display.repr_mode", "anywidget"):
@@ -155,6 +159,7 @@ def test_sorting_multi_column(mock_df):
 
 
 def test_page_size_change_resets_sort(mock_df):
+    """Test that changing the page size resets the sorting."""
     from bigframes.display.anywidget import TableWidget
 
     with bigframes.option_context("display.repr_mode", "anywidget"):
