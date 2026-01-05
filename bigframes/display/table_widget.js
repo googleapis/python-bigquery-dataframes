@@ -22,7 +22,6 @@ const ModelProperty = {
 	ROW_COUNT: "row_count",
 	SORT_CONTEXT: "sort_context",
 	TABLE_HTML: "table_html",
-	CSS_STYLES: "css_styles",
 };
 
 const Event = {
@@ -38,14 +37,6 @@ const Event = {
 function render({ model, el }) {
 	el.classList.add("bigframes-widget");
 
-	// Inject CSS styles passed from the backend.
-	const cssStyles = model.get(ModelProperty.CSS_STYLES);
-	if (cssStyles) {
-		const style = document.createElement("style");
-		style.textContent = cssStyles;
-		el.appendChild(style);
-	}
-
 	const errorContainer = document.createElement("div");
 	errorContainer.classList.add("error-message");
 
@@ -53,44 +44,6 @@ function render({ model, el }) {
 	tableContainer.classList.add("table-container");
 	const footer = document.createElement("footer");
 	footer.classList.add("footer");
-
-	/**
-	 * Adjusts container styles to prevent white frames in dark mode environments.
-	 * @param {boolean} isDark - Whether dark mode is active.
-	 */
-	function setContainerStyles(isDark) {
-		const body = document.body;
-		if (isDark) {
-			// Clear background of ancestors to remove "white frame" from containers.
-			let parent = el.parentElement;
-			while (parent && parent !== document.body) {
-				parent.style.setProperty(
-					"background-color",
-					"transparent",
-					"important",
-				);
-				parent.style.setProperty("padding", "0", "important");
-				parent = parent.parentElement;
-			}
-
-			if (body) {
-				body.style.setProperty("background-color", "#202124", "important");
-				body.style.setProperty("margin", "0", "important");
-				document.documentElement.style.setProperty(
-					"background-color",
-					"#202124",
-					"important",
-				);
-			}
-		} else {
-			// Cleanup styles when switching back to light mode
-			if (body) {
-				body.style.removeProperty("background-color");
-				body.style.removeProperty("margin");
-				document.documentElement.style.removeProperty("background-color");
-			}
-		}
-	}
 
 	/** Detects theme and applies necessary style overrides. */
 	function updateTheme() {
@@ -103,12 +56,8 @@ function render({ model, el }) {
 
 		if (isDark) {
 			el.classList.add("bigframes-dark-mode");
-			el.style.colorScheme = "dark";
-			setContainerStyles(true);
 		} else {
 			el.classList.remove("bigframes-dark-mode");
-			el.style.colorScheme = "light";
-			setContainerStyles(false);
 		}
 	}
 
