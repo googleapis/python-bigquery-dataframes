@@ -60,6 +60,8 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.xor_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
+    # For XOR, cast NULL operands to BOOLEAN to ensure the resulting expression
+    # maintains the boolean data type.
     left_expr = left.expr
     left_dtype = left.dtype
     if left_expr == sge.null():
