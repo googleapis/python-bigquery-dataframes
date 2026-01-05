@@ -19,16 +19,16 @@ import datetime
 import functools
 import typing
 
+import bigframes_vendored.sqlglot as sg
+import bigframes_vendored.sqlglot.expressions as sge
 from google.cloud import bigquery
 import numpy as np
+import pandas as pd
 import pyarrow as pa
-import sqlglot as sg
-import sqlglot.dialects.bigquery
-import sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes.core import guid, local_data, schema, utils
-from bigframes.core.compile.sqlglot.expressions import typed_expr
+from bigframes.core.compile.sqlglot.expressions import constants, typed_expr
 import bigframes.core.compile.sqlglot.sqlglot_types as sgt
 
 # shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
@@ -47,7 +47,7 @@ class SQLGlotIR:
     expr: sge.Select = sg.select()
     """The SQLGlot expression representing the query."""
 
-    dialect = sqlglot.dialects.bigquery.BigQuery
+    dialect = sg.dialects.bigquery.BigQuery
     """The SQL dialect used for generation."""
 
     quoted: bool = True
@@ -119,6 +119,7 @@ class SQLGlotIR:
         col_names: typing.Sequence[str],
         alias_names: typing.Sequence[str],
         uid_gen: guid.SequentialUIDGenerator,
+        sql_predicate: typing.Optional[str] = None,
         system_time: typing.Optional[datetime.datetime] = None,
     ) -> SQLGlotIR:
         """Builds a SQLGlotIR expression from a BigQuery table.
@@ -130,6 +131,7 @@ class SQLGlotIR:
             col_names (typing.Sequence[str]): The names of the columns to select.
             alias_names (typing.Sequence[str]): The aliases for the selected columns.
             uid_gen (guid.SequentialUIDGenerator): A generator for unique identifiers.
+            sql_predicate (typing.Optional[str]): An optional SQL predicate for filtering.
             system_time (typing.Optional[str]): An optional system time for time-travel queries.
         """
         selections = [
@@ -157,6 +159,10 @@ class SQLGlotIR:
             version=version,
         )
         select_expr = sge.Select().select(*selections).from_(table_expr)
+        if sql_predicate:
+            select_expr = select_expr.where(
+                sg.parse_one(sql_predicate, dialect="bigquery"), append=False
+            )
         return cls(expr=select_expr, uid_gen=uid_gen)
 
     @classmethod
@@ -639,30 +645,13 @@ def _select_to_cte(expr: sge.Select, cte_name: sge.Identifier) -> sge.Select:
 def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
     sqlglot_type = sgt.from_bigframes_dtype(dtype) if dtype else None
     if sqlglot_type is None:
-        if value is not None:
-            raise ValueError("Cannot infer SQLGlot type from None dtype.")
+        if not pd.isna(value):
+            raise ValueError(f"Cannot infer SQLGlot type from None dtype: {value}")
         return sge.Null()
 
     if value is None:
         return _cast(sge.Null(), sqlglot_type)
-    elif dtype == dtypes.BYTES_DTYPE:
-        return _cast(str(value), sqlglot_type)
-    elif dtypes.is_time_like(dtype):
-        if isinstance(value, str):
-            return _cast(sge.convert(value), sqlglot_type)
-        if isinstance(value, np.generic):
-            value = value.item()
-        return _cast(sge.convert(value.isoformat()), sqlglot_type)
-    elif dtype in (dtypes.NUMERIC_DTYPE, dtypes.BIGNUMERIC_DTYPE):
-        return _cast(sge.convert(value), sqlglot_type)
-    elif dtypes.is_geo_like(dtype):
-        wkt = value if isinstance(value, str) else to_wkt(value)
-        return sge.func("ST_GEOGFROMTEXT", sge.convert(wkt))
-    elif dtype == dtypes.JSON_DTYPE:
-        return sge.ParseJSON(this=sge.convert(str(value)))
-    elif dtype == dtypes.TIMEDELTA_DTYPE:
-        return sge.convert(utils.timedelta_to_micros(value))
-    elif dtypes.is_struct_like(dtype):
+    if dtypes.is_struct_like(dtype):
         items = [
             _literal(value=value[field_name], dtype=field_dtype).as_(
                 field_name, quoted=True
@@ -676,6 +665,29 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
             expressions=[_literal(value=v, dtype=value_type) for v in value]
         )
         return values if len(value) > 0 else _cast(values, sqlglot_type)
+    elif pd.isna(value):
+        return _cast(sge.Null(), sqlglot_type)
+    elif dtype == dtypes.JSON_DTYPE:
+        return sge.ParseJSON(this=sge.convert(str(value)))
+    elif dtype == dtypes.BYTES_DTYPE:
+        return _cast(str(value), sqlglot_type)
+    elif dtypes.is_time_like(dtype):
+        if isinstance(value, str):
+            return _cast(sge.convert(value), sqlglot_type)
+        if isinstance(value, np.generic):
+            value = value.item()
+        return _cast(sge.convert(value.isoformat()), sqlglot_type)
+    elif dtype in (dtypes.NUMERIC_DTYPE, dtypes.BIGNUMERIC_DTYPE):
+        return _cast(sge.convert(value), sqlglot_type)
+    elif dtypes.is_geo_like(dtype):
+        wkt = value if isinstance(value, str) else to_wkt(value)
+        return sge.func("ST_GEOGFROMTEXT", sge.convert(wkt))
+    elif dtype == dtypes.TIMEDELTA_DTYPE:
+        return sge.convert(utils.timedelta_to_micros(value))
+    elif dtype == dtypes.FLOAT_DTYPE:
+        if np.isinf(value):
+            return constants._INF if value > 0 else constants._NEG_INF
+        return sge.convert(value)
     else:
         if isinstance(value, np.generic):
             value = value.item()

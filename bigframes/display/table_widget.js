@@ -15,26 +15,24 @@
  */
 
 const ModelProperty = {
+	ERROR_MESSAGE: "error_message",
+	ORDERABLE_COLUMNS: "orderable_columns",
 	PAGE: "page",
 	PAGE_SIZE: "page_size",
 	ROW_COUNT: "row_count",
+	SORT_CONTEXT: "sort_context",
 	TABLE_HTML: "table_html",
-	SORT_COLUMN: "sort_column",
-	SORT_ASCENDING: "sort_ascending",
-	ERROR_MESSAGE: "error_message",
-	ORDERABLE_COLUMNS: "orderable_columns",
 };
 
 const Event = {
-	CLICK: "click",
 	CHANGE: "change",
 	CHANGE_TABLE_HTML: "change:table_html",
+	CLICK: "click",
 };
 
 /**
  * Renders the interactive table widget.
- * @param {{ model: any, el: HTMLElement }} props - The widget properties.
- * @param {Document} doc - The document object to use for creating elements.
+ * @param {{ model: any, el: !HTMLElement }} props - The widget properties.
  */
 function render({ model, el }) {
 	// Main container with a unique class for CSS scoping
@@ -90,14 +88,24 @@ function render({ model, el }) {
 		if (rowCount === null) {
 			// Unknown total rows
 			rowCountLabel.textContent = "Total rows unknown";
-			pageIndicator.textContent = `Page ${(currentPage + 1).toLocaleString()} of many`;
+			pageIndicator.textContent = `Page ${(
+				currentPage + 1
+			).toLocaleString()} of many`;
 			prevPage.disabled = currentPage === 0;
 			nextPage.disabled = false; // Allow navigation until we hit the end
+		} else if (rowCount === 0) {
+			// Empty dataset
+			rowCountLabel.textContent = "0 total rows";
+			pageIndicator.textContent = "Page 1 of 1";
+			prevPage.disabled = true;
+			nextPage.disabled = true;
 		} else {
 			// Known total rows
 			const totalPages = Math.ceil(rowCount / pageSize);
 			rowCountLabel.textContent = `${rowCount.toLocaleString()} total rows`;
-			pageIndicator.textContent = `Page ${(currentPage + 1).toLocaleString()} of ${totalPages.toLocaleString()}`;
+			pageIndicator.textContent = `Page ${(
+				currentPage + 1
+			).toLocaleString()} of ${totalPages.toLocaleString()}`;
 			prevPage.disabled = currentPage === 0;
 			nextPage.disabled = currentPage >= totalPages - 1;
 		}
@@ -132,8 +140,10 @@ function render({ model, el }) {
 
 		// Get sortable columns from backend
 		const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
-		const currentSortColumn = model.get(ModelProperty.SORT_COLUMN);
-		const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING);
+		const currentSortContext = model.get(ModelProperty.SORT_CONTEXT) || [];
+
+		const getSortIndex = (colName) =>
+			currentSortContext.findIndex((item) => item.column === colName);
 
 		// Add click handlers to column headers for sorting
 		const headers = tableContainer.querySelectorAll("th");
@@ -152,8 +162,11 @@ function render({ model, el }) {
 
 				// Determine sort indicator and initial visibility
 				let indicator = "●"; // Default: unsorted (dot)
-				if (currentSortColumn === columnName) {
-					indicator = currentSortAscending ? "▲" : "▼";
+				const sortIndex = getSortIndex(columnName);
+
+				if (sortIndex !== -1) {
+					const isAscending = currentSortContext[sortIndex].ascending;
+					indicator = isAscending ? "▲" : "▼";
 					indicatorSpan.style.visibility = "visible"; // Sorted arrows always visible
 				} else {
 					indicatorSpan.style.visibility = "hidden"; // Unsorted dot hidden by default
@@ -169,36 +182,97 @@ function render({ model, el }) {
 
 				// Add hover effects for unsorted columns only
 				header.addEventListener("mouseover", () => {
-					if (currentSortColumn !== columnName) {
+					if (getSortIndex(columnName) === -1) {
 						indicatorSpan.style.visibility = "visible";
 					}
 				});
 				header.addEventListener("mouseout", () => {
-					if (currentSortColumn !== columnName) {
+					if (getSortIndex(columnName) === -1) {
 						indicatorSpan.style.visibility = "hidden";
 					}
 				});
 
 				// Add click handler for three-state toggle
-				header.addEventListener(Event.CLICK, () => {
-					if (currentSortColumn === columnName) {
-						if (currentSortAscending) {
-							// Currently ascending → switch to descending
-							model.set(ModelProperty.SORT_ASCENDING, false);
+				header.addEventListener(Event.CLICK, (event) => {
+					const sortIndex = getSortIndex(columnName);
+					let newContext = [...currentSortContext];
+
+					if (event.shiftKey) {
+						if (sortIndex !== -1) {
+							// Already sorted. Toggle or Remove.
+							if (newContext[sortIndex].ascending) {
+								// Asc -> Desc
+								// Clone object to avoid mutation issues
+								newContext[sortIndex] = {
+									...newContext[sortIndex],
+									ascending: false,
+								};
+							} else {
+								// Desc -> Remove
+								newContext.splice(sortIndex, 1);
+							}
 						} else {
-							// Currently descending → clear sort (back to unsorted)
-							model.set(ModelProperty.SORT_COLUMN, "");
-							model.set(ModelProperty.SORT_ASCENDING, true);
+							// Not sorted -> Append Asc
+							newContext.push({ column: columnName, ascending: true });
 						}
 					} else {
-						// Not currently sorted → sort ascending
-						model.set(ModelProperty.SORT_COLUMN, columnName);
-						model.set(ModelProperty.SORT_ASCENDING, true);
+						// No shift key. Single column mode.
+						if (sortIndex !== -1 && newContext.length === 1) {
+							// Already only this column. Toggle or Remove.
+							if (newContext[sortIndex].ascending) {
+								newContext[sortIndex] = {
+									...newContext[sortIndex],
+									ascending: false,
+								};
+							} else {
+								newContext = [];
+							}
+						} else {
+							// Start fresh with this column
+							newContext = [{ column: columnName, ascending: true }];
+						}
 					}
+
+					model.set(ModelProperty.SORT_CONTEXT, newContext);
 					model.save_changes();
 				});
 			}
 		});
+
+		const table = tableContainer.querySelector("table");
+		if (table) {
+			const tableBody = table.querySelector("tbody");
+
+			/**
+			 * Handles row hover events.
+			 * @param {!Event} event - The mouse event.
+			 * @param {boolean} isHovering - True to add hover class, false to remove.
+			 */
+			function handleRowHover(event, isHovering) {
+				const cell = event.target.closest("td");
+				if (cell) {
+					const row = cell.closest("tr");
+					const origRowId = row.dataset.origRow;
+					if (origRowId) {
+						const allCellsInGroup = tableBody.querySelectorAll(
+							`tr[data-orig-row="${origRowId}"] td`,
+						);
+						allCellsInGroup.forEach((c) => {
+							c.classList.toggle("row-hover", isHovering);
+						});
+					}
+				}
+			}
+
+			if (tableBody) {
+				tableBody.addEventListener("mouseover", (event) =>
+					handleRowHover(event, true),
+				);
+				tableBody.addEventListener("mouseout", (event) =>
+					handleRowHover(event, false),
+				);
+			}
+		}
 
 		updateButtonStates();
 	}
