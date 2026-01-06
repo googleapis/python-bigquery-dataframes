@@ -4,6 +4,13 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.33.0](https://github.com/googleapis/google-cloud-python/compare/bigframes-v2.32.0...bigframes-v2.33.0) (2026-01-06)
+
+
+### Features
+
+* Configure Biome for Consistent Code Style (#2364) ([81e27b3d81da9b1684eae0b7f0b9abfd7badcc4f](https://github.com/googleapis/google-cloud-python/commit/81e27b3d81da9b1684eae0b7f0b9abfd7badcc4f))
+
 ## [2.32.0](https://github.com/googleapis/google-cloud-python/compare/bigframes-v2.31.0...bigframes-v2.32.0) (2026-01-05)
 
 
