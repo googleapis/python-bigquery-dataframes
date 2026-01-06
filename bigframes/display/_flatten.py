@@ -16,18 +16,44 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import cast
 
 import pandas as pd
 import pyarrow as pa
 
 
+@dataclasses.dataclass(frozen=True)
+class FlattenResult:
+    """The result of flattening a DataFrame."""
+
+    dataframe: pd.DataFrame
+    """The flattened DataFrame."""
+
+    row_groups: dict[str, list[int]]
+    """
+    A mapping from original row index to the new row indices that were created
+    from it.
+    """
+
+    cleared_on_continuation: list[str]
+    """A list of column names that should be cleared on continuation rows."""
+
+    nested_columns: set[str]
+    """A set of column names that were created from nested data."""
+
+
 def flatten_nested_data(
     dataframe: pd.DataFrame,
-) -> tuple[pd.DataFrame, dict[str, list[int]], list[str], set[str]]:
+) -> FlattenResult:
     """Flatten nested STRUCT and ARRAY columns for display."""
     if dataframe.empty:
-        return dataframe.copy(), {}, [], set()
+        return FlattenResult(
+            dataframe=dataframe.copy(),
+            row_groups={},
+            cleared_on_continuation=[],
+            nested_columns=set(),
+        )
 
     result_df = dataframe.copy()
 
@@ -49,19 +75,19 @@ def flatten_nested_data(
 
     # Now handle ARRAY columns (including the newly created ones from ARRAY of STRUCT)
     if not array_columns:
-        return (
-            result_df,
-            {},
-            clear_on_continuation_cols,
-            nested_originated_columns,
+        return FlattenResult(
+            dataframe=result_df,
+            row_groups={},
+            cleared_on_continuation=clear_on_continuation_cols,
+            nested_columns=nested_originated_columns,
         )
 
     result_df, array_row_groups = _explode_array_columns(result_df, array_columns)
-    return (
-        result_df,
-        array_row_groups,
-        clear_on_continuation_cols,
-        nested_originated_columns,
+    return FlattenResult(
+        dataframe=result_df,
+        row_groups=array_row_groups,
+        cleared_on_continuation=clear_on_continuation_cols,
+        nested_columns=nested_originated_columns,
     )
 
 

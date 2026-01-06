@@ -49,23 +49,20 @@ def render_html(
 ) -> str:
     """Render a pandas DataFrame to HTML with specific styling and nested data support."""
     # Flatten nested data first
-    (
-        flattened_df,
-        array_row_groups,
-        clear_on_continuation,
-        nested_originated_columns,
-    ) = _flatten.flatten_nested_data(dataframe)
+    flatten_result = _flatten.flatten_nested_data(dataframe)
 
     orderable_columns = orderable_columns or []
     classes = "dataframe table table-striped table-hover"
     table_html_parts = [f'<table border="1" class="{classes}" id="{table_id}">']
-    table_html_parts.append(_render_table_header(flattened_df, orderable_columns))
+    table_html_parts.append(
+        _render_table_header(flatten_result.dataframe, orderable_columns)
+    )
     table_html_parts.append(
         _render_table_body(
-            flattened_df,
-            array_row_groups,
-            clear_on_continuation,
-            nested_originated_columns,
+            flatten_result.dataframe,
+            flatten_result.row_groups,
+            flatten_result.cleared_on_continuation,
+            flatten_result.nested_columns,
         )
     )
     table_html_parts.append("</table>")

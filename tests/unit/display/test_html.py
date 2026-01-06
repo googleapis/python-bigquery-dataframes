@@ -165,7 +165,9 @@ def test_flatten_nested_data_flattens_structs():
         }
     )
 
-    flattened, _, _, nested_originated_columns = flatten_nested_data(struct_data)
+    result = flatten_nested_data(struct_data)
+    flattened = result.dataframe
+    nested_originated_columns = result.nested_columns
 
     assert "struct_col.name" in flattened.columns
     assert "struct_col.age" in flattened.columns
@@ -186,7 +188,10 @@ def test_flatten_nested_data_explodes_arrays():
         }
     )
 
-    flattened, groups, _, nested_originated_columns = flatten_nested_data(array_data)
+    result = flatten_nested_data(array_data)
+    flattened = result.dataframe
+    groups = result.row_groups
+    nested_originated_columns = result.nested_columns
 
     assert len(flattened) == 5  # 3 + 2 array elements
     assert "0" in groups  # First original row
