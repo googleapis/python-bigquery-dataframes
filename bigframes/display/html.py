@@ -115,42 +115,57 @@ def _render_table_body(
 
         row = dataframe.iloc[i]
         for col_name, value in row.items():
-            col_name_str = str(col_name)
-            if is_continuation and col_name_str in clear_on_continuation:
-                body_parts.append("      <td></td>")
-                continue
             dtype = dataframe.dtypes.loc[col_name]  # type: ignore
-
-            if col_name_str in nested_originated_columns:
-                align = "left"
-            else:
-                align = "right" if _is_dtype_numeric(dtype) else "left"
-
-            cell_content = ""
-            if pandas.api.types.is_scalar(value) and pd.isna(value):
-                if is_continuation:
-                    # For padding nulls in continuation rows, show empty cell
-                    body_parts.append(f'      <td class="cell-align-{align}"></td>')
-                else:
-                    # For primary nulls, keep showing the <NA> indicator but maybe styled
-                    body_parts.append(
-                        f'      <td class="cell-align-{align}">'
-                        '<em class="null-value">&lt;NA&gt;</em></td>'
-                    )
-                continue
-            elif isinstance(value, float):
-                cell_content = f"{value:.{precision}f}"
-            else:
-                cell_content = str(value)
-
-            # Use classes for alignment
-            body_parts.append(
-                f'      <td class="cell-align-{align}">'
-                f"{html.escape(cell_content)}</td>"
+            cell_html = _render_cell(
+                value,
+                dtype,
+                is_continuation,
+                str(col_name),
+                clear_on_continuation,
+                nested_originated_columns,
+                precision,
             )
+            body_parts.append(cell_html)
         body_parts.append("    </tr>")
     body_parts.append("  </tbody>")
     return "\n".join(body_parts)
+
+
+def _render_cell(
+    value: Any,
+    dtype: Any,
+    is_continuation: bool,
+    col_name_str: str,
+    clear_on_continuation: list[str],
+    nested_originated_columns: set[str],
+    precision: int,
+) -> str:
+    """Render a single cell of the HTML table."""
+    if is_continuation and col_name_str in clear_on_continuation:
+        return "      <td></td>"
+
+    if col_name_str in nested_originated_columns:
+        align = "left"
+    else:
+        align = "right" if _is_dtype_numeric(dtype) else "left"
+
+    if pandas.api.types.is_scalar(value) and pd.isna(value):
+        if is_continuation:
+            # For padding nulls in continuation rows, show empty cell
+            return f'      <td class="cell-align-{align}"></td>'
+        else:
+            # For primary nulls, keep showing the <NA> indicator but maybe styled
+            return (
+                f'      <td class="cell-align-{align}">'
+                '<em class="null-value">&lt;NA&gt;</em></td>'
+            )
+
+    if isinstance(value, float):
+        cell_content = f"{value:.{precision}f}"
+    else:
+        cell_content = str(value)
+
+    return f'      <td class="cell-align-{align}">' f"{html.escape(cell_content)}</td>"
 
 
 def _obj_ref_rt_to_html(obj_ref_rt: str) -> str:
