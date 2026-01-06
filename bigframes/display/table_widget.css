@@ -43,7 +43,11 @@
   box-sizing: border-box;
 }
 
-/* Dark Mode Overrides via Media Query */
+/* Dark Mode Overrides:
+ * 1. @media (prefers-color-scheme: dark) - System-wide dark mode
+ * 2. .bigframes-dark-mode - Explicit class for VSCode theme detection
+ * 3. html[theme="dark"], body[data-theme="dark"] - Colab/Pantheon manual override
+ */
 @media (prefers-color-scheme: dark) {
   .bigframes-widget.bigframes-widget {
     --bf-bg: var(--vscode-editor-background, #202124);
@@ -59,8 +63,9 @@
   }
 }
 
-/* Dark Mode Overrides via Explicit Class */
-.bigframes-widget.bigframes-dark-mode.bigframes-dark-mode {
+.bigframes-widget.bigframes-dark-mode.bigframes-dark-mode,
+html[theme='dark'] .bigframes-widget.bigframes-widget,
+body[data-theme='dark'] .bigframes-widget.bigframes-widget {
   --bf-bg: var(--vscode-editor-background, #202124);
   --bf-border-color: #444;
   --bf-error-bg: #511;

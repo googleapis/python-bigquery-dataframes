@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-import { jest } from "@jest/globals";
+import { jest } from '@jest/globals';
 
-describe("TableWidget", () => {
+describe('TableWidget', () => {
   let model;
   let el;
   let render;
 
   beforeEach(async () => {
     jest.resetModules();
-    document.body.innerHTML = "<div></div>";
-    el = document.body.querySelector("div");
+    document.body.innerHTML = '<div></div>';
+    el = document.body.querySelector('div');
 
     const tableWidget = (
-      await import("../../bigframes/display/table_widget.js")
+      await import('../../bigframes/display/table_widget.js')
     ).default;
     render = tableWidget.render;
 
@@ -39,27 +39,27 @@ describe("TableWidget", () => {
     };
   });
 
-  it("should have a render function", () => {
+  it('should have a render function', () => {
     expect(render).toBeDefined();
   });
 
-  describe("render", () => {
-    it("should create the basic structure", () => {
+  describe('render', () => {
+    it('should create the basic structure', () => {
       // Mock the initial state
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "";
+        if (property === 'table_html') {
+          return '';
         }
-        if (property === "row_count") {
+        if (property === 'row_count') {
           return 100;
         }
-        if (property === "error_message") {
+        if (property === 'error_message') {
           return null;
         }
-        if (property === "page_size") {
+        if (property === 'page_size') {
           return 10;
         }
-        if (property === "page") {
+        if (property === 'page') {
           return 0;
         }
         return null;
@@ -67,22 +67,22 @@ describe("TableWidget", () => {
 
       render({ model, el });
 
-      expect(el.classList.contains("bigframes-widget")).toBe(true);
-      expect(el.querySelector(".error-message")).not.toBeNull();
-      expect(el.querySelector("div")).not.toBeNull();
-      expect(el.querySelector("div:nth-child(3)")).not.toBeNull();
+      expect(el.classList.contains('bigframes-widget')).toBe(true);
+      expect(el.querySelector('.error-message')).not.toBeNull();
+      expect(el.querySelector('div')).not.toBeNull();
+      expect(el.querySelector('div:nth-child(3)')).not.toBeNull();
     });
 
-    it("should sort when a sortable column is clicked", () => {
+    it('should sort when a sortable column is clicked', () => {
       // Mock the initial state
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "<table><thead><tr><th><div>col1</div></th></tr></thead></table>";
+        if (property === 'table_html') {
+          return '<table><thead><tr><th><div>col1</div></th></tr></thead></table>';
         }
-        if (property === "orderable_columns") {
-          return ["col1"];
+        if (property === 'orderable_columns') {
+          return ['col1'];
         }
-        if (property === "sort_context") {
+        if (property === 'sort_context') {
           return [];
         }
         return null;
@@ -92,30 +92,30 @@ describe("TableWidget", () => {
 
       // Manually trigger the table_html change handler
       const tableHtmlChangeHandler = model.on.mock.calls.find(
-        (call) => call[0] === "change:table_html",
+        (call) => call[0] === 'change:table_html',
       )[1];
       tableHtmlChangeHandler();
 
-      const header = el.querySelector("th");
+      const header = el.querySelector('th');
       header.click();
 
-      expect(model.set).toHaveBeenCalledWith("sort_context", [
-        { column: "col1", ascending: true },
+      expect(model.set).toHaveBeenCalledWith('sort_context', [
+        { column: 'col1', ascending: true },
       ]);
       expect(model.save_changes).toHaveBeenCalled();
     });
 
-    it("should reverse sort direction when a sorted column is clicked", () => {
+    it('should reverse sort direction when a sorted column is clicked', () => {
       // Mock the initial state
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "<table><thead><tr><th><div>col1</div></th></tr></thead></table>";
+        if (property === 'table_html') {
+          return '<table><thead><tr><th><div>col1</div></th></tr></thead></table>';
         }
-        if (property === "orderable_columns") {
-          return ["col1"];
+        if (property === 'orderable_columns') {
+          return ['col1'];
         }
-        if (property === "sort_context") {
-          return [{ column: "col1", ascending: true }];
+        if (property === 'sort_context') {
+          return [{ column: 'col1', ascending: true }];
         }
         return null;
       });
@@ -124,30 +124,30 @@ describe("TableWidget", () => {
 
       // Manually trigger the table_html change handler
       const tableHtmlChangeHandler = model.on.mock.calls.find(
-        (call) => call[0] === "change:table_html",
+        (call) => call[0] === 'change:table_html',
       )[1];
       tableHtmlChangeHandler();
 
-      const header = el.querySelector("th");
+      const header = el.querySelector('th');
       header.click();
 
-      expect(model.set).toHaveBeenCalledWith("sort_context", [
-        { column: "col1", ascending: false },
+      expect(model.set).toHaveBeenCalledWith('sort_context', [
+        { column: 'col1', ascending: false },
       ]);
       expect(model.save_changes).toHaveBeenCalled();
     });
 
-    it("should clear sort when a descending sorted column is clicked", () => {
+    it('should clear sort when a descending sorted column is clicked', () => {
       // Mock the initial state
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "<table><thead><tr><th><div>col1</div></th></tr></thead></table>";
+        if (property === 'table_html') {
+          return '<table><thead><tr><th><div>col1</div></th></tr></thead></table>';
         }
-        if (property === "orderable_columns") {
-          return ["col1"];
+        if (property === 'orderable_columns') {
+          return ['col1'];
         }
-        if (property === "sort_context") {
-          return [{ column: "col1", ascending: false }];
+        if (property === 'sort_context') {
+          return [{ column: 'col1', ascending: false }];
         }
         return null;
       });
@@ -156,28 +156,28 @@ describe("TableWidget", () => {
 
       // Manually trigger the table_html change handler
       const tableHtmlChangeHandler = model.on.mock.calls.find(
-        (call) => call[0] === "change:table_html",
+        (call) => call[0] === 'change:table_html',
       )[1];
       tableHtmlChangeHandler();
 
-      const header = el.querySelector("th");
+      const header = el.querySelector('th');
       header.click();
 
-      expect(model.set).toHaveBeenCalledWith("sort_context", []);
+      expect(model.set).toHaveBeenCalledWith('sort_context', []);
       expect(model.save_changes).toHaveBeenCalled();
     });
 
-    it("should display the correct sort indicator", () => {
+    it('should display the correct sort indicator', () => {
       // Mock the initial state
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "<table><thead><tr><th><div>col1</div></th><th><div>col2</div></th></tr></thead></table>";
+        if (property === 'table_html') {
+          return '<table><thead><tr><th><div>col1</div></th><th><div>col2</div></th></tr></thead></table>';
         }
-        if (property === "orderable_columns") {
-          return ["col1", "col2"];
+        if (property === 'orderable_columns') {
+          return ['col1', 'col2'];
         }
-        if (property === "sort_context") {
-          return [{ column: "col1", ascending: true }];
+        if (property === 'sort_context') {
+          return [{ column: 'col1', ascending: true }];
         }
         return null;
       });
@@ -186,29 +186,29 @@ describe("TableWidget", () => {
 
       // Manually trigger the table_html change handler
       const tableHtmlChangeHandler = model.on.mock.calls.find(
-        (call) => call[0] === "change:table_html",
+        (call) => call[0] === 'change:table_html',
       )[1];
       tableHtmlChangeHandler();
 
-      const headers = el.querySelectorAll("th");
-      const indicator1 = headers[0].querySelector(".sort-indicator");
-      const indicator2 = headers[1].querySelector(".sort-indicator");
+      const headers = el.querySelectorAll('th');
+      const indicator1 = headers[0].querySelector('.sort-indicator');
+      const indicator2 = headers[1].querySelector('.sort-indicator');
 
-      expect(indicator1.textContent).toBe("▲");
-      expect(indicator2.textContent).toBe("●");
+      expect(indicator1.textContent).toBe('▲');
+      expect(indicator2.textContent).toBe('●');
     });
 
-    it("should add a column to sort when Shift+Click is used", () => {
+    it('should add a column to sort when Shift+Click is used', () => {
       // Mock the initial state: already sorted by col1 asc
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "<table><thead><tr><th><div>col1</div></th><th><div>col2</div></th></tr></thead></table>";
+        if (property === 'table_html') {
+          return '<table><thead><tr><th><div>col1</div></th><th><div>col2</div></th></tr></thead></table>';
         }
-        if (property === "orderable_columns") {
-          return ["col1", "col2"];
+        if (property === 'orderable_columns') {
+          return ['col1', 'col2'];
         }
-        if (property === "sort_context") {
-          return [{ column: "col1", ascending: true }];
+        if (property === 'sort_context') {
+          return [{ column: 'col1', ascending: true }];
         }
         return null;
       });
@@ -217,47 +217,47 @@ describe("TableWidget", () => {
 
       // Manually trigger the table_html change handler
       const tableHtmlChangeHandler = model.on.mock.calls.find(
-        (call) => call[0] === "change:table_html",
+        (call) => call[0] === 'change:table_html',
       )[1];
       tableHtmlChangeHandler();
 
-      const headers = el.querySelectorAll("th");
+      const headers = el.querySelectorAll('th');
       const header2 = headers[1]; // col2
 
       // Simulate Shift+Click
-      const clickEvent = new MouseEvent("click", {
+      const clickEvent = new MouseEvent('click', {
         bubbles: true,
         cancelable: true,
         shiftKey: true,
       });
       header2.dispatchEvent(clickEvent);
 
-      expect(model.set).toHaveBeenCalledWith("sort_context", [
-        { column: "col1", ascending: true },
-        { column: "col2", ascending: true },
+      expect(model.set).toHaveBeenCalledWith('sort_context', [
+        { column: 'col1', ascending: true },
+        { column: 'col2', ascending: true },
       ]);
       expect(model.save_changes).toHaveBeenCalled();
     });
   });
 
-  describe("Theme detection", () => {
+  describe('Theme detection', () => {
     beforeEach(() => {
       jest.useFakeTimers();
       // Mock the initial state for theme detection tests
       model.get.mockImplementation((property) => {
-        if (property === "table_html") {
-          return "";
+        if (property === 'table_html') {
+          return '';
         }
-        if (property === "row_count") {
+        if (property === 'row_count') {
           return 100;
         }
-        if (property === "error_message") {
+        if (property === 'error_message') {
           return null;
         }
-        if (property === "page_size") {
+        if (property === 'page_size') {
           return 10;
         }
-        if (property === "page") {
+        if (property === 'page') {
           return 0;
         }
         return null;
@@ -266,27 +266,27 @@ describe("TableWidget", () => {
 
     afterEach(() => {
       jest.useRealTimers();
-      document.body.classList.remove("vscode-dark");
+      document.body.classList.remove('vscode-dark');
     });
 
-    it("should add bigframes-dark-mode class in dark mode", () => {
-      document.body.classList.add("vscode-dark");
+    it('should add bigframes-dark-mode class in dark mode', () => {
+      document.body.classList.add('vscode-dark');
       render({ model, el });
       jest.runAllTimers();
-      expect(el.classList.contains("bigframes-dark-mode")).toBe(true);
+      expect(el.classList.contains('bigframes-dark-mode')).toBe(true);
     });
 
-    it("should not add bigframes-dark-mode class in light mode", () => {
+    it('should not add bigframes-dark-mode class in light mode', () => {
       render({ model, el });
       jest.runAllTimers();
-      expect(el.classList.contains("bigframes-dark-mode")).toBe(false);
+      expect(el.classList.contains('bigframes-dark-mode')).toBe(false);
     });
   });
 
-  it("should render the series as a table with an index and one value column", () => {
+  it('should render the series as a table with an index and one value column', () => {
     // Mock the initial state
     model.get.mockImplementation((property) => {
-      if (property === "table_html") {
+      if (property === 'table_html') {
         return `
       <div class="paginated-table-container">
       <div id="table-c" class="table-container">
@@ -311,7 +311,7 @@ describe("TableWidget", () => {
       </div>
       </div>`;
       }
-      if (property === "orderable_columns") {
+      if (property === 'orderable_columns') {
         return [];
       }
       return null;
@@ -321,18 +321,18 @@ describe("TableWidget", () => {
 
     // Manually trigger the table_html change handler
     const tableHtmlChangeHandler = model.on.mock.calls.find(
-      (call) => call[0] === "change:table_html",
+      (call) => call[0] === 'change:table_html',
     )[1];
     tableHtmlChangeHandler();
 
     // Check that the table has two columns
     const headers = el.querySelectorAll(
-      ".paginated-table-container .col-header-name",
+      '.paginated-table-container .col-header-name',
     );
     expect(headers).toHaveLength(2);
 
     // Check that the headers are an empty string (for the index) and "value"
-    expect(headers[0].textContent).toBe("");
-    expect(headers[1].textContent).toBe("value");
+    expect(headers[0].textContent).toBe('');
+    expect(headers[1].textContent).toBe('value');
   });
 });
