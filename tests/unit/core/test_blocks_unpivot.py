@@ -27,28 +27,51 @@ def mock_session():
     return session
 
 
-def test_pd_index_to_array_value_with_empty_index_creates_columns(mock_session):
+def test_pd_index_to_array_value_with_empty_index_creates_no_columns(mock_session):
     """
-    Tests that `_pd_index_to_array_value` correctly handles an empty pandas Index by creating
-    an ArrayValue with the expected columns (index column + offset column).
-    This prevents crashes in `unpivot` which expects these columns to exist.
+    Tests that `_pd_index_to_array_value` with an empty pandas Index creates
+    an ArrayValue with no columns.
     """
     empty_index = pd.Index([], name="test")
 
     array_val = blocks._pd_index_to_array_value(mock_session, empty_index)
 
-    # Should be 2: one for index, one for offset
-    assert len(array_val.column_ids) == 2
+    assert len(array_val.column_ids) == 0
 
 
-def test_pd_index_to_array_value_with_empty_multiindex_creates_columns(mock_session):
+def test_pd_index_to_array_value_with_empty_multiindex_creates_no_columns(mock_session):
     """
-    Tests that `_pd_index_to_array_value` correctly handles an empty pandas MultiIndex by creating
-    an ArrayValue with the expected columns (one for each level + offset column).
+    Tests that `_pd_index_to_array_value` with an empty pandas MultiIndex creates
+    an ArrayValue with no columns.
     """
     empty_index = pd.MultiIndex.from_arrays([[], []], names=["a", "b"])
 
     array_val = blocks._pd_index_to_array_value(mock_session, empty_index)
 
-    # Should have 3 columns: a, b, offset
-    assert len(array_val.column_ids) == 3
+    assert len(array_val.column_ids) == 0
+
+
+def test_unpivot_with_empty_row_labels(mock_session):
+    """
+    Tests that `unpivot` handles an empty `row_labels` index correctly.
+    """
+    import pyarrow as pa
+
+    # Create a dummy ArrayValue
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    pa_table = pa.Table.from_pandas(df)
+    array_value = blocks.core.ArrayValue.from_pyarrow(pa_table, session=mock_session)
+
+    # Call unpivot with an empty pd.Index
+    unpivot_result, (index_cols, unpivot_cols, passthrough_cols) = blocks.unpivot(
+        array_value,
+        row_labels=pd.Index([]),
+        unpivot_columns=[("a",)],
+    )
+
+    # The expected behavior is that the unpivot operation does nothing and returns
+    # the original array_value and empty column tuples.
+    assert unpivot_result is array_value
+    assert index_cols == tuple()
+    assert unpivot_cols == tuple()
+    assert passthrough_cols == tuple()
