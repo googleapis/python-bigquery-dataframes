@@ -3435,7 +3435,12 @@ def unpivot(
     # Last column is offsets
     if not labels_array.column_ids:
         # Handle empty column_ids case for multimodal DataFrames
-        return array_value, (tuple(), tuple(), tuple(passthrough_columns))
+        # When no index columns exist, return original array_value with identity mappings
+        return array_value, (
+            tuple(),
+            tuple(array_value.column_ids),
+            tuple(passthrough_columns),
+        )
     index_col_ids = [labels_mapping[col] for col in labels_array.column_ids[:-1]]
     explode_offsets_id = labels_mapping[labels_array.column_ids[-1]]
 

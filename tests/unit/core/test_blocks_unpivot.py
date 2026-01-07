@@ -63,15 +63,15 @@ def test_unpivot_with_empty_row_labels(mock_session):
     array_value = blocks.core.ArrayValue.from_pyarrow(pa_table, session=mock_session)
 
     # Call unpivot with an empty pd.Index
-    unpivot_result, (index_cols, unpivot_cols, passthrough_cols) = blocks.unpivot(
+    unpivot_result, (index_cols, value_cols, passthrough_cols) = blocks.unpivot(
         array_value,
         row_labels=pd.Index([]),
         unpivot_columns=[("a",)],
     )
 
     # The expected behavior is that the unpivot operation does nothing and returns
-    # the original array_value and empty column tuples.
+    # the original array_value and identity mappings.
     assert unpivot_result is array_value
     assert index_cols == tuple()
-    assert unpivot_cols == tuple()
+    assert value_cols == tuple(array_value.column_ids)
     assert passthrough_cols == tuple()
