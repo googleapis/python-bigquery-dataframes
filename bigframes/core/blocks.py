@@ -3433,6 +3433,9 @@ def unpivot(
         )
     new_passthrough_cols = [column_mapping[col] for col in passthrough_columns]
     # Last column is offsets
+    if not labels_array.column_ids:
+        # Handle empty column_ids case for multimodal DataFrames
+        return array_value, (tuple(), tuple(), tuple(passthrough_columns))
     index_col_ids = [labels_mapping[col] for col in labels_array.column_ids[:-1]]
     explode_offsets_id = labels_mapping[labels_array.column_ids[-1]]
 
