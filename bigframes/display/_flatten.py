@@ -197,30 +197,35 @@ def _explode_array_columns(
     if not array_columns:
         return dataframe, {}
 
-    non_array_columns = dataframe.columns.drop(array_columns).tolist()
+    original_cols = dataframe.columns.tolist()
+    work_df = dataframe
+
+    non_array_columns = work_df.columns.drop(array_columns).tolist()
     if not non_array_columns:
+        work_df = work_df.copy()  # Avoid modifying input
         # Add a temporary column to allow grouping if all columns are arrays
         non_array_columns = ["_temp_grouping_col"]
-        dataframe["_temp_grouping_col"] = range(len(dataframe))
+        work_df["_temp_grouping_col"] = range(len(work_df))
 
     # Preserve original index
-    if dataframe.index.name:
-        original_index_name = dataframe.index.name
-        dataframe = dataframe.reset_index()
+    if work_df.index.name:
+        original_index_name = work_df.index.name
+        work_df = work_df.reset_index()
         non_array_columns.append(original_index_name)
     else:
         original_index_name = None
-        dataframe = dataframe.reset_index(names=["_original_index"])
+        work_df = work_df.reset_index(names=["_original_index"])
         non_array_columns.append("_original_index")
 
     exploded_dfs = []
     for col in array_columns:
         # Explode each array column individually
-        exploded = dataframe[non_array_columns + [col]].explode(col)
+        exploded = work_df[non_array_columns + [col]].explode(col)
         exploded["_row_num"] = exploded.groupby(non_array_columns).cumcount()
         exploded_dfs.append(exploded)
 
     if not exploded_dfs:
+        # This should not be reached if array_columns is not empty
         return dataframe, {}
 
     # Merge the exploded columns
@@ -234,39 +239,26 @@ def _explode_array_columns(
         )
 
     # Restore original column order and sort
-    final_cols = dataframe.columns.tolist() + ["_row_num"]
     merged_df = merged_df.sort_values(non_array_columns + ["_row_num"]).reset_index(
         drop=True
     )
 
     # Create row groups
     array_row_groups = {}
-    if "_original_index" in merged_df.columns:
-        grouping_col = "_original_index"
-    elif original_index_name:
-        grouping_col = original_index_name
-    else:
-        # Fallback if no clear grouping column is identified
-        grouping_col = non_array_columns[0]
+    grouping_col_name = (
+        "_original_index" if original_index_name is None else original_index_name
+    )
+    if grouping_col_name in merged_df.columns:
+        for orig_idx, group in merged_df.groupby(grouping_col_name):
+            array_row_groups[str(orig_idx)] = group.index.tolist()
 
-    for orig_idx, group in merged_df.groupby(grouping_col):
-        array_row_groups[str(orig_idx)] = group.index.tolist()
+    # Restore original columns
+    result_df = merged_df[original_cols]
 
-    # Clean up temporary columns
-    if "_temp_grouping_col" in merged_df.columns:
-        merged_df = merged_df.drop(columns=["_temp_grouping_col"])
-        final_cols.remove("_temp_grouping_col")
-    if "_original_index" in merged_df.columns:
-        merged_df = merged_df.drop(columns=["_original_index"])
-        final_cols.remove("_original_index")
     if original_index_name:
-        merged_df = merged_df.set_index(original_index_name)
-        final_cols.remove(original_index_name)
+        result_df = result_df.set_index(original_index_name)
 
-    final_cols.remove("_row_num")
-    merged_df = merged_df[final_cols]
-
-    return merged_df, array_row_groups
+    return result_df, array_row_groups
 
 
 def _flatten_struct_columns(
