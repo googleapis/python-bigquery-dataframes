@@ -159,14 +159,14 @@ def _flatten_array_of_struct_columns(
             nested_originated_columns.add(new_col_name)
             new_array_col_names.append(new_col_name)
 
-            # Reconstruct ListArray for this field
-            # Use mask=arrow_array.is_null() to preserve nulls from the original list
+            # Reconstruct ListArray for this field. This transforms the
+            # array<struct<f1, f2>> into separate array<f1> and array<f2> columns.
             new_list_array = pa.ListArray.from_arrays(
                 offsets, flattened_fields[field_idx], mask=arrow_array.is_null()
             )
 
             new_cols_to_add[new_col_name] = pd.Series(
-                new_list_array.to_pylist(),
+                new_list_array,
                 dtype=pd.ArrowDtype(pa.list_(field.type)),
                 index=result_df.index,
             )
@@ -194,78 +194,79 @@ def _explode_array_columns(
     dataframe: pd.DataFrame, array_columns: list[str]
 ) -> tuple[pd.DataFrame, dict[str, list[int]]]:
     """Explode array columns into new rows."""
-    exploded_rows = []
-    array_row_groups: dict[str, list[int]] = {}
+    if not array_columns:
+        return dataframe, {}
+
     non_array_columns = dataframe.columns.drop(array_columns).tolist()
-    non_array_df = dataframe[non_array_columns]
+    if not non_array_columns:
+        # Add a temporary column to allow grouping if all columns are arrays
+        non_array_columns = ["_temp_grouping_col"]
+        dataframe["_temp_grouping_col"] = range(len(dataframe))
 
-    for orig_idx in dataframe.index:
-        non_array_data = non_array_df.loc[orig_idx].to_dict()
-        array_values = {}
-        max_len_in_row = 0
-        non_na_array_found = False
-
-        for col_name in array_columns:
-            val = dataframe.loc[orig_idx, col_name]
-            if val is not None and not (
-                isinstance(val, list) and len(val) == 1 and pd.isna(val[0])
-            ):
-                array_values[col_name] = list(val)
-                max_len_in_row = max(max_len_in_row, len(val))
-                non_na_array_found = True
-            else:
-                array_values[col_name] = []
-
-        if not non_na_array_found:
-            new_row = non_array_data.copy()
-            for col_name in array_columns:
-                new_row[f"{col_name}"] = pd.NA
-            exploded_rows.append(new_row)
-            orig_key = str(orig_idx)
-            if orig_key not in array_row_groups:
-                array_row_groups[orig_key] = []
-            array_row_groups[orig_key].append(len(exploded_rows) - 1)
-            continue
-
-        # Create one row per array element, up to max_len_in_row
-        for array_idx in range(max_len_in_row):
-            new_row = non_array_data.copy()
-
-            # Add the specific array element for this index
-            for col_name in array_columns:
-                if array_idx < len(array_values.get(col_name, [])):
-                    new_row[f"{col_name}"] = array_values[col_name][array_idx]
-                else:
-                    new_row[f"{col_name}"] = pd.NA
-
-            exploded_rows.append(new_row)
-
-            # Track which rows belong to which original row
-            orig_key = str(orig_idx)
-            if orig_key not in array_row_groups:
-                array_row_groups[orig_key] = []
-            array_row_groups[orig_key].append(len(exploded_rows) - 1)
-
-    if exploded_rows:
-        # Reconstruct the DataFrame to maintain original column order
-        exploded_df = pd.DataFrame(exploded_rows)[dataframe.columns]
-        for col in exploded_df.columns:
-            # After explosion, object columns that are all-numeric (except for NAs)
-            # should be converted to a numeric dtype for proper alignment.
-            if exploded_df[col].dtype == "object":
-                try:
-                    # Use nullable integer type to preserve integers
-                    exploded_df[col] = exploded_df[col].astype(pd.Int64Dtype())
-                except (ValueError, TypeError):
-                    # Fallback for non-integer numerics
-                    try:
-                        exploded_df[col] = pd.to_numeric(exploded_df[col])
-                    except (ValueError, TypeError):
-                        # Keep as object if not numeric
-                        pass
-        return exploded_df, array_row_groups
+    # Preserve original index
+    if dataframe.index.name:
+        original_index_name = dataframe.index.name
+        dataframe = dataframe.reset_index()
+        non_array_columns.append(original_index_name)
     else:
-        return dataframe, array_row_groups
+        original_index_name = None
+        dataframe = dataframe.reset_index(names=["_original_index"])
+        non_array_columns.append("_original_index")
+
+    exploded_dfs = []
+    for col in array_columns:
+        # Explode each array column individually
+        exploded = dataframe[non_array_columns + [col]].explode(col)
+        exploded["_row_num"] = exploded.groupby(non_array_columns).cumcount()
+        exploded_dfs.append(exploded)
+
+    if not exploded_dfs:
+        return dataframe, {}
+
+    # Merge the exploded columns
+    merged_df = exploded_dfs[0]
+    for i in range(1, len(exploded_dfs)):
+        merged_df = pd.merge(
+            merged_df,
+            exploded_dfs[i],
+            on=non_array_columns + ["_row_num"],
+            how="outer",
+        )
+
+    # Restore original column order and sort
+    final_cols = dataframe.columns.tolist() + ["_row_num"]
+    merged_df = merged_df.sort_values(non_array_columns + ["_row_num"]).reset_index(
+        drop=True
+    )
+
+    # Create row groups
+    array_row_groups = {}
+    if "_original_index" in merged_df.columns:
+        grouping_col = "_original_index"
+    elif original_index_name:
+        grouping_col = original_index_name
+    else:
+        # Fallback if no clear grouping column is identified
+        grouping_col = non_array_columns[0]
+
+    for orig_idx, group in merged_df.groupby(grouping_col):
+        array_row_groups[str(orig_idx)] = group.index.tolist()
+
+    # Clean up temporary columns
+    if "_temp_grouping_col" in merged_df.columns:
+        merged_df = merged_df.drop(columns=["_temp_grouping_col"])
+        final_cols.remove("_temp_grouping_col")
+    if "_original_index" in merged_df.columns:
+        merged_df = merged_df.drop(columns=["_original_index"])
+        final_cols.remove("_original_index")
+    if original_index_name:
+        merged_df = merged_df.set_index(original_index_name)
+        final_cols.remove(original_index_name)
+
+    final_cols.remove("_row_num")
+    merged_df = merged_df[final_cols]
+
+    return merged_df, array_row_groups
 
 
 def _flatten_struct_columns(
@@ -295,7 +296,7 @@ def _flatten_struct_columns(
 
             # Create a new Series from the flattened array
             new_cols_to_add[new_col_name] = pd.Series(
-                flattened_fields[field_idx].to_pylist(),
+                flattened_fields[field_idx],
                 dtype=pd.ArrowDtype(field.type),
                 index=result_df.index,
             )
