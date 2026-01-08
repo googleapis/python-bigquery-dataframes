@@ -140,6 +140,13 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.Coalesce(this=left.expr, expressions=[right.expr])
 
 
+@register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
+def _(
+    left: TypedExpr, right: TypedExpr, op: ops.BinaryRemoteFunctionOp
+) -> sge.Expression:
+    return sge.func(str(op.function_def.routine_ref), left.expr, right.expr)
+
+
 @register_nary_op(ops.case_when_op)
 def _(*cases_and_outputs: TypedExpr) -> sge.Expression:
     # Need to upcast BOOL to INT if any output is numeric
