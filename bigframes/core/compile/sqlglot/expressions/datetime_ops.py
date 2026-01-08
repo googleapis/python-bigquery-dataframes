@@ -470,7 +470,7 @@ def _integer_label_to_datetime_op_fixed_frequency(
     from microseconds (us) to days.
     """
     us = op.freq.nanos / 1000
-    first = _calculate_resample_first(y, op.origin) # type: ignore
+    first = _calculate_resample_first(y, op.origin)  # type: ignore
     x_label = sge.Cast(
         this=sge.func(
             "TIMESTAMP_MICROS",
@@ -487,7 +487,7 @@ def _integer_label_to_datetime_op_fixed_frequency(
                 to=sge.DataType.build("INT64"),
             ),
         ),
-        to=_dtype_to_sql_string(y.dtype),   # type: ignore
+        to=_dtype_to_sql_string(y.dtype),  # type: ignore
     )
     return x_label
 
@@ -536,12 +536,12 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
                     to=sge.DataType.build("INT64"),
                 ),
             ),
-            to=_dtype_to_sql_string(y.dtype),   # type: ignore
+            to=_dtype_to_sql_string(y.dtype),  # type: ignore
         )
-    elif rule_code == "ME":  # Monthly
+    elif rule_code in ("ME", "M"):  # Monthly
         one = sge.convert(1)
         twelve = sge.convert(12)
-        first = sge.Sub(    # type: ignore
+        first = sge.Sub(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
                     this=sge.Extract(this="YEAR", expression=y.expr),
@@ -594,12 +594,12 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
         x_label = sge.Sub(  # type: ignore
             this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
         )
-    elif rule_code == "QE-DEC":  # Quarterly
+    elif rule_code in ("QE-DEC", "Q-DEC"):  # Quarterly
         one = sge.convert(1)
         three = sge.convert(3)
         four = sge.convert(4)
         twelve = sge.convert(12)
-        first = sge.Sub(    # type: ignore
+        first = sge.Sub(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
                     this=sge.Extract(this="YEAR", expression=y.expr),
@@ -616,7 +616,7 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
             this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, four)),
             to=sge.DataType.build("INT64"),
         )
-        month = sge.Mul(    # type: ignore
+        month = sge.Mul(  # type: ignore
             this=sge.Paren(
                 this=sge.Add(this=sge.Mod(this=x_val, expression=four), expression=one)
             ),
@@ -649,13 +649,13 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
         x_label = sge.Sub(  # type: ignore
             this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
         )
-    elif rule_code == "YE-DEC":  # Yearly
+    elif rule_code in ("YE-DEC", "A-DEC", "Y-DEC"):  # Yearly
         one = sge.convert(1)
         first = sge.Extract(this="YEAR", expression=y.expr)
         x_val = sge.Add(
             this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
         )
-        next_year = sge.Add(this=x_val, expression=one) # type: ignore
+        next_year = sge.Add(this=x_val, expression=one)  # type: ignore
         next_month_date = sge.func(
             "TIMESTAMP",
             sge.Anonymous(
@@ -675,4 +675,4 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
         )
     else:
         raise ValueError(rule_code)
-    return sge.Cast(this=x_label, to=_dtype_to_sql_string(y.dtype)) # type: ignore
+    return sge.Cast(this=x_label, to=_dtype_to_sql_string(y.dtype))  # type: ignore
