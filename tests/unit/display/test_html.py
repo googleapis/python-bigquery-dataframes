@@ -190,12 +190,11 @@ def test_flatten_nested_data_explodes_arrays():
 
     result = flatten_nested_data(array_data)
     flattened = result.dataframe
-    groups = result.row_groups
+    row_labels = result.row_labels
+    continuation_rows = result.continuation_rows
     nested_originated_columns = result.nested_columns
 
     assert len(flattened) == 5  # 3 + 2 array elements
-    assert "0" in groups  # First original row
-    assert len(groups["0"]) == 3  # Three array elements
-    assert "1" in groups
-    assert len(groups["1"]) == 2
+    assert row_labels == ["0", "0", "0", "1", "1"]
+    assert continuation_rows == {1, 2, 4}
     assert "array_col" in nested_originated_columns

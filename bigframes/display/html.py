@@ -60,7 +60,8 @@ def render_html(
     table_html_parts.append(
         _render_table_body(
             flatten_result.dataframe,
-            flatten_result.row_groups,
+            flatten_result.row_labels,
+            flatten_result.continuation_rows,
             flatten_result.cleared_on_continuation,
             flatten_result.nested_columns,
         )
@@ -87,7 +88,8 @@ def _render_table_header(dataframe: pd.DataFrame, orderable_columns: list[str]) 
 
 def _render_table_body(
     dataframe: pd.DataFrame,
-    array_row_groups: dict[str, list[int]],
+    row_labels: list[str] | None,
+    continuation_rows: set[int] | None,
     clear_on_continuation: list[str],
     nested_originated_columns: set[str],
 ) -> str:
@@ -99,14 +101,15 @@ def _render_table_body(
         row_class = ""
         orig_row_idx = None
         is_continuation = False
-        for orig_key, row_indices in array_row_groups.items():
-            if i in row_indices and row_indices[0] != i:
-                row_class = "array-continuation"
-                orig_row_idx = orig_key
-                is_continuation = True
-                break
 
-        if row_class:
+        if row_labels:
+            orig_row_idx = row_labels[i]
+
+        if continuation_rows and i in continuation_rows:
+            is_continuation = True
+            row_class = "array-continuation"
+
+        if orig_row_idx is not None:
             body_parts.append(
                 f'    <tr class="{row_class}" data-orig-row="{orig_row_idx}">'
             )

@@ -20,7 +20,7 @@
 
 import { jest } from '@jest/globals';
 
-/**
+/*
  * Test suite for the TableWidget frontend component.
  */
 describe('TableWidget', () => {
@@ -31,7 +31,7 @@ describe('TableWidget', () => {
   /** @type {Function} */
   let render;
 
-  /**
+  /*
    * Sets up the test environment before each test.
    * This includes resetting modules, creating a DOM element,
    * and mocking the widget model.
@@ -58,7 +58,7 @@ describe('TableWidget', () => {
     expect(render).toBeDefined();
   });
 
-  /**
+  /*
    * Tests for the render function of the widget.
    */
   describe('render', () => {
@@ -91,7 +91,7 @@ describe('TableWidget', () => {
       expect(el.querySelector('div:nth-child(3)')).not.toBeNull();
     });
 
-    /**
+    /*
      * Verifies that clicking a sortable column header triggers a sort action
      * with the correct parameters.
      */
@@ -220,7 +220,7 @@ describe('TableWidget', () => {
       expect(indicator2.textContent).toBe('●');
     });
 
-    /**
+    /*
      * Tests that holding the Shift key while clicking a column header
      * adds the new column to the existing sort context for multi-column sorting.
      */
@@ -362,7 +362,7 @@ describe('TableWidget', () => {
     expect(headers[1].textContent).toBe('value');
   });
 
-  /**
+  /*
    * Verifies that hovering over a cell in a group of flattened rows
    * (i.e., rows originating from the same nested data structure)
    * adds a hover class to all cells in that group.

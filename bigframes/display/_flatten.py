@@ -30,11 +30,11 @@ class FlattenResult:
     dataframe: pd.DataFrame
     """The flattened DataFrame."""
 
-    row_groups: dict[str, list[int]]
-    """
-    A mapping from original row index to the new row indices that were created
-    from it.
-    """
+    row_labels: list[str] | None
+    """A list of original row labels for each row in the flattened DataFrame."""
+
+    continuation_rows: set[int] | None
+    """A set of row indices that are continuation rows."""
 
     cleared_on_continuation: list[str]
     """A list of column names that should be cleared on continuation rows."""
@@ -50,7 +50,8 @@ def flatten_nested_data(
     if dataframe.empty:
         return FlattenResult(
             dataframe=dataframe.copy(),
-            row_groups={},
+            row_labels=None,
+            continuation_rows=None,
             cleared_on_continuation=[],
             nested_columns=set(),
         )
@@ -77,15 +78,19 @@ def flatten_nested_data(
     if not array_columns:
         return FlattenResult(
             dataframe=result_df,
-            row_groups={},
+            row_labels=None,
+            continuation_rows=None,
             cleared_on_continuation=clear_on_continuation_cols,
             nested_columns=nested_originated_columns,
         )
 
-    result_df, array_row_groups = _explode_array_columns(result_df, array_columns)
+    result_df, row_labels, continuation_rows = _explode_array_columns(
+        result_df, array_columns
+    )
     return FlattenResult(
         dataframe=result_df,
-        row_groups=array_row_groups,
+        row_labels=row_labels,
+        continuation_rows=continuation_rows,
         cleared_on_continuation=clear_on_continuation_cols,
         nested_columns=nested_originated_columns,
     )
@@ -192,10 +197,10 @@ def _flatten_array_of_struct_columns(
 
 def _explode_array_columns(
     dataframe: pd.DataFrame, array_columns: list[str]
-) -> tuple[pd.DataFrame, dict[str, list[int]]]:
+) -> tuple[pd.DataFrame, list[str], set[int]]:
     """Explode array columns into new rows."""
     if not array_columns:
-        return dataframe, {}
+        return dataframe, [], set()
 
     original_cols = dataframe.columns.tolist()
     work_df = dataframe
@@ -243,7 +248,7 @@ def _explode_array_columns(
 
     if not exploded_dfs:
         # This should not be reached if array_columns is not empty
-        return dataframe, {}
+        return dataframe, [], set()
 
     # Merge the exploded columns
     merged_df = exploded_dfs[0]
@@ -260,14 +265,12 @@ def _explode_array_columns(
         drop=True
     )
 
-    # Create row groups
-    array_row_groups = {}
+    # Generate row labels and continuation mask efficiently
     grouping_col_name = (
         "_original_index" if original_index_name is None else original_index_name
     )
-    if grouping_col_name in merged_df.columns:
-        for orig_idx, group in merged_df.groupby(grouping_col_name):
-            array_row_groups[str(orig_idx)] = group.index.tolist()
+    row_labels = merged_df[grouping_col_name].astype(str).tolist()
+    continuation_rows = set(merged_df.index[merged_df["_row_num"] > 0])
 
     # Restore original columns
     result_df = merged_df[original_cols]
@@ -275,7 +278,7 @@ def _explode_array_columns(
     if original_index_name:
         result_df = result_df.set_index(original_index_name)
 
-    return result_df, array_row_groups
+    return result_df, row_labels, continuation_rows
 
 
 def _flatten_struct_columns(
