@@ -104,12 +104,6 @@ def flatten_nested_data(
             nested_columns=set(),
         )
 
-    # Coordinates the flattening process:
-    # 1. Classifies columns into STRUCT, ARRAY, ARRAY-of-STRUCT, and standard types.
-    # 2. Flattens ARRAY-of-STRUCT columns into multiple ARRAY columns (one per struct field).
-    #    This simplifies the subsequent explosion step.
-    # 3. Flattens top-level STRUCT columns into separate columns.
-    # 4. Explodes all ARRAY columns (original and those from step 2) into multiple rows.
     result_df = dataframe.copy()
 
     classification = _classify_columns(result_df)
@@ -161,8 +155,6 @@ def _classify_columns(
     Returns:
         A ColumnClassification object containing lists of column names for each category.
     """
-    # Inspects the PyArrow dtype of each column to determine if it is a
-    # STRUCT, LIST (Array), or LIST of STRUCTs.
     initial_columns = list(dataframe.columns)
     struct_columns: list[str] = []
     array_columns: list[str] = []
@@ -291,12 +283,9 @@ def _explode_array_columns(
     if not array_columns:
         return ExplodeResult(dataframe, [], set())
 
-    # Implementation details:
-    # - We group by all non-array columns to maintain context.
-    # - `_row_num` is used to track the index within the exploded array, effectively
-    #    synchronizing multiple arrays if they belong to the same row.
-    # - Continuation rows (index > 0 in the explosion) are tracked so we can clear
-    #   repeated values in the display.
+    # Group by all non-array columns to maintain context.
+    # _row_num tracks the index within the exploded array to synchronize multiple
+    # arrays. Continuation rows (index > 0) are tracked for display clearing.
     original_cols = dataframe.columns.tolist()
     work_df = dataframe
 
