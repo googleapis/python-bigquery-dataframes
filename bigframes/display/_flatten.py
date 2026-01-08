@@ -220,7 +220,24 @@ def _explode_array_columns(
     exploded_dfs = []
     for col in array_columns:
         # Explode each array column individually
-        exploded = work_df[non_array_columns + [col]].explode(col)
+        col_series = work_df[col]
+        target_dtype = None
+        if isinstance(col_series.dtype, pd.ArrowDtype):
+            pa_type = col_series.dtype.pyarrow_dtype
+            if pa.types.is_list(pa_type):
+                target_dtype = pd.ArrowDtype(pa_type.value_type)
+            # Use to_list() to avoid pandas attempting to create a 2D numpy
+            # array if the list elements have the same length.
+            col_series = pd.Series(
+                col_series.to_list(), index=col_series.index, dtype=object
+            )
+
+        exploded = work_df[non_array_columns].assign(**{col: col_series}).explode(col)
+
+        if target_dtype is not None:
+            # Re-cast to arrow dtype if possible
+            exploded[col] = exploded[col].astype(target_dtype)
+
         exploded["_row_num"] = exploded.groupby(non_array_columns).cumcount()
         exploded_dfs.append(exploded)
 
