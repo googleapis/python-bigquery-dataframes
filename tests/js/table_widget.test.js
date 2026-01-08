@@ -266,33 +266,76 @@ describe('TableWidget', () => {
     });
   });
 
+  describe('Theme detection', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      // Mock the initial state for theme detection tests
+      model.get.mockImplementation((property) => {
+        if (property === 'table_html') {
+          return '';
+        }
+        if (property === 'row_count') {
+          return 100;
+        }
+        if (property === 'error_message') {
+          return null;
+        }
+        if (property === 'page_size') {
+          return 10;
+        }
+        if (property === 'page') {
+          return 0;
+        }
+        return null;
+      });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      document.body.classList.remove('vscode-dark');
+    });
+
+    it('should add bigframes-dark-mode class in dark mode', () => {
+      document.body.classList.add('vscode-dark');
+      render({ model, el });
+      jest.runAllTimers();
+      expect(el.classList.contains('bigframes-dark-mode')).toBe(true);
+    });
+
+    it('should not add bigframes-dark-mode class in light mode', () => {
+      render({ model, el });
+      jest.runAllTimers();
+      expect(el.classList.contains('bigframes-dark-mode')).toBe(false);
+    });
+  });
+
   it('should render the series as a table with an index and one value column', () => {
     // Mock the initial state
     model.get.mockImplementation((property) => {
       if (property === 'table_html') {
         return `
-		  <div class="paginated-table-container">
-			<div id="table-c" class="table-container">
-			  <table class="bigframes-styles">
-				<thead>
-				  <tr>
-					<th class="col-header-name"><div></div></th>
-					<th class="col-header-name"><div>value</div></th>
-				  </tr>
-				</thead>
-				<tbody>
-				  <tr>
-					<td class="cell-align-right">0</td>
-					<td class="cell-align-left">a</td>
-				  </tr>
-				  <tr>
-					<td class="cell-align-right">1</td>
-					<td class="cell-align-left">b</td>
-				  </tr>
-				</tbody>
-			  </table>
-			</div>
-		  </div>`;
+      <div class="paginated-table-container">
+      <div id="table-c" class="table-container">
+        <table class="bigframes-styles">
+        <thead>
+          <tr>
+          <th class="col-header-name"><div></div></th>
+          <th class="col-header-name"><div>value</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+          <td class="cell-align-right">0</td>
+          <td class="cell-align-left">a</td>
+          </tr>
+          <tr>
+          <td class="cell-align-right">1</td>
+          <td class="cell-align-left">b</td>
+          </tr>
+        </tbody>
+        </table>
+      </div>
+      </div>`;
       }
       if (property === 'orderable_columns') {
         return [];
@@ -329,10 +372,10 @@ describe('TableWidget', () => {
     model.get.mockImplementation((property) => {
       if (property === 'table_html') {
         return `<table><tbody>
-				  <tr data-orig-row="0"><td>Row 1 Part A</td></tr>
-				  <tr data-orig-row="0"><td>Row 1 Part B</td></tr>
-				  <tr data-orig-row="1"><td>Row 2</td></tr>
-				</tbody></table>`;
+          <tr data-orig-row="0"><td>Row 1 Part A</td></tr>
+          <tr data-orig-row="0"><td>Row 1 Part B</td></tr>
+          <tr data-orig-row="1"><td>Row 2</td></tr>
+        </tbody></table>`;
       }
       if (property === 'orderable_columns') {
         return [];
@@ -383,10 +426,10 @@ describe('TableWidget', () => {
     model.get.mockImplementation((property) => {
       if (property === 'table_html') {
         return `<table><tbody>
-				  <tr data-orig-row="0"><td>Row 1 Part A</td></tr>
-				  <tr data-orig-row="0"><td>Row 1 Part B</td></tr>
-				  <tr data-orig-row="1"><td>Row 2</td></tr>
-				</tbody></table>`;
+          <tr data-orig-row="0"><td>Row 1 Part A</td></tr>
+          <tr data-orig-row="0"><td>Row 1 Part B</td></tr>
+          <tr data-orig-row="1"><td>Row 2</td></tr>
+        </tbody></table>`;
       }
       if (property === 'orderable_columns') {
         return [];
@@ -419,9 +462,9 @@ describe('TableWidget', () => {
     model.get.mockImplementation((property) => {
       if (property === 'table_html') {
         return `<table><tbody>
-				  <tr><td>Standard Row</td></tr>
-				  <tr data-orig-row="0"><td>Nested Row</td></tr>
-				</tbody></table>`;
+          <tr><td>Standard Row</td></tr>
+          <tr data-orig-row="0"><td>Nested Row</td></tr>
+        </tbody></table>`;
       }
       if (property === 'orderable_columns') {
         return [];
