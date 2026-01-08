@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utilities for flattening nested data structures for display."""
+"""Utilities for flattening nested data structures for display.
+
+This module provides functionality to flatten BigQuery STRUCT and ARRAY columns
+in a pandas DataFrame into a format suitable for display in a 2D table widget.
+It handles nested structures by:
+1.  Expanding STRUCT fields into separate columns (e.g., "struct.field").
+2.  Exploding ARRAY elements into multiple rows, replicating other columns.
+3.  Generating metadata to grouping rows and handling continuation values.
+"""
 
 from __future__ import annotations
 
@@ -25,62 +33,75 @@ import pyarrow as pa
 
 @dataclasses.dataclass(frozen=True)
 class FlattenResult:
-    """The result of flattening a DataFrame."""
+    """The result of flattening a DataFrame.
+
+    Attributes:
+        dataframe: The flattened DataFrame.
+        row_labels: A list of original row labels for each row in the flattened DataFrame.
+        continuation_rows: A set of row indices that are continuation rows.
+        cleared_on_continuation: A list of column names that should be cleared on continuation rows.
+        nested_columns: A set of column names that were created from nested data.
+    """
 
     dataframe: pd.DataFrame
-    """The flattened DataFrame."""
-
     row_labels: list[str] | None
-    """A list of original row labels for each row in the flattened DataFrame."""
-
     continuation_rows: set[int] | None
-    """A set of row indices that are continuation rows."""
-
     cleared_on_continuation: list[str]
-    """A list of column names that should be cleared on continuation rows."""
-
     nested_columns: set[str]
-    """A set of column names that were created from nested data."""
 
 
 @dataclasses.dataclass(frozen=True)
 class ColumnClassification:
-    """The result of classifying columns."""
+    """The result of classifying columns.
+
+    Attributes:
+        struct_columns: Columns that are STRUCTs.
+        array_columns: Columns that are ARRAYs.
+        array_of_struct_columns: Columns that are ARRAYs of STRUCTs.
+        clear_on_continuation_cols: Columns that should be cleared on continuation rows.
+        nested_originated_columns: Columns that were created from nested data.
+    """
 
     struct_columns: list[str]
-    """Columns that are STRUCTs."""
-
     array_columns: list[str]
-    """Columns that are ARRAYs."""
-
     array_of_struct_columns: list[str]
-    """Columns that are ARRAYs of STRUCTs."""
-
     clear_on_continuation_cols: list[str]
-    """Columns that should be cleared on continuation rows."""
-
     nested_originated_columns: set[str]
-    """Columns that were created from nested data."""
 
 
 @dataclasses.dataclass(frozen=True)
 class ExplodeResult:
-    """The result of exploding array columns."""
+    """The result of exploding array columns.
+
+    Attributes:
+        dataframe: The exploded DataFrame.
+        row_labels: Labels for the rows.
+        continuation_rows: Indices of continuation rows.
+    """
 
     dataframe: pd.DataFrame
-    """The exploded DataFrame."""
-
     row_labels: list[str]
-    """Labels for the rows."""
-
     continuation_rows: set[int]
-    """Indices of continuation rows."""
 
 
 def flatten_nested_data(
     dataframe: pd.DataFrame,
 ) -> FlattenResult:
-    """Flatten nested STRUCT and ARRAY columns for display."""
+    """Flatten nested STRUCT and ARRAY columns for display.
+
+    This function coordinates the flattening process:
+    1.  Classifies columns into STRUCT, ARRAY, ARRAY-of-STRUCT, and standard types.
+    2.  Flattens ARRAY-of-STRUCT columns into multiple ARRAY columns (one per struct field).
+        This simplifies the subsequent explosion step.
+    3.  Flattens top-level STRUCT columns into separate columns.
+    4.  Explodes all ARRAY columns (original and those from step 2) into multiple rows.
+
+    Args:
+        dataframe: The input DataFrame containing potential nested structures.
+
+    Returns:
+        A FlattenResult containing the flattened DataFrame and metadata for display.
+    """
     if dataframe.empty:
         return FlattenResult(
             dataframe=dataframe.copy(),
@@ -93,10 +114,9 @@ def flatten_nested_data(
     result_df = dataframe.copy()
 
     classification = _classify_columns(result_df)
-    # Extract lists to allow modification
-    # TODO(b/469966526): The modification of these lists in place by subsequent functions
-    # (e.g. _flatten_array_of_struct_columns removing items from array_columns) suggests
-    # that the data flow here could be cleaner, but keeping it as is for now.
+    # Extract lists to allow modification by subsequent steps.
+    # _flatten_array_of_struct_columns will modify array_columns to replace
+    # the original array-of-struct column with the new flattened array columns.
     struct_columns = classification.struct_columns
     array_columns = classification.array_columns
     array_of_struct_columns = classification.array_of_struct_columns
@@ -134,7 +154,17 @@ def flatten_nested_data(
 def _classify_columns(
     dataframe: pd.DataFrame,
 ) -> ColumnClassification:
-    """Identify all STRUCT and ARRAY columns."""
+    """Identify all STRUCT and ARRAY columns in the DataFrame.
+
+    It inspects the PyArrow dtype of each column to determine if it is a
+    STRUCT, LIST (Array), or LIST of STRUCTs.
+
+    Args:
+        dataframe: The DataFrame to inspect.
+
+    Returns:
+        A ColumnClassification object containing lists of column names for each category.
+    """
     initial_columns = list(dataframe.columns)
     struct_columns: list[str] = []
     array_columns: list[str] = []
@@ -176,7 +206,21 @@ def _flatten_array_of_struct_columns(
     array_columns: list[str],
     nested_originated_columns: set[str],
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Flatten ARRAY of STRUCT columns into separate array columns for each field."""
+    """Flatten ARRAY of STRUCT columns into separate ARRAY columns for each field.
+
+    For example, an ARRAY<STRUCT<a INT64, b STRING>> column named 'items' will be
+    converted into two ARRAY columns: 'items.a' (ARRAY<INT64>) and 'items.b' (ARRAY<STRING>).
+    This allows us to treat them as standard ARRAY columns for the subsequent explosion step.
+
+    Args:
+        dataframe: The DataFrame to process.
+        array_of_struct_columns: List of column names that are ARRAYs of STRUCTs.
+        array_columns: The main list of ARRAY columns to be updated.
+        nested_originated_columns: Set of columns tracked as originating from nested data.
+
+    Returns:
+        A tuple containing the modified DataFrame and the updated list of array columns.
+    """
     result_df = dataframe.copy()
     for col_name in array_of_struct_columns:
         col_data = result_df[col_name]
@@ -233,7 +277,26 @@ def _flatten_array_of_struct_columns(
 def _explode_array_columns(
     dataframe: pd.DataFrame, array_columns: list[str]
 ) -> ExplodeResult:
-    """Explode array columns into new rows."""
+    """Explode array columns into new rows.
+
+    This function performs the "flattening" of 1D arrays by exploding them.
+    It handles multiple array columns by ensuring they are exploded in sync
+    relative to the other columns.
+
+    Design details:
+    - We group by all non-array columns to maintain context.
+    - `_row_num` is used to track the index within the exploded array, effectively
+       synchronizing multiple arrays if they belong to the same row.
+    - Continuation rows (index > 0 in the explosion) are tracked so we can clear
+      repeated values in the display.
+
+    Args:
+        dataframe: The DataFrame to explode.
+        array_columns: List of array columns to explode.
+
+    Returns:
+        An ExplodeResult containing the new DataFrame and row metadata.
+    """
     if not array_columns:
         return ExplodeResult(dataframe, [], set())
 
@@ -243,7 +306,8 @@ def _explode_array_columns(
     non_array_columns = work_df.columns.drop(array_columns).tolist()
     if not non_array_columns:
         work_df = work_df.copy()  # Avoid modifying input
-        # Add a temporary column to allow grouping if all columns are arrays
+        # Add a temporary column to allow grouping if all columns are arrays.
+        # This ensures we can still group by "original row" even if there are no scalar columns.
         non_array_columns = ["_temp_grouping_col"]
         work_df["_temp_grouping_col"] = range(len(work_df))
 
@@ -278,6 +342,7 @@ def _explode_array_columns(
             # Re-cast to arrow dtype if possible
             exploded[col] = exploded[col].astype(target_dtype)
 
+        # Track position in the array for alignment
         exploded["_row_num"] = exploded.groupby(non_array_columns).cumcount()
         exploded_dfs.append(exploded)
 
@@ -322,7 +387,22 @@ def _flatten_struct_columns(
     clear_on_continuation_cols: list[str],
     nested_originated_columns: set[str],
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Flatten regular STRUCT columns."""
+    """Flatten regular STRUCT columns into separate columns.
+
+    A STRUCT column 'user' with fields 'name' and 'age' becomes 'user.name'
+    and 'user.age'.
+
+    Args:
+        dataframe: The DataFrame to process.
+        struct_columns: List of STRUCT columns to flatten.
+        clear_on_continuation_cols: List of columns to clear on continuation,
+            which will be updated with the new flattened columns.
+        nested_originated_columns: Set of columns tracked as originating from nested data.
+
+    Returns:
+        A tuple containing the modified DataFrame and the updated list of
+        columns to clear on continuation.
+    """
     result_df = dataframe.copy()
     for col_name in struct_columns:
         col_data = result_df[col_name]
