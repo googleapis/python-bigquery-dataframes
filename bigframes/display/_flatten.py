@@ -155,38 +155,37 @@ def _classify_columns(
     Returns:
         A ColumnClassification object containing lists of column names for each category.
     """
-    initial_columns = list(dataframe.columns)
-    struct_columns: list[str] = []
-    array_columns: list[str] = []
-    array_of_struct_columns: list[str] = []
-    clear_on_continuation_cols: list[str] = []
-    nested_originated_columns: set[str] = set()
+    # Maps column names to their structural category to simplify list building.
+    categories: dict[str, str] = {}
 
-    for col_name_raw, col_data in dataframe.items():
-        col_name = str(col_name_raw)
-        dtype = col_data.dtype
-        if isinstance(dtype, pd.ArrowDtype):
-            pa_type = dtype.pyarrow_dtype
-            if pa.types.is_struct(pa_type):
-                struct_columns.append(col_name)
-                nested_originated_columns.add(col_name)
-            elif pa.types.is_list(pa_type):
-                array_columns.append(col_name)
-                nested_originated_columns.add(col_name)
-                if hasattr(pa_type, "value_type") and (
-                    pa.types.is_struct(pa_type.value_type)
-                ):
-                    array_of_struct_columns.append(col_name)
-            else:
-                clear_on_continuation_cols.append(col_name)
-        elif col_name in initial_columns:
-            clear_on_continuation_cols.append(col_name)
+    for col, dtype in dataframe.dtypes.items():
+        col_name = str(col)
+        pa_type = getattr(dtype, "pyarrow_dtype", None)
+
+        if not pa_type:
+            categories[col_name] = "clear"
+        elif pa.types.is_struct(pa_type):
+            categories[col_name] = "struct"
+        elif pa.types.is_list(pa_type):
+            is_struct_array = pa.types.is_struct(pa_type.value_type)
+            categories[col_name] = "array_of_struct" if is_struct_array else "array"
+        else:
+            categories[col_name] = "clear"
+
     return ColumnClassification(
-        struct_columns=struct_columns,
-        array_columns=array_columns,
-        array_of_struct_columns=array_of_struct_columns,
-        clear_on_continuation_cols=clear_on_continuation_cols,
-        nested_originated_columns=nested_originated_columns,
+        struct_columns=[c for c, cat in categories.items() if cat == "struct"],
+        array_columns=[
+            c for c, cat in categories.items() if cat in ("array", "array_of_struct")
+        ],
+        array_of_struct_columns=[
+            c for c, cat in categories.items() if cat == "array_of_struct"
+        ],
+        clear_on_continuation_cols=[
+            c for c, cat in categories.items() if cat == "clear"
+        ],
+        nested_originated_columns={
+            c for c, cat in categories.items() if cat != "clear"
+        },
     )
 
 
@@ -197,10 +196,6 @@ def _flatten_array_of_struct_columns(
     nested_originated_columns: set[str],
 ) -> tuple[pd.DataFrame, list[str]]:
     """Flatten ARRAY of STRUCT columns into separate ARRAY columns for each field.
-
-    For example, an ARRAY<STRUCT<a INT64, b STRING>> column named 'items' will be
-    converted into two ARRAY columns: 'items.a' (ARRAY<INT64>) and 'items.b' (ARRAY<STRING>).
-    This allows us to treat them as standard ARRAY columns for the subsequent explosion step.
 
     Args:
         dataframe: The DataFrame to process.
@@ -214,54 +209,84 @@ def _flatten_array_of_struct_columns(
     result_df = dataframe.copy()
     for col_name in array_of_struct_columns:
         col_data = result_df[col_name]
-        pa_type = cast(pd.ArrowDtype, col_data.dtype).pyarrow_dtype
-        struct_type = pa_type.value_type
-
-        # Use PyArrow to reshape the list<struct> into multiple list<field> arrays
+        # Ensure we have a PyArrow array (pa.array handles pandas Series conversion)
         arrow_array = pa.array(col_data)
-        offsets = arrow_array.offsets
-        values = arrow_array.values  # StructArray
-        flattened_fields = values.flatten()  # List[Array]
 
-        new_cols_to_add = {}
-        new_array_col_names = []
+        # Transpose List<Struct<...>> to {field: List<field_type>}
+        new_arrays = _transpose_list_of_structs(arrow_array)
 
-        # Create new columns for each struct field
-        for field_idx in range(struct_type.num_fields):
-            field = struct_type.field(field_idx)
-            new_col_name = f"{col_name}.{field.name}"
-            nested_originated_columns.add(new_col_name)
-            new_array_col_names.append(new_col_name)
-
-            # Reconstruct ListArray for this field. This transforms the
-            # array<struct<f1, f2>> into separate array<f1> and array<f2> columns.
-            new_list_array = pa.ListArray.from_arrays(
-                offsets, flattened_fields[field_idx], mask=arrow_array.is_null()
-            )
-
-            new_cols_to_add[new_col_name] = pd.Series(
-                new_list_array,
-                dtype=pd.ArrowDtype(pa.list_(field.type)),
-                index=result_df.index,
-            )
-
-        col_idx = result_df.columns.to_list().index(col_name)
-        new_cols_df = pd.DataFrame(new_cols_to_add, index=result_df.index)
-
-        result_df = pd.concat(
-            [
-                result_df.iloc[:, :col_idx],
-                new_cols_df,
-                result_df.iloc[:, col_idx + 1 :],
-            ],
-            axis=1,
+        new_cols_df = pd.DataFrame(
+            {
+                f"{col_name}.{field_name}": pd.Series(
+                    arr, dtype=pd.ArrowDtype(arr.type), index=result_df.index
+                )
+                for field_name, arr in new_arrays.items()
+            }
         )
+
+        # Track the new columns
+        for new_col in new_cols_df.columns:
+            nested_originated_columns.add(new_col)
+
+        # Update the DataFrame
+        result_df = _replace_column_in_df(result_df, col_name, new_cols_df)
 
         # Update array_columns list
         array_columns.remove(col_name)
-        # Add the new array columns
-        array_columns.extend(new_array_col_names)
+        array_columns.extend(new_cols_df.columns.tolist())
+
     return result_df, array_columns
+
+
+def _transpose_list_of_structs(arrow_array: pa.ListArray) -> dict[str, pa.ListArray]:
+    """Transposes a ListArray of Structs into multiple ListArrays of fields.
+
+    Args:
+        arrow_array: A PyArrow ListArray where the value type is a Struct.
+
+    Returns:
+        A dictionary mapping field names to new ListArrays (one for each field in the struct).
+    """
+    struct_type = arrow_array.type.value_type
+    offsets = arrow_array.offsets
+    # arrow_array.values is the underlying StructArray.
+    # Flattening it gives us the arrays for each field, effectively "removing" the struct layer.
+    flattened_fields = arrow_array.values.flatten()
+    validity = arrow_array.is_null()
+
+    transposed = {}
+    for i in range(struct_type.num_fields):
+        field = struct_type.field(i)
+        # Reconstruct ListArray for each field using original offsets and validity.
+        # This transforms List<Struct<A, B>> into List<A> and List<B>.
+        transposed[field.name] = pa.ListArray.from_arrays(
+            offsets, flattened_fields[i], mask=validity
+        )
+    return transposed
+
+
+def _replace_column_in_df(
+    dataframe: pd.DataFrame, col_name: str, new_cols: pd.DataFrame
+) -> pd.DataFrame:
+    """Replaces a column in a DataFrame with a set of new columns at the same position.
+
+    Args:
+        dataframe: The original DataFrame.
+        col_name: The name of the column to replace.
+        new_cols: A DataFrame containing the new columns to insert.
+
+    Returns:
+        A new DataFrame with the substitution made.
+    """
+    col_idx = dataframe.columns.to_list().index(col_name)
+    return pd.concat(
+        [
+            dataframe.iloc[:, :col_idx],
+            new_cols,
+            dataframe.iloc[:, col_idx + 1 :],
+        ],
+        axis=1,
+    )
 
 
 def _explode_array_columns(
