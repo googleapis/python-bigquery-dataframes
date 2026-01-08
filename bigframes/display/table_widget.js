@@ -316,4 +316,4 @@ function render({ model, el }) {
   handleErrorMessageChange();
 }
 
-export default { render };
+export { render };

@@ -41,9 +41,7 @@ describe('TableWidget', () => {
     document.body.innerHTML = '<div></div>';
     el = document.body.querySelector('div');
 
-    const tableWidget = (
-      await import('../../bigframes/display/table_widget.js')
-    ).default;
+    const tableWidget = await import('../../bigframes/display/table_widget.js');
     render = tableWidget.render;
 
     model = {

@@ -43,6 +43,40 @@ class FlattenResult:
     """A set of column names that were created from nested data."""
 
 
+@dataclasses.dataclass(frozen=True)
+class ColumnClassification:
+    """The result of classifying columns."""
+
+    struct_columns: list[str]
+    """Columns that are STRUCTs."""
+
+    array_columns: list[str]
+    """Columns that are ARRAYs."""
+
+    array_of_struct_columns: list[str]
+    """Columns that are ARRAYs of STRUCTs."""
+
+    clear_on_continuation_cols: list[str]
+    """Columns that should be cleared on continuation rows."""
+
+    nested_originated_columns: set[str]
+    """Columns that were created from nested data."""
+
+
+@dataclasses.dataclass(frozen=True)
+class ExplodeResult:
+    """The result of exploding array columns."""
+
+    dataframe: pd.DataFrame
+    """The exploded DataFrame."""
+
+    row_labels: list[str]
+    """Labels for the rows."""
+
+    continuation_rows: set[int]
+    """Indices of continuation rows."""
+
+
 def flatten_nested_data(
     dataframe: pd.DataFrame,
 ) -> FlattenResult:
@@ -58,13 +92,16 @@ def flatten_nested_data(
 
     result_df = dataframe.copy()
 
-    (
-        struct_columns,
-        array_columns,
-        array_of_struct_columns,
-        clear_on_continuation_cols,
-        nested_originated_columns,
-    ) = _classify_columns(result_df)
+    classification = _classify_columns(result_df)
+    # Extract lists to allow modification
+    # TODO(b/469966526): The modification of these lists in place by subsequent functions
+    # (e.g. _flatten_array_of_struct_columns removing items from array_columns) suggests
+    # that the data flow here could be cleaner, but keeping it as is for now.
+    struct_columns = classification.struct_columns
+    array_columns = classification.array_columns
+    array_of_struct_columns = classification.array_of_struct_columns
+    clear_on_continuation_cols = classification.clear_on_continuation_cols
+    nested_originated_columns = classification.nested_originated_columns
 
     result_df, array_columns = _flatten_array_of_struct_columns(
         result_df, array_of_struct_columns, array_columns, nested_originated_columns
@@ -84,13 +121,11 @@ def flatten_nested_data(
             nested_columns=nested_originated_columns,
         )
 
-    result_df, row_labels, continuation_rows = _explode_array_columns(
-        result_df, array_columns
-    )
+    explode_result = _explode_array_columns(result_df, array_columns)
     return FlattenResult(
-        dataframe=result_df,
-        row_labels=row_labels,
-        continuation_rows=continuation_rows,
+        dataframe=explode_result.dataframe,
+        row_labels=explode_result.row_labels,
+        continuation_rows=explode_result.continuation_rows,
         cleared_on_continuation=clear_on_continuation_cols,
         nested_columns=nested_originated_columns,
     )
@@ -98,7 +133,7 @@ def flatten_nested_data(
 
 def _classify_columns(
     dataframe: pd.DataFrame,
-) -> tuple[list[str], list[str], list[str], list[str], set[str]]:
+) -> ColumnClassification:
     """Identify all STRUCT and ARRAY columns."""
     initial_columns = list(dataframe.columns)
     struct_columns: list[str] = []
@@ -126,12 +161,12 @@ def _classify_columns(
                 clear_on_continuation_cols.append(col_name)
         elif col_name in initial_columns:
             clear_on_continuation_cols.append(col_name)
-    return (
-        struct_columns,
-        array_columns,
-        array_of_struct_columns,
-        clear_on_continuation_cols,
-        nested_originated_columns,
+    return ColumnClassification(
+        struct_columns=struct_columns,
+        array_columns=array_columns,
+        array_of_struct_columns=array_of_struct_columns,
+        clear_on_continuation_cols=clear_on_continuation_cols,
+        nested_originated_columns=nested_originated_columns,
     )
 
 
@@ -197,10 +232,10 @@ def _flatten_array_of_struct_columns(
 
 def _explode_array_columns(
     dataframe: pd.DataFrame, array_columns: list[str]
-) -> tuple[pd.DataFrame, list[str], set[int]]:
+) -> ExplodeResult:
     """Explode array columns into new rows."""
     if not array_columns:
-        return dataframe, [], set()
+        return ExplodeResult(dataframe, [], set())
 
     original_cols = dataframe.columns.tolist()
     work_df = dataframe
@@ -248,7 +283,7 @@ def _explode_array_columns(
 
     if not exploded_dfs:
         # This should not be reached if array_columns is not empty
-        return dataframe, [], set()
+        return ExplodeResult(dataframe, [], set())
 
     # Merge the exploded columns
     merged_df = exploded_dfs[0]
@@ -278,7 +313,7 @@ def _explode_array_columns(
     if original_index_name:
         result_df = result_df.set_index(original_index_name)
 
-    return result_df, row_labels, continuation_rows
+    return ExplodeResult(result_df, row_labels, continuation_rows)
 
 
 def _flatten_struct_columns(
