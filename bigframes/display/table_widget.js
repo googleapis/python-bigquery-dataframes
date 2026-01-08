@@ -237,6 +237,38 @@ function render({ model, el }) {
       }
     });
 
+    // Add hover effect for flattened rows
+    const rows = tableContainer.querySelectorAll('tbody tr');
+    rows.forEach((row) => {
+      row.addEventListener('mouseover', () => {
+        const origRow = row.getAttribute('data-orig-row');
+        if (origRow !== null) {
+          const groupRows = tableContainer.querySelectorAll(
+            `tr[data-orig-row="${origRow}"]`,
+          );
+          groupRows.forEach((r) => {
+            r.querySelectorAll('td').forEach((cell) => {
+              cell.classList.add('row-hover');
+            });
+          });
+        }
+      });
+
+      row.addEventListener('mouseout', () => {
+        const origRow = row.getAttribute('data-orig-row');
+        if (origRow !== null) {
+          const groupRows = tableContainer.querySelectorAll(
+            `tr[data-orig-row="${origRow}"]`,
+          );
+          groupRows.forEach((r) => {
+            r.querySelectorAll('td').forEach((cell) => {
+              cell.classList.remove('row-hover');
+            });
+          });
+        }
+      });
+    });
+
     updateButtonStates();
   }
 
