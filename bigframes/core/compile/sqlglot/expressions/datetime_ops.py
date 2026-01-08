@@ -26,28 +26,6 @@ register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
 register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 
 
-def _calculate_resample_first(y: TypedExpr, origin: str) -> sge.Expression:
-    if origin == "epoch":
-        return sge.convert(0)
-    elif origin == "start_day":
-        return sge.func(
-            "UNIX_MICROS",
-            sge.Cast(
-                this=sge.Cast(
-                    this=y.expr, to=sge.DataType(this=sge.DataType.Type.DATE)
-                ),
-                to=sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ),
-            ),
-        )
-    elif origin == "start":
-        return sge.func(
-            "UNIX_MICROS",
-            sge.Cast(this=y.expr, to=sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ)),
-        )
-    else:
-        raise ValueError(f"Origin {origin} not supported")
-
-
 @register_binary_op(ops.DatetimeToIntegerLabelOp, pass_op=True)
 def datetime_to_integer_label_op(
     x: TypedExpr, y: TypedExpr, op: ops.DatetimeToIntegerLabelOp
