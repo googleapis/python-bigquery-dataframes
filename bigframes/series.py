@@ -568,6 +568,17 @@ class Series(vendored_pandas_series.Series):
                 block = block.assign_label(self._value_column, name)
             return bigframes.dataframe.DataFrame(block)
 
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        """
+        Custom display method for IPython/Jupyter environments.
+        This is called by IPython's display system when the object is displayed.
+        """
+        # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
+        # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
+        from bigframes.display import html
+
+        return html.repr_mimebundle(self, include=include, exclude=exclude)
+
     def __repr__(self) -> str:
         # Protect against errors with uninitialized Series. See:
         # https://github.com/googleapis/python-bigquery-dataframes/issues/728
@@ -579,27 +590,22 @@ class Series(vendored_pandas_series.Series):
         # TODO(swast): Avoid downloading the whole series by using job
         # metadata, like we do with DataFrame.
         opts = bigframes.options.display
-        max_results = opts.max_rows
-        # anywdiget mode uses the same display logic as the "deferred" mode
-        # for faster execution
-        if opts.repr_mode in ("deferred", "anywidget"):
+        if opts.repr_mode == "deferred":
             return formatter.repr_query_job(self._compute_dry_run())
 
         self._cached()
-        pandas_df, _, query_job = self._block.retrieve_repr_request_results(max_results)
+        pandas_df, row_count, query_job = self._block.retrieve_repr_request_results(
+            opts.max_rows
+        )
         self._set_internal_query_job(query_job)
+        from bigframes.display import plaintext
 
-        pd_series = pandas_df.iloc[:, 0]
-
-        import pandas.io.formats
-
-        # safe to mutate this, this dict is owned by this code, and does not affect global config
-        to_string_kwargs = pandas.io.formats.format.get_series_repr_params()  # type: ignore
-        if len(self._block.index_columns) == 0:
-            to_string_kwargs.update({"index": False})
-        repr_string = pd_series.to_string(**to_string_kwargs)
-
-        return repr_string
+        return plaintext.create_text_representation(
+            pandas_df,
+            row_count,
+            is_series=True,
+            has_index=len(self._block.index_columns) > 0,
+        )
 
     def astype(
         self,
@@ -1486,7 +1492,7 @@ class Series(vendored_pandas_series.Series):
     def mode(self) -> Series:
         block = self._block
         # Approach: Count each value, return each value for which count(x) == max(counts))
-        block, agg_ids = block.aggregate(
+        block = block.aggregate(
             by_column_ids=[self._value_column],
             aggregations=(
                 agg_expressions.UnaryAggregation(
@@ -1494,7 +1500,7 @@ class Series(vendored_pandas_series.Series):
                 ),
             ),
         )
-        value_count_col_id = agg_ids[0]
+        value_count_col_id = block.value_columns[0]
         block, max_value_count_col_id = block.apply_window_op(
             value_count_col_id,
             agg_ops.max_op,
@@ -2234,17 +2240,17 @@ class Series(vendored_pandas_series.Series):
         if keep_order:
             validations.enforce_ordered(self, "unique(keep_order != False)")
             return self.drop_duplicates()
-        block, result = self._block.aggregate(
-            [self._value_column],
+        block = self._block.aggregate(
             [
                 agg_expressions.UnaryAggregation(
                     agg_ops.AnyValueOp(), ex.deref(self._value_column)
                 )
             ],
+            [self._value_column],
             column_labels=self._block.column_labels,
             dropna=False,
         )
-        return Series(block.select_columns(result).reset_index())
+        return Series(block.reset_index())
 
     def duplicated(self, keep: str = "first") -> Series:
         block, indicator = block_ops.indicate_duplicates(
@@ -2303,7 +2309,7 @@ class Series(vendored_pandas_series.Series):
         *,
         allow_large_results: Optional[bool] = None,
     ) -> typing.Mapping:
-        return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into))  # type: ignore
+        return typing.cast(dict, self.to_pandas(allow_large_results=allow_large_results).to_dict(into=into))  # type: ignore
 
     def to_excel(
         self, excel_writer, sheet_name="Sheet1", *, allow_large_results=None, **kwargs
@@ -2653,9 +2659,10 @@ class Series(vendored_pandas_series.Series):
     ) -> Series:
         """Applies a unary operator to the series."""
         block, result_id = self._block.apply_unary_op(
-            self._value_column, op, result_label=self._name
+            self._value_column,
+            op,
         )
-        return Series(block.select_column(result_id))
+        return Series(block.select_column(result_id), name=self.name)  # type: ignore
 
     def _apply_binary_op(
         self,
@@ -2683,8 +2690,9 @@ class Series(vendored_pandas_series.Series):
             expr = op.as_expr(
                 other_col if reverse else self_col, self_col if reverse else other_col
             )
-            block, result_id = block.project_expr(expr, name)
-            return Series(block.select_column(result_id))
+            block, result_id = block.project_expr(expr)
+            block = block.select_column(result_id).with_column_labels([name])
+            return Series(block)  # type: ignore
 
         else:  # Scalar binop
             name = self._name
@@ -2692,8 +2700,9 @@ class Series(vendored_pandas_series.Series):
                 ex.const(other) if reverse else self._value_column,
                 self._value_column if reverse else ex.const(other),
             )
-            block, result_id = self._block.project_expr(expr, name)
-            return Series(block.select_column(result_id))
+            block, result_id = self._block.project_expr(expr)
+            block = block.select_column(result_id).with_column_labels([name])
+            return Series(block)  # type: ignore
 
     def _apply_nary_op(
         self,

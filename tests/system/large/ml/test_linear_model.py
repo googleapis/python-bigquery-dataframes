@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas as pd
+import pytest
 
 from bigframes.ml import model_selection
 import bigframes.ml.linear_model
@@ -61,12 +62,20 @@ def test_linear_regression_configure_fit_score(penguins_df_default_index, datase
     assert reloaded_model.tol == 0.01
 
 
+@pytest.mark.parametrize(
+    "df_fixture",
+    [
+        "penguins_df_default_index",
+        "penguins_df_null_index",
+    ],
+)
 def test_linear_regression_configure_fit_with_eval_score(
-    penguins_df_default_index, dataset_id
+    df_fixture, dataset_id, request
 ):
+    df = request.getfixturevalue(df_fixture)
     model = bigframes.ml.linear_model.LinearRegression()
 
-    df = penguins_df_default_index.dropna()
+    df = df.dropna()
     X = df[
         [
             "species",
@@ -109,7 +118,7 @@ def test_linear_regression_configure_fit_with_eval_score(
     assert reloaded_model.tol == 0.01
 
     # make sure the bqml model was internally created with custom split
-    bq_model = penguins_df_default_index._session.bqclient.get_model(bq_model_name)
+    bq_model = df._session.bqclient.get_model(bq_model_name)
     last_fitting = bq_model.training_runs[-1]["trainingOptions"]
     assert last_fitting["dataSplitMethod"] == "CUSTOM"
     assert "dataSplitColumn" in last_fitting
@@ -452,3 +461,39 @@ def test_model_centroids_with_custom_index(penguins_df_default_index):
 
     # If this line executes without errors, the model has correctly ignored the custom index columns
     model.predict(X_train.reset_index(drop=True))
+
+
+def test_linear_reg_model_global_explain(
+    penguins_linear_model_w_global_explain, new_penguins_df
+):
+    training_data = new_penguins_df.dropna(subset=["body_mass_g"])
+    X = training_data.drop(columns=["body_mass_g"])
+    y = training_data[["body_mass_g"]]
+    penguins_linear_model_w_global_explain.fit(X, y)
+    global_ex = penguins_linear_model_w_global_explain.global_explain()
+    assert global_ex.shape == (6, 1)
+    expected_columns = pd.Index(["attribution"])
+    pd.testing.assert_index_equal(global_ex.columns, expected_columns)
+    result = global_ex.to_pandas().drop(["attribution"], axis=1).sort_index()
+    expected_feature = (
+        pd.DataFrame(
+            {
+                "feature": [
+                    "island",
+                    "species",
+                    "sex",
+                    "flipper_length_mm",
+                    "culmen_depth_mm",
+                    "culmen_length_mm",
+                ]
+            },
+        )
+        .set_index("feature")
+        .sort_index()
+    )
+    pd.testing.assert_frame_equal(
+        result,
+        expected_feature,
+        check_exact=False,
+        check_index_type=False,
+    )
