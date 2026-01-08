@@ -313,7 +313,7 @@ def test_integer_label_to_datetime_week(scalar_types_df: bpd.DataFrame, snapshot
     bf_df = scalar_types_df[col_names]
     ops_map = {
         "non_fixed_freq_weekly": ops.IntegerLabelToDatetimeOp(
-            freq=pd.tseries.offsets.Week(weekday=6), origin="start", label="left"
+            freq=pd.tseries.offsets.Week(weekday=6), origin="start", label="left"  # type: ignore
         ).as_expr("rowindex", "timestamp_col"),
     }
 
@@ -326,7 +326,9 @@ def test_integer_label_to_datetime_month(scalar_types_df: bpd.DataFrame, snapsho
     bf_df = scalar_types_df[col_names]
     ops_map = {
         "non_fixed_freq_monthly": ops.IntegerLabelToDatetimeOp(
-            freq=pd.tseries.offsets.MonthEnd(), origin="start", label="left"
+            freq=pd.tseries.offsets.MonthEnd(),  # type: ignore
+            origin="start",
+            label="left",
         ).as_expr("rowindex", "timestamp_col"),
     }
 
@@ -354,7 +356,9 @@ def test_integer_label_to_datetime_year(scalar_types_df: bpd.DataFrame, snapshot
     bf_df = scalar_types_df[col_names]
     ops_map = {
         "non_fixed_freq_yearly": ops.IntegerLabelToDatetimeOp(
-            freq=pd.tseries.offsets.YearEnd(month=12), origin="start", label="left"
+            freq=pd.tseries.offsets.YearEnd(month=12),  # type: ignore
+            origin="start",
+            label="left",
         ).as_expr("rowindex", "timestamp_col"),
     }
 
