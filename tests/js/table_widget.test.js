@@ -335,4 +335,73 @@ describe('TableWidget', () => {
     expect(headers[0].textContent).toBe('');
     expect(headers[1].textContent).toBe('value');
   });
+
+  /*
+   * Tests that the widget correctly renders HTML with truncated columns (ellipsis)
+   * and ensures that the ellipsis column is not treated as a sortable column.
+   */
+  it('should render truncated columns with ellipsis and not make ellipsis sortable', () => {
+    // Mock HTML with truncated columns
+    // Use the structure produced by the python backend
+    const mockHtml = `
+      <table>
+        <thead>
+          <tr>
+            <th><div class="bf-header-content">col1</div></th>
+            <th><div class="bf-header-content" style="cursor: default;">...</div></th>
+            <th><div class="bf-header-content">col10</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cell-align-right">1</td>
+            <td class="cell-align-left">...</td>
+            <td class="cell-align-right">10</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    model.get.mockImplementation((property) => {
+      if (property === 'table_html') {
+        return mockHtml;
+      }
+      if (property === 'orderable_columns') {
+        // Only actual columns are orderable
+        return ['col1', 'col10'];
+      }
+      if (property === 'sort_context') {
+        return [];
+      }
+      return null;
+    });
+
+    render({ model, el });
+
+    // Manually trigger the table_html change handler
+    const tableHtmlChangeHandler = model.on.mock.calls.find(
+      (call) => call[0] === 'change:table_html',
+    )[1];
+    tableHtmlChangeHandler();
+
+    const headers = el.querySelectorAll('th');
+    expect(headers).toHaveLength(3);
+
+    // Check col1 (sortable)
+    const col1Header = headers[0];
+    const col1Indicator = col1Header.querySelector('.sort-indicator');
+    expect(col1Indicator).not.toBeNull(); // Should exist (hidden by default)
+
+    // Check ellipsis (not sortable)
+    const ellipsisHeader = headers[1];
+    const ellipsisIndicator = ellipsisHeader.querySelector('.sort-indicator');
+    // The render function adds sort indicators only if the column name matches an entry in orderable_columns.
+    // The ellipsis header content is "..." which is not in ['col1', 'col10'].
+    expect(ellipsisIndicator).toBeNull();
+
+    // Check col10 (sortable)
+    const col10Header = headers[2];
+    const col10Indicator = col10Header.querySelector('.sort-indicator');
+    expect(col10Indicator).not.toBeNull();
+  });
 });
