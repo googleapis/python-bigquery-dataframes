@@ -156,7 +156,7 @@ def _render_table_body(
 
         if show_ellipsis:
             # Ellipsis cell
-            body_parts.append('      <td class="cell-align-center">...</td>')
+            body_parts.append('      <td class="cell-align-left">...</td>')
 
         for col in right_columns:
             render_col_cell(col)
