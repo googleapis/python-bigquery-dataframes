@@ -19,6 +19,7 @@ import bigframes_vendored.sqlglot.expressions as sge
 from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
+from bigframes.core.compile.sqlglot import sqlglot_types
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
@@ -301,18 +302,10 @@ def _calculate_resample_first(y: TypedExpr, origin: str) -> sge.Expression:
     elif origin == "start_day":
         return sge.func(
             "UNIX_MICROS",
-            sge.Cast(
-                this=sge.Cast(
-                    this=y.expr, to=sge.DataType(this=sge.DataType.Type.DATE)
-                ),
-                to=sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ),
-            ),
+            sge.Cast(this=sge.Cast(this=y.expr, to="DATE"), to="TIMESTAMP"),
         )
     elif origin == "start":
-        return sge.func(
-            "UNIX_MICROS",
-            sge.Cast(this=y.expr, to=sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ)),
-        )
+        return sge.func("UNIX_MICROS", sge.Cast(this=y.expr, to="TIMESTAMP"))
     else:
         raise ValueError(f"Origin {origin} not supported")
 
@@ -438,19 +431,6 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.Extract(this=sge.Identifier(this="YEAR"), expression=expr.expr)
 
 
-def _dtype_to_sql_string(dtype: dtypes.Dtype) -> str:
-    if dtype == dtypes.TIMESTAMP_DTYPE:
-        return "TIMESTAMP"
-    if dtype == dtypes.DATETIME_DTYPE:
-        return "DATETIME"
-    if dtype == dtypes.DATE_DTYPE:
-        return "DATE"
-    if dtype == dtypes.TIME_DTYPE:
-        return "TIME"
-    # Should not be reached in this operator
-    raise ValueError(f"Unsupported dtype for datetime conversion: {dtype}")
-
-
 @register_binary_op(ops.IntegerLabelToDatetimeOp, pass_op=True)
 def integer_label_to_datetime_op(
     x: TypedExpr, y: TypedExpr, op: ops.IntegerLabelToDatetimeOp
@@ -477,17 +457,15 @@ def _integer_label_to_datetime_op_fixed_frequency(
             sge.Cast(
                 this=sge.Add(
                     this=sge.Mul(
-                        this=sge.Cast(this=x.expr, to=sge.DataType.build("BIGNUMERIC")),
+                        this=sge.Cast(this=x.expr, to="BIGNUMERIC"),
                         expression=sge.convert(int(us)),
                     ),
-                    expression=sge.Cast(
-                        this=first, to=sge.DataType.build("BIGNUMERIC")
-                    ),
+                    expression=sge.Cast(this=first, to="BIGNUMERIC"),
                 ),
-                to=sge.DataType.build("INT64"),
+                to="INT64",
             ),
         ),
-        to=_dtype_to_sql_string(y.dtype),  # type: ignore
+        to=sqlglot_types.from_bigframes_dtype(y.dtype),
     )
     return x_label
 
@@ -507,10 +485,7 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
             "UNIX_MICROS",
             sge.Add(
                 this=sge.TimestampTrunc(
-                    this=sge.Cast(
-                        this=y.expr,
-                        to=sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ),
-                    ),
+                    this=sge.Cast(this=y.expr, to="TIMESTAMP"),
                     unit=sge.Var(this="WEEK(MONDAY)"),
                 ),
                 expression=sge.Interval(
@@ -524,19 +499,15 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
                 sge.Cast(
                     this=sge.Add(
                         this=sge.Mul(
-                            this=sge.Cast(
-                                this=x.expr, to=sge.DataType.build("BIGNUMERIC")
-                            ),
+                            this=sge.Cast(this=x.expr, to="BIGNUMERIC"),
                             expression=sge.convert(us),
                         ),
-                        expression=sge.Cast(
-                            this=first, to=sge.DataType.build("BIGNUMERIC")
-                        ),
+                        expression=sge.Cast(this=first, to="BIGNUMERIC"),
                     ),
-                    to=sge.DataType.build("INT64"),
+                    to="INT64",
                 ),
             ),
-            to=_dtype_to_sql_string(y.dtype),  # type: ignore
+            to=sqlglot_types.from_bigframes_dtype(y.dtype),
         )
     elif rule_code in ("ME", "M"):  # Monthly
         one = sge.convert(1)
@@ -556,7 +527,7 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
         )
         year = sge.Cast(
             this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, twelve)),
-            to=sge.DataType.build("INT64"),
+            to="INT64",
         )
         month = sge.Add(this=sge.Mod(this=x_val, expression=twelve), expression=one)
         next_year = sge.Case(
@@ -614,7 +585,7 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
         )
         year = sge.Cast(
             this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, four)),
-            to=sge.DataType.build("INT64"),
+            to="INT64",
         )
         month = sge.Mul(  # type: ignore
             this=sge.Paren(
@@ -675,4 +646,4 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
         )
     else:
         raise ValueError(rule_code)
-    return sge.Cast(this=x_label, to=_dtype_to_sql_string(y.dtype))  # type: ignore
+    return sge.Cast(this=x_label, to=sqlglot_types.from_bigframes_dtype(y.dtype))
