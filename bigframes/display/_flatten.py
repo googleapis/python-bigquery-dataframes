@@ -50,7 +50,7 @@ class FlattenResult:
     nested_columns: set[str]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class ColumnClassification:
     """The result of classifying columns.
 
@@ -107,40 +107,41 @@ def flatten_nested_data(
     result_df = dataframe.copy()
 
     classification = _classify_columns(result_df)
-    # Extract lists to allow modification by subsequent steps.
-    # _flatten_array_of_struct_columns will modify array_columns to replace
-    # the original array-of-struct column with the new flattened array columns.
-    struct_columns = classification.struct_columns
-    array_columns = classification.array_columns
-    array_of_struct_columns = classification.array_of_struct_columns
-    clear_on_continuation_cols = classification.clear_on_continuation_cols
-    nested_originated_columns = classification.nested_originated_columns
+    # Create a mutable structure to track column changes during flattening.
+    # _flatten_array_of_struct_columns modifies the array_columns list.
+    columns_info = dataclasses.replace(classification)
 
-    result_df, array_columns = _flatten_array_of_struct_columns(
-        result_df, array_of_struct_columns, array_columns, nested_originated_columns
+    result_df, columns_info.array_columns = _flatten_array_of_struct_columns(
+        result_df,
+        columns_info.array_of_struct_columns,
+        columns_info.array_columns,
+        columns_info.nested_originated_columns,
     )
 
-    result_df, clear_on_continuation_cols = _flatten_struct_columns(
-        result_df, struct_columns, clear_on_continuation_cols, nested_originated_columns
+    result_df, columns_info.clear_on_continuation_cols = _flatten_struct_columns(
+        result_df,
+        columns_info.struct_columns,
+        columns_info.clear_on_continuation_cols,
+        columns_info.nested_originated_columns,
     )
 
     # Now handle ARRAY columns (including the newly created ones from ARRAY of STRUCT)
-    if not array_columns:
+    if not columns_info.array_columns:
         return FlattenResult(
             dataframe=result_df,
             row_labels=None,
             continuation_rows=None,
-            cleared_on_continuation=clear_on_continuation_cols,
-            nested_columns=nested_originated_columns,
+            cleared_on_continuation=columns_info.clear_on_continuation_cols,
+            nested_columns=columns_info.nested_originated_columns,
         )
 
-    explode_result = _explode_array_columns(result_df, array_columns)
+    explode_result = _explode_array_columns(result_df, columns_info.array_columns)
     return FlattenResult(
         dataframe=explode_result.dataframe,
         row_labels=explode_result.row_labels,
         continuation_rows=explode_result.continuation_rows,
-        cleared_on_continuation=clear_on_continuation_cols,
-        nested_columns=nested_originated_columns,
+        cleared_on_continuation=columns_info.clear_on_continuation_cols,
+        nested_columns=columns_info.nested_originated_columns,
     )
 
 
