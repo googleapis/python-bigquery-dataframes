@@ -267,6 +267,7 @@ htmlhelp_basename = "bigframes-doc"
 
 # https://sphinx-sitemap.readthedocs.io/en/latest/getting-started.html#usage
 html_baseurl = "https://dataframes.bigquery.dev/"
+sitemap_locales = [None]
 
 # -- Options for warnings ------------------------------------------------------
 
