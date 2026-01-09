@@ -422,7 +422,9 @@ def _explode_array_columns(
 
         new_columns[col_name] = final_values
 
-    result_df = pa.Table.from_pydict(new_columns).to_pandas()
+    # Convert back to pandas; this is efficient since we have pyarrow arrays.
+    result_table = pa.Table.from_pydict(new_columns)
+    result_df = result_table.to_pandas(types_mapper=pd.ArrowDtype)
 
     grouping_col_name = (
         "_original_index" if original_index_name is None else original_index_name
