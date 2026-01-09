@@ -25,12 +25,11 @@ It handles nested structures by:
 from __future__ import annotations
 
 import dataclasses
-from typing import cast
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-import pyarrow.compute as pc
+import pyarrow.compute as pc  # type: ignore
 
 
 @dataclasses.dataclass(frozen=True)
@@ -431,9 +430,8 @@ def _explode_array_columns(
     )
     row_labels = result_df[grouping_col_name].astype(str).tolist()
 
-    # The continuation_mask is a boolean mask where row_num > 0.
     continuation_mask = pc.greater(row_nums, 0).to_numpy(zero_copy_only=False)
-    continuation_rows = set(np.flatnonzero(continuation_mask))
+    continuation_rows = set(np.flatnonzero(continuation_mask).tolist())
 
     result_df = result_df[dataframe.columns.tolist()]
 
@@ -485,33 +483,43 @@ def _flatten_struct_columns(
     Returns:
         A FlattenStructsResult containing the updated DataFrame and columns.
     """
-    result_df = dataframe.copy()
+    if not struct_columns:
+        return FlattenStructsResult(
+            dataframe=dataframe.copy(),
+            clear_on_continuation_cols=clear_on_continuation_cols,
+            nested_originated_columns=nested_originated_columns,
+        )
+
+    # Convert to PyArrow table for efficient flattening
+    table = pa.Table.from_pandas(dataframe, preserve_index=False)
+
     current_clear_cols = list(clear_on_continuation_cols)
     current_nested_cols = set(nested_originated_columns)
 
+    # Identify new columns that will be created to update metadata
     for col_name in struct_columns:
-        col_data = result_df[col_name]
-        if isinstance(col_data.dtype, pd.ArrowDtype):
-            pa_type = cast(pd.ArrowDtype, col_data.dtype).pyarrow_dtype
+        idx = table.schema.get_field_index(col_name)
+        if idx == -1:
+            continue
 
-        arrow_array = pa.array(col_data)
-        flattened_fields = arrow_array.flatten()
+        field = table.schema.field(idx)
+        if pa.types.is_struct(field.type):
+            for i in range(field.type.num_fields):
+                child_field = field.type.field(i)
+                new_col_name = f"{col_name}.{child_field.name}"
+                current_nested_cols.add(new_col_name)
+                current_clear_cols.append(new_col_name)
 
-        new_cols_to_add = {}
-        for field_idx in range(pa_type.num_fields):
-            field = pa_type.field(field_idx)
-            new_col_name = f"{col_name}.{field.name}"
-            current_nested_cols.add(new_col_name)
-            current_clear_cols.append(new_col_name)
+    # Expand all struct columns into "parent.child" columns.
+    flattened_table = table.flatten()
 
-            new_cols_to_add[new_col_name] = pd.Series(
-                flattened_fields[field_idx],
-                dtype=pd.ArrowDtype(field.type),
-                index=result_df.index,
-            )
+    # Convert back to pandas, using ArrowDtype to preserve types and ignoring metadata
+    # to avoid issues with stale struct type info.
+    result_df = flattened_table.to_pandas(
+        types_mapper=pd.ArrowDtype, ignore_metadata=True
+    )
 
-        new_cols_df = pd.DataFrame(new_cols_to_add, index=result_df.index)
-        result_df = _replace_column_in_df(result_df, col_name, new_cols_df)
+    result_df.index = dataframe.index
 
     return FlattenStructsResult(
         dataframe=result_df,
