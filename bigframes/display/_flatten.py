@@ -27,8 +27,10 @@ from __future__ import annotations
 import dataclasses
 from typing import cast
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
+import pyarrow.compute as pc
 
 
 @dataclasses.dataclass(frozen=True)
@@ -356,88 +358,112 @@ def _explode_array_columns(
     if not array_columns:
         return ExplodeResult(dataframe, [], set())
 
-    # Group by all non-array columns to maintain context.
-    # _row_num tracks the index within the exploded array to synchronize multiple
-    # arrays. Continuation rows (index > 0) are tracked for display clearing.
-    original_cols = dataframe.columns.tolist()
-    work_df = dataframe
-
-    non_array_columns = work_df.columns.drop(array_columns).tolist()
-    if not non_array_columns:
-        work_df = work_df.copy()  # Avoid modifying input
-        # Add a temporary column to allow grouping if all columns are arrays.
-        # This ensures we can still group by "original row" even if there are no scalar columns.
-        non_array_columns = ["_temp_grouping_col"]
-        work_df["_temp_grouping_col"] = range(len(work_df))
-
-    # Preserve original index
-    if work_df.index.name:
-        original_index_name = work_df.index.name
-        work_df = work_df.reset_index()
-        non_array_columns.append(original_index_name)
-    else:
-        original_index_name = None
-        work_df = work_df.reset_index(names=["_original_index"])
-        non_array_columns.append("_original_index")
-
-    exploded_dfs = []
-    for col in array_columns:
-        # Explode each array column individually
-        col_series = work_df[col]
-        target_dtype = None
-        if isinstance(col_series.dtype, pd.ArrowDtype):
-            pa_type = col_series.dtype.pyarrow_dtype
-            if pa.types.is_list(pa_type):
-                target_dtype = pd.ArrowDtype(pa_type.value_type)
-            # Use to_list() to avoid pandas attempting to create a 2D numpy
-            # array if the list elements have the same length.
-            col_series = pd.Series(
-                col_series.to_list(), index=col_series.index, dtype=object
-            )
-
-        exploded = work_df[non_array_columns].assign(**{col: col_series}).explode(col)
-
-        if target_dtype is not None:
-            # Re-cast to arrow dtype if possible
-            exploded[col] = exploded[col].astype(target_dtype)
-
-        # Track position in the array for alignment
-        exploded["_row_num"] = exploded.groupby(non_array_columns).cumcount()
-        exploded_dfs.append(exploded)
-
-    if not exploded_dfs:
-        # This should not be reached if array_columns is not empty
-        return ExplodeResult(dataframe, [], set())
-
-    # Merge the exploded columns
-    merged_df = exploded_dfs[0]
-    for i in range(1, len(exploded_dfs)):
-        merged_df = pd.merge(
-            merged_df,
-            exploded_dfs[i],
-            on=non_array_columns + ["_row_num"],
-            how="outer",
-        )
-
-    # Restore original column order and sort
-    merged_df = merged_df.sort_values(non_array_columns + ["_row_num"]).reset_index(
-        drop=True
+    work_df, non_array_columns, original_index_name = _prepare_explosion_dataframe(
+        dataframe, array_columns
     )
 
-    # Generate row labels and continuation mask efficiently
+    if work_df.empty:
+        return ExplodeResult(dataframe, [], set())
+
+    table = pa.Table.from_pandas(work_df)
+    arrays = [table.column(col).combine_chunks() for col in array_columns]
+    lengths = []
+    for arr in arrays:
+        row_lengths = pc.list_value_length(arr)
+        # Treat null lists as length 1 to match pandas explode behavior for scalars.
+        row_lengths = pc.if_else(
+            pc.is_null(row_lengths, nan_is_null=True), 1, row_lengths
+        )
+        lengths.append(row_lengths)
+
+    if not lengths:
+        return ExplodeResult(dataframe, [], set())
+
+    max_lens = lengths[0] if len(lengths) == 1 else pc.max_element_wise(*lengths)
+    max_lens = max_lens.cast(pa.int64())
+    current_offsets = pc.cumulative_sum(max_lens)
+    target_offsets = pa.concat_arrays([pa.array([0], type=pa.int64()), current_offsets])
+
+    total_rows = target_offsets[-1].as_py()
+    if total_rows == 0:
+        empty_df = pd.DataFrame(columns=dataframe.columns)
+        if original_index_name:
+            empty_df.index.name = original_index_name
+        return ExplodeResult(empty_df, [], set())
+
+    # parent_indices maps each result row to its original row index.
+    dummy_values = pa.nulls(total_rows, type=pa.null())
+    dummy_list_array = pa.ListArray.from_arrays(target_offsets, dummy_values)
+    parent_indices = pc.list_parent_indices(dummy_list_array)
+
+    range_k = pa.array(range(total_rows))
+    starts = target_offsets.take(parent_indices)
+    row_nums = pc.subtract(range_k, starts)
+
+    new_columns = {}
+    for col_name in non_array_columns:
+        new_columns[col_name] = table.column(col_name).take(parent_indices)
+
+    for col_name, arr in zip(array_columns, arrays):
+        actual_lens_scattered = pc.list_value_length(arr).take(parent_indices)
+        valid_mask = pc.less(row_nums, actual_lens_scattered)
+        starts_scattered = arr.offsets.take(parent_indices)
+
+        # safe_mask ensures we don't access out of bounds even if masked out.
+        safe_mask = pc.fill_null(valid_mask, False)
+        candidate_indices = pc.add(starts_scattered, row_nums)
+        safe_indices = pc.if_else(safe_mask, candidate_indices, 0)
+
+        if len(arr.values) == 0:
+            final_values = pa.nulls(total_rows, type=arr.type.value_type)
+        else:
+            taken_values = arr.values.take(safe_indices)
+            final_values = pc.if_else(safe_mask, taken_values, None)
+
+        new_columns[col_name] = final_values
+
+    result_df = pa.Table.from_pydict(new_columns).to_pandas()
+
     grouping_col_name = (
         "_original_index" if original_index_name is None else original_index_name
     )
-    row_labels = merged_df[grouping_col_name].astype(str).tolist()
-    continuation_rows = set(merged_df.index[merged_df["_row_num"] > 0])
+    row_labels = result_df[grouping_col_name].astype(str).tolist()
 
-    # Restore original columns
-    result_df = merged_df[original_cols]
+    # The continuation_mask is a boolean mask where row_num > 0.
+    continuation_mask = pc.greater(row_nums, 0).to_numpy(zero_copy_only=False)
+    continuation_rows = set(np.flatnonzero(continuation_mask))
+
+    result_df = result_df[dataframe.columns.tolist()]
 
     if original_index_name:
         result_df = result_df.set_index(original_index_name)
 
     return ExplodeResult(result_df, row_labels, continuation_rows)
+
+
+def _prepare_explosion_dataframe(
+    dataframe: pd.DataFrame, array_columns: list[str]
+) -> tuple[pd.DataFrame, list[str], str | None]:
+    """Prepares the DataFrame for explosion by ensuring grouping columns exist."""
+    work_df = dataframe
+    non_array_columns = work_df.columns.drop(array_columns).tolist()
+
+    if not non_array_columns:
+        work_df = work_df.copy()  # Avoid modifying input
+        # Add a temporary column to allow grouping if all columns are arrays.
+        non_array_columns = ["_temp_grouping_col"]
+        work_df["_temp_grouping_col"] = range(len(work_df))
+
+    original_index_name = None
+    if work_df.index.name:
+        original_index_name = work_df.index.name
+        work_df = work_df.reset_index()
+        non_array_columns.append(original_index_name)
+    else:
+        work_df = work_df.reset_index(names=["_original_index"])
+        non_array_columns.append("_original_index")
+
+    return work_df, non_array_columns, original_index_name
 
 
 def _flatten_struct_columns(
@@ -466,8 +492,6 @@ def _flatten_struct_columns(
         if isinstance(col_data.dtype, pd.ArrowDtype):
             pa_type = cast(pd.ArrowDtype, col_data.dtype).pyarrow_dtype
 
-        # Use PyArrow to flatten the struct column without row iteration
-        # combine_chunks() ensures we have a single array if it was chunked
         arrow_array = pa.array(col_data)
         flattened_fields = arrow_array.flatten()
 
@@ -478,7 +502,6 @@ def _flatten_struct_columns(
             current_nested_cols.add(new_col_name)
             current_clear_cols.append(new_col_name)
 
-            # Create a new Series from the flattened array
             new_cols_to_add[new_col_name] = pd.Series(
                 flattened_fields[field_idx],
                 dtype=pd.ArrowDtype(field.type),
