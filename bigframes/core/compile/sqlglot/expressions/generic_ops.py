@@ -144,7 +144,13 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 def _(
     left: TypedExpr, right: TypedExpr, op: ops.BinaryRemoteFunctionOp
 ) -> sge.Expression:
-    return sge.func(str(op.function_def.routine_ref), left.expr, right.expr)
+    routine_ref = op.function_def.routine_ref
+    # Quote project, dataset, and routine IDs to avoid keyword clashes.
+    func_name = (
+        f"`{routine_ref.project}`.`{routine_ref.dataset_id}`.`{routine_ref.routine_id}`"
+    )
+
+    return sge.func(func_name, left.expr, right.expr)
 
 
 @register_nary_op(ops.case_when_op)

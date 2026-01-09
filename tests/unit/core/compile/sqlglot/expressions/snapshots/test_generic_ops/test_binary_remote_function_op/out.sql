@@ -6,7 +6,7 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    my_project.my_dataset.my_routine(`int64_col`, `float64_col`) AS `bfcol_2`
+    `my_project`.`my_dataset`.`my_routine`(`int64_col`, `float64_col`) AS `bfcol_2`
   FROM `bfcte_0`
 )
 SELECT
