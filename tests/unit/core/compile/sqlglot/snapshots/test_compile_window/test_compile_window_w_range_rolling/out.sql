@@ -8,7 +8,7 @@ WITH `bfcte_0` AS (
     CASE
       WHEN COALESCE(
         SUM(CAST(NOT `bfcol_1` IS NULL AS INT64)) OVER (
-          ORDER BY UNIX_MICROS(`bfcol_0`) ASC NULLS LAST
+          ORDER BY UNIX_MICROS(`bfcol_0`) ASC
           RANGE BETWEEN 2999999 PRECEDING AND CURRENT ROW
         ),
         0
@@ -16,7 +16,7 @@ WITH `bfcte_0` AS (
       THEN NULL
       ELSE COALESCE(
         SUM(`bfcol_1`) OVER (
-          ORDER BY UNIX_MICROS(`bfcol_0`) ASC NULLS LAST
+          ORDER BY UNIX_MICROS(`bfcol_0`) ASC
           RANGE BETWEEN 2999999 PRECEDING AND CURRENT ROW
         ),
         0
