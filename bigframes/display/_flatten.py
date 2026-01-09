@@ -70,18 +70,33 @@ class ColumnClassification:
 
 
 @dataclasses.dataclass(frozen=True)
-class ExplodeResult:
-    """The result of exploding array columns.
+class FlattenArrayOfStructsResult:
+    """The result of flattening array-of-struct columns.
 
     Attributes:
-        dataframe: The exploded DataFrame.
-        row_labels: Labels for the rows.
-        continuation_rows: Indices of continuation rows.
+        dataframe: The flattened DataFrame.
+        array_columns: The updated list of array columns.
+        nested_originated_columns: The updated set of columns created from nested data.
     """
 
     dataframe: pd.DataFrame
-    row_labels: list[str]
-    continuation_rows: set[int]
+    array_columns: tuple[str, ...]
+    nested_originated_columns: frozenset[str]
+
+
+@dataclasses.dataclass(frozen=True)
+class FlattenStructsResult:
+    """The result of flattening struct columns.
+
+    Attributes:
+        dataframe: The flattened DataFrame.
+        clear_on_continuation_cols: The updated list of columns to clear on continuation.
+        nested_originated_columns: The updated set of columns created from nested data.
+    """
+
+    dataframe: pd.DataFrame
+    clear_on_continuation_cols: tuple[str, ...]
+    nested_originated_columns: frozenset[str]
 
 
 def flatten_nested_data(
@@ -109,27 +124,31 @@ def flatten_nested_data(
     classification = _classify_columns(result_df)
 
     # Process ARRAY-of-STRUCT columns into multiple ARRAY columns (one per struct field).
-    result_df, array_cols, nested_cols = _flatten_array_of_struct_columns(
+    flatten_array_structs_result = _flatten_array_of_struct_columns(
         result_df,
         classification.array_of_struct_columns,
         classification.array_columns,
         classification.nested_originated_columns,
     )
+    result_df = flatten_array_structs_result.dataframe
     classification = dataclasses.replace(
-        classification, array_columns=array_cols, nested_originated_columns=nested_cols
+        classification,
+        array_columns=flatten_array_structs_result.array_columns,
+        nested_originated_columns=flatten_array_structs_result.nested_originated_columns,
     )
 
     # Flatten top-level STRUCT columns into separate columns.
-    result_df, clear_cols, nested_cols = _flatten_struct_columns(
+    flatten_structs_result = _flatten_struct_columns(
         result_df,
         classification.struct_columns,
         classification.clear_on_continuation_cols,
         classification.nested_originated_columns,
     )
+    result_df = flatten_structs_result.dataframe
     classification = dataclasses.replace(
         classification,
-        clear_on_continuation_cols=clear_cols,
-        nested_originated_columns=nested_cols,
+        clear_on_continuation_cols=flatten_structs_result.clear_on_continuation_cols,
+        nested_originated_columns=flatten_structs_result.nested_originated_columns,
     )
 
     # Now handle ARRAY columns (including the newly created ones from ARRAY of STRUCT)
@@ -206,7 +225,7 @@ def _flatten_array_of_struct_columns(
     array_of_struct_columns: tuple[str, ...],
     array_columns: tuple[str, ...],
     nested_originated_columns: frozenset[str],
-) -> tuple[pd.DataFrame, tuple[str, ...], frozenset[str]]:
+) -> FlattenArrayOfStructsResult:
     """Flatten ARRAY of STRUCT columns into separate ARRAY columns for each field.
 
     Args:
@@ -216,7 +235,7 @@ def _flatten_array_of_struct_columns(
         nested_originated_columns: Columns tracked as originating from nested data.
 
     Returns:
-        A tuple containing the modified DataFrame, updated array columns, and updated nested columns.
+        A FlattenArrayOfStructsResult containing the updated DataFrame and columns.
     """
     result_df = dataframe.copy()
     current_array_columns = list(array_columns)
@@ -245,7 +264,11 @@ def _flatten_array_of_struct_columns(
         current_array_columns.remove(col_name)
         current_array_columns.extend(new_cols_df.columns.tolist())
 
-    return result_df, tuple(current_array_columns), frozenset(current_nested_columns)
+    return FlattenArrayOfStructsResult(
+        dataframe=result_df,
+        array_columns=tuple(current_array_columns),
+        nested_originated_columns=frozenset(current_nested_columns),
+    )
 
 
 def _transpose_list_of_structs(arrow_array: pa.ListArray) -> dict[str, pa.ListArray]:
@@ -297,6 +320,21 @@ def _replace_column_in_df(
         ],
         axis=1,
     )
+
+
+@dataclasses.dataclass(frozen=True)
+class ExplodeResult:
+    """The result of exploding array columns.
+
+    Attributes:
+        dataframe: The exploded DataFrame.
+        row_labels: Labels for the rows.
+        continuation_rows: Indices of continuation rows.
+    """
+
+    dataframe: pd.DataFrame
+    row_labels: list[str]
+    continuation_rows: set[int]
 
 
 def _explode_array_columns(
@@ -407,7 +445,7 @@ def _flatten_struct_columns(
     struct_columns: tuple[str, ...],
     clear_on_continuation_cols: tuple[str, ...],
     nested_originated_columns: frozenset[str],
-) -> tuple[pd.DataFrame, tuple[str, ...], frozenset[str]]:
+) -> FlattenStructsResult:
     """Flatten regular STRUCT columns into separate columns.
 
     Args:
@@ -417,7 +455,7 @@ def _flatten_struct_columns(
         nested_originated_columns: Columns tracked as originating from nested data.
 
     Returns:
-        A tuple containing the modified DataFrame, updated clear columns, and updated nested columns.
+        A FlattenStructsResult containing the updated DataFrame and columns.
     """
     result_df = dataframe.copy()
     current_clear_cols = list(clear_on_continuation_cols)
@@ -450,4 +488,8 @@ def _flatten_struct_columns(
         new_cols_df = pd.DataFrame(new_cols_to_add, index=result_df.index)
         result_df = _replace_column_in_df(result_df, col_name, new_cols_df)
 
-    return result_df, tuple(current_clear_cols), frozenset(current_nested_cols)
+    return FlattenStructsResult(
+        dataframe=result_df,
+        clear_on_continuation_cols=tuple(current_clear_cols),
+        nested_originated_columns=frozenset(current_nested_cols),
+    )
