@@ -165,22 +165,24 @@ def _classify_columns(
     Returns:
         A ColumnClassification object containing lists of column names for each category.
     """
-    # Maps column names to their structural category to simplify list building.
-    categories: dict[str, str] = {}
 
-    for col, dtype in dataframe.dtypes.items():
-        col_name = str(col)
+    def get_category(dtype: pd.api.extensions.ExtensionDtype) -> str:
         pa_type = getattr(dtype, "pyarrow_dtype", None)
+        if pa_type:
+            if pa.types.is_struct(pa_type):
+                return "struct"
+            if pa.types.is_list(pa_type):
+                return (
+                    "array_of_struct"
+                    if pa.types.is_struct(pa_type.value_type)
+                    else "array"
+                )
+        return "clear"
 
-        if not pa_type:
-            categories[col_name] = "clear"
-        elif pa.types.is_struct(pa_type):
-            categories[col_name] = "struct"
-        elif pa.types.is_list(pa_type):
-            is_struct_array = pa.types.is_struct(pa_type.value_type)
-            categories[col_name] = "array_of_struct" if is_struct_array else "array"
-        else:
-            categories[col_name] = "clear"
+    # Maps column names to their structural category to simplify list building.
+    categories = {
+        str(col): get_category(dtype) for col, dtype in dataframe.dtypes.items()
+    }
 
     return ColumnClassification(
         struct_columns=tuple(c for c, cat in categories.items() if cat == "struct"),
