@@ -348,6 +348,7 @@ class TableWidget(_WIDGET_BASE):
                     dataframe=page_data,
                     table_id=f"table-{self._table_id}",
                     orderable_columns=self.orderable_columns,
+                    max_columns=bigframes.options.display.max_columns,
                 )
 
         if new_page is not None:

@@ -229,6 +229,10 @@ body[data-theme='dark'] .bigframes-widget.bigframes-widget {
   text-align: left;
 }
 
+.bigframes-widget .cell-align-center {
+  text-align: center;
+}
+
 .bigframes-widget .null-value {
   color: var(--bf-null-fg);
 }
