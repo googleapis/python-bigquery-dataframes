@@ -23,6 +23,7 @@ from bigframes.core.compile.sqlglot import sqlglot_types
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
+register_nullary_op = scalar_compiler.scalar_op_compiler.register_nullary_op
 register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
 register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
@@ -173,7 +174,7 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.Coalesce(this=left.expr, expressions=[right.expr])
 
 
-@register_nary_op(ops.RowKey)
+@register_nary_op(ops.RowHash)
 def _(*values: TypedExpr) -> sge.Expression:
     # All inputs into hash must be non-null or resulting hash will be null
     str_values = [_convert_to_nonnull_string_sqlglot(value) for value in values]
@@ -195,6 +196,16 @@ def _(*values: TypedExpr) -> sge.Expression:
             sge.Cast(this=random_hash_p3, to="STRING"),
         ]
     )
+
+
+@register_nullary_op(ops.rand_op)
+def _() -> sge.Expression:
+    return sge.func("RAND")
+
+
+@register_nullary_op(ops.gen_uuid_op)
+def _() -> sge.Expression:
+    return sge.func("GENERATE_UUID")
 
 
 # Helper functions

@@ -390,6 +390,7 @@ def compile_window(node: nodes.WindowOpNode, child: ir.SQLGlotIR) -> ir.SQLGlotI
 
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
+    node = nodes.bottom_up(node, rewrite.rewrite_random_sample)
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node
