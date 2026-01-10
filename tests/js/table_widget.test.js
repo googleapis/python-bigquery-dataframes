@@ -444,7 +444,7 @@ describe('TableWidget', () => {
       expect(Number(select.value)).toBe(initialMaxColumns);
     });
 
-    it('should handle None/null initial value as 0 (All)', () => {
+    it('should handle None/null initial value as 0 (None)', () => {
       model.get.mockImplementation((property) => {
         if (property === 'max_columns') {
           return null; // Python None is null in JS
@@ -456,7 +456,7 @@ describe('TableWidget', () => {
 
       const select = el.querySelector('.max-columns select');
       expect(Number(select.value)).toBe(0);
-      expect(select.options[select.selectedIndex].textContent).toBe('All');
+      expect(select.options[select.selectedIndex].textContent).toBe('None');
     });
 
     it('should update model when value changes', () => {
