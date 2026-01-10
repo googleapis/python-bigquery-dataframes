@@ -115,12 +115,12 @@ function render({ model, el }) {
 
   maxColumnsLabel.textContent = 'Max columns:';
 
-  // 0 represents "None" (all columns)
+  // 0 represents "All" (all columns)
   const maxColumnOptions = [5, 10, 15, 20, 0];
   for (const cols of maxColumnOptions) {
     const option = document.createElement('option');
     option.value = cols;
-    option.textContent = cols === 0 ? 'None' : cols;
+    option.textContent = cols === 0 ? 'All' : cols;
 
     const currentMax = model.get(ModelProperty.MAX_COLUMNS);
     // Handle None/null from python as 0/All
