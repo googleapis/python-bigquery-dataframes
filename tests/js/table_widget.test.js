@@ -404,4 +404,80 @@ describe('TableWidget', () => {
     const col10Indicator = col10Header.querySelector('.sort-indicator');
     expect(col10Indicator).not.toBeNull();
   });
+
+  describe('Max columns', () => {
+    /*
+     * Tests for the max columns dropdown functionality.
+     */
+
+    it('should render the max columns dropdown', () => {
+      // Mock basic state
+      model.get.mockImplementation((property) => {
+        if (property === 'max_columns') {
+          return 7;
+        }
+        return null;
+      });
+
+      render({ model, el });
+
+      const maxColumnsContainer = el.querySelector('.max-columns');
+      expect(maxColumnsContainer).not.toBeNull();
+      const label = maxColumnsContainer.querySelector('label');
+      expect(label.textContent).toBe('Max columns:');
+      const select = maxColumnsContainer.querySelector('select');
+      expect(select).not.toBeNull();
+    });
+
+    it('should select the correct initial value', () => {
+      const initialMaxColumns = 20;
+      model.get.mockImplementation((property) => {
+        if (property === 'max_columns') {
+          return initialMaxColumns;
+        }
+        return null;
+      });
+
+      render({ model, el });
+
+      const select = el.querySelector('.max-columns select');
+      expect(Number(select.value)).toBe(initialMaxColumns);
+    });
+
+    it('should handle None/null initial value as 0 (All)', () => {
+      model.get.mockImplementation((property) => {
+        if (property === 'max_columns') {
+          return null; // Python None is null in JS
+        }
+        return null;
+      });
+
+      render({ model, el });
+
+      const select = el.querySelector('.max-columns select');
+      expect(Number(select.value)).toBe(0);
+      expect(select.options[select.selectedIndex].textContent).toBe('All');
+    });
+
+    it('should update model when value changes', () => {
+      model.get.mockImplementation((property) => {
+        if (property === 'max_columns') {
+          return 7;
+        }
+        return null;
+      });
+
+      render({ model, el });
+
+      const select = el.querySelector('.max-columns select');
+
+      // Change to 20
+      select.value = '20';
+      const event = new Event('change');
+      select.dispatchEvent(event);
+
+      expect(model.set).toHaveBeenCalledWith('max_columns', 20);
+      expect(model.save_changes).toHaveBeenCalled();
+    });
+  });
 });
