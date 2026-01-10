@@ -62,9 +62,9 @@ class DisplayOptions:
     """
 
     # Options borrowed from pandas.
-    max_columns: int = 7
+    max_columns: int = 20
     """
-    Maximum number of columns to display. Default 7.
+    Maximum number of columns to display. Default 20.
 
     If `max_columns` is exceeded, switch to truncate view.
     """

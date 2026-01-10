@@ -414,7 +414,7 @@ describe('TableWidget', () => {
       // Mock basic state
       model.get.mockImplementation((property) => {
         if (property === 'max_columns') {
-          return 7;
+          return 20;
         }
         return null;
       });
@@ -462,7 +462,7 @@ describe('TableWidget', () => {
     it('should update model when value changes', () => {
       model.get.mockImplementation((property) => {
         if (property === 'max_columns') {
-          return 7;
+          return 20;
         }
         return null;
       });
@@ -471,12 +471,12 @@ describe('TableWidget', () => {
 
       const select = el.querySelector('.max-columns select');
 
-      // Change to 20
-      select.value = '20';
+      // Change to 10
+      select.value = '10';
       const event = new Event('change');
       select.dispatchEvent(event);
 
-      expect(model.set).toHaveBeenCalledWith('max_columns', 20);
+      expect(model.set).toHaveBeenCalledWith('max_columns', 10);
       expect(model.save_changes).toHaveBeenCalled();
     });
   });

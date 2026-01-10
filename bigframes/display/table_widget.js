@@ -116,7 +116,7 @@ function render({ model, el }) {
   maxColumnsLabel.textContent = 'Max columns:';
 
   // 0 represents "All"
-  const maxColumnOptions = [3, 5, 7, 10, 20, 0];
+  const maxColumnOptions = [5, 10, 15, 20, 0];
   for (const cols of maxColumnOptions) {
     const option = document.createElement('option');
     option.value = cols;
