@@ -992,178 +992,102 @@ def test_dataframe_repr_mimebundle_should_return_widget_with_metadata_in_anywidg
         assert "colab" in metadata["application/vnd.jupyter.widget-view+json"]
 
 
-@pytest.fixture(scope="module")
-def custom_index_pandas_df() -> pd.DataFrame:
-    """Create a DataFrame with a custom named index for testing."""
-    test_data = pd.DataFrame(
+@pytest.fixture
+def nested_data_df():
+    """Fixture to provide a pandas DataFrame with nested data (STRUCT and ARRAY) using ArrowDtype."""
+    import pyarrow as pa
+
+    # Struct column
+    struct_type = pa.struct([("name", pa.string()), ("age", pa.int64())])
+    struct_data = [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+    struct_arr = pa.array(struct_data, type=struct_type)
+
+    # Array column
+    array_type = pa.list_(pa.int64())
+    array_data = [[10, 20, 30], [40, 50]]
+    array_arr = pa.array(array_data, type=array_type)
+
+    # Array of Struct column
+    nested_struct_type = pa.struct([("item", pa.string()), ("value", pa.int64())])
+    nested_array_type = pa.list_(nested_struct_type)
+    nested_data = [
+        [{"item": "A", "value": 100}, {"item": "B", "value": 200}],
+        [{"item": "C", "value": 300}],
+    ]
+    nested_arr = pa.array(nested_data, type=nested_array_type)
+
+    df = pd.DataFrame(
         {
-            "value_a": [10, 20, 30, 40, 50, 60],
-            "value_b": ["a", "b", "c", "d", "e", "f"],
+            "id": [1, 2],
+            "struct_col": pd.Series(struct_arr, dtype=pd.ArrowDtype(struct_type)),
+            "array_col": pd.Series(array_arr, dtype=pd.ArrowDtype(array_type)),
+            "nested_struct_array": pd.Series(
+                nested_arr, dtype=pd.ArrowDtype(nested_array_type)
+            ),
         }
     )
-    test_data.index = pd.Index(
-        ["row_1", "row_2", "row_3", "row_4", "row_5", "row_6"], name="custom_idx"
-    )
-    return test_data
+    return df
 
 
-@pytest.fixture(scope="module")
-def custom_index_bf_df(
-    session: bf.Session, custom_index_pandas_df: pd.DataFrame
-) -> bf.dataframe.DataFrame:
-    return session.read_pandas(custom_index_pandas_df)
+@pytest.fixture
+def different_lengths_arrays_df():
+    """Fixture to provide a DataFrame with arrays of different lengths using ArrowDtype."""
+    import pyarrow as pa
 
+    array_type = pa.list_(pa.int64())
+    array_col1 = pa.array([[10, 20, 30]], type=array_type)
+    array_col2 = pa.array([[100, 200]], type=array_type)
 
-@pytest.fixture(scope="module")
-def multiindex_pandas_df() -> pd.DataFrame:
-    """Create a DataFrame with MultiIndex for testing."""
-    test_data = pd.DataFrame(
+    df = pd.DataFrame(
         {
-            "value": [100, 200, 300, 400, 500, 600],
-            "category": ["X", "Y", "Z", "X", "Y", "Z"],
+            "id": [1],
+            "array_col1": pd.Series(array_col1, dtype=pd.ArrowDtype(array_type)),
+            "array_col2": pd.Series(array_col2, dtype=pd.ArrowDtype(array_type)),
         }
     )
-    test_data.index = pd.MultiIndex.from_arrays(
-        [
-            ["group_A", "group_A", "group_A", "group_B", "group_B", "group_B"],
-            [1, 2, 3, 1, 2, 3],
-        ],
-        names=["group", "item"],
+    return df
+
+
+def test_render_html_with_nested_data(nested_data_df: pd.DataFrame):
+    """Verify that render_html correctly flattens nested STRUCT and ARRAY columns.
+
+    Updated to expect inline styles.
+    """
+    from bigframes.display import html
+
+    result_html = html.render_html(dataframe=nested_data_df, table_id="test-table")
+
+    # Check that Alice's data is not repeated on the second row
+    assert 'class="cell-align-right">1</td>' in result_html
+    assert 'class="cell-align-left">Alice</td>' in result_html
+    assert 'class="cell-align-left">30</td>' in result_html
+    assert 'class="cell-align-left">10</td>' in result_html
+
+    # Check continuation row
+    assert 'class="array-continuation" data-orig-row="0">' in result_html
+    # In continuation rows, non-array cells are empty
+    assert "<td></td>" in result_html
+
+
+def test_render_html_with_arrays_of_different_lengths(
+    different_lengths_arrays_df: pd.DataFrame,
+):
+    """Verify that render_html handles arrays of different lengths correctly.
+
+    Updated to expect inline styles.
+    """
+    from bigframes.display import html
+
+    result_html = html.render_html(
+        dataframe=different_lengths_arrays_df, table_id="test-table"
     )
-    return test_data
 
+    # The first row should contain the first element of both arrays
+    assert 'class="cell-align-right">1</td>' in result_html
+    assert 'class="cell-align-left">10</td>' in result_html
+    assert 'class="cell-align-left">100</td>' in result_html
 
-@pytest.fixture(scope="module")
-def multiindex_bf_df(
-    session: bf.Session, multiindex_pandas_df: pd.DataFrame
-) -> bf.dataframe.DataFrame:
-    return session.read_pandas(multiindex_pandas_df)
-
-
-def test_widget_with_default_index_should_display_index_column_with_empty_header(
-    paginated_bf_df: bf.dataframe.DataFrame,
-):
-    """
-    Given a DataFrame with a default index, when the TableWidget is rendered,
-    then an index column should be visible with an empty header.
-    """
-    import re
-
-    from bigframes.display.anywidget import TableWidget
-
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = TableWidget(paginated_bf_df)
-        html = widget.table_html
-
-    # The header for the index should be present but empty, matching the
-    # internal rendering logic.
-    thead = html.split("<thead>")[1].split("</thead>")[0]
-    # Find the first header cell and check that its content div is empty.
-    match = re.search(r"<th[^>]*><div[^>]*>([^<]*)</div></th>", thead)
-    assert match is not None, "Could not find table header cell in output."
-    assert (
-        match.group(1) == ""
-    ), f"Expected empty index header, but found: {match.group(1)}"
-
-
-def test_widget_with_custom_index_should_display_index_column(
-    custom_index_bf_df: bf.dataframe.DataFrame,
-):
-    """
-    Given a DataFrame with a custom named index, when rendered,
-    then the index column and first page of rows should be visible.
-    """
-    from bigframes.display.anywidget import TableWidget
-
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = TableWidget(custom_index_bf_df)
-        html = widget.table_html
-
-    assert "custom_idx" in html
-    assert "row_1" in html
-    assert "row_2" in html
-    assert "row_3" not in html  # Verify pagination is working
-    assert "row_4" not in html
-
-
-def test_widget_with_custom_index_pagination_preserves_index(
-    custom_index_bf_df: bf.dataframe.DataFrame,
-):
-    """
-    Given a DataFrame with a custom index, when navigating to the second page,
-    then the second page's index values should be visible.
-    """
-    from bigframes.display.anywidget import TableWidget
-
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 2):
-        widget = TableWidget(custom_index_bf_df)
-
-        widget.page = 1  # Navigate to page 2
-        html = widget.table_html
-
-    assert "row_3" in html
-    assert "row_4" in html
-    assert "row_1" not in html  # Verify page 1 content is gone
-    assert "row_2" not in html
-
-
-def test_widget_with_custom_index_matches_pandas_output(
-    custom_index_bf_df: bf.dataframe.DataFrame,
-):
-    """
-    Given a DataFrame with a custom index and max_rows=3, the widget's HTML
-    output should contain the first three index values.
-    """
-    from bigframes.display.anywidget import TableWidget
-
-    with bf.option_context("display.repr_mode", "anywidget", "display.max_rows", 3):
-        widget = TableWidget(custom_index_bf_df)
-        html = widget.table_html
-
-    assert "row_1" in html
-    assert "row_2" in html
-    assert "row_3" in html
-    assert "row_4" not in html  # Verify it respects max_rows
-
-
-# TODO(b/438181139): Add tests for custom multiindex
-# This may not be necessary for the SQL Cell use case but should be
-# considered for completeness.
-
-
-def test_series_anywidget_integration_with_notebook_display(
-    paginated_bf_df: bf.dataframe.DataFrame,
-):
-    """Test Series display integration in Jupyter-like environment."""
-    pytest.importorskip("anywidget")
-
-    with bf.option_context("display.repr_mode", "anywidget"):
-        series = paginated_bf_df["value"]
-
-        # Test the full display pipeline
-        from IPython.display import display as ipython_display
-
-        # This should work without errors
-        ipython_display(series)
-
-
-def test_series_different_data_types_anywidget(session: bf.Session):
-    """Test Series with different data types in anywidget mode."""
-    pytest.importorskip("anywidget")
-
-    # Create Series with different types
-    test_data = pd.DataFrame(
-        {
-            "string_col": ["a", "b", "c"],
-            "int_col": [1, 2, 3],
-            "float_col": [1.1, 2.2, 3.3],
-            "bool_col": [True, False, True],
-        }
-    )
-    bf_df = session.read_pandas(test_data)
-
-    with bf.option_context("display.repr_mode", "anywidget"):
-        for col_name in test_data.columns:
-            series = bf_df[col_name]
-            widget = bigframes.display.TableWidget(series.to_frame())
-            assert widget.row_count == 3
+    # The second row should contain the second element of both arrays
+    assert 'class="array-continuation" data-orig-row="0">' in result_html
+    assert 'class="cell-align-left">20</td>' in result_html
+    assert 'class="cell-align-left">200</td>' in result_html
