@@ -3433,6 +3433,14 @@ def unpivot(
         )
     new_passthrough_cols = [column_mapping[col] for col in passthrough_columns]
     # Last column is offsets
+    if not labels_array.column_ids:
+        # Handle empty column_ids case for multimodal DataFrames
+        # When no index columns exist, return original array_value with identity mappings
+        return array_value, (
+            tuple(),
+            tuple(array_value.column_ids),
+            tuple(passthrough_columns),
+        )
     index_col_ids = [labels_mapping[col] for col in labels_array.column_ids[:-1]]
     explode_offsets_id = labels_mapping[labels_array.column_ids[-1]]
 
@@ -3471,6 +3479,7 @@ def _pd_index_to_array_value(
     Create an ArrayValue from a list of label tuples.
     The last column will be row offsets.
     """
+
     rows = []
     labels_as_tuples = utils.index_as_tuples(index)
     for row_offset in range(len(index)):
