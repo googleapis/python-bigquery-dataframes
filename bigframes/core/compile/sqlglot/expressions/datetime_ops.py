@@ -554,7 +554,7 @@ def _integer_label_to_datetime_op_monthly_freq(
         to="INT64",
     )
     month = sge.Add(this=sge.Mod(this=x_val, expression=twelve), expression=one)
-    
+
     next_year = sge.Case(
         ifs=[
             sge.If(
@@ -619,7 +619,7 @@ def _integer_label_to_datetime_op_quarterly_freq(
         ),
         expression=three,
     )
-    
+
     next_year = sge.Case(
         ifs=[
             sge.If(
