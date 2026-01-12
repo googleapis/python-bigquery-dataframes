@@ -478,135 +478,99 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
     from weeks to years.
     """
     rule_code = op.freq.rule_code
+
+    if rule_code == "W-SUN":
+        return _integer_label_to_datetime_op_weekly_freq(x, y, op)
+
+    if rule_code in ("ME", "M"):
+        return _integer_label_to_datetime_op_monthly_freq(x, y, op)
+
+    if rule_code in ("QE-DEC", "Q-DEC"):
+        return _integer_label_to_datetime_op_quarterly_freq(x, y, op)
+
+    if rule_code in ("YE-DEC", "A-DEC", "Y-DEC"):
+        return _integer_label_to_datetime_op_yearly_freq(x, y, op)
+
+    raise ValueError(rule_code)
+
+
+def _integer_label_to_datetime_op_weekly_freq(
+    x: TypedExpr, y: TypedExpr, op: ops.IntegerLabelToDatetimeOp
+) -> sge.Expression:
     n = op.freq.n
-    if rule_code == "W-SUN":  # Weekly
-        us = n * 7 * 24 * 60 * 60 * 1000000
-        first = sge.func(
-            "UNIX_MICROS",
-            sge.Add(
-                this=sge.TimestampTrunc(
-                    this=sge.Cast(this=y.expr, to="TIMESTAMP"),
-                    unit=sge.Var(this="WEEK(MONDAY)"),
-                ),
-                expression=sge.Interval(
-                    this=sge.convert(6), unit=sge.Identifier(this="DAY")
-                ),
+    # Calculate microseconds for the weekly interval.
+    us = n * 7 * 24 * 60 * 60 * 1000000
+    first = sge.func(
+        "UNIX_MICROS",
+        sge.Add(
+            this=sge.TimestampTrunc(
+                this=sge.Cast(this=y.expr, to="TIMESTAMP"),
+                unit=sge.Var(this="WEEK(MONDAY)"),
             ),
-        )
-        x_label = sge.Cast(
-            this=sge.func(
-                "TIMESTAMP_MICROS",
-                sge.Cast(
-                    this=sge.Add(
-                        this=sge.Mul(
-                            this=sge.Cast(this=x.expr, to="BIGNUMERIC"),
-                            expression=sge.convert(us),
-                        ),
-                        expression=sge.Cast(this=first, to="BIGNUMERIC"),
+            expression=sge.Interval(
+                this=sge.convert(6), unit=sge.Identifier(this="DAY")
+            ),
+        ),
+    )
+    return sge.Cast(
+        this=sge.func(
+            "TIMESTAMP_MICROS",
+            sge.Cast(
+                this=sge.Add(
+                    this=sge.Mul(
+                        this=sge.Cast(this=x.expr, to="BIGNUMERIC"),
+                        expression=sge.convert(us),
                     ),
-                    to="INT64",
+                    expression=sge.Cast(this=first, to="BIGNUMERIC"),
                 ),
+                to="INT64",
             ),
-            to=sqlglot_types.from_bigframes_dtype(y.dtype),
-        )
-    elif rule_code in ("ME", "M"):  # Monthly
-        one = sge.convert(1)
-        twelve = sge.convert(12)
-        first = sge.Sub(  # type: ignore
-            this=sge.Add(
-                this=sge.Mul(
-                    this=sge.Extract(this="YEAR", expression=y.expr),
-                    expression=twelve,
-                ),
-                expression=sge.Extract(this="MONTH", expression=y.expr),
+        ),
+        to=sqlglot_types.from_bigframes_dtype(y.dtype),
+    )
+
+
+def _integer_label_to_datetime_op_monthly_freq(
+    x: TypedExpr, y: TypedExpr, op: ops.IntegerLabelToDatetimeOp
+) -> sge.Expression:
+    n = op.freq.n
+    one = sge.convert(1)
+    twelve = sge.convert(12)
+    first = sge.Sub(  # type: ignore
+        this=sge.Add(
+            this=sge.Mul(
+                this=sge.Extract(this="YEAR", expression=y.expr),
+                expression=twelve,
             ),
-            expression=one,
-        )
-        x_val = sge.Add(
-            this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
-        )
-        year = sge.Cast(
-            this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, twelve)),
-            to="INT64",
-        )
-        month = sge.Add(this=sge.Mod(this=x_val, expression=twelve), expression=one)
-        next_year = sge.Case(
-            ifs=[
-                sge.If(
-                    this=sge.EQ(this=month, expression=twelve),
-                    true=sge.Add(this=year, expression=one),
-                )
-            ],
-            default=year,
-        )
-        next_month = sge.Case(
-            ifs=[
-                sge.If(
-                    this=sge.EQ(this=month, expression=twelve),
-                    true=one,
-                )
-            ],
-            default=sge.Add(this=month, expression=one),
-        )
-        next_month_date = sge.func(
-            "TIMESTAMP",
-            sge.Anonymous(
-                this="DATETIME",
-                expressions=[
-                    next_year,
-                    next_month,
-                    one,
-                    sge.convert(0),
-                    sge.convert(0),
-                    sge.convert(0),
-                ],
-            ),
-        )
-        x_label = sge.Sub(  # type: ignore
-            this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
-        )
-    elif rule_code in ("QE-DEC", "Q-DEC"):  # Quarterly
-        one = sge.convert(1)
-        three = sge.convert(3)
-        four = sge.convert(4)
-        twelve = sge.convert(12)
-        first = sge.Sub(  # type: ignore
-            this=sge.Add(
-                this=sge.Mul(
-                    this=sge.Extract(this="YEAR", expression=y.expr),
-                    expression=four,
-                ),
-                expression=sge.Extract(this="QUARTER", expression=y.expr),
-            ),
-            expression=one,
-        )
-        x_val = sge.Add(
-            this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
-        )
-        year = sge.Cast(
-            this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, four)),
-            to="INT64",
-        )
-        month = sge.Mul(  # type: ignore
-            this=sge.Paren(
-                this=sge.Add(this=sge.Mod(this=x_val, expression=four), expression=one)
-            ),
-            expression=three,
-        )
-        next_year = sge.Case(
-            ifs=[
-                sge.If(
-                    this=sge.EQ(this=month, expression=twelve),
-                    true=sge.Add(this=year, expression=one),
-                )
-            ],
-            default=year,
-        )
-        next_month = sge.Case(
-            ifs=[sge.If(this=sge.EQ(this=month, expression=twelve), true=one)],
-            default=sge.Add(this=month, expression=one),
-        )
-        next_month_date = sge.Anonymous(
+            expression=sge.Extract(this="MONTH", expression=y.expr),
+        ),
+        expression=one,
+    )
+    x_val = sge.Add(
+        this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
+    )
+    year = sge.Cast(
+        this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, twelve)),
+        to="INT64",
+    )
+    month = sge.Add(this=sge.Mod(this=x_val, expression=twelve), expression=one)
+    
+    next_year = sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.EQ(this=month, expression=twelve),
+                true=sge.Add(this=year, expression=one),
+            )
+        ],
+        default=year,
+    )
+    next_month = sge.Case(
+        ifs=[sge.If(this=sge.EQ(this=month, expression=twelve), true=one)],
+        default=sge.Add(this=month, expression=one),
+    )
+    next_month_date = sge.func(
+        "TIMESTAMP",
+        sge.Anonymous(
             this="DATETIME",
             expressions=[
                 next_year,
@@ -616,34 +580,101 @@ def _integer_label_to_datetime_op_non_fixed_frequency(
                 sge.convert(0),
                 sge.convert(0),
             ],
-        )
-        x_label = sge.Sub(  # type: ignore
-            this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
-        )
-    elif rule_code in ("YE-DEC", "A-DEC", "Y-DEC"):  # Yearly
-        one = sge.convert(1)
-        first = sge.Extract(this="YEAR", expression=y.expr)
-        x_val = sge.Add(
-            this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
-        )
-        next_year = sge.Add(this=x_val, expression=one)  # type: ignore
-        next_month_date = sge.func(
-            "TIMESTAMP",
-            sge.Anonymous(
-                this="DATETIME",
-                expressions=[
-                    next_year,
-                    one,
-                    one,
-                    sge.convert(0),
-                    sge.convert(0),
-                    sge.convert(0),
-                ],
+        ),
+    )
+    x_label = sge.Sub(  # type: ignore
+        this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
+    )
+    return sge.Cast(this=x_label, to=sqlglot_types.from_bigframes_dtype(y.dtype))
+
+
+def _integer_label_to_datetime_op_quarterly_freq(
+    x: TypedExpr, y: TypedExpr, op: ops.IntegerLabelToDatetimeOp
+) -> sge.Expression:
+    n = op.freq.n
+    one = sge.convert(1)
+    three = sge.convert(3)
+    four = sge.convert(4)
+    twelve = sge.convert(12)
+    first = sge.Sub(  # type: ignore
+        this=sge.Add(
+            this=sge.Mul(
+                this=sge.Extract(this="YEAR", expression=y.expr),
+                expression=four,
             ),
-        )
-        x_label = sge.Sub(  # type: ignore
-            this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
-        )
-    else:
-        raise ValueError(rule_code)
+            expression=sge.Extract(this="QUARTER", expression=y.expr),
+        ),
+        expression=one,
+    )
+    x_val = sge.Add(
+        this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
+    )
+    year = sge.Cast(
+        this=sge.Floor(this=sge.func("IEEE_DIVIDE", x_val, four)),
+        to="INT64",
+    )
+    month = sge.Mul(  # type: ignore
+        this=sge.Paren(
+            this=sge.Add(this=sge.Mod(this=x_val, expression=four), expression=one)
+        ),
+        expression=three,
+    )
+    
+    next_year = sge.Case(
+        ifs=[
+            sge.If(
+                this=sge.EQ(this=month, expression=twelve),
+                true=sge.Add(this=year, expression=one),
+            )
+        ],
+        default=year,
+    )
+    next_month = sge.Case(
+        ifs=[sge.If(this=sge.EQ(this=month, expression=twelve), true=one)],
+        default=sge.Add(this=month, expression=one),
+    )
+    next_month_date = sge.Anonymous(
+        this="DATETIME",
+        expressions=[
+            next_year,
+            next_month,
+            one,
+            sge.convert(0),
+            sge.convert(0),
+            sge.convert(0),
+        ],
+    )
+    x_label = sge.Sub(  # type: ignore
+        this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
+    )
+    return sge.Cast(this=x_label, to=sqlglot_types.from_bigframes_dtype(y.dtype))
+
+
+def _integer_label_to_datetime_op_yearly_freq(
+    x: TypedExpr, y: TypedExpr, op: ops.IntegerLabelToDatetimeOp
+) -> sge.Expression:
+    n = op.freq.n
+    one = sge.convert(1)
+    first = sge.Extract(this="YEAR", expression=y.expr)
+    x_val = sge.Add(
+        this=sge.Mul(this=x.expr, expression=sge.convert(n)), expression=first
+    )
+    next_year = sge.Add(this=x_val, expression=one)  # type: ignore
+    next_month_date = sge.func(
+        "TIMESTAMP",
+        sge.Anonymous(
+            this="DATETIME",
+            expressions=[
+                next_year,
+                one,
+                one,
+                sge.convert(0),
+                sge.convert(0),
+                sge.convert(0),
+            ],
+        ),
+    )
+    x_label = sge.Sub(  # type: ignore
+        this=next_month_date, expression=sge.Interval(this=one, unit="DAY")
+    )
     return sge.Cast(this=x_label, to=sqlglot_types.from_bigframes_dtype(y.dtype))
