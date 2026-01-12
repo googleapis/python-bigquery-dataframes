@@ -168,6 +168,37 @@ def test_astype_json_invalid(
         )
 
 
+def test_remote_function_op(scalar_types_df: bpd.DataFrame, snapshot):
+    from google.cloud import bigquery
+
+    from bigframes.functions import udf_def
+
+    bf_df = scalar_types_df[["int64_col"]]
+    op = ops.RemoteFunctionOp(
+        function_def=udf_def.BigqueryUdf(
+            routine_ref=bigquery.RoutineReference.from_string(
+                "my_project.my_dataset.my_routine"
+            ),
+            signature=udf_def.UdfSignature(
+                input_types=(
+                    udf_def.UdfField(
+                        "x",
+                        bigquery.StandardSqlDataType(
+                            type_kind=bigquery.StandardSqlTypeNames.INT64
+                        ),
+                    ),
+                ),
+                output_bq_type=bigquery.StandardSqlDataType(
+                    type_kind=bigquery.StandardSqlTypeNames.FLOAT64
+                ),
+            ),
+        ),
+        apply_on_null=True,
+    )
+    sql = utils._apply_ops_to_sql(bf_df, [op.as_expr("int64_col")], ["int64_col"])
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_binary_remote_function_op(scalar_types_df: bpd.DataFrame, snapshot):
     from google.cloud import bigquery
 
