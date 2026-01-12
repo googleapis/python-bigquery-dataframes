@@ -23,6 +23,7 @@ from bigframes import dtypes
 from bigframes.core import window_spec
 import bigframes.core.compile.sqlglot.aggregations.op_registration as reg
 from bigframes.core.compile.sqlglot.aggregations.windows import apply_window_if_present
+from bigframes.core.compile.sqlglot.expressions import constants
 import bigframes.core.compile.sqlglot.expressions.typed_expr as typed_expr
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 from bigframes.operations import aggregations as agg_ops
@@ -324,6 +325,15 @@ def _(
             this=column.expr,
             expression=shifted,
             unit=sge.Identifier(this="MICROSECOND"),
+        )
+
+    if column.dtype == dtypes.DATE_DTYPE:
+        date_diff = sge.DateDiff(
+            this=column.expr, expression=shifted, unit=sge.Identifier(this="DAY")
+        )
+        return sge.Cast(
+            this=sge.Floor(this=date_diff * constants._DAY_TO_MICROSECONDS),
+            to="INT64",
         )
 
     raise TypeError(f"Cannot perform diff on type {column.dtype}")
