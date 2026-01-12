@@ -45,9 +45,13 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    # BQ will return null for empty column, result would be false in pandas.
-    result = apply_window_if_present(sge.func("LOGICAL_AND", column.expr), window)
-    return sge.func("IFNULL", result, sge.true())
+    expr = column.expr
+    if column.dtype != dtypes.BOOL_DTYPE:
+        expr = sge.NEQ(this=expr, expression=sge.convert(0))
+    expr = apply_window_if_present(sge.func("LOGICAL_AND", expr), window)
+
+    # BQ will return null for empty column, result would be true in pandas.
+    return sge.func("COALESCE", expr, sge.convert(True))
 
 
 @UNARY_OP_REGISTRATION.register(agg_ops.AnyOp)
@@ -57,6 +61,8 @@ def _(
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
     expr = column.expr
+    if column.dtype != dtypes.BOOL_DTYPE:
+        expr = sge.NEQ(this=expr, expression=sge.convert(0))
     expr = apply_window_if_present(sge.func("LOGICAL_OR", expr), window)
 
     # BQ will return null for empty column, result would be false in pandas.
