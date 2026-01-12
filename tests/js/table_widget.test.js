@@ -340,6 +340,33 @@ describe('TableWidget', () => {
    * Tests that the widget correctly renders HTML with truncated columns (ellipsis)
    * and ensures that the ellipsis column is not treated as a sortable column.
    */
+  it('should have a fixed height for the table container', () => {
+    // Mock the initial state
+    model.get.mockImplementation((property) => {
+      if (property === 'table_html') {
+        return '<table>...</table>';
+      }
+      return null;
+    });
+
+    // Load the CSS
+    const fs = require('fs');
+    const path = require('path');
+    const css = fs.readFileSync(
+      path.resolve(__dirname, '../../bigframes/display/table_widget.css'),
+      'utf8',
+    );
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+
+    render({ model, el });
+
+    const tableContainer = el.querySelector('.table-container');
+    const styles = window.getComputedStyle(tableContainer);
+    expect(styles.height).toBe('400px');
+  });
+
   it('should render truncated columns with ellipsis and not make ellipsis sortable', () => {
     // Mock HTML with truncated columns
     // Use the structure produced by the python backend
