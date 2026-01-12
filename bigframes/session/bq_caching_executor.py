@@ -598,9 +598,16 @@ class BigQueryCachingExecutor(executor.Executor):
         # Might be better as a queue and a worker thread
         with self._upload_lock:
             if local_table not in self.cache._uploaded_local_data:
-                uploaded = self.loader.write_data(
-                    local_table, bigframes.core.guid.generate_guid()
-                )
+                engine = bigframes.options.compute.default_write_engine
+                if engine == "bigquery_load":
+                    uploaded = self.loader.load_data(
+                        local_table, bigframes.core.guid.generate_guid()
+                    )
+                else:
+                    assert engine == "bigquery_write"
+                    uploaded = self.loader.write_data(
+                        local_table, bigframes.core.guid.generate_guid()
+                    )
                 self.cache.cache_remote_replacement(local_table, uploaded)
 
     def _execute_plan_gbq(

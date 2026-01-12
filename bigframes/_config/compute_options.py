@@ -15,7 +15,7 @@
 """Options for displaying objects."""
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 
 @dataclasses.dataclass
@@ -138,6 +138,17 @@ class ComputeOptions:
 
     Returns:
         int | None: Number of rows, if set.
+    """
+
+    default_write_engine: Literal["bigquery_load", "bigquery_write"] = "bigquery_write"
+    """
+    Sets the default write engine for uploadin local data to bigquery.
+
+    The two options are "bigquery_load" or "bigquery_write". "bigquery_write" is generally
+    preferred as it is faster, but "bigquery_load" may be used if bigquery write api is unavailable.
+
+    Returns:
+        str: "bigquery_load" or "bigquery_write"
     """
 
     semantic_ops_confirmation_threshold: Optional[int] = 0
