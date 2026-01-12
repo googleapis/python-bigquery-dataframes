@@ -515,14 +515,18 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
-    # TODO: Support interpolation argument
-    # TODO: Support percentile_disc
-    result: sge.Expression = sge.func("PERCENTILE_CONT", column.expr, sge.convert(op.q))
+    expr = column.expr
+    if column.dtype == dtypes.BOOL_DTYPE:
+        expr = sge.Cast(this=expr, to="INT64")
+
+    result: sge.Expression = sge.func("PERCENTILE_CONT", expr, sge.convert(op.q))
     if window is None:
-        # PERCENTILE_CONT is a navigation function, not an aggregate function, so it always needs an OVER clause.
+        # PERCENTILE_CONT is a navigation function, not an aggregate function,
+        # so it always needs an OVER clause.
         result = sge.Window(this=result)
     else:
         result = apply_window_if_present(result, window)
+
     if op.should_floor_result:
         result = sge.Cast(this=sge.func("FLOOR", result), to="INT64")
     return result
