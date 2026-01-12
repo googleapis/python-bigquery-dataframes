@@ -19,13 +19,12 @@ import datetime
 import functools
 import typing
 
+import bigframes_vendored.sqlglot as sg
+import bigframes_vendored.sqlglot.expressions as sge
 from google.cloud import bigquery
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-import sqlglot as sg
-import sqlglot.dialects.bigquery
-import sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes.core import guid, local_data, schema, utils
@@ -48,7 +47,7 @@ class SQLGlotIR:
     expr: sge.Select = sg.select()
     """The SQLGlot expression representing the query."""
 
-    dialect = sqlglot.dialects.bigquery.BigQuery
+    dialect = sg.dialects.bigquery.BigQuery
     """The SQL dialect used for generation."""
 
     quoted: bool = True
@@ -120,6 +119,7 @@ class SQLGlotIR:
         col_names: typing.Sequence[str],
         alias_names: typing.Sequence[str],
         uid_gen: guid.SequentialUIDGenerator,
+        sql_predicate: typing.Optional[str] = None,
         system_time: typing.Optional[datetime.datetime] = None,
     ) -> SQLGlotIR:
         """Builds a SQLGlotIR expression from a BigQuery table.
@@ -131,6 +131,7 @@ class SQLGlotIR:
             col_names (typing.Sequence[str]): The names of the columns to select.
             alias_names (typing.Sequence[str]): The aliases for the selected columns.
             uid_gen (guid.SequentialUIDGenerator): A generator for unique identifiers.
+            sql_predicate (typing.Optional[str]): An optional SQL predicate for filtering.
             system_time (typing.Optional[str]): An optional system time for time-travel queries.
         """
         selections = [
@@ -158,6 +159,10 @@ class SQLGlotIR:
             version=version,
         )
         select_expr = sge.Select().select(*selections).from_(table_expr)
+        if sql_predicate:
+            select_expr = select_expr.where(
+                sg.parse_one(sql_predicate, dialect="bigquery"), append=False
+            )
         return cls(expr=select_expr, uid_gen=uid_gen)
 
     @classmethod
@@ -553,16 +558,15 @@ class SQLGlotIR:
         )
         selection = sge.Star(replace=[unnested_column_alias.as_(column)])
 
-        # TODO: "CROSS" if not keep_empty else "LEFT"
-        # TODO: overlaps_with_parent to replace existing column.
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
                 next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
+        # Use LEFT JOIN to preserve rows when unnesting empty arrays.
         new_expr = new_expr.select(selection, append=False).join(
-            unnest_expr, join_type="CROSS"
+            unnest_expr, join_type="LEFT"
         )
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
@@ -616,8 +620,9 @@ class SQLGlotIR:
                 next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
+        # Use LEFT JOIN to preserve rows when unnesting empty arrays.
         new_expr = new_expr.select(selection, append=False).join(
-            unnest_expr, join_type="CROSS"
+            unnest_expr, join_type="LEFT"
         )
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 

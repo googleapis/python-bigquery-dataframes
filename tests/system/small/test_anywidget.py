@@ -201,6 +201,7 @@ def _assert_html_matches_pandas_slice(
 def test_widget_initialization_should_calculate_total_row_count(
     paginated_bf_df: bf.dataframe.DataFrame,
 ):
+    """Test that a TableWidget calculates the total row count on creation."""
     """A TableWidget should correctly calculate the total row count on creation."""
     from bigframes.display import TableWidget
 
@@ -313,9 +314,7 @@ def test_widget_pagination_should_work_with_custom_page_size(
     start_row: int,
     end_row: int,
 ):
-    """
-    A widget should paginate correctly with a custom page size of 3.
-    """
+    """Test that a widget paginates correctly with a custom page size."""
     with bigframes.option_context(
         "display.repr_mode", "anywidget", "display.max_rows", 3
     ):
@@ -775,8 +774,7 @@ def test_widget_sort_should_sort_ascending_on_first_click(
     Given a widget, when a column header is clicked for the first time,
     then the data should be sorted by that column in ascending order.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_context = [{"column": "id", "ascending": True}]
 
     expected_slice = paginated_pandas_df.sort_values("id", ascending=True).iloc[0:2]
     html = table_widget.table_html
@@ -791,11 +789,10 @@ def test_widget_sort_should_sort_descending_on_second_click(
     Given a widget sorted by a column, when the same column header is clicked again,
     then the data should be sorted by that column in descending order.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_context = [{"column": "id", "ascending": True}]
 
     # Second click
-    table_widget.sort_ascending = False
+    table_widget.sort_context = [{"column": "id", "ascending": False}]
 
     expected_slice = paginated_pandas_df.sort_values("id", ascending=False).iloc[0:2]
     html = table_widget.table_html
@@ -810,12 +807,10 @@ def test_widget_sort_should_switch_column_and_sort_ascending(
     Given a widget sorted by a column, when a different column header is clicked,
     then the data should be sorted by the new column in ascending order.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_context = [{"column": "id", "ascending": True}]
 
     # Click on a different column
-    table_widget.sort_column = "value"
-    table_widget.sort_ascending = True
+    table_widget.sort_context = [{"column": "value", "ascending": True}]
 
     expected_slice = paginated_pandas_df.sort_values("value", ascending=True).iloc[0:2]
     html = table_widget.table_html
@@ -830,8 +825,7 @@ def test_widget_sort_should_be_maintained_after_pagination(
     Given a sorted widget, when the user navigates to the next page,
     then the sorting should be maintained.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_context = [{"column": "id", "ascending": True}]
 
     # Go to the second page
     table_widget.page = 1
@@ -849,8 +843,7 @@ def test_widget_sort_should_reset_on_page_size_change(
     Given a sorted widget, when the page size is changed,
     then the sorting should be reset.
     """
-    table_widget.sort_column = "id"
-    table_widget.sort_ascending = True
+    table_widget.sort_context = [{"column": "id", "ascending": True}]
 
     table_widget.page_size = 3
 
@@ -918,7 +911,7 @@ def test_repr_mimebundle_should_fallback_to_html_if_anywidget_is_unavailable(
         "display.repr_mode", "anywidget", "display.max_rows", 2
     ):
         # Mock the ANYWIDGET_INSTALLED flag to simulate absence of anywidget
-        with mock.patch("bigframes.display.anywidget.ANYWIDGET_INSTALLED", False):
+        with mock.patch("bigframes.display.anywidget._ANYWIDGET_INSTALLED", False):
             bundle = paginated_bf_df._repr_mimebundle_()
             assert "application/vnd.jupyter.widget-view+json" not in bundle
             assert "text/html" in bundle
@@ -956,10 +949,11 @@ def test_repr_in_anywidget_mode_should_not_be_deferred(
         assert "page_1_row_1" in representation
 
 
-def test_dataframe_repr_mimebundle_anywidget_with_metadata(
+def test_dataframe_repr_mimebundle_should_return_widget_with_metadata_in_anywidget_mode(
     monkeypatch: pytest.MonkeyPatch,
     session: bigframes.Session,  # Add session as a fixture
 ):
+    """Test that _repr_mimebundle_ returns a widget view with metadata when anywidget is available."""
     with bigframes.option_context("display.repr_mode", "anywidget"):
         # Create a real DataFrame object (or a mock that behaves like one minimally)
         # for _repr_mimebundle_ to operate on.
@@ -984,7 +978,7 @@ def test_dataframe_repr_mimebundle_anywidget_with_metadata(
 
         # Patch the class method directly
         with mock.patch(
-            "bigframes.dataframe.DataFrame._get_anywidget_bundle",
+            "bigframes.display.html.get_anywidget_bundle",
             return_value=mock_get_anywidget_bundle_return_value,
         ):
             result = test_df._repr_mimebundle_()
@@ -1135,3 +1129,41 @@ def test_widget_with_custom_index_matches_pandas_output(
 # TODO(b/438181139): Add tests for custom multiindex
 # This may not be necessary for the SQL Cell use case but should be
 # considered for completeness.
+
+
+def test_series_anywidget_integration_with_notebook_display(
+    paginated_bf_df: bf.dataframe.DataFrame,
+):
+    """Test Series display integration in Jupyter-like environment."""
+    pytest.importorskip("anywidget")
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        series = paginated_bf_df["value"]
+
+        # Test the full display pipeline
+        from IPython.display import display as ipython_display
+
+        # This should work without errors
+        ipython_display(series)
+
+
+def test_series_different_data_types_anywidget(session: bf.Session):
+    """Test Series with different data types in anywidget mode."""
+    pytest.importorskip("anywidget")
+
+    # Create Series with different types
+    test_data = pd.DataFrame(
+        {
+            "string_col": ["a", "b", "c"],
+            "int_col": [1, 2, 3],
+            "float_col": [1.1, 2.2, 3.3],
+            "bool_col": [True, False, True],
+        }
+    )
+    bf_df = session.read_pandas(test_data)
+
+    with bf.option_context("display.repr_mode", "anywidget"):
+        for col_name in test_data.columns:
+            series = bf_df[col_name]
+            widget = bigframes.display.TableWidget(series.to_frame())
+            assert widget.row_count == 3

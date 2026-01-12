@@ -17,7 +17,7 @@ import dataclasses
 import functools
 import typing
 
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes.core import (
     agg_expressions,
@@ -180,6 +180,7 @@ def compile_readtable(node: nodes.ReadTableNode, child: ir.SQLGlotIR):
         col_names=[col.source_id for col in node.scan_list.items],
         alias_names=[col.id.sql for col in node.scan_list.items],
         uid_gen=child.uid_gen,
+        sql_predicate=node.source.sql_predicate,
         system_time=node.source.at_time,
     )
 
@@ -355,6 +356,9 @@ def compile_window(node: nodes.WindowOpNode, child: ir.SQLGlotIR) -> ir.SQLGlotI
                 observation_count = windows.apply_window_if_present(
                     sge.func("SUM", is_observation), window_spec
                 )
+                observation_count = sge.func(
+                    "COALESCE", observation_count, sge.convert(0)
+                )
             else:
                 # Operations like count treat even NULLs as valid observations
                 # for the sake of min_periods notnull is just used to convert
@@ -378,7 +382,7 @@ def compile_window(node: nodes.WindowOpNode, child: ir.SQLGlotIR) -> ir.SQLGlotI
             window_op = sge.Case(ifs=when_expressions, default=window_op)
 
         # TODO: check if we can directly window the expression.
-        result = child.window(
+        result = result.window(
             window_op=window_op,
             output_column_id=cdef.id.sql,
         )
