@@ -491,12 +491,12 @@ def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "int64_col"
-    bf_df = scalar_types_df[[col_name]]
+    bf_df = scalar_types_df[["int64_col", "bool_col"]]
     agg_ops_map = {
-        "quantile": agg_ops.QuantileOp(q=0.5).as_expr(col_name),
-        "quantile_floor": agg_ops.QuantileOp(q=0.5, should_floor_result=True).as_expr(
-            col_name
+        "int64": agg_ops.QuantileOp(q=0.5).as_expr("int64_col"),
+        "bool": agg_ops.QuantileOp(q=0.5).as_expr("bool_col"),
+        "int64_w_floor": agg_ops.QuantileOp(q=0.5, should_floor_result=True).as_expr(
+            "int64_col"
         ),
     }
     sql = _apply_unary_agg_ops(
