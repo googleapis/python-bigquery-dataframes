@@ -247,6 +247,17 @@ def test_diff_w_datetime(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_diff_w_date(scalar_types_df: bpd.DataFrame, snapshot):
+    col_name = "date_col"
+    bf_df_date = scalar_types_df[[col_name]]
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    op = agg_exprs.UnaryAggregation(
+        agg_ops.DiffOp(periods=1), expression.deref(col_name)
+    )
+    sql = _apply_unary_window_op(bf_df_date, op, window, "diff_date")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_diff_w_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "timestamp_col"
     bf_df_timestamp = scalar_types_df[[col_name]]
