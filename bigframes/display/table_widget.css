@@ -81,7 +81,7 @@ body[data-theme='dark'] .bigframes-widget.bigframes-widget {
 .bigframes-widget .table-container {
   background-color: var(--bf-bg);
   margin: 0;
-  height: 400px;
+  max-height: 620px;
   overflow: auto;
   padding: 0;
 }
