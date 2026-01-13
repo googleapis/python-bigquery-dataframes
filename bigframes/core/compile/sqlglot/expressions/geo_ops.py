@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import operations as ops
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
@@ -108,12 +108,12 @@ def _(expr: TypedExpr, op: ops.GeoStSimplifyOp) -> sge.Expression:
 
 @register_unary_op(ops.geo_x_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.func("SAFE.ST_X", expr.expr)
+    return sge.func("ST_X", expr.expr)
 
 
 @register_unary_op(ops.geo_y_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.func("SAFE.ST_Y", expr.expr)
+    return sge.func("ST_Y", expr.expr)
 
 
 @register_binary_op(ops.GeoStDistanceOp, pass_op=True)

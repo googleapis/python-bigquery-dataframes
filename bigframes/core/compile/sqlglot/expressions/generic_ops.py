@@ -14,8 +14,8 @@
 
 from __future__ import annotations
 
-import sqlglot as sg
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot as sg
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes import operations as ops
@@ -138,6 +138,19 @@ def _(
 @register_binary_op(ops.fillna_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.Coalesce(this=left.expr, expressions=[right.expr])
+
+
+@register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
+def _(
+    left: TypedExpr, right: TypedExpr, op: ops.BinaryRemoteFunctionOp
+) -> sge.Expression:
+    routine_ref = op.function_def.routine_ref
+    # Quote project, dataset, and routine IDs to avoid keyword clashes.
+    func_name = (
+        f"`{routine_ref.project}`.`{routine_ref.dataset_id}`.`{routine_ref.routine_id}`"
+    )
+
+    return sge.func(func_name, left.expr, right.expr)
 
 
 @register_nary_op(ops.case_when_op)
