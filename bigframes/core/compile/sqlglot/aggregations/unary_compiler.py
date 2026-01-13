@@ -426,24 +426,28 @@ def _(
     column: typed_expr.TypedExpr,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
+    expr = column.expr
+    if column.dtype == dtypes.BOOL_DTYPE:
+        expr = sge.Cast(this=expr, to="INT64")
+
     # Need to short-circuit as log with zeroes is illegal sql
-    is_zero = sge.EQ(this=column.expr, expression=sge.convert(0))
+    is_zero = sge.EQ(this=expr, expression=sge.convert(0))
 
     # There is no product sql aggregate function, so must implement as a sum of logs, and then
     # apply power after. Note, log and power base must be equal! This impl uses natural log.
-    logs = (
-        sge.Case()
-        .when(is_zero, sge.convert(0))
-        .else_(sge.func("LN", sge.func("ABS", column.expr)))
+    logs = sge.If(
+        this=is_zero,
+        true=sge.convert(0),
+        false=sge.func("LOG", sge.convert(2), sge.func("ABS", expr)),
     )
     logs_sum = apply_window_if_present(sge.func("SUM", logs), window)
-    magnitude = sge.func("EXP", logs_sum)
+    magnitude = sge.func("POWER", sge.convert(2), logs_sum)
 
     # Can't determine sign from logs, so have to determine parity of count of negative inputs
     is_negative = (
         sge.Case()
         .when(
-            sge.LT(this=sge.func("SIGN", column.expr), expression=sge.convert(0)),
+            sge.EQ(this=sge.func("SIGN", expr), expression=sge.convert(-1)),
             sge.convert(1),
         )
         .else_(sge.convert(0))
@@ -461,11 +465,7 @@ def _(
         .else_(
             sge.Mul(
                 this=magnitude,
-                expression=sge.If(
-                    this=sge.EQ(this=negative_count_parity, expression=sge.convert(1)),
-                    true=sge.convert(-1),
-                    false=sge.convert(1),
-                ),
+                expression=sge.func("POWER", sge.convert(-1), negative_count_parity),
             )
         )
     )
