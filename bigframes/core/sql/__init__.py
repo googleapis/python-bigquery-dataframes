@@ -21,7 +21,7 @@ import datetime
 import decimal
 import json
 import math
-from typing import cast, Collection, Iterable, Mapping, Optional, TYPE_CHECKING, Union
+from typing import Any, cast, Collection, Iterable, Mapping, Optional, TYPE_CHECKING, Union
 
 import shapely.geometry.base  # type: ignore
 
@@ -246,3 +246,94 @@ def create_vector_search_sql(
         distance,
     FROM VECTOR_SEARCH({args_str})
     """
+
+
+def _field_type_to_sql(field: bigquery.SchemaField) -> str:
+    if field.field_type in ("RECORD", "STRUCT"):
+        sub_defs = []
+        for sub in field.fields:
+            sub_type = _field_type_to_sql(sub)
+            sub_def = f"{sub.name} {sub_type}"
+            if sub.mode == "REQUIRED":
+                sub_def += " NOT NULL"
+            sub_defs.append(sub_def)
+        type_str = f"STRUCT<{', '.join(sub_defs)}>"
+    else:
+        type_str = field.field_type
+
+    if field.mode == "REPEATED":
+        return f"ARRAY<{type_str}>"
+    return type_str
+
+
+def schema_field_to_sql(field: bigquery.SchemaField) -> str:
+    """Convert a BigQuery SchemaField to a SQL DDL column definition."""
+    type_sql = _field_type_to_sql(field)
+    sql = f"{field.name} {type_sql}"
+    if field.mode == "REQUIRED":
+        sql += " NOT NULL"
+    if field.description:
+        sql += f" OPTIONS(description={simple_literal(field.description)})"
+    return sql
+
+
+def load_data_ddl(
+    destination_table: str,
+    uris: list[str],
+    format: str,
+    *,
+    schema_fields: list[bigquery.SchemaField] | None = None,
+    cluster_by: list[str] | None = None,
+    partition_by: str | None = None,
+    table_options: dict[str, Any] | None = None,
+    load_options: dict[str, Any] | None = None,
+    connection: str | None = None,
+    hive_partition_columns: list[bigquery.SchemaField] | None = None,
+    overwrite: bool = False,
+) -> str:
+    """Construct a LOAD DATA DDL statement."""
+    action = "OVERWRITE" if overwrite else "INTO"
+
+    query = f"LOAD DATA {action} {googlesql.identifier(destination_table)}\n"
+
+    if schema_fields:
+        columns_sql = ",\n".join(schema_field_to_sql(field) for field in schema_fields)
+        query += f"(\n{columns_sql}\n)\n"
+
+    if partition_by:
+        query += f"PARTITION BY {partition_by}\n"
+
+    if cluster_by:
+        query += f"CLUSTER BY {', '.join(cluster_by)}\n"
+
+    if table_options:
+        opts_list = []
+        for k, v in table_options.items():
+            opts_list.append(f"{k}={simple_literal(v)}")
+        query += f"OPTIONS({', '.join(opts_list)})\n"
+
+    files_opts = {}
+    if load_options:
+        files_opts.update(load_options)
+
+    files_opts["uris"] = uris
+    files_opts["format"] = format
+
+    files_opts_list = []
+    for k, v in files_opts.items():
+        files_opts_list.append(f"{k}={simple_literal(v)}")
+
+    query += f"FROM FILES({', '.join(files_opts_list)})\n"
+
+    if hive_partition_columns:
+        cols_sql = ",\n".join(
+            schema_field_to_sql(field) for field in hive_partition_columns
+        )
+        query += f"WITH PARTITION COLUMNS (\n{cols_sql}\n)\n"
+    elif hive_partition_columns is not None:
+        query += "WITH PARTITION COLUMNS\n"
+
+    if connection:
+        query += f"WITH CONNECTION {connection}\n"
+
+    return query

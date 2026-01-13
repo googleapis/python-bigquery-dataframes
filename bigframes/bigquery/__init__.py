@@ -43,6 +43,7 @@ from bigframes.bigquery._operations.geo import (
     st_regionstats,
     st_simplify,
 )
+from bigframes.bigquery._operations.io import load_data
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
@@ -85,6 +86,8 @@ _functions = [
     st_length,
     st_regionstats,
     st_simplify,
+    # io ops
+    load_data,
     # json ops
     json_extract,
     json_extract_array,
@@ -135,6 +138,8 @@ __all__ = [
     "st_length",
     "st_regionstats",
     "st_simplify",
+    # io ops
+    "load_data",
     # json ops
     "json_extract",
     "json_extract_array",
