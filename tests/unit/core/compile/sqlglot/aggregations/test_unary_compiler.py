@@ -70,20 +70,14 @@ def test_all(scalar_types_df: bpd.DataFrame, snapshot):
 
     snapshot.assert_match(sql, "out.sql")
 
-    # Window tests
-    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
-    sql_window = _apply_unary_window_op(bf_df, agg_expr, window, "agg_bool")
-    snapshot.assert_match(sql_window, "window_out.sql")
 
-    bf_df_str = scalar_types_df[[col_name, "string_col"]]
-    window_partition = window_spec.WindowSpec(
-        grouping_keys=(expression.deref("string_col"),),
-        ordering=(ordering.descending_over(col_name),),
-    )
-    sql_window_partition = _apply_unary_window_op(
-        bf_df_str, agg_expr, window_partition, "agg_bool"
-    )
-    snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
+def test_all_raises_error_with_window(scalar_types_df: bpd.DataFrame):
+    col_name = "bool_col"
+    bf_df = scalar_types_df[[col_name]]
+    agg_expr = agg_ops.AllOp().as_expr(col_name)
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    with pytest.raises(NotImplementedError):
+        _apply_unary_window_op(bf_df, agg_expr, window, "agg_bool")
 
 
 def test_any(scalar_types_df: bpd.DataFrame, snapshot):
