@@ -138,7 +138,21 @@ def _render_table_body(
     right_columns: list[Any],
     show_ellipsis: bool,
 ) -> str:
-    """Render the body of the HTML table."""
+    """Render the table body.
+
+    Args:
+        dataframe: The flattened dataframe to render.
+        row_labels: Optional labels for each row, used for visual grouping of exploded rows.
+            See `bigframes.display._flatten.FlattenResult` for details.
+        continuation_rows: Indices of rows that are continuations of array explosion.
+            See `bigframes.display._flatten.FlattenResult` for details.
+        clear_on_continuation: Columns to render as empty in continuation rows.
+            See `bigframes.display._flatten.FlattenResult` for details.
+        nested_originated_columns: Columns created from nested data, used for alignment.
+        left_columns: Columns to display on the left.
+        right_columns: Columns to display on the right.
+        show_ellipsis: Whether to show an ellipsis row.
+    """
     body_parts = ["  <tbody>"]
     precision = options.display.precision
 
@@ -315,8 +329,8 @@ def _get_obj_metadata(
 
 def get_anywidget_bundle(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
+    include: typing.Container[str] | None = None,
+    exclude: typing.Container[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Helper method to create and return the anywidget mimebundle.
@@ -413,9 +427,9 @@ def repr_mimebundle_head(
 
 def repr_mimebundle(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
-):
+    include: typing.Container[str] | None = None,
+    exclude: typing.Container[str] | None = None,
+) -> dict[str, str] | tuple[dict[str, Any], dict[str, Any]] | None:
     """Custom display method for IPython/Jupyter environments."""
     # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
     # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.

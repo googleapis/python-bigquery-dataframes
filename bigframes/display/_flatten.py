@@ -25,6 +25,7 @@ It handles nested structures by:
 from __future__ import annotations
 
 import dataclasses
+import enum
 
 import numpy as np
 import pandas as pd
@@ -37,11 +38,22 @@ class FlattenResult:
     """The result of flattening a DataFrame.
 
     Attributes:
-        dataframe: The flattened DataFrame.
+        dataframe: The flattened DataFrame. If the original DataFrame had an index
+            (including MultiIndex), it is preserved in this flattened DataFrame,
+            duplicated across exploded rows as needed.
         row_labels: A list of original row labels for each row in the flattened DataFrame.
-        continuation_rows: A set of row indices that are continuation rows.
-        cleared_on_continuation: A list of column names that should be cleared on continuation rows.
-        nested_columns: A set of column names that were created from nested data.
+            This corresponds to the original index values (stringified) and serves to
+            visually group the exploded rows that belong to the same original row.
+        continuation_rows: A set of row indices in the flattened DataFrame that are
+            "continuation rows". These are additional rows created to display the
+            2nd to Nth elements of an array. The first row (index i-1) contains
+            the 1st element, while these rows contain subsequent elements.
+        cleared_on_continuation: A list of column names that should be "cleared"
+            (displayed as empty) on continuation rows. Typically, these are
+            scalar columns (non-array) that were replicated during the explosion
+            process but should only be visually displayed once per original row group.
+        nested_columns: A set of column names that were created from nested data
+            (flattened structs or arrays).
     """
 
     dataframe: pd.DataFrame
@@ -51,8 +63,15 @@ class FlattenResult:
     nested_columns: set[str]
 
 
+class _ColumnCategory(enum.Enum):
+    STRUCT = "struct"
+    ARRAY = "array"
+    ARRAY_OF_STRUCT = "array_of_struct"
+    CLEAR = "clear"
+
+
 @dataclasses.dataclass(frozen=True)
-class ColumnClassification:
+class _ColumnClassification:
     """The result of classifying columns.
 
     Attributes:
@@ -176,47 +195,51 @@ def flatten_nested_data(
 
 def _classify_columns(
     dataframe: pd.DataFrame,
-) -> ColumnClassification:
+) -> _ColumnClassification:
     """Identify all STRUCT and ARRAY columns in the DataFrame.
 
     Args:
         dataframe: The DataFrame to inspect.
 
     Returns:
-        A ColumnClassification object containing lists of column names for each category.
+        A _ColumnClassification object containing lists of column names for each category.
     """
 
-    def get_category(dtype: pd.api.extensions.ExtensionDtype) -> str:
+    def get_category(dtype: pd.api.extensions.ExtensionDtype) -> _ColumnCategory:
         pa_type = getattr(dtype, "pyarrow_dtype", None)
         if pa_type:
             if pa.types.is_struct(pa_type):
-                return "struct"
+                return _ColumnCategory.STRUCT
             if pa.types.is_list(pa_type):
                 return (
-                    "array_of_struct"
+                    _ColumnCategory.ARRAY_OF_STRUCT
                     if pa.types.is_struct(pa_type.value_type)
-                    else "array"
+                    else _ColumnCategory.ARRAY
                 )
-        return "clear"
+        return _ColumnCategory.CLEAR
 
     # Maps column names to their structural category to simplify list building.
     categories = {
         str(col): get_category(dtype) for col, dtype in dataframe.dtypes.items()
     }
 
-    return ColumnClassification(
-        struct_columns=tuple(c for c, cat in categories.items() if cat == "struct"),
+    return _ColumnClassification(
+        struct_columns=tuple(
+            c for c, cat in categories.items() if cat == _ColumnCategory.STRUCT
+        ),
         array_columns=tuple(
-            c for c, cat in categories.items() if cat in ("array", "array_of_struct")
+            c
+            for c, cat in categories.items()
+            if cat in (_ColumnCategory.ARRAY, _ColumnCategory.ARRAY_OF_STRUCT)
         ),
         array_of_struct_columns=tuple(
-            c for c, cat in categories.items() if cat == "array_of_struct"
+            c for c, cat in categories.items() if cat == _ColumnCategory.ARRAY_OF_STRUCT
         ),
         clear_on_continuation_cols=tuple(
-            c for c, cat in categories.items() if cat == "clear"
+            c for c, cat in categories.items() if cat == _ColumnCategory.CLEAR
         ),
         nested_originated_columns=frozenset(
-            c for c, cat in categories.items() if cat != "clear"
+            c for c, cat in categories.items() if cat != _ColumnCategory.CLEAR
         ),
     )
 
@@ -357,7 +380,7 @@ def _explode_array_columns(
     if not array_columns:
         return ExplodeResult(dataframe, [], set())
 
-    work_df, non_array_columns, original_index_name = _prepare_explosion_dataframe(
+    work_df, non_array_columns, index_names = _prepare_explosion_dataframe(
         dataframe, array_columns
     )
 
@@ -386,8 +409,8 @@ def _explode_array_columns(
     total_rows = target_offsets[-1].as_py()
     if total_rows == 0:
         empty_df = pd.DataFrame(columns=dataframe.columns)
-        if original_index_name:
-            empty_df.index.name = original_index_name
+        if index_names:
+            empty_df = empty_df.set_index(index_names)
         return ExplodeResult(empty_df, [], set())
 
     # parent_indices maps each result row to its original row index.
@@ -425,45 +448,69 @@ def _explode_array_columns(
     result_table = pa.Table.from_pydict(new_columns)
     result_df = result_table.to_pandas(types_mapper=pd.ArrowDtype)
 
-    grouping_col_name = (
-        "_original_index" if original_index_name is None else original_index_name
-    )
-    row_labels = result_df[grouping_col_name].astype(str).tolist()
+    if index_names:
+        if len(index_names) == 1:
+            row_labels = result_df[index_names[0]].astype(str).tolist()
+        else:
+            # For MultiIndex, create a tuple string representation
+            row_labels = (
+                result_df[index_names].apply(tuple, axis=1).astype(str).tolist()
+            )
+    else:
+        row_labels = result_df["_original_index"].astype(str).tolist()
 
     continuation_mask = pc.greater(row_nums, 0).to_numpy(zero_copy_only=False)
     continuation_rows = set(np.flatnonzero(continuation_mask).tolist())
 
-    result_df = result_df[dataframe.columns.tolist()]
+    # Select columns: original columns + restored index columns (temporarily)
+    cols_to_keep = dataframe.columns.tolist()
+    if index_names:
+        cols_to_keep.extend(index_names)
 
-    if original_index_name:
-        result_df = result_df.set_index(original_index_name)
+    # Filter columns, but allow index columns to pass through if they are not in original columns
+    # (which they won't be if they were indices)
+    result_df = result_df[cols_to_keep]
+
+    if index_names:
+        result_df = result_df.set_index(index_names)
 
     return ExplodeResult(result_df, row_labels, continuation_rows)
 
 
 def _prepare_explosion_dataframe(
     dataframe: pd.DataFrame, array_columns: list[str]
-) -> tuple[pd.DataFrame, list[str], str | None]:
+) -> tuple[pd.DataFrame, list[str], list[str] | None]:
     """Prepares the DataFrame for explosion by ensuring grouping columns exist."""
-    work_df = dataframe
+    work_df = dataframe.copy()
     non_array_columns = work_df.columns.drop(array_columns).tolist()
 
     if not non_array_columns:
-        work_df = work_df.copy()  # Avoid modifying input
         # Add a temporary column to allow grouping if all columns are arrays.
         non_array_columns = ["_temp_grouping_col"]
         work_df["_temp_grouping_col"] = range(len(work_df))
 
-    original_index_name = None
-    if work_df.index.name:
-        original_index_name = work_df.index.name
+    index_names = None
+    if work_df.index.nlevels > 1:
+        # Handle MultiIndex
+        names = list(work_df.index.names)
+        # Assign default names if None to ensure reset_index works and we can track them
+        names = [n if n is not None else f"level_{i}" for i, n in enumerate(names)]
+        work_df.index.names = names
+        index_names = names
         work_df = work_df.reset_index()
-        non_array_columns.append(original_index_name)
+        non_array_columns.extend(index_names)
+    elif work_df.index.name is not None:
+        # Handle named Index
+        index_names = [work_df.index.name]
+        work_df = work_df.reset_index()
+        non_array_columns.extend(index_names)
     else:
+        # Handle default/unnamed Index
+        # We use _original_index for tracking but don't return it as an index to restore
         work_df = work_df.reset_index(names=["_original_index"])
         non_array_columns.append("_original_index")
 
-    return work_df, non_array_columns, original_index_name
+    return work_df, non_array_columns, index_names
 
 
 def _flatten_struct_columns(

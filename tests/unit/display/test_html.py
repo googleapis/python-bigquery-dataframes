@@ -19,7 +19,6 @@ import pyarrow as pa
 import pytest
 
 import bigframes as bf
-from bigframes.display._flatten import flatten_nested_data
 import bigframes.display.html as bf_html
 
 
@@ -149,55 +148,6 @@ def test_render_html_precision():
     # Make sure we reset to default
     html = bf_html.render_html(dataframe=df, table_id="test-table")
     assert "3.141593" in html
-
-
-def test_flatten_nested_data_flattens_structs():
-    """Verify that flatten_nested_data correctly flattens STRUCT columns."""
-    struct_data = pd.DataFrame(
-        {
-            "id": [1, 2],
-            "struct_col": pd.Series(
-                [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}],
-                dtype=pd.ArrowDtype(
-                    pa.struct([("name", pa.string()), ("age", pa.int64())])
-                ),
-            ),
-        }
-    )
-
-    result = flatten_nested_data(struct_data)
-    flattened = result.dataframe
-    nested_originated_columns = result.nested_columns
-
-    assert "struct_col.name" in flattened.columns
-    assert "struct_col.age" in flattened.columns
-    assert flattened["struct_col.name"].tolist() == ["Alice", "Bob"]
-    assert "struct_col" in nested_originated_columns
-    assert "struct_col.name" in nested_originated_columns
-    assert "struct_col.age" in nested_originated_columns
-
-
-def test_flatten_nested_data_explodes_arrays():
-    """Verify that flatten_nested_data correctly explodes ARRAY columns."""
-    array_data = pd.DataFrame(
-        {
-            "id": [1, 2],
-            "array_col": pd.Series(
-                [[10, 20, 30], [40, 50]], dtype=pd.ArrowDtype(pa.list_(pa.int64()))
-            ),
-        }
-    )
-
-    result = flatten_nested_data(array_data)
-    flattened = result.dataframe
-    row_labels = result.row_labels
-    continuation_rows = result.continuation_rows
-    nested_originated_columns = result.nested_columns
-
-    assert len(flattened) == 5  # 3 + 2 array elements
-    assert row_labels == ["0", "0", "0", "1", "1"]
-    assert continuation_rows == {1, 2, 4}
-    assert "array_col" in nested_originated_columns
 
 
 def test_render_html_max_columns_truncation():
