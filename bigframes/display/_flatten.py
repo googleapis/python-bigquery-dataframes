@@ -90,7 +90,7 @@ class _ColumnClassification:
 
 
 @dataclasses.dataclass(frozen=True)
-class FlattenArrayOfStructsResult:
+class _FlattenArrayOfStructsResult:
     """The result of flattening array-of-struct columns.
 
     Attributes:
@@ -105,7 +105,7 @@ class FlattenArrayOfStructsResult:
 
 
 @dataclasses.dataclass(frozen=True)
-class FlattenStructsResult:
+class _FlattenStructsResult:
     """The result of flattening struct columns.
 
     Attributes:
@@ -249,7 +249,7 @@ def _flatten_array_of_struct_columns(
     array_of_struct_columns: tuple[str, ...],
     array_columns: tuple[str, ...],
     nested_originated_columns: frozenset[str],
-) -> FlattenArrayOfStructsResult:
+) -> _FlattenArrayOfStructsResult:
     """Flatten ARRAY of STRUCT columns into separate ARRAY columns for each field.
 
     Args:
@@ -259,7 +259,7 @@ def _flatten_array_of_struct_columns(
         nested_originated_columns: Columns tracked as originating from nested data.
 
     Returns:
-        A FlattenArrayOfStructsResult containing the updated DataFrame and columns.
+        A _FlattenArrayOfStructsResult containing the updated DataFrame and columns.
     """
     result_df = dataframe.copy()
     current_array_columns = list(array_columns)
@@ -288,7 +288,7 @@ def _flatten_array_of_struct_columns(
         current_array_columns.remove(col_name)
         current_array_columns.extend(new_cols_df.columns.tolist())
 
-    return FlattenArrayOfStructsResult(
+    return _FlattenArrayOfStructsResult(
         dataframe=result_df,
         array_columns=tuple(current_array_columns),
         nested_originated_columns=frozenset(current_nested_columns),
@@ -347,7 +347,7 @@ def _replace_column_in_df(
 
 
 @dataclasses.dataclass(frozen=True)
-class ExplodeResult:
+class _ExplodeResult:
     """The result of exploding array columns.
 
     Attributes:
@@ -363,7 +363,7 @@ class ExplodeResult:
 
 def _explode_array_columns(
     dataframe: pd.DataFrame, array_columns: list[str]
-) -> ExplodeResult:
+) -> _ExplodeResult:
     """Explode array columns into new rows.
 
     This function performs the "flattening" of 1D arrays by exploding them.
@@ -375,17 +375,17 @@ def _explode_array_columns(
         array_columns: List of array columns to explode.
 
     Returns:
-        An ExplodeResult containing the new DataFrame and row metadata.
+        An _ExplodeResult containing the new DataFrame and row metadata.
     """
     if not array_columns:
-        return ExplodeResult(dataframe, [], set())
+        return _ExplodeResult(dataframe, [], set())
 
     work_df, non_array_columns, index_names = _prepare_explosion_dataframe(
         dataframe, array_columns
     )
 
     if work_df.empty:
-        return ExplodeResult(dataframe, [], set())
+        return _ExplodeResult(dataframe, [], set())
 
     table = pa.Table.from_pandas(work_df)
     arrays = [table.column(col).combine_chunks() for col in array_columns]
@@ -399,7 +399,7 @@ def _explode_array_columns(
         lengths.append(row_lengths)
 
     if not lengths:
-        return ExplodeResult(dataframe, [], set())
+        return _ExplodeResult(dataframe, [], set())
 
     max_lens = lengths[0] if len(lengths) == 1 else pc.max_element_wise(*lengths)
     max_lens = max_lens.cast(pa.int64())
@@ -411,7 +411,7 @@ def _explode_array_columns(
         empty_df = pd.DataFrame(columns=dataframe.columns)
         if index_names:
             empty_df = empty_df.set_index(index_names)
-        return ExplodeResult(empty_df, [], set())
+        return _ExplodeResult(empty_df, [], set())
 
     # parent_indices maps each result row to its original row index.
     dummy_values = pa.nulls(total_rows, type=pa.null())
@@ -474,7 +474,7 @@ def _explode_array_columns(
     if index_names:
         result_df = result_df.set_index(index_names)
 
-    return ExplodeResult(result_df, row_labels, continuation_rows)
+    return _ExplodeResult(result_df, row_labels, continuation_rows)
 
 
 def _prepare_explosion_dataframe(
@@ -518,7 +518,7 @@ def _flatten_struct_columns(
     struct_columns: tuple[str, ...],
     clear_on_continuation_cols: tuple[str, ...],
     nested_originated_columns: frozenset[str],
-) -> FlattenStructsResult:
+) -> _FlattenStructsResult:
     """Flatten regular STRUCT columns into separate columns.
 
     Args:
@@ -528,10 +528,10 @@ def _flatten_struct_columns(
         nested_originated_columns: Columns tracked as originating from nested data.
 
     Returns:
-        A FlattenStructsResult containing the updated DataFrame and columns.
+        A _FlattenStructsResult containing the updated DataFrame and columns.
     """
     if not struct_columns:
-        return FlattenStructsResult(
+        return _FlattenStructsResult(
             dataframe=dataframe.copy(),
             clear_on_continuation_cols=clear_on_continuation_cols,
             nested_originated_columns=nested_originated_columns,
@@ -568,7 +568,7 @@ def _flatten_struct_columns(
 
     result_df.index = dataframe.index
 
-    return FlattenStructsResult(
+    return _FlattenStructsResult(
         dataframe=result_df,
         clear_on_continuation_cols=tuple(current_clear_cols),
         nested_originated_columns=frozenset(current_nested_cols),
