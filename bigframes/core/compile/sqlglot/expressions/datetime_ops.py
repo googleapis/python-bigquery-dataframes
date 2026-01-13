@@ -438,8 +438,25 @@ def integer_label_to_datetime_op(
     # Determine if the frequency is fixed by checking if 'op.freq.nanos' is defined.
     try:
         return _integer_label_to_datetime_op_fixed_frequency(x, y, op)
+
     except ValueError:
-        return _integer_label_to_datetime_op_non_fixed_frequency(x, y, op)
+        # Non-fixed frequency conversions for units ranging from weeks to years.
+        rule_code = op.freq.rule_code
+
+        if rule_code == "W-SUN":
+            return _integer_label_to_datetime_op_weekly_freq(x, y, op)
+
+        if rule_code in ("ME", "M"):
+            return _integer_label_to_datetime_op_monthly_freq(x, y, op)
+
+        if rule_code in ("QE-DEC", "Q-DEC"):
+            return _integer_label_to_datetime_op_quarterly_freq(x, y, op)
+
+        if rule_code in ("YE-DEC", "A-DEC", "Y-DEC"):
+            return _integer_label_to_datetime_op_yearly_freq(x, y, op)
+
+        # If the rule_code is not recognized, raise an error here.
+        raise ValueError(f"Unsupported frequency rule code: {rule_code}")
 
 
 def _integer_label_to_datetime_op_fixed_frequency(
@@ -468,30 +485,6 @@ def _integer_label_to_datetime_op_fixed_frequency(
         to=sqlglot_types.from_bigframes_dtype(y.dtype),
     )
     return x_label
-
-
-def _integer_label_to_datetime_op_non_fixed_frequency(
-    x: TypedExpr, y: TypedExpr, op: ops.IntegerLabelToDatetimeOp
-) -> sge.Expression:
-    """
-    This function handles non-fixed frequency conversions for units ranging
-    from weeks to years.
-    """
-    rule_code = op.freq.rule_code
-
-    if rule_code == "W-SUN":
-        return _integer_label_to_datetime_op_weekly_freq(x, y, op)
-
-    if rule_code in ("ME", "M"):
-        return _integer_label_to_datetime_op_monthly_freq(x, y, op)
-
-    if rule_code in ("QE-DEC", "Q-DEC"):
-        return _integer_label_to_datetime_op_quarterly_freq(x, y, op)
-
-    if rule_code in ("YE-DEC", "A-DEC", "Y-DEC"):
-        return _integer_label_to_datetime_op_yearly_freq(x, y, op)
-
-    raise ValueError(rule_code)
 
 
 def _integer_label_to_datetime_op_weekly_freq(
