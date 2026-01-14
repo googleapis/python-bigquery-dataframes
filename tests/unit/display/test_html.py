@@ -106,7 +106,7 @@ import bigframes.display.html as bf_html
             {
                 "array_col": "left",
             },
-            ["[1, 2, 3]", "[4, 5, 6]", "[7, 8, 9]"],
+            ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
             id="array",
         ),
         pytest.param(
@@ -119,7 +119,7 @@ import bigframes.display.html as bf_html
             {
                 "struct_col": "left",
             },
-            ["{&#x27;v&#x27;: 1}", "{&#x27;v&#x27;: 2}", "{&#x27;v&#x27;: 3}"],
+            ["1", "2", "3"],
             id="struct",
         ),
     ],

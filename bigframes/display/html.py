@@ -28,7 +28,7 @@ import pandas.api.types
 
 import bigframes
 from bigframes._config import display_options, options
-from bigframes.display import plaintext
+from bigframes.display import _flatten, plaintext
 import bigframes.formatting_helpers as formatter
 
 if typing.TYPE_CHECKING:
@@ -48,13 +48,17 @@ def render_html(
     orderable_columns: list[str] | None = None,
     max_columns: int | None = None,
 ) -> str:
-    """Render a pandas DataFrame to HTML with specific styling."""
+    """Render a pandas DataFrame to HTML with specific styling and nested data support."""
+    # Flatten nested data first
+    flatten_result = _flatten.flatten_nested_data(dataframe)
+    flat_df = flatten_result.dataframe
+
     orderable_columns = orderable_columns or []
     classes = "dataframe table table-striped table-hover"
     table_html_parts = [f'<table border="1" class="{classes}" id="{table_id}">']
 
     # Handle column truncation
-    columns = list(dataframe.columns)
+    columns = list(flat_df.columns)
     if max_columns is not None and max_columns > 0 and len(columns) > max_columns:
         half = max_columns // 2
         left_columns = columns[:half]
@@ -70,11 +74,20 @@ def render_html(
 
     table_html_parts.append(
         _render_table_header(
-            dataframe, orderable_columns, left_columns, right_columns, show_ellipsis
+            flat_df, orderable_columns, left_columns, right_columns, show_ellipsis
         )
     )
     table_html_parts.append(
-        _render_table_body(dataframe, left_columns, right_columns, show_ellipsis)
+        _render_table_body(
+            flat_df,
+            flatten_result.row_labels,
+            flatten_result.continuation_rows,
+            flatten_result.cleared_on_continuation,
+            flatten_result.nested_columns,
+            left_columns,
+            right_columns,
+            show_ellipsis,
+        )
     )
     table_html_parts.append("</table>")
     return "".join(table_html_parts)
@@ -117,39 +130,66 @@ def _render_table_header(
 
 def _render_table_body(
     dataframe: pd.DataFrame,
+    row_labels: list[str] | None,
+    continuation_rows: set[int] | None,
+    clear_on_continuation: list[str],
+    nested_originated_columns: set[str],
     left_columns: list[Any],
     right_columns: list[Any],
     show_ellipsis: bool,
 ) -> str:
-    """Render the body of the HTML table."""
+    """Render the table body.
+
+    Args:
+        dataframe: The flattened dataframe to render.
+        row_labels: Optional labels for each row, used for visual grouping of exploded rows.
+            See `bigframes.display._flatten.FlattenResult` for details.
+        continuation_rows: Indices of rows that are continuations of array explosion.
+            See `bigframes.display._flatten.FlattenResult` for details.
+        clear_on_continuation: Columns to render as empty in continuation rows.
+            See `bigframes.display._flatten.FlattenResult` for details.
+        nested_originated_columns: Columns created from nested data, used for alignment.
+        left_columns: Columns to display on the left.
+        right_columns: Columns to display on the right.
+        show_ellipsis: Whether to show an ellipsis row.
+    """
     body_parts = ["  <tbody>"]
     precision = options.display.precision
 
     for i in range(len(dataframe)):
-        body_parts.append("    <tr>")
+        row_class = ""
+        orig_row_idx = None
+        is_continuation = False
+
+        if row_labels:
+            orig_row_idx = row_labels[i]
+
+        if continuation_rows and i in continuation_rows:
+            is_continuation = True
+            row_class = "array-continuation"
+
+        if orig_row_idx is not None:
+            body_parts.append(
+                f'    <tr class="{row_class}" data-orig-row="{orig_row_idx}">'
+            )
+        else:
+            body_parts.append("    <tr>")
+
         row = dataframe.iloc[i]
 
         def render_col_cell(col_name):
             value = row[col_name]
             dtype = dataframe.dtypes.loc[col_name]  # type: ignore
-            align = "right" if _is_dtype_numeric(dtype) else "left"
-
-            # TODO(b/438181139): Consider semi-exploding ARRAY/STRUCT columns
-            # into multiple rows/columns like the BQ UI does.
-            if pandas.api.types.is_scalar(value) and pd.isna(value):
-                body_parts.append(
-                    f'      <td class="cell-align-{align}">'
-                    '<em class="null-value">&lt;NA&gt;</em></td>'
-                )
-            else:
-                if isinstance(value, float):
-                    cell_content = f"{value:.{precision}f}"
-                else:
-                    cell_content = str(value)
-                body_parts.append(
-                    f'      <td class="cell-align-{align}">'
-                    f"{html.escape(cell_content)}</td>"
-                )
+            cell_html = _render_cell(
+                value,
+                dtype,
+                is_continuation,
+                str(col_name),
+                clear_on_continuation,
+                nested_originated_columns,
+                precision,
+            )
+            body_parts.append(cell_html)
 
         for col in left_columns:
             render_col_cell(col)
@@ -164,6 +204,43 @@ def _render_table_body(
         body_parts.append("    </tr>")
     body_parts.append("  </tbody>")
     return "\n".join(body_parts)
+
+
+def _render_cell(
+    value: Any,
+    dtype: Any,
+    is_continuation: bool,
+    col_name_str: str,
+    clear_on_continuation: list[str],
+    nested_originated_columns: set[str],
+    precision: int,
+) -> str:
+    """Render a single cell of the HTML table."""
+    if is_continuation and col_name_str in clear_on_continuation:
+        return "      <td></td>"
+
+    if col_name_str in nested_originated_columns:
+        align = "left"
+    else:
+        align = "right" if _is_dtype_numeric(dtype) else "left"
+
+    if pandas.api.types.is_scalar(value) and pd.isna(value):
+        if is_continuation:
+            # For padding nulls in continuation rows, show empty cell
+            return f'      <td class="cell-align-{align}"></td>'
+        else:
+            # For primary nulls, keep showing the <NA> indicator but maybe styled
+            return (
+                f'      <td class="cell-align-{align}">'
+                '<em class="null-value">&lt;NA&gt;</em></td>'
+            )
+
+    if isinstance(value, float):
+        cell_content = f"{value:.{precision}f}"
+    else:
+        cell_content = str(value)
+
+    return f'      <td class="cell-align-{align}">' f"{html.escape(cell_content)}</td>"
 
 
 def _obj_ref_rt_to_html(obj_ref_rt: str) -> str:
@@ -252,8 +329,8 @@ def _get_obj_metadata(
 
 def get_anywidget_bundle(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
+    include: typing.Container[str] | None = None,
+    exclude: typing.Container[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Helper method to create and return the anywidget mimebundle.
@@ -350,9 +427,9 @@ def repr_mimebundle_head(
 
 def repr_mimebundle(
     obj: Union[bigframes.dataframe.DataFrame, bigframes.series.Series],
-    include=None,
-    exclude=None,
-):
+    include: typing.Container[str] | None = None,
+    exclude: typing.Container[str] | None = None,
+) -> dict[str, str] | tuple[dict[str, Any], dict[str, Any]] | None:
     """Custom display method for IPython/Jupyter environments."""
     # TODO(b/467647693): Anywidget integration has been tested in Jupyter, VS Code, and
     # BQ Studio, but there is a known compatibility issue with Marimo that needs to be addressed.
