@@ -178,10 +178,6 @@ class Block:
         if len(all_value_columns) > len(self._column_labels):
             # More columns than labels: Drop the extra columns (assumed to be internal/garbage)
             self._value_columns = all_value_columns[: len(self._column_labels)]
-            # Prune the expression to remove hidden columns
-            self._expr = self._expr.select_columns(
-                [*self.index_columns, *self._value_columns]
-            )
         elif len(all_value_columns) < len(self._column_labels):
             # Fewer columns than labels: Truncate labels
             self._value_columns = all_value_columns
