@@ -1373,8 +1373,14 @@ class Block:
 
     def select_columns(self, ids: typing.Sequence[str]) -> Block:
         # Allow renames as may end up selecting same columns multiple times
+        # Also need to make sure we don't drop any hidden columns
+        hidden_cols = [
+            col
+            for col in self._expr.column_ids
+            if col not in self.index_columns and col not in self.value_columns
+        ]
         expr = self._expr.select_columns(
-            [*self.index_columns, *ids], allow_renames=True
+            [*self.index_columns, *ids, *hidden_cols], allow_renames=True
         )
         col_labels = self._get_labels_for_columns(ids)
         return Block(expr, self.index_columns, col_labels, self.index.names)
