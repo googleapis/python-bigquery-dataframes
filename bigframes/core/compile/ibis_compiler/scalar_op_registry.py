@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import typing
+from typing import cast
 
 from bigframes_vendored import ibis
 import bigframes_vendored.ibis.expr.api as ibis_api
@@ -1248,7 +1249,9 @@ def obj_fetch_metadata_op_impl(obj_ref: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
 def obj_get_access_url_op_impl(obj_ref: ibis_types.Value, op: ops.ObjGetAccessUrl):
     if op.duration is not None:
-        duration_value = ibis_types.literal(op.duration).to_interval("us")
+        duration_value = cast(
+            ibis_types.IntegerValue, ibis_types.literal(op.duration)
+        ).to_interval("us")
         return obj_get_access_url_with_duration(
             obj_ref=obj_ref, mode=op.mode, duration=duration_value
         )
@@ -2162,9 +2165,7 @@ def obj_get_access_url(obj_ref: _OBJ_REF_IBIS_DTYPE, mode: ibis_dtypes.String) -
 
 
 @ibis_udf.scalar.builtin(name="OBJ.GET_ACCESS_URL")
-def obj_get_access_url_with_duration(
-    obj_ref: _OBJ_REF_IBIS_DTYPE, mode: ibis_dtypes.String, duration: ibis_dtypes.Interval(unit="us")  # type: ignore
-) -> ibis_dtypes.JSON:  # type: ignore
+def obj_get_access_url_with_duration(obj_ref, mode, duration) -> ibis_dtypes.JSON:  # type: ignore
     """Get access url (as ObjectRefRumtime JSON) from ObjectRef."""
 
 

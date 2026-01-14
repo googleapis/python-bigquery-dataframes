@@ -16,11 +16,7 @@
 <https://cloud.google.com/bigquery/docs/object-table-object-ref-functions>`_ functions.
 """
 
-from bigframes.bigquery._operations.obj import (
-    fetch_metadata,
-    get_access_url,
-    make_ref,
-)
+from bigframes.bigquery._operations.obj import fetch_metadata, get_access_url, make_ref
 
 __all__ = [
     "fetch_metadata",

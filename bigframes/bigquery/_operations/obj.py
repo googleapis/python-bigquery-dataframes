@@ -13,9 +13,25 @@
 # limitations under the License.
 
 
-"""
-ObjectRef functions defined from
-https://cloud.google.com/bigquery/docs/reference/standard-sql/object-ref-functions
+"""This module integrates BigQuery built-in 'ObjectRef' functions for use with Series/DataFrame objects,
+such as OBJ.FETCH_METADATA:
+https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/objectref_functions
+
+
+.. warning::
+
+    This product or feature is subject to the "Pre-GA Offerings Terms" in the
+    General Service Terms section of the `Service Specific Terms
+    <https://cloud.google.com/terms/service-terms>`_. Pre-GA products and
+    features are available "as is" and might have limited support. For more
+    information, see the `launch stage descriptions
+    <https://cloud.google.com/products?hl=en#product-launch-stages>`_.
+
+
+.. note::
+
+    To provide feedback or request support for this feature, send an email to
+    bq-objectref-feedback@google.com.
 """
 
 

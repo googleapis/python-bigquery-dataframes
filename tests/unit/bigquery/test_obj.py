@@ -15,8 +15,6 @@
 import datetime
 from unittest.mock import MagicMock
 
-import pytest
-
 import bigframes.bigquery.obj as obj
 import bigframes.operations as ops
 import bigframes.series as series
@@ -26,11 +24,13 @@ def test_fetch_metadata_op_structure():
     op = ops.obj_fetch_metadata_op
     assert op.name == "obj_fetch_metadata"
 
+
 def test_get_access_url_op_structure():
     op = ops.ObjGetAccessUrl(mode="r")
     assert op.name == "obj_get_access_url"
     assert op.mode == "r"
     assert op.duration is None
+
 
 def test_get_access_url_with_duration_op_structure():
     op = ops.ObjGetAccessUrl(mode="rw", duration=3600000000)
@@ -38,13 +38,16 @@ def test_get_access_url_with_duration_op_structure():
     assert op.mode == "rw"
     assert op.duration == 3600000000
 
+
 def test_make_ref_op_structure():
     op = ops.obj_make_ref_op
     assert op.name == "obj_make_ref"
 
+
 def test_make_ref_json_op_structure():
     op = ops.obj_make_ref_json_op
     assert op.name == "obj_make_ref_json"
+
 
 def test_fetch_metadata_calls_apply_unary_op():
     s = MagicMock(spec=series.Series)
@@ -54,6 +57,7 @@ def test_fetch_metadata_calls_apply_unary_op():
     s._apply_unary_op.assert_called_once()
     args, _ = s._apply_unary_op.call_args
     assert args[0] == ops.obj_fetch_metadata_op
+
 
 def test_get_access_url_calls_apply_unary_op_without_duration():
     s = MagicMock(spec=series.Series)
@@ -65,6 +69,7 @@ def test_get_access_url_calls_apply_unary_op_without_duration():
     assert isinstance(args[0], ops.ObjGetAccessUrl)
     assert args[0].mode == "r"
     assert args[0].duration is None
+
 
 def test_get_access_url_calls_apply_unary_op_with_duration():
     s = MagicMock(spec=series.Series)
@@ -79,6 +84,7 @@ def test_get_access_url_calls_apply_unary_op_with_duration():
     # 1 hour = 3600 seconds = 3600 * 1000 * 1000 microseconds
     assert args[0].duration == 3600000000
 
+
 def test_make_ref_calls_apply_binary_op_with_authorizer():
     uri = MagicMock(spec=series.Series)
     auth = MagicMock(spec=series.Series)
@@ -89,6 +95,7 @@ def test_make_ref_calls_apply_binary_op_with_authorizer():
     args, _ = uri._apply_binary_op.call_args
     assert args[0] == auth
     assert args[1] == ops.obj_make_ref_op
+
 
 def test_make_ref_calls_apply_unary_op_without_authorizer():
     json_val = MagicMock(spec=series.Series)
