@@ -150,13 +150,10 @@ def _(expr: TypedExpr, op: ops.RemoteFunctionOp) -> sge.Expression:
     func = sge.func(func_name, expr.expr)
 
     if not op.apply_on_null:
-        return sge.Case(
-            ifs=[
-                sge.If(
-                    this=sge.Is(this=expr.expr, expression=sge.Null()), true=expr.expr
-                )
-            ],
-            default=func,
+        return sge.If(
+            this=sge.Is(this=expr.expr, expression=sge.Null()),
+            true=expr.expr,
+            false=func,
         )
 
     return func

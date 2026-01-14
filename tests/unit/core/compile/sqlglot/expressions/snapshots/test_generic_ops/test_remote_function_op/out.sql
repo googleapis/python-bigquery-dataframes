@@ -5,9 +5,15 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
-    `my_project`.`my_dataset`.`my_routine`(`int64_col`) AS `bfcol_1`
+    `my_project`.`my_dataset`.`my_routine`(`int64_col`) AS `bfcol_1`,
+    IF(
+      `int64_col` IS NULL,
+      `int64_col`,
+      `my_project`.`my_dataset`.`my_routine`(`int64_col`)
+    ) AS `bfcol_2`
   FROM `bfcte_0`
 )
 SELECT
-  `bfcol_1` AS `int64_col`
+  `bfcol_1` AS `apply_on_null_true`,
+  `bfcol_2` AS `apply_on_null_false`
 FROM `bfcte_1`
