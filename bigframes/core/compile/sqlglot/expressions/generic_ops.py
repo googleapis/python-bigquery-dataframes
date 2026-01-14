@@ -184,6 +184,17 @@ def _(
     return sge.func(func_name, left.expr, right.expr)
 
 
+@register_nary_op(ops.NaryRemoteFunctionOp, pass_op=True)
+def _(*operands: TypedExpr, op: ops.NaryRemoteFunctionOp) -> sge.Expression:
+    routine_ref = op.function_def.routine_ref
+    # Quote project, dataset, and routine IDs to avoid keyword clashes.
+    func_name = (
+        f"`{routine_ref.project}`.`{routine_ref.dataset_id}`.`{routine_ref.routine_id}`"
+    )
+
+    return sge.func(func_name, *(operand.expr for operand in operands))
+
+
 @register_nary_op(ops.case_when_op)
 def _(*cases_and_outputs: TypedExpr) -> sge.Expression:
     # Need to upcast BOOL to INT if any output is numeric

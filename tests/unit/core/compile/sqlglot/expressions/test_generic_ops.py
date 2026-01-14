@@ -242,6 +242,48 @@ def test_binary_remote_function_op(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
+def test_nary_remote_function_op(scalar_types_df: bpd.DataFrame, snapshot):
+    from google.cloud import bigquery
+
+    from bigframes.functions import udf_def
+
+    bf_df = scalar_types_df[["int64_col", "float64_col", "string_col"]]
+    op = ops.NaryRemoteFunctionOp(
+        function_def=udf_def.BigqueryUdf(
+            routine_ref=bigquery.RoutineReference.from_string(
+                "my_project.my_dataset.my_routine"
+            ),
+            signature=udf_def.UdfSignature(
+                input_types=(
+                    udf_def.UdfField(
+                        "x",
+                        bigquery.StandardSqlDataType(
+                            type_kind=bigquery.StandardSqlTypeNames.INT64
+                        ),
+                    ),
+                    udf_def.UdfField(
+                        "y",
+                        bigquery.StandardSqlDataType(
+                            type_kind=bigquery.StandardSqlTypeNames.FLOAT64
+                        ),
+                    ),
+                    udf_def.UdfField(
+                        "z",
+                        bigquery.StandardSqlDataType(
+                            type_kind=bigquery.StandardSqlTypeNames.STRING
+                        ),
+                    ),
+                ),
+                output_bq_type=bigquery.StandardSqlDataType(
+                    type_kind=bigquery.StandardSqlTypeNames.FLOAT64
+                ),
+            ),
+        )
+    )
+    sql = utils._apply_nary_op(bf_df, op, "int64_col", "float64_col", "string_col")
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_case_when_op(scalar_types_df: bpd.DataFrame, snapshot):
     ops_map = {
         "single_case": ops.case_when_op.as_expr(
