@@ -38,7 +38,7 @@ import bigframes.series as series
 def fetch_metadata(
     objectref: series.Series,
 ) -> series.Series:
-    """The OBJ.FETCH_METADATA function returns Cloud Storage metadata for a partially populated ObjectRef value.
+    """[Preview] The OBJ.FETCH_METADATA function returns Cloud Storage metadata for a partially populated ObjectRef value.
 
     Args:
         objectref (bigframes.pandas.Series):
@@ -57,7 +57,7 @@ def get_access_url(
     mode: str,
     duration: Optional[Union[datetime.timedelta, pd.Timedelta, np.timedelta64]] = None,
 ) -> series.Series:
-    """The OBJ.GET_ACCESS_URL function returns JSON that contains reference information for the input ObjectRef value, and also access URLs that you can use to read or modify the Cloud Storage object.
+    """[Preview] The OBJ.GET_ACCESS_URL function returns JSON that contains reference information for the input ObjectRef value, and also access URLs that you can use to read or modify the Cloud Storage object.
 
     Args:
         objectref (bigframes.pandas.Series):
@@ -88,7 +88,7 @@ def make_ref(
     uri_or_json: Union[series.Series, Sequence[str]],
     authorizer: Union[series.Series, str, None] = None,
 ) -> series.Series:
-    """Use the OBJ.MAKE_REF function to create an ObjectRef value that contains reference information for a Cloud Storage object.
+    """[Preview] Use the OBJ.MAKE_REF function to create an ObjectRef value that contains reference information for a Cloud Storage object.
 
     Args:
         uri_or_json (bigframes.pandas.Series or str):
