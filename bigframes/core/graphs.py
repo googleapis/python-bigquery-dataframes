@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+import collections.abc
 from typing import Dict, Generic, Hashable, Iterable, Iterator, Tuple, TypeVar
 
 import bigframes.core.ordered_sets as sets
@@ -28,32 +29,26 @@ class DiGraph(Generic[T]):
         self._children: Dict[T, sets.InsertionOrderedSet[T]] = collections.defaultdict(
             sets.InsertionOrderedSet
         )
-        self._sinks: sets.InsertionOrderedSet[T] = sets.InsertionOrderedSet()
         for node in nodes:
             self._children[node]
             self._parents[node]
-            self._sinks.add(node)
         for src, dst in edges:
-            assert src in self.nodes
-            assert dst in self.nodes
+            assert src in self.graph_nodes
+            assert dst in self.graph_nodes
             self._children[src].add(dst)
             self._parents[dst].add(src)
-            # sinks have no children
-            if src in self._sinks:
-                self._sinks.remove(src)
+
+    def __len__(self):
+        return len(self._children.keys())
 
     @property
-    def nodes(self):
+    def graph_nodes(self) -> Iterable[T]:
         # should be the same set of ids as self._parents
         return self._children.keys()
 
     @property
-    def sinks(self) -> Iterable[T]:
-        return self._sinks
-
-    @property
     def empty(self):
-        return len(self.nodes) == 0
+        return len(self) == 0
 
     def parents(self, node: T) -> Iterator[T]:
         assert node in self._parents
@@ -68,9 +63,5 @@ class DiGraph(Generic[T]):
             self._parents[child].remove(node)
         for parent in self._parents[node]:
             self._children[parent].remove(node)
-            if len(self._children[parent]) == 0:
-                self._sinks.add(parent)
         del self._children[node]
         del self._parents[node]
-        if node in self._sinks:
-            self._sinks.remove(node)
