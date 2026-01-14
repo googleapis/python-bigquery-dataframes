@@ -13,11 +13,17 @@
 # limitations under the License.
 
 import datetime
-from unittest.mock import MagicMock
+from unittest import mock
 
 import bigframes.bigquery.obj as obj
 import bigframes.operations as ops
-import bigframes.series as series
+import bigframes.series
+
+
+def create_mock_series():
+    result = mock.create_autospec(bigframes.series.Series, instance=True)
+    result.copy.return_value = result
+    return result
 
 
 def test_fetch_metadata_op_structure():
@@ -50,35 +56,35 @@ def test_make_ref_json_op_structure():
 
 
 def test_fetch_metadata_calls_apply_unary_op():
-    s = MagicMock(spec=series.Series)
+    series = create_mock_series()
 
-    obj.fetch_metadata(s)
+    obj.fetch_metadata(series)
 
-    s._apply_unary_op.assert_called_once()
-    args, _ = s._apply_unary_op.call_args
+    series._apply_unary_op.assert_called_once()
+    args, _ = series._apply_unary_op.call_args
     assert args[0] == ops.obj_fetch_metadata_op
 
 
 def test_get_access_url_calls_apply_unary_op_without_duration():
-    s = MagicMock(spec=series.Series)
+    series = create_mock_series()
 
-    obj.get_access_url(s, mode="r")
+    obj.get_access_url(series, mode="r")
 
-    s._apply_unary_op.assert_called_once()
-    args, _ = s._apply_unary_op.call_args
+    series._apply_unary_op.assert_called_once()
+    args, _ = series._apply_unary_op.call_args
     assert isinstance(args[0], ops.ObjGetAccessUrl)
     assert args[0].mode == "r"
     assert args[0].duration is None
 
 
 def test_get_access_url_calls_apply_unary_op_with_duration():
-    s = MagicMock(spec=series.Series)
+    series = create_mock_series()
     duration = datetime.timedelta(hours=1)
 
-    obj.get_access_url(s, mode="rw", duration=duration)
+    obj.get_access_url(series, mode="rw", duration=duration)
 
-    s._apply_unary_op.assert_called_once()
-    args, kwargs = s._apply_unary_op.call_args
+    series._apply_unary_op.assert_called_once()
+    args, _ = series._apply_unary_op.call_args
     assert isinstance(args[0], ops.ObjGetAccessUrl)
     assert args[0].mode == "rw"
     # 1 hour = 3600 seconds = 3600 * 1000 * 1000 microseconds
@@ -86,8 +92,20 @@ def test_get_access_url_calls_apply_unary_op_with_duration():
 
 
 def test_make_ref_calls_apply_binary_op_with_authorizer():
-    uri = MagicMock(spec=series.Series)
-    auth = MagicMock(spec=series.Series)
+    uri = create_mock_series()
+    auth = create_mock_series()
+
+    obj.make_ref(uri, authorizer=auth)
+
+    uri._apply_binary_op.assert_called_once()
+    args, _ = uri._apply_binary_op.call_args
+    assert args[0] == auth
+    assert args[1] == ops.obj_make_ref_op
+
+
+def test_make_ref_calls_apply_binary_op_with_authorizer_string():
+    uri = create_mock_series()
+    auth = "us.bigframes-test-connection"
 
     obj.make_ref(uri, authorizer=auth)
 
@@ -98,7 +116,7 @@ def test_make_ref_calls_apply_binary_op_with_authorizer():
 
 
 def test_make_ref_calls_apply_unary_op_without_authorizer():
-    json_val = MagicMock(spec=series.Series)
+    json_val = create_mock_series()
 
     obj.make_ref(json_val)
 

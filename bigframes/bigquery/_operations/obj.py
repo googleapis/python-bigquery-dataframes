@@ -13,24 +13,9 @@
 # limitations under the License.
 
 
-"""This module integrates BigQuery built-in 'ObjectRef' functions for use with Series/DataFrame objects,
-such as OBJ.FETCH_METADATA:
-https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/objectref_functions
+"""This module exposes BigQuery ObjectRef functions.
 
-
-.. warning::
-
-    This product or feature is subject to the "Pre-GA Offerings Terms" in the
-    General Service Terms section of the `Service Specific Terms
-    <https://cloud.google.com/terms/service-terms>`_. Pre-GA products and
-    features are available "as is" and might have limited support. For more
-    information, see the `launch stage descriptions
-    <https://cloud.google.com/products?hl=en#product-launch-stages>`_.
-
-.. note::
-
-    To provide feedback or request support for this feature, send an email to
-    bq-objectref-feedback@google.com.
+See bigframes.bigquery.obj for public docs.
 """
 
 
@@ -120,6 +105,10 @@ def make_ref(
     uri_or_json = convert.to_bf_series(uri_or_json, default_index=None)
 
     if authorizer is not None:
+        # Avoid join problems encountered if we try to convert a literal into Series.
+        if not isinstance(authorizer, str):
+            authorizer = convert.to_bf_series(authorizer, default_index=None)
+
         return uri_or_json._apply_binary_op(authorizer, ops.obj_make_ref_op)
 
     # If authorizer is not provided, we assume uri_or_json is a JSON objectref
