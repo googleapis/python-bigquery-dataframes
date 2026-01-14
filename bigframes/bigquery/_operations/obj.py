@@ -27,7 +27,7 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 
-from bigframes.core import log_adapter
+from bigframes.core.logging import log_adapter
 import bigframes.core.utils as utils
 import bigframes.operations as ops
 import bigframes.series as series
@@ -53,9 +53,7 @@ def fetch_metadata(
 def get_access_url(
     objectref: series.Series,
     mode: str,
-    duration: Optional[
-        Union[datetime.timedelta, pd.Timedelta, np.timedelta64]
-    ] = None,
+    duration: Optional[Union[datetime.timedelta, pd.Timedelta, np.timedelta64]] = None,
 ) -> series.Series:
     """The OBJ.GET_ACCESS_URL function returns JSON that contains reference information for the input ObjectRef value, and also access URLs that you can use to read or modify the Cloud Storage object.
 
