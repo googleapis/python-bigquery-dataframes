@@ -77,6 +77,7 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
 
 def _replace_unsupported_ops(node: nodes.BigFrameNode):
     # TODO: Run all replacement rules as single bottom-up pass
+    node = nodes.bottom_up(node, rewrites.rewrite_random_sample)
     node = nodes.bottom_up(node, rewrites.rewrite_slice)
     node = nodes.bottom_up(node, rewrites.rewrite_timedelta_expressions)
     node = nodes.bottom_up(node, rewrites.rewrite_range_rolling)

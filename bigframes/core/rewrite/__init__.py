@@ -18,6 +18,7 @@ from bigframes.core.rewrite.implicit_align import try_row_join
 from bigframes.core.rewrite.legacy_align import legacy_join_as_projection
 from bigframes.core.rewrite.order import bake_order, defer_order
 from bigframes.core.rewrite.pruning import column_pruning
+from bigframes.core.rewrite.sampling import rewrite_random_sample
 from bigframes.core.rewrite.scan_reduction import (
     try_reduce_to_local_scan,
     try_reduce_to_table_scan,
@@ -44,4 +45,5 @@ __all__ = [
     "fold_row_counts",
     "pull_out_window_order",
     "defer_selection",
+    "rewrite_random_sample",
 ]

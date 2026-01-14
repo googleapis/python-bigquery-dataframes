@@ -57,12 +57,11 @@ def _convert_to_nonnull_string(column: ibis_types.Value) -> ibis_types.StringVal
     )
 
 
-def gen_row_key(
+def gen_row_hash(
     columns: Sequence[ibis_types.Value],
 ) -> bigframes_vendored.ibis.Value:
     ordering_hash_part = guid.generate_guid("bigframes_ordering_")
     ordering_hash_part2 = guid.generate_guid("bigframes_ordering_")
-    ordering_rand_part = guid.generate_guid("bigframes_ordering_")
 
     # All inputs into hash must be non-null or resulting hash will be null
     str_values = list(map(_convert_to_nonnull_string, columns))
@@ -81,11 +80,4 @@ def gen_row_key(
         .name(ordering_hash_part2)
         .cast(ibis_dtypes.String(nullable=True))
     )
-    # Used to disambiguate between identical rows (which will have identical hash)
-    random_value = (
-        bigframes_vendored.ibis.random()
-        .name(ordering_rand_part)
-        .cast(ibis_dtypes.String(nullable=True))
-    )
-
-    return full_row_hash.concat(full_row_hash_p2, random_value)
+    return full_row_hash.concat(full_row_hash_p2)

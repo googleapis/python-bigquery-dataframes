@@ -93,6 +93,35 @@ class ScalarOpCompiler:
         impl = self._registry[op.name]
         return impl(inputs, op)
 
+    def register_nullary_op(
+        self,
+        op_ref: typing.Union[ops.NullaryOp, type[ops.NullaryOp]],
+        pass_op: bool = False,
+    ):
+        """
+        Decorator to register a unary op implementation.
+
+        Args:
+            op_ref (UnaryOp or UnaryOp type):
+                Class or instance of operator that is implemented by the decorated function.
+            pass_op (bool):
+                Set to true if implementation takes the operator object as the last argument.
+                This is needed for parameterized ops where parameters are part of op object.
+        """
+        key = typing.cast(str, op_ref.name)
+
+        def decorator(impl: typing.Callable[..., sge.Expression]):
+            def normalized_impl(args: typing.Sequence[TypedExpr], op: ops.RowOp):
+                if pass_op:
+                    return impl(op)
+                else:
+                    return impl()
+
+            self._register(key, normalized_impl)
+            return impl
+
+        return decorator
+
     def register_unary_op(
         self,
         op_ref: typing.Union[ops.UnaryOp, type[ops.UnaryOp]],

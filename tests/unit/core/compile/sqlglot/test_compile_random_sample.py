@@ -30,6 +30,8 @@ def test_compile_random_sample(
     Because BigFrames doesn't expose a public API for creating a random sample
     operation, this test constructs the node directly and then compiles it to SQL.
     """
-    node = nodes.RandomSampleNode(scalar_types_array_value.node, fraction=0.1)
+    node = nodes.RandomSampleNode(
+        scalar_types_array_value.node, fraction=0.1, shuffle=True
+    )
     sql = compile.sqlglot.compile_sql(compile.CompileRequest(node, sort_rows=True)).sql
     snapshot.assert_match(sql, "out.sql")

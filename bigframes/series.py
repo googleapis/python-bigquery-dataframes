@@ -2484,7 +2484,6 @@ class Series(vendored_pandas_series.Series):
         result_df = self_df.join(map_df, on="series")
         return result_df[self.name]
 
-    @validations.requires_ordering()
     def sample(
         self,
         n: Optional[int] = None,
@@ -2495,7 +2494,6 @@ class Series(vendored_pandas_series.Series):
     ) -> Series:
         if n is not None and frac is not None:
             raise ValueError("Only one of 'n' or 'frac' parameter can be specified.")
-
         ns = (n,) if n is not None else ()
         fracs = (frac,) if frac is not None else ()
         return Series(

@@ -321,7 +321,7 @@ def test_notnull(scalar_types_df: bpd.DataFrame, snapshot):
 def test_row_key(scalar_types_df: bpd.DataFrame, snapshot):
     column_ids = (col for col in scalar_types_df._block.expr.column_ids)
     sql = utils._apply_ops_to_sql(
-        scalar_types_df, [ops.RowKey().as_expr(*column_ids)], ["row_key"]
+        scalar_types_df, [ops.RowHash().as_expr(*column_ids)], ["row_key"]
     )
     snapshot.assert_match(sql, "out.sql")
 
