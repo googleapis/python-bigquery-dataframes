@@ -21,35 +21,34 @@ def _add_data_type(existing_types: int, curr_type: dtypes.Dtype) -> int:
 
 
 def _get_dtype_mask(dtype: dtypes.Dtype) -> int:
-    match dtype:
-        case dtypes.INT_DTYPE:
-            return 1 << 1
-        case dtypes.FLOAT_DTYPE:
-            return 1 << 2
-        case dtypes.BOOL_DTYPE:
-            return 1 << 3
-        case dtypes.STRING_DTYPE:
-            return 1 << 4
-        case dtypes.BYTES_DTYPE:
-            return 1 << 5
-        case dtypes.DATE_DTYPE:
-            return 1 << 6
-        case dtypes.TIME_DTYPE:
-            return 1 << 7
-        case dtypes.DATETIME_DTYPE:
-            return 1 << 8
-        case dtypes.TIMESTAMP_DTYPE:
-            return 1 << 9
-        case dtypes.TIMEDELTA_DTYPE:
-            return 1 << 10
-        case dtypes.NUMERIC_DTYPE:
-            return 1 << 11
-        case dtypes.BIGNUMERIC_DTYPE:
-            return 1 << 12
-        case dtypes.GEO_DTYPE:
-            return 1 << 13
-        case dtypes.JSON_DTYPE:
-            return 1 << 14
+    if dtype == dtypes.INT_DTYPE:
+        return 1 << 1
+    if dtype == dtypes.FLOAT_DTYPE:
+        return 1 << 2
+    if dtype == dtypes.BOOL_DTYPE:
+        return 1 << 3
+    if dtype == dtypes.STRING_DTYPE:
+        return 1 << 4
+    if dtype == dtypes.BYTES_DTYPE:
+        return 1 << 5
+    if dtype == dtypes.DATE_DTYPE:
+        return 1 << 6
+    if dtype == dtypes.TIME_DTYPE:
+        return 1 << 7
+    if dtype == dtypes.DATETIME_DTYPE:
+        return 1 << 8
+    if dtype == dtypes.TIMESTAMP_DTYPE:
+        return 1 << 9
+    if dtype == dtypes.TIMEDELTA_DTYPE:
+        return 1 << 10
+    if dtype == dtypes.NUMERIC_DTYPE:
+        return 1 << 11
+    if dtype == dtypes.BIGNUMERIC_DTYPE:
+        return 1 << 12
+    if dtype == dtypes.GEO_DTYPE:
+        return 1 << 13
+    if dtype == dtypes.JSON_DTYPE:
+        return 1 << 14
 
     if dtypes.is_struct_like(dtype):
         mask = 1 << 15
