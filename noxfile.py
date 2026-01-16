@@ -437,6 +437,8 @@ def doctest(session: nox.sessions.Session):
             "--ignore",
             "third_party/bigframes_vendored/ibis",
             "--ignore",
+            "third_party/bigframes_vendored/sqlglot",
+            "--ignore",
             "bigframes/core/compile/polars",
             "--ignore",
             "bigframes/testing",
@@ -521,6 +523,7 @@ def docs(session):
     session.install("-e", ".[scikit-learn]")
     session.install(
         "sphinx==8.2.3",
+        "sphinx-sitemap==2.9.0",
         "myst-parser==4.0.1",
         "pydata-sphinx-theme==0.16.1",
     )
@@ -553,6 +556,7 @@ def docfx(session):
     session.install("-e", ".[scikit-learn]")
     session.install(
         SPHINX_VERSION,
+        "sphinx-sitemap==2.9.0",
         "pydata-sphinx-theme==0.13.3",
         "myst-parser==0.18.1",
         "gcp-sphinx-docfx-yaml==3.2.4",

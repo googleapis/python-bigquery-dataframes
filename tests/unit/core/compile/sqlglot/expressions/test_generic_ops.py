@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pandas as pd
 import pytest
 
 from bigframes import dtypes
@@ -168,6 +169,79 @@ def test_astype_json_invalid(
         )
 
 
+def test_remote_function_op(scalar_types_df: bpd.DataFrame, snapshot):
+    from google.cloud import bigquery
+
+    from bigframes.functions import udf_def
+
+    bf_df = scalar_types_df[["int64_col"]]
+    function_def = udf_def.BigqueryUdf(
+        routine_ref=bigquery.RoutineReference.from_string(
+            "my_project.my_dataset.my_routine"
+        ),
+        signature=udf_def.UdfSignature(
+            input_types=(
+                udf_def.UdfField(
+                    "x",
+                    bigquery.StandardSqlDataType(
+                        type_kind=bigquery.StandardSqlTypeNames.INT64
+                    ),
+                ),
+            ),
+            output_bq_type=bigquery.StandardSqlDataType(
+                type_kind=bigquery.StandardSqlTypeNames.FLOAT64
+            ),
+        ),
+    )
+    ops_map = {
+        "apply_on_null_true": ops.RemoteFunctionOp(
+            function_def=function_def, apply_on_null=True
+        ).as_expr("int64_col"),
+        "apply_on_null_false": ops.RemoteFunctionOp(
+            function_def=function_def, apply_on_null=False
+        ).as_expr("int64_col"),
+    }
+    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    snapshot.assert_match(sql, "out.sql")
+
+
+def test_binary_remote_function_op(scalar_types_df: bpd.DataFrame, snapshot):
+    from google.cloud import bigquery
+
+    from bigframes.functions import udf_def
+
+    bf_df = scalar_types_df[["int64_col", "float64_col"]]
+    op = ops.BinaryRemoteFunctionOp(
+        function_def=udf_def.BigqueryUdf(
+            routine_ref=bigquery.RoutineReference.from_string(
+                "my_project.my_dataset.my_routine"
+            ),
+            signature=udf_def.UdfSignature(
+                input_types=(
+                    udf_def.UdfField(
+                        "x",
+                        bigquery.StandardSqlDataType(
+                            type_kind=bigquery.StandardSqlTypeNames.INT64
+                        ),
+                    ),
+                    udf_def.UdfField(
+                        "y",
+                        bigquery.StandardSqlDataType(
+                            type_kind=bigquery.StandardSqlTypeNames.FLOAT64
+                        ),
+                    ),
+                ),
+                output_bq_type=bigquery.StandardSqlDataType(
+                    type_kind=bigquery.StandardSqlTypeNames.FLOAT64
+                ),
+            ),
+        )
+    )
+    sql = utils._apply_binary_op(bf_df, op, "int64_col", "float64_col")
+
+    snapshot.assert_match(sql, "out.sql")
+
+
 def test_case_when_op(scalar_types_df: bpd.DataFrame, snapshot):
     ops_map = {
         "single_case": ops.case_when_op.as_expr(
@@ -305,7 +379,11 @@ def test_map(scalar_types_df: bpd.DataFrame, snapshot):
     bf_df = scalar_types_df[[col_name]]
     sql = utils._apply_ops_to_sql(
         bf_df,
-        [ops.MapOp(mappings=(("value1", "mapped1"),)).as_expr(col_name)],
+        [
+            ops.MapOp(mappings=(("value1", "mapped1"), (pd.NA, "UNKNOWN"))).as_expr(
+                col_name
+            )
+        ],
         [col_name],
     )
 

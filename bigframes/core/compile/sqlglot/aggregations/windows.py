@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import typing
 
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes.core import utils, window_spec
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
+import bigframes.core.expression as ex
 import bigframes.core.ordering as ordering_spec
+import bigframes.dtypes as dtypes
 
 
 def apply_window_if_present(
@@ -42,6 +44,7 @@ def apply_window_if_present(
         order_by = None
     elif window.is_range_bounded:
         order_by = get_window_order_by((window.ordering[0],))
+        order_by = remove_null_ordering_for_range_windows(order_by)
     else:
         order_by = get_window_order_by(window.ordering)
 
@@ -52,10 +55,7 @@ def apply_window_if_present(
         order = sge.Order(expressions=order_by)
 
     group_by = (
-        [
-            scalar_compiler.scalar_op_compiler.compile_expression(key)
-            for key in window.grouping_keys
-        ]
+        [_compile_group_by_key(key) for key in window.grouping_keys]
         if window.grouping_keys
         else None
     )
@@ -151,6 +151,30 @@ def get_window_order_by(
     return tuple(order_by)
 
 
+def remove_null_ordering_for_range_windows(
+    order_by: typing.Optional[tuple[sge.Ordered, ...]],
+) -> typing.Optional[tuple[sge.Ordered, ...]]:
+    """Removes NULL FIRST/LAST from ORDER BY expressions in RANGE windows.
+    Here's the support matrix:
+    ✅ sum(x) over (order by y desc nulls last)
+    🚫 sum(x) over (order by y asc nulls last)
+    ✅ sum(x) over (order by y asc nulls first)
+    🚫 sum(x) over (order by y desc nulls first)
+    """
+    if order_by is None:
+        return None
+
+    new_order_by = []
+    for key in order_by:
+        kargs = key.args
+        if kargs.get("desc") is True and kargs.get("nulls_first", False):
+            kargs["nulls_first"] = False
+        elif kargs.get("desc") is False and not kargs.setdefault("nulls_first", True):
+            kargs["nulls_first"] = True
+        new_order_by.append(sge.Ordered(**kargs))
+    return tuple(new_order_by)
+
+
 def _get_window_bounds(
     value, is_preceding: bool
 ) -> tuple[typing.Union[str, sge.Expression], typing.Optional[str]]:
@@ -164,3 +188,18 @@ def _get_window_bounds(
 
     side = "PRECEDING" if value < 0 else "FOLLOWING"
     return sge.convert(abs(value)), side
+
+
+def _compile_group_by_key(key: ex.Expression) -> sge.Expression:
+    expr = scalar_compiler.scalar_op_compiler.compile_expression(key)
+    # The group_by keys has been rewritten by bind_schema_to_node
+    assert isinstance(key, ex.ResolvedDerefOp)
+
+    # Some types need to be converted to another type to enable groupby
+    if key.dtype == dtypes.FLOAT_DTYPE:
+        expr = sge.Cast(this=expr, to="STRING")
+    elif key.dtype == dtypes.GEO_DTYPE:
+        expr = sge.func("ST_ASBINARY", expr)
+    elif key.dtype == dtypes.JSON_DTYPE:
+        expr = sge.func("TO_JSON_STRING", expr)
+    return expr
