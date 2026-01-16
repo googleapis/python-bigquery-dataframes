@@ -28,13 +28,10 @@ from typing import Dict, List
 import nox
 import nox.sessions
 
-BLACK_VERSION = "black==22.3.0"
+BLACK_VERSION = "black==23.7.0"
 FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
 MYPY_VERSION = "mypy==1.15.0"
-
-# TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
-LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
 
 # Notebook tests should match colab and BQ Studio.
 # Check with import sys; sys.version_info
@@ -58,13 +55,9 @@ LINT_PATHS = [
     "setup.py",
 ]
 
-DEFAULT_PYTHON_VERSION = "3.10"
+DEFAULT_PYTHON_VERSION = "3.14"
 
-# Cloud Run Functions supports Python versions up to 3.12
-# https://cloud.google.com/run/docs/runtimes/python
-E2E_TEST_PYTHON_VERSION = "3.12"
-
-UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -83,13 +76,14 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
     "3.13": ["tests", "polars", "scikit-learn", "anywidget"],
+    "3.14": ["tests", "polars", "scikit-learn", "anywidget"],
 }
 
 # 3.11 is used by colab.
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -113,8 +107,9 @@ SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
     "3.10": ["tests", "scikit-learn", "anywidget"],
-    LATEST_FULLY_SUPPORTED_PYTHON: ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
     "3.13": ["tests", "polars", "anywidget"],
+    "3.14": ["tests", "polars", "anywidget"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
@@ -130,7 +125,7 @@ nox.options.sessions = [
     # from GitHub actions.
     "unit_noextras",
     "system-3.9",  # No extras.
-    f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
+    f"system-{DEFAULT_PYTHON_VERSION}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
     "cleanup",
@@ -264,7 +259,7 @@ def unit_noextras(session):
     run_unit(session, install_test_extra=False)
 
 
-@nox.session(python=DEFAULT_PYTHON_VERSION)
+@nox.session(python="3.10")
 def mypy(session):
     """Run type checks with mypy."""
     # Editable mode is not compatible with mypy when there are multiple
@@ -414,7 +409,7 @@ def system(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def system_noextras(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -425,7 +420,7 @@ def system_noextras(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
+@nox.session(python="3.12")
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -451,7 +446,7 @@ def doctest(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=E2E_TEST_PYTHON_VERSION)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def e2e(session: nox.sessions.Session):
     """Run the large tests in system test suite."""
     run_system(
@@ -549,7 +544,7 @@ def docs(session):
     )
 
 
-@nox.session(python=DEFAULT_PYTHON_VERSION)
+@nox.session(python="3.10")
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
@@ -811,20 +806,6 @@ def notebook(session: nox.Session):
         "notebooks/dataframes/anywidget_mode.ipynb",
     ]
 
-    # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
-    # TODO: remove exception for Python 3.13 if nbmake adds support for
-    # sys.exit(0) or pytest.skip(...).
-    # See: https://github.com/treebeardtech/nbmake/issues/134
-    if session.python == "3.13":
-        denylist.extend(
-            [
-                "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
-                "notebooks/remote_functions/remote_function_usecases.ipynb",
-                "notebooks/remote_functions/remote_function_vertex_claude_model.ipynb",
-                "notebooks/remote_functions/remote_function.ipynb",
-            ]
-        )
-
     # Convert each Path notebook object to a string using a list comprehension,
     # and remove tests that we choose not to test.
     notebooks = [str(nb) for nb in notebooks_list]
@@ -999,7 +980,7 @@ def benchmark(session: nox.Session):
         )
 
 
-@nox.session(python="3.10")
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def release_dry_run(session):
     env = {}
 
