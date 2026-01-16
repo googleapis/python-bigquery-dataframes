@@ -17,15 +17,11 @@ from __future__ import annotations
 Utility functions for SQL construction.
 """
 
-import datetime
-import decimal
 import json
-import math
 from typing import cast, Collection, Iterable, Mapping, Optional, TYPE_CHECKING, Union
 
-import shapely.geometry.base  # type: ignore
-
 import bigframes.core.compile.googlesql as googlesql
+from bigframes.core.sql.literals import simple_literal
 
 if TYPE_CHECKING:
     import google.cloud.bigquery as bigquery
@@ -33,75 +29,7 @@ if TYPE_CHECKING:
     import bigframes.core.ordering
 
 
-# shapely.wkt.dumps was moved to shapely.io.to_wkt in 2.0.
-try:
-    from shapely.io import to_wkt  # type: ignore
-except ImportError:
-    from shapely.wkt import dumps  # type: ignore
-
-    to_wkt = dumps
-
-
-SIMPLE_LITERAL_TYPES = Union[
-    bytes,
-    str,
-    int,
-    bool,
-    float,
-    datetime.datetime,
-    datetime.date,
-    datetime.time,
-    decimal.Decimal,
-    list,
-]
-
-
 ### Writing SQL Values (literals, column references, table references, etc.)
-def simple_literal(value: Union[SIMPLE_LITERAL_TYPES, None]) -> str:
-    """Return quoted input string."""
-
-    # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#literals
-    if value is None:
-        return "NULL"
-    elif isinstance(value, str):
-        # Single quoting seems to work nicer with ibis than double quoting
-        return f"'{googlesql._escape_chars(value)}'"
-    elif isinstance(value, bytes):
-        return repr(value)
-    elif isinstance(value, (bool, int)):
-        return str(value)
-    elif isinstance(value, float):
-        # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#floating_point_literals
-        if math.isnan(value):
-            return 'CAST("nan" as FLOAT)'
-        if value == math.inf:
-            return 'CAST("+inf" as FLOAT)'
-        if value == -math.inf:
-            return 'CAST("-inf" as FLOAT)'
-        return str(value)
-    # Check datetime first as it is a subclass of date
-    elif isinstance(value, datetime.datetime):
-        if value.tzinfo is None:
-            return f"DATETIME('{value.isoformat()}')"
-        else:
-            return f"TIMESTAMP('{value.isoformat()}')"
-    elif isinstance(value, datetime.date):
-        return f"DATE('{value.isoformat()}')"
-    elif isinstance(value, datetime.time):
-        return f"TIME(DATETIME('1970-01-01 {value.isoformat()}'))"
-    elif isinstance(value, shapely.geometry.base.BaseGeometry):
-        return f"ST_GEOGFROMTEXT({simple_literal(to_wkt(value))})"
-    elif isinstance(value, decimal.Decimal):
-        # TODO: disambiguate BIGNUMERIC based on scale and/or precision
-        return f"CAST('{str(value)}' AS NUMERIC)"
-    elif isinstance(value, list):
-        simple_literals = [simple_literal(i) for i in value]
-        return f"[{', '.join(simple_literals)}]"
-
-    else:
-        raise ValueError(f"Cannot produce literal for {value}")
-
-
 def multi_literal(*values: str):
     literal_strings = [simple_literal(i) for i in values]
     return "(" + ", ".join(literal_strings) + ")"
