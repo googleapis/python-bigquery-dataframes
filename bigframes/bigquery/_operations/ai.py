@@ -28,6 +28,7 @@ from bigframes import pandas as bpd
 from bigframes import series, session
 from bigframes.core import convert
 from bigframes.core.logging import log_adapter
+import bigframes.core.sql.literals
 from bigframes.ml import core as ml_core
 from bigframes.operations import ai_ops, output_schemas
 
@@ -394,9 +395,11 @@ def generate_embedding(
     data: Union[dataframe.DataFrame, series.Series, pd.DataFrame, pd.Series],
     *,
     output_dimensionality: Optional[int] = None,
+    task_type: Optional[str] = None,
     start_second: Optional[float] = None,
     end_second: Optional[float] = None,
     interval_seconds: Optional[float] = None,
+    trial_id: Optional[int] = None,
 ) -> dataframe.DataFrame:
     """
     Creates embeddings that describe an entity—for example, a piece of text or an image.
@@ -414,32 +417,49 @@ def generate_embedding(
     Args:
         model_name (str):
             The name of a remote model over a Vertex AI multimodalembedding@001 model.
-        data (DataFrame or Series):
-            The data to generate embeddings for. If a Series is provided, it is treated as the 'content' column.
-            If a DataFrame is provided, it must contain a 'content' column, or you must rename the column you wish to embed to 'content'.
+        data (bigframes.pandas.DataFrame or bigframes.pandas.Series):
+            The data to generate embeddings for. If a Series is provided, it is
+            treated as the 'content' column.  If a DataFrame is provided, it
+            must contain a 'content' column, or you must rename the column you
+            wish to embed to 'content'.
         output_dimensionality (int, optional):
-            The number of dimensions to use when generating embeddings. Valid values are 128, 256, 512, and 1408. The default value is 1408.
+            An INT64 value that specifies the number of dimensions to use when
+            generating embeddings. For example, if you specify 256 AS
+            output_dimensionality, then the embedding output column contains a
+            256-dimensional embedding for each input value. To find the
+            supported range of output dimensions, read about the available
+            `Google text embedding models <https://docs.cloud.google.com/vertex-ai/generative-ai/docs/embeddings/get-text-embeddings#google-models>`_.
+        task_type (str, optional):
+            A STRING literal that specifies the intended downstream application to
+            help the model produce better quality embeddings. For a list of
+            supported task types and how to choose which one to use, see `Choose an
+            embeddings task type <http://docs.cloud.google.com/vertex-ai/generative-ai/docs/embeddings/task-types>`_.
         start_second (float, optional):
             The second in the video at which to start the embedding. The default value is 0.
         end_second (float, optional):
             The second in the video at which to end the embedding. The default value is 120.
         interval_seconds (float, optional):
             The interval to use when creating embeddings. The default value is 16.
+        trial_id (int, optional):
+            An INT64 value that identifies the hyperparameter tuning trial that
+            you want the function to evaluate. The function uses the optimal
+            trial by default. Only specify this argument if you ran
+            hyperparameter tuning when creating the model.
 
     Returns:
-        bigframes.dataframe.DataFrame:
-            A new DataFrame with the generated embeddings. It contains the input table columns and the following columns:
-            * "embedding": an ARRAY<FLOAT64> value that contains the generated embedding vector.
-            * "status": a STRING value that contains the API response status for the corresponding row.
-            * "video_start_sec": for video content, an INT64 value that contains the starting second.
-            * "video_end_sec": for video content, an INT64 value that contains the ending second.
+        bigframes.pandas.DataFrame:
+            A new DataFrame with the generated embeddings. See the `SQL
+            reference for AI.GENERATE_EMBEDDING
+            <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-generate-embedding#output>`_
+            for details.
     """
     if isinstance(data, (pd.DataFrame, pd.Series)):
         data = bpd.read_pandas(data)
 
     if isinstance(data, series.Series):
-        # Rename series to 'content' and convert to DataFrame
-        data_df = data.rename("content").to_frame()
+        data = data.copy()
+        data.name = "content"
+        data_df = data.to_frame()
     elif isinstance(data, dataframe.DataFrame):
         data_df = data
     else:
@@ -448,17 +468,19 @@ def generate_embedding(
     # We need to get the SQL for the input data to pass as a subquery to the TVF
     source_sql = data_df.sql
 
-    struct_fields = []
+    struct_fields = {}
     if output_dimensionality is not None:
-        struct_fields.append(f"{output_dimensionality} AS output_dimensionality")
+        struct_fields["OUTPUT_DIMENSIONALITY"] = output_dimensionality
+    if task_type is not None:
+        struct_fields["TASK_TYPE"] = task_type
     if start_second is not None:
-        struct_fields.append(f"{start_second} AS start_second")
+        struct_fields["START_SECOND"] = start_second
     if end_second is not None:
-        struct_fields.append(f"{end_second} AS end_second")
+        struct_fields["END_SECOND"] = end_second
     if interval_seconds is not None:
-        struct_fields.append(f"{interval_seconds} AS interval_seconds")
-
-    struct_args = ", ".join(struct_fields)
+        struct_fields["INTERVAL_SECONDS"] = interval_seconds
+    if trial_id is not None:
+        struct_fields["TRIAL_ID"] = trial_id
 
     # Construct the TVF query
     query = f"""
@@ -466,7 +488,7 @@ def generate_embedding(
         FROM AI.GENERATE_EMBEDDING(
             MODEL `{model_name}`,
             ({source_sql}),
-            STRUCT({struct_args})
+            {bigframes.core.sql.literals.struct_literal(struct_fields)})
         )
     """
 
