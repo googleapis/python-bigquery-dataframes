@@ -42,16 +42,18 @@ def test_get_remote_function_locations(
 
 
 @pytest.mark.parametrize(
-    "func_hash, session_id, uniq_suffix, expected_name",
+    "func_hash, user_given_name, session_id, uniq_suffix, expected_name",
     [
         (
             "hash123",
+            "my_func",
             None,
             None,
-            "bigframes-hash123",
+            "bigframes-my_func-hash123",
         ),
         (
             "hash456",
+            None,
             "session789",
             None,
             "bigframes-session789-hash456",
@@ -59,20 +61,29 @@ def test_get_remote_function_locations(
         (
             "hash123",
             None,
+            None,
             "suffixABC",
             "bigframes-hash123-suffixABC",
         ),
         (
             "hash456",
+            "really_cool_udf",
             "session789",
             "suffixDEF",
-            "bigframes-session789-hash456-suffixDEF",
+            "bigframes-really_cool_udf-session789-hash456-suffixDEF",
         ),
     ],
 )
-def test_get_cloud_function_name(func_hash, session_id, uniq_suffix, expected_name):
+def test_get_cloud_function_name(
+    func_hash, user_given_name, session_id, uniq_suffix, expected_name
+):
     """Tests the construction of the cloud function name from its parts."""
-    result = _utils.get_cloud_function_name(func_hash, session_id, uniq_suffix)
+    result = _utils.get_cloud_function_name(
+        func_hash,
+        user_given_name=user_given_name,
+        session_id=session_id,
+        uniq_suffix=uniq_suffix,
+    )
 
     assert result == expected_name
 
