@@ -19,7 +19,7 @@ import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes import operations as ops
-from bigframes.core.compile.sqlglot import sqlglot_types
+from bigframes.core.compile.sqlglot import sqlglot_ir, sqlglot_types
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
@@ -101,11 +101,23 @@ def _(expr: TypedExpr) -> sge.Expression:
 def _(expr: TypedExpr, op: ops.MapOp) -> sge.Expression:
     if len(op.mappings) == 0:
         return expr.expr
+
+    mappings = [
+        (
+            sqlglot_ir._literal(key, dtypes.is_compatible(key, expr.dtype)),
+            sqlglot_ir._literal(value, dtypes.is_compatible(value, expr.dtype)),
+        )
+        for key, value in op.mappings
+    ]
     return sge.Case(
-        this=expr.expr,
         ifs=[
-            sge.If(this=sge.convert(key), true=sge.convert(value))
-            for key, value in op.mappings
+            sge.If(
+                this=sge.EQ(this=expr.expr, expression=key)
+                if not sqlglot_ir._is_null_literal(key)
+                else sge.Is(this=expr.expr, expression=sge.Null()),
+                true=value,
+            )
+            for key, value in mappings
         ],
         default=expr.expr,
     )
@@ -138,6 +150,25 @@ def _(
 @register_binary_op(ops.fillna_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.Coalesce(this=left.expr, expressions=[right.expr])
+
+
+@register_unary_op(ops.RemoteFunctionOp, pass_op=True)
+def _(expr: TypedExpr, op: ops.RemoteFunctionOp) -> sge.Expression:
+    routine_ref = op.function_def.routine_ref
+    # Quote project, dataset, and routine IDs to avoid keyword clashes.
+    func_name = (
+        f"`{routine_ref.project}`.`{routine_ref.dataset_id}`.`{routine_ref.routine_id}`"
+    )
+    func = sge.func(func_name, expr.expr)
+
+    if not op.apply_on_null:
+        return sge.If(
+            this=sge.Is(this=expr.expr, expression=sge.Null()),
+            true=expr.expr,
+            false=func,
+        )
+
+    return func
 
 
 @register_binary_op(ops.BinaryRemoteFunctionOp, pass_op=True)
