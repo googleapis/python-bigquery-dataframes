@@ -20,10 +20,11 @@ from typing import Collection, Literal, Mapping, Optional, Union
 
 import google.cloud.bigquery as bigquery
 
+import bigframes.core.sql
+import bigframes.dataframe
 import bigframes.ml.utils as utils
 
 if typing.TYPE_CHECKING:
-    import bigframes.dataframe as dataframe
     import bigframes.series as series
     import bigframes.session
 
@@ -91,7 +92,7 @@ def create_vector_index(
 def vector_search(
     base_table: str,
     column_to_search: str,
-    query: Union[dataframe.DataFrame, series.Series],
+    query: Union[bigframes.dataframe.DataFrame, series.Series],
     *,
     query_column_to_search: Optional[str] = None,
     top_k: Optional[int] = None,
@@ -99,7 +100,7 @@ def vector_search(
     fraction_lists_to_search: Optional[float] = None,
     use_brute_force: Optional[bool] = None,
     allow_large_results: Optional[bool] = None,
-) -> dataframe.DataFrame:
+) -> bigframes.dataframe.DataFrame:
     """
     Conduct vector search which searches embeddings to find semantically similar entities.
 
@@ -107,7 +108,6 @@ def vector_search(
     <https://cloud.google.com/bigquery/docs/reference/standard-sql/search_functions#vector_search>`_.
 
     **Examples:**
-
 
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
@@ -247,3 +247,65 @@ def vector_search(
         df = query._session.read_gbq_query(sql, allow_large_results=allow_large_results)
 
     return df
+
+
+def search(
+    data_to_search: Union[bigframes.dataframe.DataFrame, series.Series],
+    search_query: str,
+) -> series.Series:
+    """
+    The SEARCH function checks to see whether a BigQuery table or other search
+    data contains a set of search terms (tokens). It returns TRUE if all search
+    terms appear in the data, based on the rules for search_query and text
+    analysis described in the text analyzer. Otherwise, this function returns
+    FALSE.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> import bigframes.bigquery as bbq
+
+        >>> data = bpd.read_gbq("SELECT 'Please use foobar@example.com as your email.' AS email")
+        >>> bbq.search(data['email'], 'exam')
+        0    False
+        Name: email, dtype: boolean
+
+        >>> bbq.search(data['email'], 'foobar')
+        0    True
+        Name: email, dtype: boolean
+
+        >>> bbq.search(data['email'], 'example.com')
+        0    True
+        Name: email, dtype: boolean
+
+    Args:
+        data_to_search (bigframes.dataframe.DataFrame | bigframes.series.Series):
+            The data to search over.
+        search_query (str):
+            A STRING literal, or a STRING constant expression that represents
+            the terms of the search query.
+
+    Returns:
+        bigframes.series.Series: A new Series with the boolean result.
+    """
+    import bigframes.operations.search_ops as search_ops
+    import bigframes.series
+
+    if not isinstance(
+        data_to_search, (bigframes.series.Series, bigframes.dataframe.DataFrame)
+    ):
+        raise ValueError("data_to_search must be a Series or DataFrame")
+
+    if isinstance(data_to_search, bigframes.dataframe.DataFrame):
+        # SEARCH on a table (or dataframe) treats it as a STRUCT.  For easier
+        # application of a scalar unary op, we convert to a struct proactively
+        # in the expression.
+        import bigframes.bigquery._operations.struct as struct_ops
+
+        data_to_search = struct_ops.struct(data_to_search)
+
+    return data_to_search._apply_unary_op(
+        search_ops.SearchOp(
+            search_query=search_query,
+        )
+    )

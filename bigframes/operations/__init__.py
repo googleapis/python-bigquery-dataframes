@@ -185,6 +185,7 @@ from bigframes.operations.remote_function_ops import (
     NaryRemoteFunctionOp,
     RemoteFunctionOp,
 )
+from bigframes.operations.search_ops import SearchOp
 from bigframes.operations.string_ops import (
     capitalize_op,
     EndsWithOp,
@@ -376,6 +377,8 @@ __all__ = [
     "BinaryRemoteFunctionOp",
     "NaryRemoteFunctionOp",
     "RemoteFunctionOp",
+    # Search ops
+    "SearchOp",
     # Frequency ops
     "DatetimeToIntegerLabelOp",
     "FloorDtOp",
