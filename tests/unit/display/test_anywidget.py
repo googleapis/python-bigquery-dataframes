@@ -179,3 +179,45 @@ def test_page_size_change_resets_sort(mock_df):
 
     # to_pandas_batches called again (reset)
     assert mock_df.to_pandas_batches.call_count >= 2
+
+
+def test_deferred_mode_initialization(mock_df):
+    """Test that deferred mode does not load data initially."""
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        widget = TableWidget(mock_df, deferred=True)
+
+        assert widget.is_deferred_mode is True
+        mock_load.assert_not_called()
+
+
+def test_deferred_mode_execution(mock_df):
+    """Test that setting start_execution triggers load and disables deferred mode."""
+    from bigframes.display.anywidget import TableWidget
+
+    # specific mock for _initial_load to avoid real execution but allow tracking calls
+    # We need to make sure _initial_load exists on the class to patch it
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        widget = TableWidget(mock_df, deferred=True)
+
+        assert widget.is_deferred_mode is True
+        mock_load.assert_not_called()
+
+        # Simulate user clicking "Run"
+        widget.start_execution = True
+
+        # Verify load triggered
+        mock_load.assert_called_once()
+        assert widget.is_deferred_mode is False
+
+
+def test_normal_mode_initialization(mock_df):
+    """Test that normal mode loads data initially."""
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        widget = TableWidget(mock_df, deferred=False)
+
+        assert widget.is_deferred_mode is False
+        mock_load.assert_called_once()

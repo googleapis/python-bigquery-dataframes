@@ -76,12 +76,17 @@ class TableWidget(_WIDGET_BASE):
     _error_message = traitlets.Unicode(allow_none=True, default_value=None).tag(
         sync=True
     )
+    start_execution = traitlets.Bool(False).tag(sync=True)
+    is_deferred_mode = traitlets.Bool(False).tag(sync=True)
 
-    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
+    def __init__(
+        self, dataframe: bigframes.dataframe.DataFrame, deferred: bool = False
+    ):
         """Initialize the TableWidget.
 
         Args:
             dataframe: The Bigframes Dataframe to display in the widget.
+            deferred: Whether to defer the initial data load.
         """
         if not _ANYWIDGET_INSTALLED:
             raise ImportError(
@@ -90,6 +95,7 @@ class TableWidget(_WIDGET_BASE):
             )
 
         self._dataframe = dataframe
+        self.is_deferred_mode = deferred
 
         super().__init__()
 
@@ -122,11 +128,18 @@ class TableWidget(_WIDGET_BASE):
         else:
             self.orderable_columns = []
 
-        self._initial_load()
+        if not self.is_deferred_mode:
+            self._initial_load()
 
         # Signals to the frontend that the initial data load is complete.
         # Also used as a guard to prevent observers from firing during initialization.
         self._initial_load_complete = True
+
+    @traitlets.observe("start_execution")
+    def _on_start_execution(self, change: dict[str, Any]):
+        if change["new"]:
+            self._initial_load()
+            self.is_deferred_mode = False
 
     def _initial_load(self) -> None:
         """Get initial data and row count."""

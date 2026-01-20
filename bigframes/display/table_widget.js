@@ -23,6 +23,8 @@ const ModelProperty = {
   SORT_CONTEXT: 'sort_context',
   TABLE_HTML: 'table_html',
   MAX_COLUMNS: 'max_columns',
+  START_EXECUTION: 'start_execution',
+  IS_DEFERRED_MODE: 'is_deferred_mode',
 };
 
 const Event = {
@@ -40,6 +42,17 @@ function render({ model, el }) {
 
   const errorContainer = document.createElement('div');
   errorContainer.classList.add('error-message');
+
+  const deferredContainer = document.createElement('div');
+  deferredContainer.classList.add('deferred-message');
+  const deferredText = document.createElement('p');
+  deferredText.textContent =
+    'This is a preview of the widget. The SQL query has not been executed yet.';
+  const runButton = document.createElement('button');
+  runButton.textContent = 'Run Query and Display Widget';
+  runButton.classList.add('run-button');
+  deferredContainer.appendChild(deferredText);
+  deferredContainer.appendChild(runButton);
 
   const tableContainer = document.createElement('div');
   tableContainer.classList.add('table-container');
@@ -299,6 +312,30 @@ function render({ model, el }) {
     }
   }
 
+  function updateDeferredMode() {
+    const isDeferred = model.get(ModelProperty.IS_DEFERRED_MODE);
+    if (isDeferred) {
+      deferredContainer.style.display = 'flex';
+      tableContainer.style.display = 'none';
+      footer.style.display = 'none';
+    } else {
+      deferredContainer.style.display = 'none';
+      tableContainer.style.display = 'block';
+      footer.style.display = 'flex';
+      // Trigger a resize/layout update if needed when becoming visible
+      handleTableHTMLChange();
+    }
+  }
+
+  runButton.addEventListener(Event.CLICK, () => {
+    model.set(ModelProperty.START_EXECUTION, true);
+    model.save_changes();
+    // Optimistically switch UI state or wait for model update?
+    // Wait for model update via observer for robustness, but could show loading here.
+    runButton.textContent = 'Running...';
+    runButton.disabled = true;
+  });
+
   prevPage.addEventListener(Event.CLICK, () => handlePageChange(-1));
   nextPage.addEventListener(Event.CLICK, () => handlePageChange(1));
   pageSizeInput.addEventListener(Event.CHANGE, (e) => {
@@ -321,6 +358,7 @@ function render({ model, el }) {
     if (val) updateButtonStates();
   });
   model.on(`change:${ModelProperty.PAGE}`, updateButtonStates);
+  model.on(`change:${ModelProperty.IS_DEFERRED_MODE}`, updateDeferredMode);
 
   paginationContainer.appendChild(prevPage);
   paginationContainer.appendChild(pageIndicator);
@@ -340,11 +378,13 @@ function render({ model, el }) {
   footer.appendChild(settingsContainer);
 
   el.appendChild(errorContainer);
+  el.appendChild(deferredContainer);
   el.appendChild(tableContainer);
   el.appendChild(footer);
 
   handleTableHTMLChange();
   handleErrorMessageChange();
+  updateDeferredMode();
 }
 
 export default { render };

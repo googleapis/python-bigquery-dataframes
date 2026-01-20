@@ -267,7 +267,7 @@ def get_anywidget_bundle(
     else:
         df, blob_cols = obj._get_display_df_and_blob_cols()
 
-    widget = display.TableWidget(df)
+    widget = display.TableWidget(df, deferred=True)
     widget_repr_result = widget._repr_mimebundle_(include=include, exclude=exclude)
 
     if isinstance(widget_repr_result, tuple):
