@@ -32,6 +32,7 @@ def test_rand_calls_apply_nary_op():
     assert isinstance(op, ops.SqlScalarOp)
     assert op.sql_template == "RAND()"
     assert op._output_type == dtypes.FLOAT_DTYPE
+    assert op.deterministic is False
     assert args[1] == []
 
 

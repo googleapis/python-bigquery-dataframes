@@ -16,7 +16,8 @@ from __future__ import annotations
 
 from typing import Union
 
-from bigframes import dataframe, dtypes
+from bigframes import dataframe
+from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes import series
 
@@ -62,5 +63,6 @@ def rand(input_data: Union[series.Series, dataframe.DataFrame]) -> series.Series
     op = ops.SqlScalarOp(
         _output_type=dtypes.FLOAT_DTYPE,
         sql_template="RAND()",
+        is_deterministic=False,
     )
     return anchor._apply_nary_op(op, [])
