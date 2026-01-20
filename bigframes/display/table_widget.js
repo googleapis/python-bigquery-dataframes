@@ -322,8 +322,6 @@ function render({ model, el }) {
       deferredContainer.style.display = 'none';
       tableContainer.style.display = 'block';
       footer.style.display = 'flex';
-      // Trigger a resize/layout update if needed when becoming visible
-      handleTableHTMLChange();
     }
   }
 
