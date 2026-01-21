@@ -43,16 +43,22 @@ function render({ model, el }) {
   const errorContainer = document.createElement('div');
   errorContainer.classList.add('error-message');
 
-  const deferredContainer = document.createElement('div');
-  deferredContainer.classList.add('deferred-message');
-  const deferredText = document.createElement('p');
-  deferredText.textContent =
-    'This is a preview of the widget. The SQL query has not been executed yet.';
-  const runButton = document.createElement('button');
-  runButton.textContent = 'Run Query and Display Widget';
-  runButton.classList.add('run-button');
-  deferredContainer.appendChild(deferredText);
-  deferredContainer.appendChild(runButton);
+  function createDeferredView() {
+    const container = document.createElement('div');
+    container.classList.add('deferred-message');
+    const text = document.createElement('p');
+    text.textContent =
+      'This is a preview of the widget. The SQL query has not been executed yet.';
+    const button = document.createElement('button');
+    button.textContent = 'Run Query and Display Widget';
+    button.classList.add('run-button');
+    container.appendChild(text);
+    container.appendChild(button);
+    return { container, button };
+  }
+
+  const { container: deferredContainer, button: runButton } =
+    createDeferredView();
 
   const tableContainer = document.createElement('div');
   tableContainer.classList.add('table-container');
@@ -334,8 +340,7 @@ function render({ model, el }) {
   runButton.addEventListener(Event.CLICK, () => {
     model.set(ModelProperty.START_EXECUTION, true);
     model.save_changes();
-    // Optimistically switch UI state or wait for model update?
-    // Wait for model update via observer for robustness, but could show loading here.
+    // Update button state to indicate loading.
     runButton.textContent = 'Running...';
     runButton.disabled = true;
   });

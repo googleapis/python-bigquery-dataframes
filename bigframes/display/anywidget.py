@@ -136,7 +136,10 @@ class TableWidget(_WIDGET_BASE):
     @traitlets.observe("start_execution")
     def _on_start_execution(self, change: dict[str, Any]):
         if change["new"]:
-            self._initial_load()
+            try:
+                self._initial_load()
+            except Exception as e:
+                self._error_message = str(e)
             self.is_deferred_mode = False
 
     def _initial_load(self) -> None:
