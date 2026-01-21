@@ -342,7 +342,6 @@ function render({ model, el }) {
       tableContainer.style.display = 'block';
       footer.style.display = 'flex';
       handleTableHTMLChange();
-      initializeHeight();
     }
   }
 
