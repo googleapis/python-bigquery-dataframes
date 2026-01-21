@@ -341,6 +341,7 @@ function render({ model, el }) {
       deferredContainer.style.display = 'none';
       tableContainer.style.display = 'block';
       footer.style.display = 'flex';
+      handleTableHTMLChange();
       initializeHeight();
     }
   }
