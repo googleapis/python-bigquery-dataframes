@@ -20,6 +20,19 @@ from bigframes import dtypes
 from bigframes.core import agg_expressions, bigframe_node, expression, nodes
 from bigframes.core.rewrite import schema_binding
 
+IGNORED_NODES = (
+    nodes.SelectionNode,
+    nodes.ReadLocalNode,
+    nodes.ReadTableNode,
+    nodes.ConcatNode,
+    nodes.RandomSampleNode,
+    nodes.FromRangeNode,
+    nodes.PromoteOffsetsNode,
+    nodes.ReversedNode,
+    nodes.SliceNode,
+    nodes.ResultNode,
+)
+
 
 def encode_type_refs(root: bigframe_node.BigFrameNode) -> str:
     return f"{root.reduce_up(_encode_type_refs_from_node):x}"
@@ -42,9 +55,6 @@ def _encode_type_refs_from_node(
             curr_result = curr_result | _encode_type_refs_from_expr(
                 assignment[0], node.child
             )
-    elif isinstance(node, nodes.SelectionNode):
-        # Do nothing
-        pass
     elif isinstance(node, nodes.OrderByNode):
         for by in node.by:
             curr_result = curr_result | _encode_type_refs_from_expr(
@@ -75,6 +85,17 @@ def _encode_type_refs_from_node(
             curr_result = curr_result | _encode_type_refs_from_expr(
                 col_def.expression, node.child
             )
+    elif isinstance(node, nodes.ExplodeNode):
+        for col_id in node.column_ids:
+            curr_result = curr_result | _encode_type_refs_from_expr(col_id, node.child)
+    elif isinstance(node, IGNORED_NODES):
+        # Do nothing
+        pass
+    else:
+        # For unseen nodes, do not raise errors as this is the logging path, but
+        # we should cover those nodes either in the branches above, or place them
+        # in the IGNORED_NODES collection.
+        pass
 
     return child_result | curr_result
 

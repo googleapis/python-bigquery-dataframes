@@ -14,8 +14,12 @@
 
 from typing import Sequence
 
+import pandas as pd
+import pyarrow as pa
+
 from bigframes import dtypes
 from bigframes.core.logging import data_types
+import bigframes.pandas as bpd
 
 
 def encode_types(inputs: Sequence[dtypes.Dtype]) -> str:
@@ -97,5 +101,13 @@ def test_get_type_refs_window(scalars_df_index):
         ._block._expr.node
     )
     expected_types = [dtypes.STRING_DTYPE, dtypes.BOOL_DTYPE, dtypes.INT_DTYPE]
+
+    assert data_types.encode_type_refs(node) == encode_types(expected_types)
+
+
+def test_get_type_refs_explode():
+    df = bpd.DataFrame({"A": ["a", "b"], "B": [[1, 2], [3, 4, 5]]})
+    node = df.explode("B")._block._expr.node
+    expected_types = [pd.ArrowDtype(pa.list_(pa.int64()))]
 
     assert data_types.encode_type_refs(node) == encode_types(expected_types)
