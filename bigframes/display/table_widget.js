@@ -184,44 +184,30 @@ function render({ model, el }) {
   }
 
   let isHeightInitialized = false;
+  let lastHTML = '';
 
-  function initializeHeight() {
+  function handleTableHTMLChange() {
+    const newHTML = model.get(ModelProperty.TABLE_HTML);
+    if (newHTML && newHTML !== lastHTML) {
+      tableContainer.innerHTML = newHTML;
+      lastHTML = newHTML;
+    }
+
     // After the first render, dynamically set the container height to fit the
     // initial page (usually 10 rows) and then lock it.
-    const runUpdate = () => {
+    setTimeout(() => {
       if (!isHeightInitialized) {
         const table = tableContainer.querySelector('table');
         if (table) {
           const tableHeight = table.offsetHeight;
+          // Add a small buffer(e.g. 2px) for borders to avoid scrollbars.
           if (tableHeight > 0) {
-            const style = window.getComputedStyle(tableContainer);
-            let maxHeight = parseFloat(style.maxHeight);
-            if (isNaN(maxHeight)) maxHeight = 620; // Default fallback if parsing fails or none
-
-            // Clamp the target height to the max height to avoid conflicting with CSS
-            const targetHeight = Math.min(tableHeight + 2, maxHeight);
-
-            // Use min-height to allow expansion (e.g. horizontal scrollbars)
-            // but prevent shrinking (jumping controls).
-            tableContainer.style.minHeight = `${targetHeight}px`;
-            tableContainer.style.height = 'auto'; // Ensure height is not locked
+            tableContainer.style.height = `${tableHeight + 2}px`;
             isHeightInitialized = true;
           }
         }
       }
-    };
-
-    if (window.requestAnimationFrame) {
-      window.requestAnimationFrame(runUpdate);
-    } else {
-      setTimeout(runUpdate, 0);
-    }
-  }
-
-  function handleTableHTMLChange() {
-    tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
-
-    initializeHeight();
+    }, 0);
 
     const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
     const currentSortContext = model.get(ModelProperty.SORT_CONTEXT) || [];

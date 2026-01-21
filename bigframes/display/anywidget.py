@@ -79,9 +79,7 @@ class TableWidget(_WIDGET_BASE):
     start_execution = traitlets.Bool(False).tag(sync=True)
     is_deferred_mode = traitlets.Bool(False).tag(sync=True)
 
-    def __init__(
-        self, dataframe: bigframes.dataframe.DataFrame, deferred: bool = False
-    ):
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame, deferred: bool = True):
         """Initialize the TableWidget.
 
         Args:

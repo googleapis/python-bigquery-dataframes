@@ -186,7 +186,7 @@ def test_deferred_mode_initialization(mock_df):
     from bigframes.display.anywidget import TableWidget
 
     with mock.patch.object(TableWidget, "_initial_load") as mock_load:
-        widget = TableWidget(mock_df, deferred=True)
+        widget = TableWidget(mock_df)
 
         assert widget.is_deferred_mode is True
         mock_load.assert_not_called()
@@ -199,7 +199,7 @@ def test_deferred_mode_execution(mock_df):
     # specific mock for _initial_load to avoid real execution but allow tracking calls
     # We need to make sure _initial_load exists on the class to patch it
     with mock.patch.object(TableWidget, "_initial_load") as mock_load:
-        widget = TableWidget(mock_df, deferred=True)
+        widget = TableWidget(mock_df)
 
         assert widget.is_deferred_mode is True
         mock_load.assert_not_called()

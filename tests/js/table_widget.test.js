@@ -370,8 +370,7 @@ describe('TableWidget', () => {
     jest.runAllTimers();
 
     // Height should be set to the mocked offsetHeight + 2px buffer
-    expect(tableContainer.style.minHeight).toBe('152px');
-    expect(tableContainer.style.height).toBe('auto');
+    expect(tableContainer.style.height).toBe('152px');
 
     // --- Second render (e.g., page size change) ---
     // Simulate the new content being taller
@@ -379,9 +378,8 @@ describe('TableWidget', () => {
     tableHtmlChangeHandler();
     jest.runAllTimers();
 
-    // Min Height should NOT change (it's initialized once)
-    expect(tableContainer.style.minHeight).toBe('152px');
-    expect(tableContainer.style.height).toBe('auto');
+    // Height should NOT change (it's initialized once)
+    expect(tableContainer.style.height).toBe('152px');
 
     // Restore original implementation
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
