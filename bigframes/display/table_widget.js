@@ -185,9 +185,7 @@ function render({ model, el }) {
 
   let isHeightInitialized = false;
 
-  function handleTableHTMLChange() {
-    tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
-
+  function initializeHeight() {
     // After the first render, dynamically set the container height to fit the
     // initial page (usually 10 rows) and then lock it.
     setTimeout(() => {
@@ -203,6 +201,12 @@ function render({ model, el }) {
         }
       }
     }, 0);
+  }
+
+  function handleTableHTMLChange() {
+    tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
+
+    initializeHeight();
 
     const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
     const currentSortContext = model.get(ModelProperty.SORT_CONTEXT) || [];
@@ -322,6 +326,7 @@ function render({ model, el }) {
       deferredContainer.style.display = 'none';
       tableContainer.style.display = 'block';
       footer.style.display = 'flex';
+      initializeHeight();
     }
   }
 
