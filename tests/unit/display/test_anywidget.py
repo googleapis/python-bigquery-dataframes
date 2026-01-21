@@ -22,26 +22,29 @@ import bigframes.dtypes
 
 @pytest.fixture
 def mock_df():
-    df = mock.Mock()
-    # Mock behavior for caching check (shape)
-    df.shape = (100, 4)
-    df.columns = ["A", "B", "C", "D"]
-    # Use actual bigframes dtypes or compatible types that works with is_orderable
-    df.dtypes = {
-        "A": bigframes.dtypes.INT_DTYPE,
-        "B": bigframes.dtypes.STRING_DTYPE,
-        "C": bigframes.dtypes.FLOAT_DTYPE,
-        "D": bigframes.dtypes.BOOL_DTYPE,
-    }
+    # Mock _ANYWIDGET_INSTALLED to True so we can test the class logic
+    # even when anywidget isn't installed in the test environment.
+    with mock.patch("bigframes.display.anywidget._ANYWIDGET_INSTALLED", True):
+        df = mock.Mock()
+        # Mock behavior for caching check (shape)
+        df.shape = (100, 4)
+        df.columns = ["A", "B", "C", "D"]
+        # Use actual bigframes dtypes or compatible types that works with is_orderable
+        df.dtypes = {
+            "A": bigframes.dtypes.INT_DTYPE,
+            "B": bigframes.dtypes.STRING_DTYPE,
+            "C": bigframes.dtypes.FLOAT_DTYPE,
+            "D": bigframes.dtypes.BOOL_DTYPE,
+        }
 
-    # Ensure to_pandas_batches returns an iterable
-    df.to_pandas_batches.return_value = iter(
-        [pd.DataFrame({"A": [1], "B": ["a"], "C": [1.0], "D": [True]})]
-    )
+        # Ensure to_pandas_batches returns an iterable
+        df.to_pandas_batches.return_value = iter(
+            [pd.DataFrame({"A": [1], "B": ["a"], "C": [1.0], "D": [True]})]
+        )
 
-    # Ensure sort_values returns the mock itself (so to_pandas_batches is still configured)
-    df.sort_values.return_value = df
-    return df
+        # Ensure sort_values returns the mock itself (so to_pandas_batches is still configured)
+        df.sort_values.return_value = df
+        yield df
 
 
 def test_init_raises_if_anywidget_not_installed():
