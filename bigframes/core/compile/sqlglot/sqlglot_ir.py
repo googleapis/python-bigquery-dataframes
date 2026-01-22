@@ -642,6 +642,15 @@ def _select_to_cte(expr: sge.Select, cte_name: sge.Identifier) -> sge.Select:
     return new_select_expr
 
 
+def _is_null_literal(expr: sge.Expression) -> bool:
+    """Checks if the given expression is a NULL literal."""
+    if isinstance(expr, sge.Null):
+        return True
+    if isinstance(expr, sge.Cast) and isinstance(expr.this, sge.Null):
+        return True
+    return False
+
+
 def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
     sqlglot_type = sgt.from_bigframes_dtype(dtype) if dtype else None
     if sqlglot_type is None:
@@ -665,7 +674,7 @@ def _literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
             expressions=[_literal(value=v, dtype=value_type) for v in value]
         )
         return values if len(value) > 0 else _cast(values, sqlglot_type)
-    elif pd.isna(value):
+    elif pd.isna(value) or (isinstance(value, pa.Scalar) and not value.is_valid):
         return _cast(sge.Null(), sqlglot_type)
     elif dtype == dtypes.JSON_DTYPE:
         return sge.ParseJSON(this=sge.convert(str(value)))
