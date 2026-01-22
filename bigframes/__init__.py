@@ -16,11 +16,23 @@
 
 from bigframes._config import option_context, options
 from bigframes._config.bigquery_options import BigQueryOptions
+from bigframes._magics import _cell_magic
 from bigframes.core.global_session import close_session, get_global_session
 import bigframes.enums as enums
 import bigframes.exceptions as exceptions
 from bigframes.session import connect, Session
 from bigframes.version import __version__
+
+_MAGIC_NAMES = ["bigframes"]
+
+
+def load_ipython_extension(ipython):
+    """Called by IPython when this module is loaded as an IPython extension."""
+    for magic_name in _MAGIC_NAMES:
+        ipython.register_magic_function(
+            _cell_magic, magic_kind="cell", magic_name=magic_name
+        )
+
 
 __all__ = [
     "options",
