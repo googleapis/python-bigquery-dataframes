@@ -23,7 +23,7 @@ import bigframes.exceptions as exceptions
 from bigframes.session import connect, Session
 from bigframes.version import __version__
 
-_MAGIC_NAMES = ["bigframes"]
+_MAGIC_NAMES = ["bigquery_sql"]
 
 
 def load_ipython_extension(ipython):

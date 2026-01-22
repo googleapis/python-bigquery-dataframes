@@ -40,6 +40,7 @@ def _cell_magic(line, cell):
     args = magic_arguments.parse_argstring(_cell_magic, line)
     if not cell:
         print("Query is missing.")
+        return
     pyformat_args = ipython.user_ns
     dataframe = bigframes.pandas._read_gbq_colab(
         cell, pyformat_args=pyformat_args, dry_run=args.dry_run
@@ -47,5 +48,9 @@ def _cell_magic(line, cell):
     if args.destination_var:
         ipython.push({args.destination_var: dataframe})
     else:
-        display(dataframe)
-    return dataframe
+        with bigframes.option_context(
+            "display.repr_mode",
+            "anywidget",
+        ):
+            display(dataframe)
+    return

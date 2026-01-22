@@ -20,7 +20,7 @@ import pytest
 import bigframes
 import bigframes.pandas as bpd
 
-MAGIC_NAME = "bigframes"
+MAGIC_NAME = "bigquery_sql"
 
 
 @pytest.fixture(scope="module")
