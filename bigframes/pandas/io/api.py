@@ -361,7 +361,7 @@ def _read_gbq_colab(
                     bigframes._importing.import_polars()
                     warnings.simplefilter("ignore", bigframes.exceptions.PreviewWarning)
                     config.options.bigquery.enable_polars_execution = True
-                except TypeError:
+                except ImportError:
                     pass  # don't fail if polars isn't available
 
     return global_session.with_default_session(
