@@ -177,3 +177,29 @@ def test_transform_model_basic(snapshot):
         table="SELECT * FROM new_data",
     )
     snapshot.assert_match(sql, "transform_model_basic.sql")
+
+
+def test_generate_text_model_basic(snapshot):
+    sql = bigframes.core.sql.ml.generate_text(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM new_data",
+    )
+    snapshot.assert_match(sql, "generate_text_model_basic.sql")
+
+
+def test_generate_text_model_with_options(snapshot):
+    sql = bigframes.core.sql.ml.generate_text(
+        model_name="my_project.my_dataset.my_model",
+        table="SELECT * FROM new_data",
+        temperature=0.5,
+        max_output_tokens=128,
+        top_k=20,
+        top_p=0.9,
+        flatten_json_output=True,
+        safety_settings={"hate_speech": "BLOCK_ONLY_HIGH"},
+        stop_sequences=["a", "b"],
+        ground_with_google_search=True,
+        model_params={"param1": "value1"},
+        request_type="TYPE",
+    )
+    snapshot.assert_match(sql, "generate_text_model_with_options.sql")
