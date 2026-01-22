@@ -16,6 +16,7 @@
 import hashlib
 import inspect
 import json
+import re
 import sys
 import typing
 from typing import Any, cast, Optional, Sequence, Set
@@ -221,7 +222,9 @@ def get_cloud_function_name(
     "Get a name for the cloud function for the given user defined function."
     parts = [_BIGFRAMES_FUNCTION_PREFIX]
     if user_given_name:
-        parts.append(user_given_name)
+        user_given_name_alphanumeric = re.sub(r"[^a-zA-Z0-9_]", "", user_given_name)
+        if user_given_name_alphanumeric:
+            parts.append(user_given_name_alphanumeric)
     if session_id:
         parts.append(session_id)
     parts.append(function_hash)

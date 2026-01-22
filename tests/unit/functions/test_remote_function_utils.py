@@ -46,7 +46,7 @@ def test_get_remote_function_locations(
     [
         (
             "hash123",
-            "my_func",
+            " my_func ***",
             None,
             None,
             "bigframes-my_func-hash123",
