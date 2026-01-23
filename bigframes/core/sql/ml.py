@@ -189,10 +189,10 @@ def predict(
         struct_options["trial_id"] = trial_id
 
     sql = (
-        f"SELECT * FROM ML.PREDICT(MODEL {googlesql.identifier(model_name)}, ({table}))"
+        f"SELECT * FROM ML.PREDICT(MODEL {googlesql.identifier(model_name)}, ({table})"
     )
     sql += _build_struct_sql(struct_options)
-    sql += "\n"
+    sql += ")\n"
     return sql
 
 
@@ -238,9 +238,9 @@ def global_explain(
     if class_level_explain is not None:
         struct_options["class_level_explain"] = class_level_explain
 
-    sql = f"SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL {googlesql.identifier(model_name)})"
+    sql = f"SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL {googlesql.identifier(model_name)}"
     sql += _build_struct_sql(struct_options)
-    sql += "\n"
+    sql += ")\n"
     return sql
 
 

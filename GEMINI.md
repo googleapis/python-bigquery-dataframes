@@ -2,9 +2,9 @@
 
 ## Testing
 
-We use `pytest` to instrument our tests.
+We use `nox` to instrument our tests.
 
-- To test your changes, run unit tests with `pytest`:
+- To test your changes, run unit tests with `nox`:
 
   ```bash
   nox -r -s unit
