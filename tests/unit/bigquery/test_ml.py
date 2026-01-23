@@ -182,10 +182,8 @@ def test_generate_text_with_pandas_dataframe(read_pandas_mock, read_gbq_query_mo
         top_k=20,
         top_p=0.9,
         flatten_json_output=True,
-        safety_settings={"hate_speech": "BLOCK_ONLY_HIGH"},
         stop_sequences=["a", "b"],
         ground_with_google_search=True,
-        model_params={"param1": "value1"},
         request_type="TYPE",
     )
     read_pandas_mock.assert_called_once()
@@ -199,10 +197,6 @@ def test_generate_text_with_pandas_dataframe(read_pandas_mock, read_gbq_query_mo
     assert "20 AS top_k" in generated_sql
     assert "0.9 AS top_p" in generated_sql
     assert "true AS flatten_json_output" in generated_sql
-    assert (
-        "STRUCT('BLOCK_ONLY_HIGH' AS hate_speech) AS safety_settings" in generated_sql
-    )
     assert "['a', 'b'] AS stop_sequences" in generated_sql
     assert "true AS ground_with_google_search" in generated_sql
-    assert """JSON'{"param1": "value1"}' AS model_params""" in generated_sql
     assert "'TYPE' AS request_type" in generated_sql

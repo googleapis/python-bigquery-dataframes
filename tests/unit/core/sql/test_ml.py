@@ -196,10 +196,8 @@ def test_generate_text_model_with_options(snapshot):
         top_k=20,
         top_p=0.9,
         flatten_json_output=True,
-        safety_settings={"hate_speech": "BLOCK_ONLY_HIGH"},
         stop_sequences=["a", "b"],
         ground_with_google_search=True,
-        model_params={"param1": "value1"},
         request_type="TYPE",
     )
     snapshot.assert_match(sql, "generate_text_model_with_options.sql")

@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast, List, Mapping, Optional, Union
+from typing import cast, List, Mapping, Optional, Union
 
 import bigframes_vendored.constants
 import google.cloud.bigquery
@@ -443,10 +443,8 @@ def generate_text(
     top_k: Optional[int] = None,
     top_p: Optional[float] = None,
     flatten_json_output: Optional[bool] = None,
-    safety_settings: Optional[Mapping[str, str]] = None,
     stop_sequences: Optional[List[str]] = None,
     ground_with_google_search: Optional[bool] = None,
-    model_params: Optional[Mapping[str, Any]] = None,
     request_type: Optional[str] = None,
 ) -> dataframe.DataFrame:
     """
@@ -489,16 +487,10 @@ def generate_text(
             default value is ``0.95``.
         flatten_json_output (bool, optional):
             A BOOL value that determines the content of the generated JSON column.
-        safety_settings (Mapping[str, str], optional):
-            A STRUCT value that contains the safety settings for the model.
-            The STRUCT must have a ``category`` field of type STRING and a
-            ``threshold`` field of type STRING.
         stop_sequences (List[str], optional):
             An ARRAY<STRING> value that contains the stop sequences for the model.
         ground_with_google_search (bool, optional):
             A BOOL value that determines whether to ground the model with Google Search.
-        model_params (Mapping[str, Any], optional):
-            A JSON value that contains the parameters for the model.
         request_type (str, optional):
             A STRING value that contains the request type for the model.
 
@@ -519,10 +511,8 @@ def generate_text(
         top_k=top_k,
         top_p=top_p,
         flatten_json_output=flatten_json_output,
-        safety_settings=safety_settings,
         stop_sequences=stop_sequences,
         ground_with_google_search=ground_with_google_search,
-        model_params=model_params,
         request_type=request_type,
     )
 

@@ -264,10 +264,8 @@ def generate_text(
     top_k: Optional[int] = None,
     top_p: Optional[float] = None,
     flatten_json_output: Optional[bool] = None,
-    safety_settings: Optional[Mapping[str, str]] = None,
     stop_sequences: Optional[List[str]] = None,
     ground_with_google_search: Optional[bool] = None,
-    model_params: Optional[Mapping[str, Any]] = None,
     request_type: Optional[str] = None,
 ) -> str:
     """Encode the ML.GENERATE_TEXT statement.
@@ -287,14 +285,10 @@ def generate_text(
         struct_options["top_p"] = top_p
     if flatten_json_output is not None:
         struct_options["flatten_json_output"] = flatten_json_output
-    if safety_settings is not None:
-        struct_options["safety_settings"] = safety_settings
     if stop_sequences is not None:
         struct_options["stop_sequences"] = stop_sequences
     if ground_with_google_search is not None:
         struct_options["ground_with_google_search"] = ground_with_google_search
-    if model_params is not None:
-        struct_options["model_params"] = model_params
     if request_type is not None:
         struct_options["request_type"] = request_type
 
