@@ -28,15 +28,11 @@ def test_data_type_logging(scalars_df_index):
     ) as mock_query:
         s.to_pandas()
 
-        # Verify call args
+        # Fetch job labels sent to the BQ client and verify their values
         assert mock_query.called
         call_args = mock_query.call_args
         job_config = call_args.kwargs.get("job_config")
-
-        # Verify we actually got a job_config
         assert job_config is not None
-
-        # Use the captured job_config for assertions
         job_labels = job_config.labels
         assert "bigframes-dtypes" in job_labels
         assert job_labels["bigframes-dtypes"] == data_types.encode_type_refs(
