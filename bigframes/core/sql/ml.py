@@ -18,6 +18,7 @@ from typing import Dict, Mapping, Optional, Union
 
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
+import bigframes.core.sql.literals
 
 
 def create_model_ddl(
@@ -105,11 +106,7 @@ def _build_struct_sql(
     if not struct_options:
         return ""
 
-    rendered_options = []
-    for option_name, option_value in struct_options.items():
-        rendered_val = bigframes.core.sql.simple_literal(option_value)
-        rendered_options.append(f"{rendered_val} AS {option_name}")
-    return f", STRUCT({', '.join(rendered_options)})"
+    return f", {bigframes.core.sql.literals.struct_literal}"
 
 
 def evaluate(
