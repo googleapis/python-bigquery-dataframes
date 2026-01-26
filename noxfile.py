@@ -755,6 +755,7 @@ def notebook(session: nox.Session):
             "Set GOOGLE_CLOUD_PROJECT environment variable to run notebook session."
         )
 
+    session.install("google-auth<2.42.0") 
     session.install("-e", ".[all]")
     session.install(
         "pytest",
