@@ -16,8 +16,7 @@ from __future__ import annotations
 
 from typing import Union
 
-from bigframes import dataframe
-from bigframes import dtypes
+from bigframes import dataframe, dtypes
 from bigframes import operations as ops
 from bigframes import series
 
