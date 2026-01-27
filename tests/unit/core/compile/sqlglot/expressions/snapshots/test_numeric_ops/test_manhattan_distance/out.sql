@@ -1,16 +1,9 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float_list_col`,
-    `numeric_list_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    ML.DISTANCE(`float_list_col`, `float_list_col`, 'MANHATTAN') AS `bfcol_2`,
-    ML.DISTANCE(`numeric_list_col`, `numeric_list_col`, 'MANHATTAN') AS `bfcol_3`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_2` AS `float_list_col`,
-  `bfcol_3` AS `numeric_list_col`
-FROM `bfcte_1`
+  `ML.DISTANCE`(`t1`.`float_list_col`, `t1`.`float_list_col`, 'MANHATTAN') AS `float_list_col`,
+  `ML.DISTANCE`(`t1`.`numeric_list_col`, `t1`.`numeric_list_col`, 'MANHATTAN') AS `numeric_list_col`
+FROM (
+  SELECT
+    `t0`.`float_list_col`,
+    `t0`.`numeric_list_col`
+  FROM `bigframes-dev.sqlglot_test.repeated_types` AS `t0`
+) AS `t1`

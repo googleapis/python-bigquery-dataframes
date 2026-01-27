@@ -1,14 +1,11 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    GREATEST(`int64_col`, `float64_col`) AS `bfcol_2`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_2` AS `int64_col`
-FROM `bfcte_1`
+  CASE
+    WHEN (
+      `t0`.`float64_col` IS NULL
+    ) OR (
+      `t0`.`int64_col` < `t0`.`float64_col`
+    )
+    THEN `t0`.`float64_col`
+    ELSE `t0`.`int64_col`
+  END AS `int64_col`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

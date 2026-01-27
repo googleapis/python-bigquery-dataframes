@@ -1,50 +1,94 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    CAST(TIMESTAMP(
-      DATETIME(
-        CASE
-          WHEN MOD(
-            `rowindex` * 1 + EXTRACT(YEAR FROM `timestamp_col`) * 12 + EXTRACT(MONTH FROM `timestamp_col`) - 1,
-            12
-          ) + 1 = 12
-          THEN CAST(FLOOR(
-            IEEE_DIVIDE(
-              `rowindex` * 1 + EXTRACT(YEAR FROM `timestamp_col`) * 12 + EXTRACT(MONTH FROM `timestamp_col`) - 1,
+SELECT
+  CAST(TIMESTAMP_SUB(
+    DATETIME(
+      IF(
+        (
+          (
+            MOD(
+              (
+                `t0`.`rowindex` * 1
+              ) + (
+                (
+                  (
+                    EXTRACT(year FROM `t0`.`timestamp_col`) * 12
+                  ) + EXTRACT(month FROM `t0`.`timestamp_col`)
+                ) - 1
+              ),
               12
             )
-          ) AS INT64) + 1
-          ELSE CAST(FLOOR(
-            IEEE_DIVIDE(
-              `rowindex` * 1 + EXTRACT(YEAR FROM `timestamp_col`) * 12 + EXTRACT(MONTH FROM `timestamp_col`) - 1,
+          ) + 1
+        ) = 12,
+        (
+          CAST(FLOOR(
+            ieee_divide(
+              (
+                `t0`.`rowindex` * 1
+              ) + (
+                (
+                  (
+                    EXTRACT(year FROM `t0`.`timestamp_col`) * 12
+                  ) + EXTRACT(month FROM `t0`.`timestamp_col`)
+                ) - 1
+              ),
               12
             )
           ) AS INT64)
-        END,
-        CASE
-          WHEN MOD(
-            `rowindex` * 1 + EXTRACT(YEAR FROM `timestamp_col`) * 12 + EXTRACT(MONTH FROM `timestamp_col`) - 1,
+        ) + 1,
+        CAST(FLOOR(
+          ieee_divide(
+            (
+              `t0`.`rowindex` * 1
+            ) + (
+              (
+                (
+                  EXTRACT(year FROM `t0`.`timestamp_col`) * 12
+                ) + EXTRACT(month FROM `t0`.`timestamp_col`)
+              ) - 1
+            ),
             12
-          ) + 1 = 12
-          THEN 1
-          ELSE MOD(
-            `rowindex` * 1 + EXTRACT(YEAR FROM `timestamp_col`) * 12 + EXTRACT(MONTH FROM `timestamp_col`) - 1,
-            12
-          ) + 1 + 1
-        END,
+          )
+        ) AS INT64)
+      ),
+      IF(
+        (
+          (
+            MOD(
+              (
+                `t0`.`rowindex` * 1
+              ) + (
+                (
+                  (
+                    EXTRACT(year FROM `t0`.`timestamp_col`) * 12
+                  ) + EXTRACT(month FROM `t0`.`timestamp_col`)
+                ) - 1
+              ),
+              12
+            )
+          ) + 1
+        ) = 12,
         1,
-        0,
-        0,
-        0
-      )
-    ) - INTERVAL 1 DAY AS TIMESTAMP) AS `bfcol_2`
-  FROM `bfcte_0`
-)
-SELECT
-  `bfcol_2` AS `non_fixed_freq_monthly`
-FROM `bfcte_1`
+        (
+          (
+            MOD(
+              (
+                `t0`.`rowindex` * 1
+              ) + (
+                (
+                  (
+                    EXTRACT(year FROM `t0`.`timestamp_col`) * 12
+                  ) + EXTRACT(month FROM `t0`.`timestamp_col`)
+                ) - 1
+              ),
+              12
+            )
+          ) + 1
+        ) + 1
+      ),
+      1,
+      0,
+      0,
+      0
+    ),
+    INTERVAL '1' DAY
+  ) AS TIMESTAMP) AS `non_fixed_freq_monthly`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
