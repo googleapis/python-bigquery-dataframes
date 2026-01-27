@@ -2292,7 +2292,7 @@ class Session(
                 Result BigFrames DataFrame.
         """
         warnings.warn(
-            "read_gbq_object_table is deprecated and will be removed in a future release.",
+            "read_gbq_object_table is deprecated and will be removed in a future release. Use read_gbq with 'ref' column instead.",
             category=bfe.ApiDeprecationWarning,
             stacklevel=2,
         )

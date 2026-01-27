@@ -321,7 +321,7 @@ class Series(vendored_pandas_series.Series):
         Accessor for Blob operations.
         """
         warnings.warn(
-            "The blob accessor is deprecated and will be removed in a future release.",
+            "The blob accessor is deprecated and will be removed in a future release. Use bigframes.bigquery.obj functions instead.",
             category=bfe.ApiDeprecationWarning,
             stacklevel=2,
         )
