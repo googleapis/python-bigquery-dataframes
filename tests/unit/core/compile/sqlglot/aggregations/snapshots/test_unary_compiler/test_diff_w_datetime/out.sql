@@ -1,17 +1,11 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `datetime_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    DATETIME_DIFF(
-      `datetime_col`,
-      LAG(`datetime_col`, 1) OVER (ORDER BY `datetime_col` ASC NULLS LAST),
-      MICROSECOND
-    ) AS `bfcol_1`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_1` AS `diff_datetime`
-FROM `bfcte_1`
+  DATETIME_DIFF(
+    `t1`.`datetime_col`,
+    LAG(`t1`.`datetime_col`, 1) OVER (ORDER BY `t1`.`datetime_col` IS NULL ASC, `t1`.`datetime_col` ASC),
+    MICROSECOND
+  ) AS `diff_datetime`
+FROM (
+  SELECT
+    `t0`.`datetime_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`

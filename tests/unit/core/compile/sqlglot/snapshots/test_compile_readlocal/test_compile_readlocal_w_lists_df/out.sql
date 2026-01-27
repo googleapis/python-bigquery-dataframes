@@ -1,7 +1,27 @@
-WITH `bfcte_0` AS (
+SELECT
+`rowindex` AS `rowindex`,
+`int_list_col` AS `int_list_col`,
+`bool_list_col` AS `bool_list_col`,
+`float_list_col` AS `float_list_col`,
+`date_list_col` AS `date_list_col`,
+`date_time_list_col` AS `date_time_list_col`,
+`numeric_list_col` AS `numeric_list_col`,
+`string_list_col` AS `string_list_col`
+FROM
+(SELECT
+  `t0`.`level_0` AS `rowindex`,
+  `t0`.`column_0` AS `int_list_col`,
+  `t0`.`column_1` AS `bool_list_col`,
+  `t0`.`column_2` AS `float_list_col`,
+  `t0`.`column_3` AS `date_list_col`,
+  `t0`.`column_4` AS `date_time_list_col`,
+  `t0`.`column_5` AS `numeric_list_col`,
+  `t0`.`column_6` AS `string_list_col`,
+  `t0`.`bfuid_col_1507` AS `bfuid_col_1508`
+FROM (
   SELECT
     *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` ARRAY<INT64>, `bfcol_2` ARRAY<BOOLEAN>, `bfcol_3` ARRAY<FLOAT64>, `bfcol_4` ARRAY<STRING>, `bfcol_5` ARRAY<STRING>, `bfcol_6` ARRAY<FLOAT64>, `bfcol_7` ARRAY<STRING>, `bfcol_8` INT64>>[STRUCT(
+  FROM UNNEST(ARRAY<STRUCT<`level_0` INT64, `column_0` ARRAY<INT64>, `column_1` ARRAY<BOOLEAN>, `column_2` ARRAY<FLOAT64>, `column_3` ARRAY<STRING>, `column_4` ARRAY<STRING>, `column_5` ARRAY<FLOAT64>, `column_6` ARRAY<STRING>, `bfuid_col_1507` INT64>>[STRUCT(
     0,
     [1],
     [TRUE],
@@ -31,17 +51,6 @@ WITH `bfcte_0` AS (
     [1.7000000000000002],
     ['', 'a'],
     2
-  )])
-)
-SELECT
-  `bfcol_0` AS `rowindex`,
-  `bfcol_1` AS `int_list_col`,
-  `bfcol_2` AS `bool_list_col`,
-  `bfcol_3` AS `float_list_col`,
-  `bfcol_4` AS `date_list_col`,
-  `bfcol_5` AS `date_time_list_col`,
-  `bfcol_6` AS `numeric_list_col`,
-  `bfcol_7` AS `string_list_col`
-FROM `bfcte_0`
-ORDER BY
-  `bfcol_8` ASC NULLS LAST
+  )]) AS `level_0`
+) AS `t0`)
+ORDER BY `bfuid_col_1508` ASC NULLS LAST

@@ -1,125 +1,102 @@
-WITH `bfcte_2` AS (
+SELECT
+`float64_col` AS `float64_col`,
+`int64_col` AS `int64_col`
+FROM
+(WITH `t1` AS (
   SELECT
-    `float64_col`,
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_6` AS (
+    `t0`.`int64_col`,
+    `t0`.`float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+), `t2` AS (
   SELECT
-    *,
-    ROW_NUMBER() OVER (ORDER BY `int64_col` ASC NULLS LAST) - 1 AS `bfcol_4`
-  FROM `bfcte_2`
-), `bfcte_10` AS (
-  SELECT
-    *,
-    0 AS `bfcol_5`
-  FROM `bfcte_6`
-), `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `float64_col`,
-    `int64_too`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_4` AS (
-  SELECT
-    *
-  FROM `bfcte_0`
+    `t0`.`bool_col`,
+    `t0`.`int64_too`,
+    `t0`.`float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
   WHERE
-    `bool_col`
-), `bfcte_8` AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER () - 1 AS `bfcol_15`
-  FROM `bfcte_4`
-), `bfcte_12` AS (
-  SELECT
-    *,
-    1 AS `bfcol_16`
-  FROM `bfcte_8`
-), `bfcte_1` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_5` AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (ORDER BY `int64_col` ASC NULLS LAST) - 1 AS `bfcol_25`
-  FROM `bfcte_1`
-), `bfcte_9` AS (
-  SELECT
-    *,
-    2 AS `bfcol_26`
-  FROM `bfcte_5`
-), `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `float64_col`,
-    `int64_too`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_3` AS (
-  SELECT
-    *
-  FROM `bfcte_0`
-  WHERE
-    `bool_col`
-), `bfcte_7` AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER () - 1 AS `bfcol_36`
-  FROM `bfcte_3`
-), `bfcte_11` AS (
-  SELECT
-    *,
-    3 AS `bfcol_37`
-  FROM `bfcte_7`
-), `bfcte_13` AS (
-  SELECT
-    `bfcol_6` AS `bfcol_42`,
-    `bfcol_7` AS `bfcol_43`,
-    `bfcol_8` AS `bfcol_44`,
-    `bfcol_9` AS `bfcol_45`
-  FROM (
-    (
-      SELECT
-        `float64_col` AS `bfcol_6`,
-        `int64_col` AS `bfcol_7`,
-        `bfcol_5` AS `bfcol_8`,
-        `bfcol_4` AS `bfcol_9`
-      FROM `bfcte_10`
-    )
-    UNION ALL
-    (
-      SELECT
-        `float64_col` AS `bfcol_17`,
-        `int64_too` AS `bfcol_18`,
-        `bfcol_16` AS `bfcol_19`,
-        `bfcol_15` AS `bfcol_20`
-      FROM `bfcte_12`
-    )
-    UNION ALL
-    (
-      SELECT
-        `float64_col` AS `bfcol_27`,
-        `int64_col` AS `bfcol_28`,
-        `bfcol_26` AS `bfcol_29`,
-        `bfcol_25` AS `bfcol_30`
-      FROM `bfcte_9`
-    )
-    UNION ALL
-    (
-      SELECT
-        `float64_col` AS `bfcol_38`,
-        `int64_too` AS `bfcol_39`,
-        `bfcol_37` AS `bfcol_40`,
-        `bfcol_36` AS `bfcol_41`
-      FROM `bfcte_11`
-    )
-  )
+    `t0`.`bool_col`
 )
 SELECT
-  `bfcol_42` AS `float64_col`,
-  `bfcol_43` AS `int64_col`
-FROM `bfcte_13`
-ORDER BY
-  `bfcol_44` ASC NULLS LAST,
-  `bfcol_45` ASC NULLS LAST
+  *
+FROM (
+  SELECT
+    *
+  FROM (
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t9`.`float64_col`,
+        `t9`.`int64_col`,
+        `t9`.`bfuid_col_1387` AS `bfuid_col_1395`,
+        `t9`.`bfuid_col_1386` AS `bfuid_col_1394`
+      FROM (
+        SELECT
+          `t3`.`float64_col`,
+          `t3`.`int64_col`,
+          0 AS `bfuid_col_1387`,
+          ROW_NUMBER() OVER (ORDER BY `t3`.`int64_col` IS NULL ASC, `t3`.`int64_col` ASC) - 1 AS `bfuid_col_1386`
+        FROM `t1` AS `t3`
+      ) AS `t9`
+    ) AS `t11`
+    UNION ALL
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t5`.`float64_col`,
+        `t5`.`int64_too` AS `int64_col`,
+        `t5`.`bfuid_col_1389` AS `bfuid_col_1395`,
+        `t5`.`bfuid_col_1388` AS `bfuid_col_1394`
+      FROM (
+        SELECT
+          `t4`.`float64_col`,
+          `t4`.`int64_too`,
+          1 AS `bfuid_col_1389`,
+          ROW_NUMBER() OVER (ORDER BY NULL ASC) - 1 AS `bfuid_col_1388`
+        FROM `t2` AS `t4`
+      ) AS `t5`
+    ) AS `t7`
+  ) AS `t13`
+  UNION ALL
+  SELECT
+    *
+  FROM (
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t10`.`float64_col`,
+        `t10`.`int64_col`,
+        `t10`.`bfuid_col_1391` AS `bfuid_col_1395`,
+        `t10`.`bfuid_col_1390` AS `bfuid_col_1394`
+      FROM (
+        SELECT
+          `t3`.`float64_col`,
+          `t3`.`int64_col`,
+          2 AS `bfuid_col_1391`,
+          ROW_NUMBER() OVER (ORDER BY `t3`.`int64_col` IS NULL ASC, `t3`.`int64_col` ASC) - 1 AS `bfuid_col_1390`
+        FROM `t1` AS `t3`
+      ) AS `t10`
+    ) AS `t12`
+    UNION ALL
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t6`.`float64_col`,
+        `t6`.`int64_too` AS `int64_col`,
+        `t6`.`bfuid_col_1393` AS `bfuid_col_1395`,
+        `t6`.`bfuid_col_1392` AS `bfuid_col_1394`
+      FROM (
+        SELECT
+          `t4`.`float64_col`,
+          `t4`.`int64_too`,
+          3 AS `bfuid_col_1393`,
+          ROW_NUMBER() OVER (ORDER BY NULL ASC) - 1 AS `bfuid_col_1392`
+        FROM `t2` AS `t4`
+      ) AS `t6`
+    ) AS `t8`
+  ) AS `t14`
+) AS `t15`)
+ORDER BY `bfuid_col_1395` ASC NULLS LAST ,`bfuid_col_1394` ASC NULLS LAST
