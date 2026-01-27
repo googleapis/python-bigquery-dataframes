@@ -21,6 +21,7 @@ import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes.core import (
     agg_expressions,
+    bq_data,
     expression,
     guid,
     identifiers,
@@ -173,10 +174,21 @@ def compile_readlocal(node: nodes.ReadLocalNode, child: ir.SQLGlotIR) -> ir.SQLG
 @_compile_node.register
 def compile_readtable(node: nodes.ReadTableNode, child: ir.SQLGlotIR):
     table = node.source.table
+    if isinstance(table, bq_data.GbqNativeTable):
+        project, dataset, table_id = table.project_id, table.dataset_id, table.table_id
+    elif isinstance(table, bq_data.BiglakeIcebergTable):
+        project, dataset, table_id = (
+            table.project_id,
+            table.catalog_id,
+            f"{table.namespace_id}.{table.table_id}",
+        )
+
+    else:
+        raise ValueError(f"Unrecognized table type: {table}")
     return ir.SQLGlotIR.from_table(
-        table.project_id,
-        table.dataset_id,
-        table.table_id,
+        project,
+        dataset,
+        table_id,
         col_names=[col.source_id for col in node.scan_list.items],
         alias_names=[col.id.sql for col in node.scan_list.items],
         uid_gen=child.uid_gen,

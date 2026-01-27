@@ -28,7 +28,6 @@ import shapely.geometry.base  # type: ignore
 import bigframes.core.compile.googlesql as googlesql
 
 if TYPE_CHECKING:
-    import google.cloud.bigquery as bigquery
 
     import bigframes.core.ordering
 
@@ -131,7 +130,7 @@ def infix_op(opname: str, left_arg: str, right_arg: str):
     return f"{left_arg} {opname} {right_arg}"
 
 
-def is_distinct_sql(columns: Iterable[str], table_ref: bigquery.TableReference) -> str:
+def is_distinct_sql(columns: Iterable[str], table_ref) -> str:
     is_unique_sql = f"""WITH full_table AS (
         {googlesql.Select().from_(table_ref).select(columns).sql()}
     ),
