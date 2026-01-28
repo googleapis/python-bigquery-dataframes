@@ -28,8 +28,8 @@ def rand(input_data: Union[series.Series, dataframe.DataFrame]) -> series.Series
 
     .. warning::
         This method introduces non-determinism to the expression. Reading the
-        same column twice may result in different results. This value might
-        change and not to use this value or any value derived from it as a join
+        same column twice may result in different results. The value might
+        change. Do not use this value or any value derived from it as a join
         key.
 
     **Examples:**
