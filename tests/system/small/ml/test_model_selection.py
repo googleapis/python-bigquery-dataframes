@@ -46,6 +46,24 @@ def test_train_test_split_default_correct_shape(df_fixture, request):
     assert y_test.shape == (86, 1)
 
 
+def test_train_test_split_default_unordered_same_index(
+    unordered_session, penguins_pandas_df_default_index
+):
+    df = unordered_session.read_pandas(penguins_pandas_df_default_index)
+    X = df[
+        [
+            "species",
+            "island",
+            "culmen_length_mm",
+        ]
+    ]
+    y = df[["body_mass_g"]]
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y)
+
+    pd.testing.assert_index_equal(X_train.to_pandas().index, y_train.to_pandas().index)
+    pd.testing.assert_index_equal(X_test.to_pandas().index, y_test.to_pandas().index)
+
+
 def test_train_test_split_series_default_correct_shape(penguins_df_default_index):
     X = penguins_df_default_index[["species"]]
     y = penguins_df_default_index["body_mass_g"]
