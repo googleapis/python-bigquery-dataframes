@@ -92,7 +92,7 @@ class DisplayOptions:
     to `None` to remove progress bars.
     """
 
-    repr_mode: Literal["head", "deferred", "anywidget"] = "head"
+    repr_mode: Literal["head", "deferred"] = "head"
     """
     Determines how to display a DataFrame or Series. Default "head".
 
@@ -105,6 +105,20 @@ class DisplayOptions:
         Instead, estimated bytes processed will be shown. DataFrame and Series
         objects can still be computed with methods that explicitly execute and
         download results.
+    """
+
+    render_mode: Literal["plaintext", "html", "anywidget"] = "anywidget"
+    """
+    Determines how to visualize a DataFrame or Series. Default "anywidget".
+
+    `plaintext`
+        Display as plain text.
+
+    `html`
+        Display as HTML table.
+
+    `anywidget`
+        Display as interactive widget using `anywidget` library.
     """
 
     max_colwidth: Optional[int] = 50
