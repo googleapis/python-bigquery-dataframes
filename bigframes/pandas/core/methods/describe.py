@@ -100,7 +100,7 @@ def _describe(
 
 
 def _get_aggs_for_dtype(dtype) -> list[aggregations.UnaryAggregateOp]:
-    if dtype in dtypes.NUMERIC_BIGFRAMES_TYPES_RESTRICTIVE:
+    if dtypes.is_numeric(dtype, include_bool=False):
         return [
             aggregations.count_op,
             aggregations.mean_op,
@@ -111,14 +111,13 @@ def _get_aggs_for_dtype(dtype) -> list[aggregations.UnaryAggregateOp]:
             aggregations.ApproxQuartilesOp(3),
             aggregations.max_op,
         ]
-    elif dtype in dtypes.TEMPORAL_NUMERIC_BIGFRAMES_TYPES:
+    elif dtypes.is_datetime_like(dtype) or dtypes.is_date_like(dtype):
         return [aggregations.count_op]
-    elif dtype in [
-        dtypes.STRING_DTYPE,
-        dtypes.BOOL_DTYPE,
-        dtypes.BYTES_DTYPE,
-        dtypes.TIME_DTYPE,
-    ]:
+    elif (
+        dtypes.is_string_like(dtype)
+        or dtypes.is_binary_like(dtype)
+        or dtypes.is_time_like(dtype)
+    ):
         return [aggregations.count_op, aggregations.nunique_op]
     else:
-        return []
+        return [aggregations.count_op]

@@ -159,16 +159,32 @@ class Block:
             else tuple([None for _ in index_columns])
         )
         self._expr = self._normalize_expression(expr, self._index_columns)
+
+        # Calculate value_columns after normalizing expression
+        all_value_columns = [
+            column
+            for column in self._expr.column_ids
+            if column not in self.index_columns
+        ]
+
         # Use pandas index to more easily replicate column indexing, especially for hierarchical column index
         self._column_labels = (
             column_labels.copy()
             if isinstance(column_labels, pd.Index)
             else pd.Index(column_labels)
         )
-        if len(self.value_columns) != len(self._column_labels):
-            raise ValueError(
-                f"'value_columns' (size {len(self.value_columns)}) and 'column_labels' (size {len(self._column_labels)}) must have equal length"
-            )
+
+        # Adjust column_labels and value_columns to match
+        if len(all_value_columns) > len(self._column_labels):
+            # More columns than labels: Drop the extra columns (assumed to be internal/garbage)
+            self._value_columns = all_value_columns[: len(self._column_labels)]
+        elif len(all_value_columns) < len(self._column_labels):
+            # Fewer columns than labels: Truncate labels
+            self._value_columns = all_value_columns
+            self._column_labels = self._column_labels[: len(self._value_columns)]
+        else:
+            self._value_columns = all_value_columns
+
         # col_id -> [stat_name -> scalar]
         # TODO: Preserve cache under safe transforms (eg. drop column, reorder)
         self._stats_cache: dict[str, dict[str, typing.Any]] = {
@@ -285,11 +301,15 @@ class Block:
     @property
     def value_columns(self) -> Sequence[str]:
         """All value columns, mutually exclusive with index columns."""
-        return [
-            column
-            for column in self._expr.column_ids
-            if column not in self.index_columns
-        ]
+        return getattr(
+            self,
+            "_value_columns",
+            [
+                column
+                for column in self._expr.column_ids
+                if column not in self.index_columns
+            ],
+        )
 
     @property
     def column_labels(self) -> pd.Index:
@@ -1334,8 +1354,14 @@ class Block:
 
     def select_columns(self, ids: typing.Sequence[str]) -> Block:
         # Allow renames as may end up selecting same columns multiple times
+        # Also need to make sure we don't drop any hidden columns
+        hidden_cols = [
+            col
+            for col in self._expr.column_ids
+            if col not in self.index_columns and col not in self.value_columns
+        ]
         expr = self._expr.select_columns(
-            [*self.index_columns, *ids], allow_renames=True
+            [*self.index_columns, *ids, *hidden_cols], allow_renames=True
         )
         col_labels = self._get_labels_for_columns(ids)
         return Block(expr, self.index_columns, col_labels, self.index.names)
@@ -3423,6 +3449,10 @@ def unpivot(
     for input_ids in unpivot_columns:
         # row explode offset used to choose the input column
         # we use offset instead of label as labels are not necessarily unique
+        if not input_ids:
+            unpivot_exprs.append(ex.const(None))
+            continue
+
         cases = itertools.chain(
             *(
                 (
@@ -3452,17 +3482,30 @@ def _pd_index_to_array_value(
     Create an ArrayValue from a list of label tuples.
     The last column will be row offsets.
     """
+    id_gen = bigframes.core.identifiers.standard_id_strings()
+    index_ids = [next(id_gen) for _ in range(index.nlevels)]
+    offset_id = next(id_gen)
+
     rows = []
     labels_as_tuples = utils.index_as_tuples(index)
     for row_offset in range(len(index)):
-        id_gen = bigframes.core.identifiers.standard_id_strings()
         row_label = labels_as_tuples[row_offset]
-        row_label = (row_label,) if not isinstance(row_label, tuple) else row_label
-        row = {}
-        for label_part, id in zip(row_label, id_gen):
-            row[id] = label_part if pd.notnull(label_part) else None
-        row[next(id_gen)] = row_offset
+        row = {
+            id: (val if pd.notnull(val) else None)
+            for id, val in zip(index_ids, row_label)
+        }
+        row[offset_id] = row_offset
         rows.append(row)
+
+    if not rows:
+        # Create empty table with correct columns
+        schema = pa.schema(
+            [pa.field(id, pa.null()) for id in index_ids]
+            + [pa.field(offset_id, pa.int64())]
+        )
+        return core.ArrayValue.from_pyarrow(
+            pa.Table.from_batches([], schema=schema), session=session
+        )
 
     return core.ArrayValue.from_pyarrow(pa.Table.from_pylist(rows), session=session)
 
