@@ -746,8 +746,6 @@ def test_mimebundle_html_repr_w_all_rows(scalars_dfs, session):
 
     # When there are 10 or fewer rows, the outputs should be identical except for the extra note.
     bundle = scalars_df.head(10)._repr_mimebundle_()
-    if isinstance(bundle, tuple):
-        bundle = bundle[0]
     actual = bundle["text/html"]
 
     with display_options.pandas_repr(bigframes.options.display):
