@@ -27,9 +27,12 @@ import google.cloud.bigquery_storage_v1
 
 import bigframes
 from bigframes import exceptions as bfe
+from bigframes import options
 import bigframes.constants
 import bigframes.core
 from bigframes.core import bq_data, compile, local_data, rewrite
+import bigframes.core.compile.ibis_compiler.ibis_compiler as ibis_compiler
+import bigframes.core.compile.sqlglot.compiler as sqlglot_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
 import bigframes.core.events
 import bigframes.core.guid
@@ -174,7 +177,12 @@ class BigQueryCachingExecutor(executor.Executor):
             else array_value.node
         )
         node = self._substitute_large_local_sources(node)
-        compiled = compile.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
+        compiler = (
+            sqlglot_compiler
+            if options.experiments.sql_compiler == "experimental"
+            else ibis_compiler
+        )
+        compiled = compiler.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
         return compiled.sql
 
     def execute(
@@ -290,7 +298,12 @@ class BigQueryCachingExecutor(executor.Executor):
         # validate destination table
         existing_table = self._maybe_find_existing_table(spec)
 
-        compiled = compile.compile_sql(compile.CompileRequest(plan, sort_rows=False))
+        compiler = (
+            sqlglot_compiler
+            if options.experiments.sql_compiler == "experimental"
+            else ibis_compiler
+        )
+        compiled = compiler.compile_sql(compile.CompileRequest(plan, sort_rows=False))
         sql = compiled.sql
 
         if (existing_table is not None) and _if_schema_match(
@@ -641,7 +654,12 @@ class BigQueryCachingExecutor(executor.Executor):
                 ]
                 cluster_cols = cluster_cols[:_MAX_CLUSTER_COLUMNS]
 
-        compiled = compile.compile_sql(
+        compiler = (
+            sqlglot_compiler
+            if options.experiments.sql_compiler == "experimental"
+            else ibis_compiler
+        )
+        compiled = compiler.compile_sql(
             compile.CompileRequest(
                 plan,
                 sort_rows=ordered,
