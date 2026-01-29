@@ -234,6 +234,7 @@ class SQLGlotIR:
     def select(
         self,
         selected_cols: tuple[tuple[str, sge.Expression], ...],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Replaces new selected columns of the current SELECT clause."""
         selections = [
@@ -249,15 +250,16 @@ class SQLGlotIR:
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
         new_expr = new_expr.select(*selections, append=False)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def project(
         self,
         projected_cols: tuple[tuple[str, sge.Expression], ...],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Adds new columns to the SELECT clause."""
         projected_cols_expr = [
@@ -270,66 +272,67 @@ class SQLGlotIR:
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
         new_expr = new_expr.select(*projected_cols_expr, append=True)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def order_by(
         self,
         ordering: tuple[sge.Ordered, ...],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Adds an ORDER BY clause to the query."""
         if len(ordering) == 0:
-            return SQLGlotIR(expr=self.expr.copy(), uid_gen=self.uid_gen)
+            return SQLGlotIR(expr=self.expr.copy(), uid_gen=uid_gen)
         new_expr = self.expr.order_by(*ordering)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def limit(
         self,
         limit: int | None,
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Adds a LIMIT clause to the query."""
         if limit is not None:
             new_expr = self.expr.limit(limit)
         else:
             new_expr = self.expr.copy()
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def filter(
         self,
         conditions: tuple[sge.Expression, ...],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Filters the query by adding a WHERE clause."""
         condition = _and(conditions)
         if condition is None:
-            return SQLGlotIR(expr=self.expr.copy(), uid_gen=self.uid_gen)
+            return SQLGlotIR(expr=self.expr.copy(), uid_gen=uid_gen)
 
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
-        return SQLGlotIR(
-            expr=new_expr.where(condition, append=False), uid_gen=self.uid_gen
-        )
+        return SQLGlotIR(expr=new_expr.where(condition, append=False), uid_gen=uid_gen)
 
     def join(
         self,
         right: SQLGlotIR,
         join_type: typing.Literal["inner", "outer", "left", "right", "cross"],
         conditions: tuple[tuple[typed_expr.TypedExpr, typed_expr.TypedExpr], ...],
-        *,
-        joins_nulls: bool = True,
+        joins_nulls: bool,
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
         left_cte_name = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
         right_cte_name = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
 
         left_select = _select_to_cte(self.expr, left_cte_name)
@@ -354,18 +357,19 @@ class SQLGlotIR:
         )
         new_expr = _set_query_ctes(new_expr, merged_ctes)
 
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def isin_join(
         self,
         right: SQLGlotIR,
         indicator_col: str,
         conditions: tuple[typed_expr.TypedExpr, typed_expr.TypedExpr],
-        joins_nulls: bool = True,
+        joins_nulls: bool,
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
         left_cte_name = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
 
         left_select = _select_to_cte(self.expr, left_cte_name)
@@ -384,7 +388,7 @@ class SQLGlotIR:
         new_column: sge.Expression
         if joins_nulls:
             right_table_name = sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bft_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bft_")), quoted=self.quoted
             )
             right_condition = typed_expr.TypedExpr(
                 sge.Column(this=conditions[1].expr, table=right_table_name),
@@ -416,25 +420,32 @@ class SQLGlotIR:
         )
         new_expr = _set_query_ctes(new_expr, merged_ctes)
 
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def explode(
         self,
         column_names: tuple[str, ...],
         offsets_col: typing.Optional[str],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Unnests one or more array columns."""
         num_columns = len(list(column_names))
         assert num_columns > 0, "At least one column must be provided for explode."
         if num_columns == 1:
-            return self._explode_single_column(column_names[0], offsets_col)
+            return self._explode_single_column(
+                column_names[0], offsets_col, uid_gen=uid_gen
+            )
         else:
-            return self._explode_multiple_columns(column_names, offsets_col)
+            return self._explode_multiple_columns(
+                column_names, offsets_col, uid_gen=uid_gen
+            )
 
-    def sample(self, fraction: float) -> SQLGlotIR:
+    def sample(
+        self, fraction: float, uid_gen: guid.SequentialUIDGenerator
+    ) -> SQLGlotIR:
         """Uniform samples a fraction of the rows."""
         uuid_col = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
         )
         uuid_expr = sge.Alias(this=sge.func("RAND"), alias=uuid_col)
         condition = sge.LT(
@@ -443,18 +454,19 @@ class SQLGlotIR:
         )
 
         new_cte_name = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
         new_expr = _select_to_cte(
             self.expr.select(uuid_expr, append=True), new_cte_name
         ).where(condition, append=False)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def aggregate(
         self,
         aggregations: tuple[tuple[str, sge.Expression], ...],
         by_cols: tuple[sge.Expression, ...],
         dropna_cols: tuple[sge.Expression, ...],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Applies the aggregation expressions.
 
@@ -474,7 +486,7 @@ class SQLGlotIR:
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
         new_expr = new_expr.group_by(*by_cols).select(
@@ -489,14 +501,15 @@ class SQLGlotIR:
         )
         if condition is not None:
             new_expr = new_expr.where(condition, append=False)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def window(
         self,
         window_op: sge.Expression,
         output_column_id: str,
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
-        return self.project(((output_column_id, window_op),))
+        return self.project(((output_column_id, window_op),), uid_gen=uid_gen)
 
     def insert(
         self,
@@ -533,7 +546,10 @@ class SQLGlotIR:
         return f"{merge_str}\n{whens_str}"
 
     def _explode_single_column(
-        self, column_name: str, offsets_col: typing.Optional[str]
+        self,
+        column_name: str,
+        offsets_col: typing.Optional[str],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Helper method to handle the case of exploding a single column."""
         offset = (
@@ -541,7 +557,7 @@ class SQLGlotIR:
         )
         column = sge.to_identifier(column_name, quoted=self.quoted)
         unnested_column_alias = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
         )
         unnest_expr = sge.Unnest(
             expressions=[column],
@@ -553,19 +569,20 @@ class SQLGlotIR:
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
         # Use LEFT JOIN to preserve rows when unnesting empty arrays.
         new_expr = new_expr.select(selection, append=False).join(
             unnest_expr, join_type="LEFT"
         )
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
     def _explode_multiple_columns(
         self,
         column_names: tuple[str, ...],
         offsets_col: typing.Optional[str],
+        uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         """Helper method to handle the case of exploding multiple columns."""
         offset = (
@@ -588,7 +605,7 @@ class SQLGlotIR:
             sge.func("LEAST", *column_lengths),
         )
         unnested_offset_alias = sge.to_identifier(
-            next(self.uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
+            next(uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
         )
         unnest_expr = sge.Unnest(
             expressions=[generate_array],
@@ -609,14 +626,14 @@ class SQLGlotIR:
         new_expr = _select_to_cte(
             self.expr,
             sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                next(uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
             ),
         )
         # Use LEFT JOIN to preserve rows when unnesting empty arrays.
         new_expr = new_expr.select(selection, append=False).join(
             unnest_expr, join_type="LEFT"
         )
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+        return SQLGlotIR(expr=new_expr, uid_gen=uid_gen)
 
 
 def _select_to_cte(expr: sge.Select, cte_name: sge.Identifier) -> sge.Select:
