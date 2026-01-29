@@ -107,7 +107,7 @@ class DisplayOptions:
         download results.
     """
 
-    render_mode: Literal["plaintext", "html", "anywidget"] = "anywidget"
+    render_mode: Literal["plaintext", "html", "anywidget"] = "html"
     """
     Determines how to visualize a DataFrame or Series. Default "anywidget".
 

@@ -19,7 +19,7 @@ import bigframes.pandas as bpd
 
 
 def test_render_mode_options():
-    assert bpd.options.display.render_mode == "anywidget"
+    assert bpd.options.display.render_mode == "html"
 
     with bpd.option_context("display.render_mode", "plaintext"):
         assert bpd.options.display.render_mode == "plaintext"
@@ -87,3 +87,12 @@ def test_repr_mimebundle_selection_logic():
             assert "application/vnd.jupyter.widget-view+json" in bundle[0]
             mock_anywidget.assert_called_once()
             mock_head.assert_not_called()
+
+        mock_anywidget.reset_mock()
+
+        # Test default render_mode (should be "html")
+        bundle = bf_html.repr_mimebundle(mock_obj)
+        assert "text/plain" in bundle
+        assert "text/html" in bundle
+        mock_head.assert_called_once()
+        mock_anywidget.assert_not_called()
