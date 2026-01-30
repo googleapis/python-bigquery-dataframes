@@ -242,6 +242,32 @@ body[data-theme='dark'] .bigframes-widget.bigframes-widget {
   color: var(--bf-null-fg);
 }
 
+.bigframes-widget .deferred-message {
+  align-items: center;
+  background-color: var(--bf-bg);
+  border: 1px solid var(--bf-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.bigframes-widget .deferred-message p {
+  margin: 0;
+}
+
+.bigframes-widget .run-button {
+  background-color: var(--bf-bg);
+  border: 1px solid var(--bf-border-color);
+  padding: 6px 12px;
+}
+
+.bigframes-widget .run-button:hover {
+  background-color: var(--bf-header-bg);
+}
+
 .bigframes-widget .debug-info {
   border-top: 1px solid var(--bf-border-color);
 }

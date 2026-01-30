@@ -44,6 +44,78 @@ try:
 except Exception:
     _ANYWIDGET_INSTALLED = False
 
+    class _DummyTraitlet:
+        def __init__(self, default_value=None):
+            self.default_value = default_value
+            self.name = None
+
+        def tag(self, **kwargs):
+            return self
+
+        def __set_name__(self, owner, name):
+            self.name = name
+
+        def __get__(self, instance, owner):
+            if instance is None:
+                return self
+            return instance.__dict__.get(self.name, self.default_value)
+
+        def __set__(self, instance, value):
+            # Basic mimic of traitlets validation/observation
+            # Look for validators registered via @validate
+            for attr_name in dir(instance):
+                attr = getattr(type(instance), attr_name, None)
+                if (
+                    attr is not None
+                    and hasattr(attr, "_validated_trait")
+                    and attr._validated_trait == self.name
+                ):
+                    value = getattr(instance, attr_name)({"value": value})
+
+            instance.__dict__[self.name] = value
+
+            # Look for observers registered via @observe
+            for attr_name in dir(instance):
+                attr = getattr(type(instance), attr_name, None)
+                if (
+                    attr is not None
+                    and hasattr(attr, "_observed_trait")
+                    and attr._observed_trait == self.name
+                ):
+                    getattr(instance, attr_name)({"new": value})
+
+    class _DummyTraitletsModule:
+        def Int(self, default_value=0, **kwargs):
+            return _DummyTraitlet(default_value)
+
+        def Unicode(self, default_value="", **kwargs):
+            return _DummyTraitlet(default_value)
+
+        def List(self, trait=None, default_value=None, **kwargs):
+            return _DummyTraitlet(default_value if default_value is not None else [])
+
+        def Bool(self, default_value=False, **kwargs):
+            return _DummyTraitlet(default_value)
+
+        def Dict(self, *args, **kwargs):
+            return _DummyTraitlet({})
+
+        def observe(self, trait_name, **kwargs):
+            def decorator(func):
+                func._observed_trait = trait_name
+                return func
+
+            return decorator
+
+        def validate(self, trait_name, **kwargs):
+            def decorator(func):
+                func._validated_trait = trait_name
+                return func
+
+            return decorator
+
+    traitlets = _DummyTraitletsModule()  # type: ignore[assignment]
+
 _WIDGET_BASE: type[Any]
 if _ANYWIDGET_INSTALLED:
     _WIDGET_BASE = anywidget.AnyWidget
@@ -76,12 +148,15 @@ class TableWidget(_WIDGET_BASE):
     _error_message = traitlets.Unicode(allow_none=True, default_value=None).tag(
         sync=True
     )
+    start_execution = traitlets.Bool(False).tag(sync=True)
+    is_deferred_mode = traitlets.Bool(False).tag(sync=True)
 
-    def __init__(self, dataframe: bigframes.dataframe.DataFrame):
+    def __init__(self, dataframe: bigframes.dataframe.DataFrame, deferred: bool = True):
         """Initialize the TableWidget.
 
         Args:
             dataframe: The Bigframes Dataframe to display in the widget.
+            deferred: Whether to defer the initial data load.
         """
         if not _ANYWIDGET_INSTALLED:
             raise ImportError(
@@ -90,6 +165,7 @@ class TableWidget(_WIDGET_BASE):
             )
 
         self._dataframe = dataframe
+        self.is_deferred_mode = deferred
 
         super().__init__()
 
@@ -122,11 +198,21 @@ class TableWidget(_WIDGET_BASE):
         else:
             self.orderable_columns = []
 
-        self._initial_load()
+        if not self.is_deferred_mode:
+            self._initial_load()
 
         # Signals to the frontend that the initial data load is complete.
         # Also used as a guard to prevent observers from firing during initialization.
         self._initial_load_complete = True
+
+    @traitlets.observe("start_execution")
+    def _on_start_execution(self, change: dict[str, Any]):
+        if change["new"]:
+            try:
+                self._initial_load()
+            except Exception as e:
+                self._error_message = str(e)
+            self.is_deferred_mode = False
 
     def _initial_load(self) -> None:
         """Get initial data and row count."""

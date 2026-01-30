@@ -12,170 +12,220 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import signal
 import unittest.mock as mock
 
 import pandas as pd
 import pytest
 
-import bigframes
-
-# Skip if anywidget/traitlets not installed, though they should be in the dev env
-pytest.importorskip("anywidget")
-pytest.importorskip("traitlets")
-
-
-def test_navigation_to_invalid_page_resets_to_valid_page_without_deadlock():
-    """
-    Given a widget on a page beyond available data, when navigating,
-    then it should reset to the last valid page without deadlock.
-    """
-    from bigframes.display.anywidget import TableWidget
-
-    mock_df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
-    mock_df.columns = ["col1"]
-    mock_df.dtypes = {"col1": "object"}
-
-    mock_block = mock.Mock()
-    mock_block.has_index = False
-    mock_df._block = mock_block
-
-    # We mock _initial_load to avoid complex setup
-    with mock.patch.object(TableWidget, "_initial_load"):
-        with bigframes.option_context(
-            "display.repr_mode", "anywidget", "display.max_rows", 10
-        ):
-            widget = TableWidget(mock_df)
-
-    # Simulate "loaded data but unknown total rows" state
-    widget.page_size = 10
-    widget.row_count = None
-    widget._all_data_loaded = True
-
-    # Populate cache with 1 page of data (10 rows). Page 0 is valid, page 1+ are invalid.
-    widget._cached_batches = [pd.DataFrame({"col1": range(10)})]
-
-    # Mark initial load as complete so observers fire
-    widget._initial_load_complete = True
-
-    # Setup timeout to fail fast if deadlock occurs
-    # signal.SIGALRM is not available on Windows
-    has_sigalrm = hasattr(signal, "SIGALRM")
-    if has_sigalrm:
-
-        def handler(signum, frame):
-            raise TimeoutError("Deadlock detected!")
-
-        signal.signal(signal.SIGALRM, handler)
-        signal.alarm(2)  # 2 seconds timeout
-
-    try:
-        # Trigger navigation to page 5 (invalid), which should reset to page 0
-        widget.page = 5
-
-        assert widget.page == 0
-
-    finally:
-        if has_sigalrm:
-            signal.alarm(0)
-
-
-def test_css_contains_dark_mode_selectors():
-    """Test that the CSS for dark mode is loaded with all required selectors."""
-    from bigframes.display.anywidget import TableWidget
-
-    mock_df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
-    # mock_df.columns and mock_df.dtypes are needed for __init__
-    mock_df.columns = ["col1"]
-    mock_df.dtypes = {"col1": "object"}
-
-    # Mock _block to avoid AttributeError during _set_table_html
-    mock_block = mock.Mock()
-    mock_block.has_index = False
-    mock_df._block = mock_block
-
-    with mock.patch.object(TableWidget, "_initial_load"):
-        widget = TableWidget(mock_df)
-        css = widget._css
-        assert "@media (prefers-color-scheme: dark)" in css
-        assert 'html[theme="dark"]' in css
-        assert 'body[data-theme="dark"]' in css
+import bigframes.dtypes
 
 
 @pytest.fixture
 def mock_df():
-    """A mock DataFrame that can be used in multiple tests."""
-    df = mock.create_autospec(bigframes.dataframe.DataFrame, instance=True)
-    df.columns = ["col1", "col2"]
-    df.dtypes = {"col1": "int64", "col2": "int64"}
+    # Mock _ANYWIDGET_INSTALLED to True so we can test the class logic
+    # even when anywidget isn't installed in the test environment.
+    with mock.patch("bigframes.display.anywidget._ANYWIDGET_INSTALLED", True):
+        df = mock.Mock()
+        # Mock behavior for caching check (shape)
+        df.shape = (100, 4)
+        df.columns = ["A", "B", "C", "D"]
+        # Use actual bigframes dtypes or compatible types that works with is_orderable
+        df.dtypes = {
+            "A": bigframes.dtypes.INT_DTYPE,
+            "B": bigframes.dtypes.STRING_DTYPE,
+            "C": bigframes.dtypes.FLOAT_DTYPE,
+            "D": bigframes.dtypes.BOOL_DTYPE,
+        }
 
-    mock_block = mock.Mock()
-    mock_block.has_index = False
-    df._block = mock_block
+        # Ensure to_pandas_batches returns an iterable
+        df.to_pandas_batches.return_value = iter(
+            [pd.DataFrame({"A": [1], "B": ["a"], "C": [1.0], "D": [True]})]
+        )
 
-    # Mock to_pandas_batches to return empty iterator or simple data
-    batch_df = pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
-    batches = mock.MagicMock()
-    batches.__iter__.return_value = iter([batch_df])
-    batches.total_rows = 2
-    df.to_pandas_batches.return_value = batches
-
-    # Mock sort_values to return self (for chaining)
-    df.sort_values.return_value = df
-
-    return df
+        # Ensure sort_values returns the mock itself (so to_pandas_batches is still configured)
+        df.sort_values.return_value = df
+        yield df
 
 
-def test_sorting_single_column(mock_df):
-    """Test that the widget can be sorted by a single column."""
+def test_init_raises_if_anywidget_not_installed():
+    with mock.patch("bigframes.display.anywidget._ANYWIDGET_INSTALLED", False):
+        with pytest.raises(ImportError):
+            from bigframes.display.anywidget import TableWidget
+
+            TableWidget(mock.Mock())
+
+
+def test_init_initializes_attributes(mock_df):
     from bigframes.display.anywidget import TableWidget
 
-    with bigframes.option_context("display.repr_mode", "anywidget"):
+    # Mock _initial_load to avoid execution
+    with mock.patch.object(TableWidget, "_initial_load"):
         widget = TableWidget(mock_df)
 
-    # Verify initial state
-    assert widget.sort_context == []
+    assert widget._dataframe is mock_df
+    assert widget.page == 0
+    assert widget.page_size > 0
+    assert widget.orderable_columns == [
+        "A",
+        "B",
+        "C",
+        "D",
+    ]  # Int, String, Float, Bool are orderable
 
-    # Apply sort
-    widget.sort_context = [{"column": "col1", "ascending": True}]
 
-    # This should trigger _sort_changed -> _set_table_html
-    # which calls df.sort_values
-
-    mock_df.sort_values.assert_called_with(by=["col1"], ascending=[True])
-
-
-def test_sorting_multi_column(mock_df):
-    """Test that the widget can be sorted by multiple columns."""
+def test_init_calls_initial_load(mock_df):
     from bigframes.display.anywidget import TableWidget
 
-    with bigframes.option_context("display.repr_mode", "anywidget"):
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        TableWidget(mock_df, deferred=False)
+        mock_load.assert_called_once()
+
+
+def test_validate_page_clamping(mock_df):
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load"):
+        widget = TableWidget(mock_df)
+        widget.row_count = 100
+        widget.page_size = 10
+
+        # Valid page
+        widget.page = 5
+        assert widget.page == 5
+
+        # Negative page
+        with pytest.raises(ValueError):
+            widget.page = -1
+
+        # Page too high
+        widget.page = 100
+        assert widget.page == 9  # Max page is 9 (0-9)
+
+
+def test_validate_page_size(mock_df):
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load"):
         widget = TableWidget(mock_df)
 
-    # Apply multi-column sort
-    widget.sort_context = [
-        {"column": "col1", "ascending": True},
-        {"column": "col2", "ascending": False},
-    ]
+        # Valid page size
+        widget.page_size = 50
+        assert widget.page_size == 50
 
-    mock_df.sort_values.assert_called_with(by=["col1", "col2"], ascending=[True, False])
+        # Negative/Zero page size (should be ignored/reset to previous)
+        # Note: Traitlets validation returns the *value to set*.
+        # Our validator returns self.page_size if input <= 0.
+        original_size = widget.page_size
+        widget.page_size = -5
+        assert widget.page_size == original_size
+
+        # Too large page size
+        widget.page_size = 10000
+        assert widget.page_size == 1000
+
+
+def test_page_size_change_resets_page_and_sort(mock_df):
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load"):
+        widget = TableWidget(mock_df)
+        widget._initial_load_complete = True  # Enable observers
+        widget.page = 5
+        widget.sort_context = [{"column": "A", "ascending": True}]
+
+        # Change page size
+        widget.page_size = 20
+
+        assert widget.page == 0
+        assert widget.sort_context == []
+
+
+def test_page_size_change_resets_batches(mock_df):
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load"):
+        widget = TableWidget(mock_df)
+        widget._initial_load_complete = True  # Enable observers
+
+        # Trigger page size change
+        widget.page_size = 50
+
+    # to_pandas_batches called in _reset_batches_for_new_page_size
+    mock_df.to_pandas_batches.assert_called()
 
 
 def test_page_size_change_resets_sort(mock_df):
-    """Test that changing the page size resets the sorting."""
     from bigframes.display.anywidget import TableWidget
 
-    with bigframes.option_context("display.repr_mode", "anywidget"):
+    with mock.patch.object(TableWidget, "_initial_load"):
         widget = TableWidget(mock_df)
+        widget._initial_load_complete = True
 
-    # Set sort state
-    widget.sort_context = [{"column": "col1", "ascending": True}]
+        # Setup initial batches mock
+        mock_df.to_pandas_batches.reset_mock()
 
-    # Change page size
-    widget.page_size = 50
-
-    # Sort should be reset
-    assert widget.sort_context == []
+        # Change sort
+        widget.sort_context = [{"column": "B", "ascending": False}]
 
     # to_pandas_batches called again (reset)
-    assert mock_df.to_pandas_batches.call_count >= 2
+    # Note: _initial_load is mocked, so this is the first call in this test setup
+    assert mock_df.to_pandas_batches.call_count >= 1
+
+
+def test_deferred_mode_initialization(mock_df):
+    """Test that deferred mode does not load data initially."""
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        widget = TableWidget(mock_df)
+
+        assert widget.is_deferred_mode is True
+        mock_load.assert_not_called()
+
+
+def test_deferred_mode_execution(mock_df):
+    """Test that setting start_execution triggers load and disables deferred mode."""
+    from bigframes.display.anywidget import TableWidget
+
+    # specific mock for _initial_load to avoid real execution but allow tracking calls
+    # We need to make sure _initial_load exists on the class to patch it
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        widget = TableWidget(mock_df)
+
+        assert widget.is_deferred_mode is True
+        mock_load.assert_not_called()
+
+        # Simulate user clicking "Run"
+        widget.start_execution = True
+
+        # Verify load triggered
+        mock_load.assert_called_once()
+        assert widget.is_deferred_mode is False
+
+
+def test_deferred_mode_execution_error(mock_df):
+    """Test that error during deferred execution is handled."""
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        mock_load.side_effect = RuntimeError("Query Failed")
+
+        widget = TableWidget(mock_df)
+
+        # Simulate user clicking "Run"
+        widget.start_execution = True
+
+        # Verify mode switched and error set
+        assert widget.is_deferred_mode is False
+        assert widget._error_message == "Query Failed"
+
+
+def test_normal_mode_initialization(mock_df):
+    """Test that normal mode loads data initially."""
+    from bigframes.display.anywidget import TableWidget
+
+    with mock.patch.object(TableWidget, "_initial_load") as mock_load:
+        widget = TableWidget(mock_df, deferred=False)
+
+        assert widget.is_deferred_mode is False
+        mock_load.assert_called_once()

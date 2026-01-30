@@ -154,3 +154,9 @@ class DisplayOptions:
     """
     Height in pixels that the blob constrained to. Default None..
     """
+
+    anywidget_deferred: bool = True
+    """
+    If True, the interactive table widget (anywidget mode) will load in
+    deferred mode, showing a "Run Query" button. Default True.
+    """
