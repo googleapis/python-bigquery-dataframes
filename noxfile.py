@@ -64,7 +64,7 @@ DEFAULT_PYTHON_VERSION = "3.10"
 # https://cloud.google.com/run/docs/runtimes/python
 E2E_TEST_PYTHON_VERSION = "3.12"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     "asyncmock",
@@ -89,7 +89,7 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -129,7 +129,7 @@ nox.options.sessions = [
     # TODO(tswast): Consider removing this when unit_noextras and cover is run
     # from GitHub actions.
     "unit_noextras",
-    "system-3.9",  # No extras.
+    "system-3.10",  # No extras.
     f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
