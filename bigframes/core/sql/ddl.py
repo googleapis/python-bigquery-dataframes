@@ -14,7 +14,12 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Union
+
+from google.cloud import bigquery
+
+import bigframes.core.compile.googlesql as googlesql
+import bigframes.core.sql
 
 
 def create_external_table_ddl(
@@ -66,3 +71,68 @@ def create_external_table_ddl(
         statement.append(f"OPTIONS ({options_str})")
 
     return " ".join(statement)
+
+
+def load_data_ddl(
+    destination_table: str,
+    uris: list[str],
+    format: str,
+    *,
+    schema_fields: list[bigquery.SchemaField] | None = None,
+    cluster_by: list[str] | None = None,
+    partition_by: str | None = None,
+    table_options: dict[str, Any] | None = None,
+    load_options: dict[str, Any] | None = None,
+    connection: str | None = None,
+    hive_partition_columns: list[bigquery.SchemaField] | None = None,
+    overwrite: bool = False,
+) -> str:
+    """Construct a LOAD DATA DDL statement."""
+    action = "OVERWRITE" if overwrite else "INTO"
+
+    query = f"LOAD DATA {action} {googlesql.identifier(destination_table)}\n"
+
+    if schema_fields:
+        columns_sql = ",\n".join(
+            bigframes.core.sql.schema_field_to_sql(field) for field in schema_fields
+        )
+        query += f"(\n{columns_sql}\n)\n"
+
+    if partition_by:
+        query += f"PARTITION BY {partition_by}\n"
+
+    if cluster_by:
+        query += f"CLUSTER BY {', '.join(cluster_by)}\n"
+
+    if table_options:
+        opts_list = []
+        for k, v in table_options.items():
+            opts_list.append(f"{k}={bigframes.core.sql.simple_literal(v)}")
+        query += f"OPTIONS({', '.join(opts_list)})\n"
+
+    files_opts = {}
+    if load_options:
+        files_opts.update(load_options)
+
+    files_opts["uris"] = uris
+    files_opts["format"] = format
+
+    files_opts_list = []
+    for k, v in files_opts.items():
+        files_opts_list.append(f"{k}={bigframes.core.sql.simple_literal(v)}")
+
+    query += f"FROM FILES({', '.join(files_opts_list)})\n"
+
+    if hive_partition_columns:
+        cols_sql = ",\n".join(
+            bigframes.core.sql.schema_field_to_sql(field)
+            for field in hive_partition_columns
+        )
+        query += f"WITH PARTITION COLUMNS (\n{cols_sql}\n)\n"
+    elif hive_partition_columns is not None:
+        query += "WITH PARTITION COLUMNS\n"
+
+    if connection:
+        query += f"WITH CONNECTION {connection}\n"
+
+    return query
