@@ -172,7 +172,7 @@ def create_vector_index_ddl(
     table_name: str,
     column_name: str,
     stored_column_names: Collection[str],
-    options: Mapping[str, Union[str | int | bool | float]] = {},
+    options: Mapping[str, Union[str, int, bool, float]] = {},
 ) -> str:
     """Encode the VECTOR INDEX statement for BigQuery Vector Search."""
 
@@ -246,3 +246,32 @@ def create_vector_search_sql(
         distance,
     FROM VECTOR_SEARCH({args_str})
     """
+
+
+def _field_type_to_sql(field: bigquery.SchemaField) -> str:
+    if field.field_type in ("RECORD", "STRUCT"):
+        sub_defs = []
+        for sub in field.fields:
+            sub_type = _field_type_to_sql(sub)
+            sub_def = f"{sub.name} {sub_type}"
+            if sub.mode == "REQUIRED":
+                sub_def += " NOT NULL"
+            sub_defs.append(sub_def)
+        type_str = f"STRUCT<{', '.join(sub_defs)}>"
+    else:
+        type_str = field.field_type
+
+    if field.mode == "REPEATED":
+        return f"ARRAY<{type_str}>"
+    return type_str
+
+
+def schema_field_to_sql(field: bigquery.SchemaField) -> str:
+    """Convert a BigQuery SchemaField to a SQL DDL column definition."""
+    type_sql = _field_type_to_sql(field)
+    sql = f"{field.name} {type_sql}"
+    if field.mode == "REQUIRED":
+        sql += " NOT NULL"
+    if field.description:
+        sql += f" OPTIONS(description={simple_literal(field.description)})"
+    return sql

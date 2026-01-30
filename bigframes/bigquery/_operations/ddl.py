@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Sequence, Union
 
 import bigframes_vendored.constants
 import google.cloud.bigquery
@@ -101,3 +101,85 @@ def create_external_table(
         session.read_gbq_query(sql)
 
     return _get_table_metadata(bqclient=session.bqclient, table_name=table_name)
+
+
+@log_adapter.method_logger(custom_base_name="bigquery_table")
+def load_data(
+    uris: str | Sequence[str],
+    format: str,
+    destination_table: str,
+    *,
+    schema: Optional[Mapping[str, str]] = None,
+    cluster_by: Optional[Sequence[str]] = None,
+    partition_by: Optional[str] = None,
+    options: Optional[dict[str, Any]] = None,
+    load_options: Optional[dict[str, Any]] = None,
+    connection: Optional[str] = None,
+    hive_partition_columns: Optional[Mapping[str, str]] = None,
+    overwrite: bool = False,
+    session: Optional[bigframes.session.Session] = None,
+) -> pd.Series:
+    """
+    Loads data from external files into a BigQuery table using the `LOAD DATA` statement.
+
+    Args:
+        uris (str | List[str]):
+            The fully qualified URIs for the external data locations (e.g., 'gs://bucket/path/file.csv').
+        format (str):
+            The format of the external data (e.g., 'CSV', 'PARQUET', 'AVRO', 'JSON').
+        destination_table (str, optional):
+            The name of the destination table. If not specified, a temporary table will be created.
+        schema (List[google.cloud.bigquery.SchemaField], optional):
+            The schema of the destination table. If not provided, schema auto-detection will be used.
+        cluster_by (List[str], optional):
+            A list of columns to cluster the table by.
+        partition_by (str, optional):
+            The partition expression for the table.
+        options (dict[str, Any], optional):
+            Table options (e.g., {'description': 'my table'}).
+        load_options (dict[str, Any], optional):
+            Options for loading data (e.g., {'skip_leading_rows': 1}).
+        connection (str, optional):
+            The connection name to use for reading external data.
+        hive_partition_columns (List[google.cloud.bigquery.SchemaField], optional):
+            The external partitioning columns. If set to an empty list, partitioning is inferred.
+        overwrite (bool, default False):
+            If True, overwrites the destination table. If False, appends to it.
+        session (bigframes.session.Session, optional):
+            The session to use. If not provided, the default session is used.
+
+    Returns:
+        pandas.Series:
+            A Series with object dtype containing the table metadata. Reference
+            the `BigQuery Table REST API reference
+            <https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#Table>`_
+            for available fields.
+    """
+    import bigframes.pandas as bpd
+
+    if session is None:
+        session = bpd.get_global_session()
+
+    if isinstance(uris, str):
+        uris = [uris]
+
+    sql = bigframes.core.sql.table.load_data_ddl(
+        destination_table=destination_table,
+        uris=uris,
+        format=format,
+        schema_fields=schema,
+        cluster_by=cluster_by,
+        partition_by=partition_by,
+        table_options=options,
+        load_options=load_options,
+        connection=connection,
+        hive_partition_columns=hive_partition_columns,
+        overwrite=overwrite,
+    )
+
+    # Execute the LOAD DATA statement
+    session.read_gbq_query(sql)
+
+    # Return a DataFrame pointing to the destination table
+    # We use session.read_gbq to ensure it uses the same session
+    return session.read_gbq(destination_table)

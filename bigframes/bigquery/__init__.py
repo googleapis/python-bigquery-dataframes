@@ -43,6 +43,7 @@ from bigframes.bigquery._operations.geo import (
     st_regionstats,
     st_simplify,
 )
+from bigframes.bigquery._operations.io import load_data
 from bigframes.bigquery._operations.json import (
     json_extract,
     json_extract_array,
@@ -60,7 +61,7 @@ from bigframes.bigquery._operations.json import (
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
 from bigframes.bigquery._operations.sql import sql_scalar
 from bigframes.bigquery._operations.struct import struct
-from bigframes.bigquery.table import create_external_table
+from bigframes.bigquery._operations.table import create_external_table
 from bigframes.core.logging import log_adapter
 
 _functions = [
@@ -86,6 +87,8 @@ _functions = [
     st_length,
     st_regionstats,
     st_simplify,
+    # io ops
+    load_data,
     # json ops
     json_extract,
     json_extract_array,
@@ -138,6 +141,8 @@ __all__ = [
     "st_length",
     "st_regionstats",
     "st_simplify",
+    # io ops
+    "load_data",
     # json ops
     "json_extract",
     "json_extract_array",
