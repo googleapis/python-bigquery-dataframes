@@ -361,7 +361,7 @@ def repr_mimebundle(
     if opts.repr_mode == "deferred":
         return repr_mimebundle_deferred(obj)
 
-    if opts.repr_mode == "anywidget":
+    if opts.render_mode == "anywidget":
         try:
             return get_anywidget_bundle(obj, include=include, exclude=exclude)
         except ImportError:
@@ -374,4 +374,8 @@ def repr_mimebundle(
                 f"Falling back to static HTML. Error: {traceback.format_exc()}"
             )
 
-    return repr_mimebundle_head(obj)
+    bundle = repr_mimebundle_head(obj)
+    if opts.render_mode == "plaintext":
+        bundle.pop("text/html", None)
+
+    return bundle
