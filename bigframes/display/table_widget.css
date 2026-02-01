@@ -26,6 +26,7 @@
   --bf-header-bg: #f5f5f5;
   --bf-null-fg: gray;
   --bf-row-even-bg: #f5f5f5;
+  --bf-row-hover-bg: #e8eaed;
   --bf-row-odd-bg: white;
 
   background-color: var(--bf-bg);
@@ -59,6 +60,7 @@
     --bf-header-bg: var(--vscode-editor-background, black);
     --bf-null-fg: #aaa;
     --bf-row-even-bg: #202124;
+    --bf-row-hover-bg: #4c4c4c;
     --bf-row-odd-bg: #383838;
   }
 }
@@ -75,6 +77,7 @@ body[data-theme='dark'] .bigframes-widget.bigframes-widget {
   --bf-header-bg: var(--vscode-editor-background, black);
   --bf-null-fg: #aaa;
   --bf-row-even-bg: #202124;
+  --bf-row-hover-bg: #4c4c4c;
   --bf-row-odd-bg: #383838;
 }
 
@@ -244,4 +247,9 @@ body[data-theme='dark'] .bigframes-widget.bigframes-widget {
 
 .bigframes-widget .debug-info {
   border-top: 1px solid var(--bf-border-color);
+}
+
+.bigframes-widget table tbody tr:hover td,
+.bigframes-widget table tbody tr td.row-hover {
+  background-color: var(--bf-row-hover-bg);
 }
