@@ -42,8 +42,6 @@ from bigframes.core.rewrite import schema_binding
 def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     """Compiles a BigFrameNode according to the request into SQL using SQLGlot."""
 
-    # Generator for unique identifiers.
-    uid_gen = guid.SequentialUIDGenerator()
     output_names = tuple((expression.DerefOp(id), id.sql) for id in request.node.ids)
     result_node = nodes.ResultNode(
         request.node,
@@ -62,12 +60,8 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     )
     if request.sort_rows:
         result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
-        result_node = _remap_variables(result_node, uid_gen)
-        result_node = typing.cast(
-            nodes.ResultNode, rewrite.defer_selection(result_node)
-        )
         encoded_type_refs = data_type_logger.encode_type_refs(result_node)
-        sql = _compile_result_node(result_node, uid_gen)
+        sql = _compile_result_node(result_node)
         return configs.CompileResult(
             sql,
             result_node.schema.to_bigquery(),
@@ -78,9 +72,6 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     ordering: typing.Optional[bf_ordering.RowOrdering] = result_node.order_by
     result_node = dataclasses.replace(result_node, order_by=None)
     result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
-
-    result_node = _remap_variables(result_node, uid_gen)
-    result_node = typing.cast(nodes.ResultNode, rewrite.defer_selection(result_node))
     encoded_type_refs = data_type_logger.encode_type_refs(result_node)
     sql = _compile_result_node(result_node, uid_gen)
     # Return the ordering iff no extra columns are needed to define the row order
@@ -105,11 +96,16 @@ def _remap_variables(
     return typing.cast(nodes.ResultNode, result_node)
 
 
-def _compile_result_node(
-    root: nodes.ResultNode, uid_gen: guid.SequentialUIDGenerator
-) -> str:
+def _compile_result_node(root: nodes.ResultNode) -> str:
+    # Create UIDs to standardize variable names and ensure consistent compilation
+    # of nodes using the same generator.
+    uid_gen = guid.SequentialUIDGenerator()
+    root = _remap_variables(root, uid_gen)
+    root = typing.cast(nodes.ResultNode, rewrite.defer_selection(root))
+
     # Have to bind schema as the final step before compilation.
     root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
+
     selected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
         (name, scalar_compiler.scalar_op_compiler.compile_expression(ref))
         for ref, name in root.output_cols
@@ -135,7 +131,6 @@ def _compile_result_node(
     return sqlglot_ir.sql
 
 
-@functools.lru_cache(maxsize=5000)
 def compile_node(
     node: nodes.BigFrameNode, uid_gen: guid.SequentialUIDGenerator
 ) -> ir.SQLGlotIR:
@@ -274,10 +269,16 @@ def compile_concat(node: nodes.ConcatNode, *children: ir.SQLGlotIR) -> ir.SQLGlo
     assert len(children) >= 1
     uid_gen = children[0].uid_gen
 
-    output_ids = [id.sql for id in node.output_ids]
+    # BigQuery `UNION` query takes the column names from the first `SELECT` clause.
+    default_output_ids = [field.id.sql for field in node.child_nodes[0].fields]
+    output_aliases = [
+        (default_output_id, output_id.sql)
+        for default_output_id, output_id in zip(default_output_ids, node.output_ids)
+    ]
+
     return ir.SQLGlotIR.from_union(
         [child.expr for child in children],
-        output_ids=output_ids,
+        output_aliases=output_aliases,
         uid_gen=uid_gen,
     )
 
