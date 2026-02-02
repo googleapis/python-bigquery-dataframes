@@ -24,10 +24,10 @@ def test_load_data_ddl():
     assert sql == expected
 
 
-def test_load_data_ddl_replace():
+def test_load_data_ddl_overwrite():
     sql = bigframes.core.sql.io.load_data_ddl(
         "my-project.my_dataset.my_table",
-        replace=True,
+        write_disposition="OVERWRITE",
         columns={"col1": "INT64", "col2": "STRING"},
         from_files_options={"format": "CSV", "uris": ["gs://bucket/path*"]},
     )

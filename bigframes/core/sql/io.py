@@ -20,7 +20,7 @@ from typing import Mapping, Optional, Union
 def load_data_ddl(
     table_name: str,
     *,
-    replace: bool = False,
+    write_disposition: str = "INTO",
     columns: Optional[Mapping[str, str]] = None,
     partition_by: Optional[list[str]] = None,
     cluster_by: Optional[list[str]] = None,
@@ -31,10 +31,7 @@ def load_data_ddl(
 ) -> str:
     """Generates the LOAD DATA DDL statement."""
     statement = ["LOAD DATA"]
-    if replace:
-        statement.append("OVERWRITE")
-    else:
-        statement.append("INTO")
+    statement.append(write_disposition)
     statement.append(table_name)
 
     if columns:

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from typing import Mapping, Optional, Union
 
-import bigframes_vendored.constants
 import google.cloud.bigquery
 import pandas as pd
 
@@ -39,7 +38,7 @@ def _get_table_metadata(
 def load_data(
     table_name: str,
     *,
-    replace: bool = False,
+    write_disposition: str = "INTO",
     columns: Optional[Mapping[str, str]] = None,
     partition_by: Optional[list[str]] = None,
     cluster_by: Optional[list[str]] = None,
@@ -57,12 +56,12 @@ def load_data(
     Args:
         table_name (str):
             The name of the table in BigQuery.
-        replace (bool, default False):
-            Whether to replace the table if it already exists.
+        write_disposition (str, default "INTO"):
+            Whether to replace the table if it already exists ("OVERWRITE") or append to it ("INTO").
         columns (Mapping[str, str], optional):
             The table's schema.
         partition_by (list[str], optional):
-            A list of columns to partition the table by.
+            A list of partition expressions to partition the table by. See https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/load-statements#partition_expression.
         cluster_by (list[str], optional):
             A list of columns to cluster the table by.
         table_options (Mapping[str, Union[str, int, float, bool, list]], optional):
@@ -86,7 +85,7 @@ def load_data(
 
     sql = bigframes.core.sql.io.load_data_ddl(
         table_name=table_name,
-        replace=replace,
+        write_disposition=write_disposition,
         columns=columns,
         partition_by=partition_by,
         cluster_by=cluster_by,
@@ -99,9 +98,6 @@ def load_data(
     if session is None:
         bpd.read_gbq_query(sql)
         session = bpd.get_global_session()
-        assert (
-            session is not None
-        ), f"Missing connection to BigQuery. Please report how you encountered this error at {bigframes_vendored.constants.FEEDBACK_LINK}."
     else:
         session.read_gbq_query(sql)
 
