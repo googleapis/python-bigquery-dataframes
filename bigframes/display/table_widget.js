@@ -23,6 +23,8 @@ const ModelProperty = {
   SORT_CONTEXT: 'sort_context',
   TABLE_HTML: 'table_html',
   MAX_COLUMNS: 'max_columns',
+  START_EXECUTION: 'start_execution',
+  IS_DEFERRED_MODE: 'is_deferred_mode',
 };
 
 const Event = {
@@ -40,6 +42,23 @@ function render({ model, el }) {
 
   const errorContainer = document.createElement('div');
   errorContainer.classList.add('error-message');
+
+  function createDeferredView() {
+    const container = document.createElement('div');
+    container.classList.add('deferred-message');
+    const text = document.createElement('p');
+    text.textContent =
+      'This is a preview of the widget. The SQL query has not been executed yet.';
+    const button = document.createElement('button');
+    button.textContent = 'Run Query and Display Widget';
+    button.classList.add('run-button');
+    container.appendChild(text);
+    container.appendChild(button);
+    return { container, button };
+  }
+
+  const { container: deferredContainer, button: runButton } =
+    createDeferredView();
 
   const tableContainer = document.createElement('div');
   tableContainer.classList.add('table-container');
@@ -171,9 +190,14 @@ function render({ model, el }) {
   }
 
   let isHeightInitialized = false;
+  let lastHTML = '';
 
   function handleTableHTMLChange() {
-    tableContainer.innerHTML = model.get(ModelProperty.TABLE_HTML);
+    const newHTML = model.get(ModelProperty.TABLE_HTML);
+    if (newHTML && newHTML !== lastHTML) {
+      tableContainer.innerHTML = newHTML;
+      lastHTML = newHTML;
+    }
 
     // After the first render, dynamically set the container height to fit the
     // initial page (usually 10 rows) and then lock it.
@@ -299,6 +323,28 @@ function render({ model, el }) {
     }
   }
 
+  function updateDeferredMode() {
+    const isDeferred = model.get(ModelProperty.IS_DEFERRED_MODE);
+    if (isDeferred) {
+      deferredContainer.style.display = 'flex';
+      tableContainer.style.display = 'none';
+      footer.style.display = 'none';
+    } else {
+      deferredContainer.style.display = 'none';
+      tableContainer.style.display = 'block';
+      footer.style.display = 'flex';
+      handleTableHTMLChange();
+    }
+  }
+
+  runButton.addEventListener(Event.CLICK, () => {
+    model.set(ModelProperty.START_EXECUTION, true);
+    model.save_changes();
+    // Update button state to indicate loading.
+    runButton.textContent = 'Running...';
+    runButton.disabled = true;
+  });
+
   prevPage.addEventListener(Event.CLICK, () => handlePageChange(-1));
   nextPage.addEventListener(Event.CLICK, () => handlePageChange(1));
   pageSizeInput.addEventListener(Event.CHANGE, (e) => {
@@ -321,6 +367,7 @@ function render({ model, el }) {
     if (val) updateButtonStates();
   });
   model.on(`change:${ModelProperty.PAGE}`, updateButtonStates);
+  model.on(`change:${ModelProperty.IS_DEFERRED_MODE}`, updateDeferredMode);
 
   paginationContainer.appendChild(prevPage);
   paginationContainer.appendChild(pageIndicator);
@@ -340,11 +387,13 @@ function render({ model, el }) {
   footer.appendChild(settingsContainer);
 
   el.appendChild(errorContainer);
+  el.appendChild(deferredContainer);
   el.appendChild(tableContainer);
   el.appendChild(footer);
 
   handleTableHTMLChange();
   handleErrorMessageChange();
+  updateDeferredMode();
 }
 
 export default { render };
