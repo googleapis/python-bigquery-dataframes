@@ -73,7 +73,7 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     result_node = dataclasses.replace(result_node, order_by=None)
     result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
     encoded_type_refs = data_type_logger.encode_type_refs(result_node)
-    sql = _compile_result_node(result_node, uid_gen)
+    sql = _compile_result_node(result_node)
     # Return the ordering iff no extra columns are needed to define the row order
     if ordering is not None:
         output_order = (
