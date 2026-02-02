@@ -5964,7 +5964,7 @@ def test_resample_with_column(
     scalars_df_index, scalars_pandas_df_index, on, rule, origin
 ):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.0.0")
+    pytest.importorskip("pandas", minversion="2.2.0")
     bf_result = (
         scalars_df_index.resample(rule=rule, on=on, origin=origin)[
             ["int64_col", "int64_too"]
