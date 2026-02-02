@@ -16,22 +16,12 @@ from __future__ import annotations
 
 from typing import Mapping, Optional, Union
 
-import google.cloud.bigquery
 import pandas as pd
 
+from bigframes.bigquery._operations.table import _get_table_metadata
 import bigframes.core.logging.log_adapter as log_adapter
 import bigframes.core.sql.io
 import bigframes.session
-
-
-def _get_table_metadata(
-    *,
-    bqclient: google.cloud.bigquery.Client,
-    table_name: str,
-) -> pd.Series:
-    table_metadata = bqclient.get_table(table_name)
-    table_dict = table_metadata.to_api_repr()
-    return pd.Series(table_dict)
 
 
 @log_adapter.method_logger(custom_base_name="bigquery_io")
