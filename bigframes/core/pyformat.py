@@ -28,7 +28,6 @@ import pandas
 
 from bigframes.core import utils
 import bigframes.core.local_data
-import bigframes.core.sql.literals
 from bigframes.core.tools import bigquery_schema
 import bigframes.session
 
@@ -121,7 +120,7 @@ def _validate_type(name: str, value: Any):
 
     supported_types = (
         typing.get_args(_BQ_TABLE_TYPES)
-        + typing.get_args(bigframes.core.sql.literals.SIMPLE_LITERAL_TYPES)
+        + typing.get_args(bigframes.core.sql.SIMPLE_LITERAL_TYPES)
         + (bigframes.dataframe.DataFrame,)
         + (pandas.DataFrame,)
     )

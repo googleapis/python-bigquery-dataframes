@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 
 import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
-import bigframes.core.sql.literals
 
 
 def create_model_ddl(
