@@ -1,1 +1,1 @@
-SELECT * FROM ML.EVALUATE(MODEL `my_model`, <function struct_literal at 0x7fed1a1cc4a0>)
+SELECT * FROM ML.EVALUATE(MODEL `my_model`, STRUCT(false AS perform_aggregation, 10 AS horizon, 0.95 AS confidence_level))

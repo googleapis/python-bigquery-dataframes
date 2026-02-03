@@ -1,1 +1,1 @@
-SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL `my_model`, <function struct_literal at 0x7fed1a1cc4a0>)
+SELECT * FROM ML.GLOBAL_EXPLAIN(MODEL `my_model`, STRUCT(true AS class_level_explain))
