@@ -20,6 +20,7 @@ import collections
 import datetime
 import inspect
 import sys
+import traceback
 import typing
 from typing import Literal, Optional, Sequence, Union
 
@@ -368,6 +369,19 @@ reset_session.__doc__ = global_session.close_session.__doc__
 # which the applicable limit is now hard coded. See:
 # https://github.com/python/cpython/issues/112282
 sys.setrecursionlimit(max(10000000, sys.getrecursionlimit()))
+
+
+original_setrecursionlimit = sys.setrecursionlimit
+print(f"recursion limit set to {sys.getrecursionlimit()}")
+
+
+def patched_setrecursionlimit(n):
+    print(f"\n[DEBUG] Recursion limit being set to {n} by:")
+    traceback.print_stack()
+    original_setrecursionlimit(n)
+
+
+sys.setrecursionlimit = patched_setrecursionlimit
 
 if resource is not None:
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)

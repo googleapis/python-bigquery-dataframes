@@ -5755,13 +5755,15 @@ def test_df_dot_operator_series(
 
 
 def test_recursion_limit(scalars_df_index):
+    import sys
+
+    print(f"doing recursion test, recursion limit set to {sys.getrecursionlimit()}")
     scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
     for i in range(400):
         scalars_df_index = scalars_df_index + 4
     try:
         scalars_df_index.to_pandas()
     except Exception:
-        import sys
 
         try:
             import resource
