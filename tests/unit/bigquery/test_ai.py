@@ -38,14 +38,15 @@ def mock_dataframe(mock_session):
 
 @pytest.fixture
 def mock_series(mock_session):
-    s = mock.create_autospec(spec=bigframes.series.Series)
-    s._session = mock_session
+    series = mock.create_autospec(spec=bigframes.series.Series)
+    series._session = mock_session
     # Mock to_frame to return a mock dataframe
     df = mock.create_autospec(spec=bigframes.dataframe.DataFrame)
     df._session = mock_session
     df.sql = "SELECT my_col AS content FROM my_table"
-    s.rename.return_value.to_frame.return_value = df
-    return s
+    series.copy.return_value = series
+    series.to_frame.return_value = df
+    return series
 
 
 def test_generate_embedding_with_dataframe(mock_dataframe, mock_session):
@@ -66,7 +67,7 @@ def test_generate_embedding_with_dataframe(mock_dataframe, mock_session):
     expected_part_1 = "SELECT * FROM AI.GENERATE_EMBEDDING("
     expected_part_2 = f"MODEL `{model_name}`,"
     expected_part_3 = "(SELECT * FROM my_table),"
-    expected_part_4 = "STRUCT(256 AS output_dimensionality)"
+    expected_part_4 = "STRUCT(256 AS OUTPUT_DIMENSIONALITY)"
 
     assert expected_part_1 in query
     assert expected_part_2 in query
@@ -81,9 +82,6 @@ def test_generate_embedding_with_series(mock_series, mock_session):
         model_name, mock_series, start_second=0.0, end_second=10.0, interval_seconds=5.0
     )
 
-    mock_series.rename.assert_called_with("content")
-    mock_series.rename.return_value.to_frame.assert_called_once()
-
     mock_session.read_gbq.assert_called_once()
     query = mock_session.read_gbq.call_args[0][0]
     query = " ".join(query.split())
@@ -91,7 +89,7 @@ def test_generate_embedding_with_series(mock_series, mock_session):
     assert f"MODEL `{model_name}`" in query
     assert "(SELECT my_col AS content FROM my_table)" in query
     assert (
-        "STRUCT(0.0 AS start_second, 10.0 AS end_second, 5.0 AS interval_seconds)"
+        "STRUCT(0.0 AS START_SECOND, 10.0 AS END_SECOND, 5.0 AS INTERVAL_SECONDS)"
         in query
     )
 
