@@ -20,10 +20,10 @@ from typing import Any, List, Mapping, Union
 
 import bigframes.core.sql
 
-STRUCT_TYPE = Mapping[
-    str,
-    Union[str, int, float, bool, Mapping[str, str], List[str], Mapping[str, Any]],
+STRUCT_VALUES = Union[
+    str, int, float, bool, Mapping[str, str], List[str], Mapping[str, Any]
 ]
+STRUCT_TYPE = Mapping[str, STRUCT_VALUES]
 
 
 def struct_literal(struct_options: STRUCT_TYPE) -> str:

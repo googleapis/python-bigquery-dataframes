@@ -19,7 +19,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -469,7 +469,7 @@ def generate_embedding(
     # We need to get the SQL for the input data to pass as a subquery to the TVF
     source_sql = data_df.sql
 
-    struct_fields: bigframes.core.sql.literals.STRUCT_TYPE = {}
+    struct_fields: Dict[str, bigframes.core.sql.literals.STRUCT_VALUES] = {}
     if output_dimensionality is not None:
         struct_fields["OUTPUT_DIMENSIONALITY"] = output_dimensionality
     if task_type is not None:
