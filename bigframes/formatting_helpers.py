@@ -25,10 +25,10 @@ import bigframes_vendored.constants as constants
 import google.api_core.exceptions as api_core_exceptions
 import google.cloud.bigquery as bigquery
 import humanize
-import IPython
-import IPython.display as display
 
 if TYPE_CHECKING:
+    from IPython import display
+
     import bigframes.core.events
 
 GenericJob = Union[
@@ -160,6 +160,8 @@ def progress_callback(
         progress_bar = "notebook" if in_ipython() else "terminal"
 
     if progress_bar == "notebook":
+        import IPython.display as display
+
         if (
             isinstance(event, bigframes.core.events.ExecutionStarted)
             or current_display is None
@@ -198,10 +200,12 @@ def progress_callback(
                 display_id=current_display_id,
             )
         elif isinstance(event, bigframes.core.events.ExecutionFinished):
-            display.update_display(
-                display.HTML(f"✅ Completed. {previous_display_html}"),
-                display_id=current_display_id,
-            )
+            if previous_display_html:
+                display.update_display(
+                    display.HTML(f"✅ Completed. {previous_display_html}"),
+                    display_id=current_display_id,
+                )
+
         elif isinstance(event, bigframes.core.events.SessionClosed):
             display.update_display(
                 display.HTML(f"Session {event.session_id} closed."),
@@ -239,6 +243,8 @@ def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
 
     try:
         if progress_bar == "notebook":
+            import IPython.display as display
+
             display_id = str(random.random())
             loading_bar = display.HTML(get_base_job_loading_html(job))
             display.display(loading_bar, display_id=display_id)
@@ -336,7 +342,7 @@ def get_job_url(
     """
     if project_id is None or location is None or job_id is None:
         return None
-    return f"""https://console.cloud. google.com/bigquery?project={project_id}&j=bq:{location}:{job_id}&page=queryresults"""
+    return f"""https://console.cloud.google.com/bigquery?project={project_id}&j=bq:{location}:{job_id}&page=queryresults"""
 
 
 def render_bqquery_sent_event_html(
@@ -607,4 +613,8 @@ def get_bytes_processed_string(val: Any):
 
 def in_ipython():
     """Return True iff we're in a colab-like IPython."""
+    try:
+        import IPython
+    except (ImportError, NameError):
+        return False
     return hasattr(IPython.get_ipython(), "kernel")

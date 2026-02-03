@@ -18,7 +18,7 @@ https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions. "
 
 import sys
 
-from bigframes.bigquery import ai, ml
+from bigframes.bigquery import ai, ml, obj
 from bigframes.bigquery._operations.approx_agg import approx_top_count
 from bigframes.bigquery._operations.array import (
     array_agg,
@@ -60,7 +60,8 @@ from bigframes.bigquery._operations.json import (
 from bigframes.bigquery._operations.search import create_vector_index, vector_search
 from bigframes.bigquery._operations.sql import sql_scalar
 from bigframes.bigquery._operations.struct import struct
-from bigframes.core import log_adapter
+from bigframes.bigquery._operations.table import create_external_table
+from bigframes.core.logging import log_adapter
 
 _functions = [
     # approximate aggregate ops
@@ -104,6 +105,8 @@ _functions = [
     sql_scalar,
     # struct ops
     struct,
+    # table ops
+    create_external_table,
 ]
 
 _module = sys.modules[__name__]
@@ -155,7 +158,10 @@ __all__ = [
     "sql_scalar",
     # struct ops
     "struct",
+    # table ops
+    "create_external_table",
     # Modules / SQL namespaces
     "ai",
     "ml",
+    "obj",
 ]

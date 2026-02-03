@@ -26,7 +26,8 @@ import pandas as pd
 from bigframes import clients, dataframe, dtypes
 from bigframes import pandas as bpd
 from bigframes import series, session
-from bigframes.core import convert, log_adapter
+from bigframes.core import convert
+from bigframes.core.logging import log_adapter
 from bigframes.ml import core as ml_core
 from bigframes.operations import ai_ops, output_schemas
 
@@ -57,14 +58,14 @@ def generate(
         >>> import bigframes.pandas as bpd
         >>> import bigframes.bigquery as bbq
         >>> country = bpd.Series(["Japan", "Canada"])
-        >>> bbq.ai.generate(("What's the capital city of ", country, " one word only"))
-        0    {'result': 'Tokyo\\n', 'full_response': '{"cand...
-        1    {'result': 'Ottawa\\n', 'full_response': '{"can...
+        >>> bbq.ai.generate(("What's the capital city of ", country, " one word only")) # doctest: +SKIP
+        0    {'result': 'Tokyo', 'full_response': '{"cand...
+        1    {'result': 'Ottawa', 'full_response': '{"can...
         dtype: struct<result: string, full_response: extension<dbjson<JSONArrowType>>, status: string>[pyarrow]
 
-        >>> bbq.ai.generate(("What's the capital city of ", country, " one word only")).struct.field("result")
-        0     Tokyo\\n
-        1    Ottawa\\n
+        >>> bbq.ai.generate(("What's the capital city of ", country, " one word only")).struct.field("result") # doctest: +SKIP
+        0     Tokyo
+        1    Ottawa
         Name: result, dtype: string
 
     You get structured output when the `output_schema` parameter is set:
