@@ -64,7 +64,7 @@ DEFAULT_PYTHON_VERSION = "3.10"
 # https://cloud.google.com/run/docs/runtimes/python
 E2E_TEST_PYTHON_VERSION = "3.12"
 
-UNIT_TEST_PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
     PYTEST_VERSION,
@@ -85,7 +85,7 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.10", "3.11", "3.12", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -661,9 +661,7 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     # version, the first version we test with in the unit tests sessions has a
     # constraints file containing all dependencies and extras.
     with open(
-        CURRENT_DIRECTORY
-        / "testing"
-        / f"constraints-{UNIT_TEST_PYTHON_VERSIONS[0]}.txt",
+        CURRENT_DIRECTORY / "testing" / f"constraints-{DEFAULT_PYTHON_VERSION}.txt",
         encoding="utf-8",
     ) as constraints_file:
         constraints_text = constraints_file.read()
