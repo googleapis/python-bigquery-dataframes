@@ -28,7 +28,7 @@ from bigframes import pandas as bpd
 from bigframes import series, session
 from bigframes.core import convert
 from bigframes.core.logging import log_adapter
-import bigframes.core.sql.literals
+import bigframes.core.sql
 from bigframes.ml import core as ml_core
 from bigframes.operations import ai_ops, output_schemas
 
@@ -488,7 +488,7 @@ def generate_embedding(
         FROM AI.GENERATE_EMBEDDING(
             MODEL `{model_name}`,
             ({source_sql}),
-            {bigframes.core.sql.literals.struct_literal(struct_fields)})
+            {bigframes.core.sql.struct_literal(struct_fields)})
         )
     """
 
