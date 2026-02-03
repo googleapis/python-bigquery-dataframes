@@ -416,7 +416,8 @@ def generate_embedding(
 
     Args:
         model_name (str):
-            The name of a remote model over a Vertex AI multimodalembedding@001 model.
+            The name of a remote model from Vertex AI, such as the
+            multimodalembedding@001 model.
         data (bigframes.pandas.DataFrame or bigframes.pandas.Series):
             The data to generate embeddings for. If a Series is provided, it is
             treated as the 'content' column.  If a DataFrame is provided, it
