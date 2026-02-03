@@ -14,8 +14,6 @@
 
 from __future__ import annotations
 
-import collections.abc
-import json
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 import bigframes.core.compile.googlesql as googlesql

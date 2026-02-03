@@ -16,18 +16,17 @@ from __future__ import annotations
 
 import collections.abc
 import json
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, List, Mapping, Union
 
-import bigframes.core.compile.googlesql as googlesql
 import bigframes.core.sql
 
+STRUCT_TYPE = Mapping[
+    str,
+    Union[str, int, float, bool, Mapping[str, str], List[str], Mapping[str, Any]],
+]
 
-def struct_literal(
-    struct_options: Mapping[
-        str,
-        Union[str, int, float, bool, Mapping[str, str], List[str], Mapping[str, Any]],
-    ]
-) -> str:
+
+def struct_literal(struct_options: STRUCT_TYPE) -> str:
     rendered_options = []
     for option_name, option_value in struct_options.items():
         if option_name == "model_params":

@@ -469,7 +469,7 @@ def generate_embedding(
     # We need to get the SQL for the input data to pass as a subquery to the TVF
     source_sql = data_df.sql
 
-    struct_fields = {}
+    struct_fields: bigframes.core.sql.literals.STRUCT_TYPE = {}
     if output_dimensionality is not None:
         struct_fields["OUTPUT_DIMENSIONALITY"] = output_dimensionality
     if task_type is not None:

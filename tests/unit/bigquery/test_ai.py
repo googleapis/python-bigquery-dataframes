@@ -17,7 +17,7 @@ from unittest import mock
 import pandas as pd
 import pytest
 
-import bigframes.bigquery._operations.ai as ai_ops
+import bigframes.bigquery as bbq
 import bigframes.dataframe
 import bigframes.series
 import bigframes.session
@@ -52,7 +52,7 @@ def mock_series(mock_session):
 def test_generate_embedding_with_dataframe(mock_dataframe, mock_session):
     model_name = "project.dataset.model"
 
-    ai_ops.generate_embedding(
+    bbq.ai.generate_embedding(
         model_name,
         mock_dataframe,
         output_dimensionality=256,
@@ -78,7 +78,7 @@ def test_generate_embedding_with_dataframe(mock_dataframe, mock_session):
 def test_generate_embedding_with_series(mock_series, mock_session):
     model_name = "project.dataset.model"
 
-    ai_ops.generate_embedding(
+    bbq.ai.generate_embedding(
         model_name, mock_series, start_second=0.0, end_second=10.0, interval_seconds=5.0
     )
 
@@ -97,7 +97,7 @@ def test_generate_embedding_with_series(mock_series, mock_session):
 def test_generate_embedding_defaults(mock_dataframe, mock_session):
     model_name = "project.dataset.model"
 
-    ai_ops.generate_embedding(
+    bbq.ai.generate_embedding(
         model_name,
         mock_dataframe,
     )
@@ -122,7 +122,7 @@ def test_generate_embedding_with_pandas_dataframe(
 
     pandas_df = pd.DataFrame({"content": ["test"]})
 
-    ai_ops.generate_embedding(
+    bbq.ai.generate_embedding(
         model_name,
         pandas_df,
     )
