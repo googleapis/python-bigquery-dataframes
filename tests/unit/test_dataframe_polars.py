@@ -4453,27 +4453,7 @@ def test_dataframe_explode_xfail(col_names):
 
 
 def test_recursion_limit_unit(scalars_df_index):
-    import sys
-
-    print(f"doing recursion test, recursion limit set to {sys.getrecursionlimit()}")
     scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
     for i in range(400):
         scalars_df_index = scalars_df_index + 4
-    try:
-        scalars_df_index.to_pandas()
-    except Exception:
-
-        try:
-            import resource
-        except ImportError:
-            # resource is only available on Unix-like systems.
-            # https://docs.python.org/3/library/resource.html
-            resource = None  # type: ignore
-        print(f"recursion limit: {sys.getrecursionlimit()}")
-        if resource is not None:
-            soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_STACK)
-            print(f"stack limits: {soft_limit}, {hard_limit}")
-        else:
-            print("resource module not available")
-        raise
-    assert False
+    scalars_df_index.to_pandas()
