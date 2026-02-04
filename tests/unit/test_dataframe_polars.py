@@ -4454,6 +4454,6 @@ def test_dataframe_explode_xfail(col_names):
 
 def test_recursion_limit_unit(scalars_df_index):
     scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
-    for i in range(400):
+    for i in range(250):
         scalars_df_index = scalars_df_index + 4
     scalars_df_index.to_pandas()

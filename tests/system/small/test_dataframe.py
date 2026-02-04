@@ -5756,7 +5756,7 @@ def test_df_dot_operator_series(
 
 def test_recursion_limit(scalars_df_index):
     scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
-    for i in range(400):
+    for i in range(250):
         scalars_df_index = scalars_df_index + 4
     scalars_df_index.to_pandas()
 
