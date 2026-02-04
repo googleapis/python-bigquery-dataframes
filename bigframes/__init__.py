@@ -16,7 +16,6 @@
 
 from bigframes._config import option_context, options
 from bigframes._config.bigquery_options import BigQueryOptions
-from bigframes._magics import _cell_magic
 from bigframes.core.global_session import close_session, get_global_session
 import bigframes.enums as enums
 import bigframes.exceptions as exceptions
@@ -28,6 +27,9 @@ _MAGIC_NAMES = ["bqsql"]
 
 def load_ipython_extension(ipython):
     """Called by IPython when this module is loaded as an IPython extension."""
+    # Requires IPython to be installed for import to succeed
+    from bigframes._magics import _cell_magic
+
     for magic_name in _MAGIC_NAMES:
         ipython.register_magic_function(
             _cell_magic, magic_kind="cell", magic_name=magic_name
