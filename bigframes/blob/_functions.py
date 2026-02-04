@@ -126,57 +126,7 @@ AS r\"\"\"
         return self._session.read_gbq_function(udf_name)
 
 
-def exif_func(src_obj_ref_rt: str, verbose: bool) -> str:
-    try:
-        import io
-        import json
-
-        from PIL import ExifTags, Image
-        import requests
-        from requests import adapters
-
-        session = requests.Session()
-        session.mount("https://", adapters.HTTPAdapter(max_retries=3))
-
-        src_obj_ref_rt_json = json.loads(src_obj_ref_rt)
-        src_url = src_obj_ref_rt_json["access_urls"]["read_url"]
-
-        response = session.get(src_url, timeout=30)
-        response.raise_for_status()
-        bts = response.content
-
-        image = Image.open(io.BytesIO(bts))
-        exif_data = image.getexif()
-        exif_dict = {}
-
-        if exif_data:
-            for tag, value in exif_data.items():
-                tag_name = ExifTags.TAGS.get(tag, tag)
-                # Convert non-serializable types to strings
-                try:
-                    json.dumps(value)
-                    exif_dict[tag_name] = value
-                except (TypeError, ValueError):
-                    exif_dict[tag_name] = str(value)
-
-        if verbose:
-            return json.dumps({"status": "", "content": json.dumps(exif_dict)})
-        else:
-            return json.dumps(exif_dict)
-
-    except Exception as e:
-        # Return error as JSON with error field
-        error_result = {"status": f"{type(e).__name__}: {str(e)}", "content": "{}"}
-        if verbose:
-            return json.dumps(error_result)
-        else:
-            return "{}"
-
-
-exif_func_def = FunctionDef(exif_func, ["pillow", "requests"])
-
-
-# Blur images. Takes ObjectRefRuntime as JSON string. Outputs ObjectRefRuntime JSON string.
+# Blur images. Takes ObjectRefRuntime as JSON string. Outputs ObjectRefRuntime JSON string.                             │
 def image_blur_func(
     src_obj_ref_rt: str,
     dst_obj_ref_rt: str,
