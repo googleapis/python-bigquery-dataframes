@@ -5778,6 +5778,7 @@ def test_recursion_limit(scalars_df_index):
         else:
             print("resource module not available")
         raise
+    assert False
 
 
 @pytest.mark.skipif(
