@@ -562,6 +562,9 @@ class GbqDataLoader:
         else:
             job.result()
 
+        if self._metrics is not None and isinstance(job, google.cloud.bigquery.job.Job):
+            self._metrics.count_job_stats(query_job=job)
+
     @overload
     def read_gbq_table(  # type: ignore[overload-overlap]
         self,
@@ -878,6 +881,7 @@ class GbqDataLoader:
                 table=table,
                 index_cols=index_cols,
                 publisher=self._publisher,
+                metrics=self._metrics,
             )
             if publish_execution:
                 self._publisher.publish(
