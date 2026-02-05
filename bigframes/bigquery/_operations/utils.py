@@ -18,6 +18,7 @@ import pandas as pd
 
 import bigframes
 from bigframes import dataframe
+import bigframes.ml.base
 
 
 def get_model_name_and_session(

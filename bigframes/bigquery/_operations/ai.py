@@ -26,7 +26,7 @@ import pandas as pd
 from bigframes import clients, dataframe, dtypes
 from bigframes import pandas as bpd
 from bigframes import series, session
-from bigframes.bigquery._operations import utils as ml_utils
+from bigframes.bigquery._operations import utils as bq_utils
 from bigframes.core import convert
 from bigframes.core.logging import log_adapter
 import bigframes.core.sql.literals
@@ -455,8 +455,8 @@ def generate_embedding(
             for details.
     """
     data = _to_dataframe(data, series_rename="content")
-    model_name, session = ml_utils.get_model_name_and_session(model, data)
-    table_sql = ml_utils.to_sql(data)
+    model_name, session = bq_utils.get_model_name_and_session(model, data)
+    table_sql = bq_utils.to_sql(data)
 
     struct_fields: Dict[str, bigframes.core.sql.literals.STRUCT_VALUES] = {}
     if output_dimensionality is not None:
@@ -564,8 +564,8 @@ def generate_text(
             The generated text.
     """
     data = _to_dataframe(data, series_rename="prompt")
-    model_name, session = ml_utils.get_model_name_and_session(model, data)
-    table_sql = ml_utils.to_sql(data)
+    model_name, session = bq_utils.get_model_name_and_session(model, data)
+    table_sql = bq_utils.to_sql(data)
 
     struct_fields: Dict[
         str,
