@@ -16,6 +16,8 @@ from __future__ import annotations
 import dataclasses
 from typing import Any, Hashable
 
+import bigframes_vendored.pandas.core.col as pd_col
+
 import bigframes.core.expression as bf_expression
 import bigframes.operations as bf_ops
 
@@ -24,6 +26,8 @@ import bigframes.operations as bf_ops
 # Name collision unintended
 @dataclasses.dataclass(frozen=True)
 class Expression:
+    __doc__ = pd_col.Expression.__doc__
+
     _value: bf_expression.Expression
 
     def _apply_unary(self, op: bf_ops.UnaryOp) -> Expression:
@@ -117,3 +121,6 @@ class Expression:
 
 def col(col_name: Hashable) -> Expression:
     return Expression(bf_expression.free_var(col_name))
+
+
+col.__doc__ = pd_col.col.__doc__

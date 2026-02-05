@@ -1,4 +1,4 @@
-# Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/common.py
+# Contains code from https://github.com/pandas-dev/pandas/blob/main/pandas/core/col.py
 from __future__ import annotations
 
 from collections.abc import Hashable
@@ -21,23 +21,6 @@ def col(col_name: Hashable) -> Expression:
     Any place which accepts ``lambda df: df[col_name]``, such as
     :meth:`DataFrame.assign` or :meth:`DataFrame.loc`, can also accept
     ``pd.col(col_name)``.
-
-    **Examples:**
-
-        You can use `col` in `assign`.
-
-        >>> df = bpd.DataFrame({"name": ["beluga", "narwhal"], "speed": [100, 110]})
-        >>> df.assign(name_titlecase=bpd.col("name").str.title())
-            name  speed name_titlecase
-        0   beluga    100         Beluga
-        1  narwhal    110        Narwhal
-
-        You can also use it for filtering.
-
-        >>> df.loc[bpd.col("speed") > 105]
-            name  speed
-        1  narwhal    110
-
 
     Args:
         col_name (Hashable):
