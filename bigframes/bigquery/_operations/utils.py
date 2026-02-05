@@ -18,11 +18,11 @@ import pandas as pd
 
 import bigframes
 from bigframes import dataframe
-import bigframes.ml.base
+from bigframes.ml import base as ml_base
 
 
 def get_model_name_and_session(
-    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    model: Union[ml_base.BaseEstimator, str, pd.Series],
     # Other dataframe arguments to extract session from
     *dataframes: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]],
 ) -> tuple[str, Optional[bigframes.session.Session]]:
