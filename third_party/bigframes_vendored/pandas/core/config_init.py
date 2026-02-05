@@ -84,9 +84,9 @@ class DisplayOptions:
     """
 
     # Options unique to BigQuery DataFrames.
-    progress_bar: Optional[str] = "auto"
+    progress_bar: Optional[str] = None
     """
-    Determines if progress bars are shown during job runs. Default "auto".
+    Determines if progress bars are shown during job runs. Default None.
 
     Valid values are `auto`, `notebook`, and `terminal`. Set
     to `None` to remove progress bars.

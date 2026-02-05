@@ -29,7 +29,6 @@ def concat(
     **Examples:**
 
         >>> import bigframes.pandas as pd
-        >>> pd.options.display.progress_bar = None
 
     Combine two ``Series``.
 

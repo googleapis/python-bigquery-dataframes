@@ -27,7 +27,6 @@ def get_dummies(
     **Examples:**
 
         >>> import bigframes.pandas as pd
-        >>> pd.options.display.progress_bar = None
         >>> s = pd.Series(list('abca'))
         >>> pd.get_dummies(s)
                a      b      c
