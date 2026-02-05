@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-
 import pandas as pd
 import pytest
 
@@ -21,9 +19,6 @@ import bigframes.pandas as bpd
 
 IPython = pytest.importorskip("IPython")
 
-if IPython:
-    from IPython.testing.globalipapp import get_ipython
-    from IPython.utils.capture import capture_output
 
 MAGIC_NAME = "bqsql"
 
@@ -31,6 +26,8 @@ MAGIC_NAME = "bqsql"
 @pytest.fixture(scope="module")
 def ip():
     """Provides a persistent IPython shell instance for the test session."""
+    from IPython.testing.globalipapp import get_ipython
+
     shell = get_ipython()
     shell.extension_manager.load_extension("bigframes")
     return shell
@@ -64,6 +61,8 @@ def test_magic_select_lit_dry_run(ip):
 
 
 def test_magic_select_lit_display(ip):
+    from IPython.utils.capture import capture_output
+
     bigframes.close_session()
 
     cell_body = "SELECT 3"
