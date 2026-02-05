@@ -11,14 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
 
-from IPython.testing.globalipapp import get_ipython
-from IPython.utils.capture import capture_output
 import pandas as pd
 import pytest
 
 import bigframes
 import bigframes.pandas as bpd
+
+IPython = pytest.importorskip("IPython")
+
+if IPython:
+    from IPython.testing.globalipapp import get_ipython
+    from IPython.utils.capture import capture_output
 
 MAGIC_NAME = "bqsql"
 
