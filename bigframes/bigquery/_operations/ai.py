@@ -454,6 +454,7 @@ def generate_embedding(
             <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-generate-embedding#output>`_
             for details.
     """
+    data = _to_dataframe(data, series_rename="content")
     model_name, session = ml_utils.get_model_name_and_session(model, data)
     table_sql = ml_utils.to_sql(data)
 
@@ -562,6 +563,7 @@ def generate_text(
         bigframes.pandas.DataFrame:
             The generated text.
     """
+    data = _to_dataframe(data, series_rename="prompt")
     model_name, session = ml_utils.get_model_name_and_session(model, data)
     table_sql = ml_utils.to_sql(data)
 
@@ -914,3 +916,20 @@ def _resolve_connection_id(series: series.Series, connection_id: str | None):
         series._session._project,
         series._session._location,
     )
+
+
+def _to_dataframe(
+    data: Union[dataframe.DataFrame, series.Series, pd.DataFrame, pd.Series],
+    series_rename: str,
+) -> dataframe.DataFrame:
+    if isinstance(data, (pd.DataFrame, pd.Series)):
+        data = bpd.read_pandas(data)
+
+    if isinstance(data, series.Series):
+        data = data.copy()
+        data.name = series_rename
+        return data.to_frame()
+    elif isinstance(data, dataframe.DataFrame):
+        return data
+
+    raise ValueError(f"Unsupported data type: {type(data)}")
