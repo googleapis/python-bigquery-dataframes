@@ -17,8 +17,7 @@ from typing import cast, Optional, Union
 import pandas as pd
 
 import bigframes
-from bigframes import dataframe, series
-import bigframes.pandas as bpd
+from bigframes import dataframe
 
 
 def get_model_name_and_session(

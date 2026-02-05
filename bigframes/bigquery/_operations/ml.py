@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import cast, List, Mapping, Optional, Union
+from typing import List, Mapping, Optional, Union
 
 import bigframes_vendored.constants
 import google.cloud.bigquery
