@@ -36,8 +36,8 @@ __all__ = [
     "generate_bool",
     "generate_double",
     "generate_embedding",
-    "generate_text",
     "generate_int",
+    "generate_text",
     "if_",
     "score",
 ]

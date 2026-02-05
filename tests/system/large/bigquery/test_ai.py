@@ -76,7 +76,7 @@ def test_generate_embedding_with_options(embedding_model):
 
 
 def test_generate_text(text_model):
-    df = bpd.DataFrame({"prompt": ["Dog","Cat"]})
+    df = bpd.DataFrame({"prompt": ["Dog", "Cat"]})
 
     result = ai.generate_text(text_model, df)
 
@@ -88,9 +88,9 @@ def test_generate_text(text_model):
 
 
 def test_generate_text_with_options(text_model):
-    df = bpd.DataFrame({"prompt": ["Dog","Cat"]})
+    df = bpd.DataFrame({"prompt": ["Dog", "Cat"]})
 
     result = ai.generate_text(text_model, df, max_output_tokens=1)
-    
+
     # It basically asserts that the results are still returned.
     assert len(result) == 2
