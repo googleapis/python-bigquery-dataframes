@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import typing
 
 import bigframes_vendored.sqlglot.expressions as sge
 
-import bigframes.core.agg_expressions as agg_exprs
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 import bigframes.core.expression as ex
@@ -78,15 +77,6 @@ class ScalarOpCompiler:
     @compile_expression.register
     def _(self, expr: ex.ScalarConstantExpression) -> sge.Expression:
         return ir._literal(expr.value, expr.dtype)
-
-    @compile_expression.register
-    def _(self, expr: agg_exprs.WindowExpression) -> sge.Expression:
-        import bigframes.core.compile.sqlglot.aggregate_compiler as agg_compile
-
-        return agg_compile.compile_analytic(
-            expr.analytic_expr,
-            expr.window,
-        )
 
     @compile_expression.register
     def _(self, expr: ex.OpExpression) -> sge.Expression:

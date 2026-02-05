@@ -5,7 +5,8 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`nested_structs_types`
 )
 SELECT
-  `id`,
+  *,
+  `id` AS `id`,
   `id` AS `id_1`,
-  `people`
+  `people` AS `people`
 FROM `bfcte_0`

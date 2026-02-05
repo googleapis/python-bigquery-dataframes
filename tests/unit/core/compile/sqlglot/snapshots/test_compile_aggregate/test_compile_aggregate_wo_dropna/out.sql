@@ -6,6 +6,8 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
+    `bool_col` AS `bool_col`,
+    `int64_too` AS `int64_too`,
     `int64_too` AS `bfcol_2`,
     `bool_col` AS `bfcol_3`
   FROM `bfcte_0`
@@ -18,8 +20,7 @@ WITH `bfcte_0` AS (
     `bfcol_3`
 )
 SELECT
+  *,
   `bfcol_3` AS `bool_col`,
   `bfcol_6` AS `int64_too`
 FROM `bfcte_2`
-ORDER BY
-  `bfcol_3` ASC NULLS LAST

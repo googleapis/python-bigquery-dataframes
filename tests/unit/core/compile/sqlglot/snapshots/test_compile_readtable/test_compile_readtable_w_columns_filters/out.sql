@@ -8,7 +8,8 @@ WITH `bfcte_0` AS (
     `rowindex` > 0 AND `string_col` IN ('Hello, World!')
 )
 SELECT
-  `rowindex`,
-  `int64_col`,
-  `string_col`
+  *,
+  `rowindex` AS `rowindex`,
+  `int64_col` AS `int64_col`,
+  `string_col` AS `string_col`
 FROM `bfcte_0`

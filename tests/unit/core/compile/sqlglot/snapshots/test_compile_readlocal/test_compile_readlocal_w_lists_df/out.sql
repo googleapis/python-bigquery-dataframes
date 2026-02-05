@@ -34,6 +34,7 @@ WITH `bfcte_0` AS (
   )])
 )
 SELECT
+  *,
   `bfcol_0` AS `rowindex`,
   `bfcol_1` AS `int_list_col`,
   `bfcol_2` AS `bool_list_col`,
@@ -43,5 +44,3 @@ SELECT
   `bfcol_6` AS `numeric_list_col`,
   `bfcol_7` AS `string_list_col`
 FROM `bfcte_0`
-ORDER BY
-  `bfcol_8` ASC NULLS LAST

@@ -7,6 +7,9 @@ WITH `bfcte_0` AS (
 ), `bfcte_1` AS (
   SELECT
     *,
+    `bool_col` AS `bool_col`,
+    `duration_col` AS `duration_col`,
+    `int64_col` AS `int64_col`,
     `int64_col` AS `bfcol_6`,
     `bool_col` AS `bfcol_7`,
     `duration_col` AS `bfcol_8`
@@ -20,6 +23,7 @@ WITH `bfcte_0` AS (
   FROM `bfcte_1`
 )
 SELECT
+  *,
   `bfcol_12` AS `int64_col`,
   `bfcol_13` AS `bool_col`,
   `bfcol_14` AS `duration_col`,

@@ -5,6 +5,7 @@ WITH `bfcte_1` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_3` AS (
   SELECT
+    *,
     `rowindex` AS `bfcol_2`,
     `int64_col` AS `bfcol_3`
   FROM `bfcte_1`
@@ -26,6 +27,7 @@ WITH `bfcte_1` AS (
         1
       FROM (
         SELECT
+          *,
           `int64_too` AS `bfcol_4`
         FROM `bfcte_2`
       ) AS `bft_0`
@@ -36,6 +38,7 @@ WITH `bfcte_1` AS (
   FROM `bfcte_3`
 )
 SELECT
+  *,
   `bfcol_2` AS `rowindex`,
   `bfcol_5` AS `int64_col`
 FROM `bfcte_4`

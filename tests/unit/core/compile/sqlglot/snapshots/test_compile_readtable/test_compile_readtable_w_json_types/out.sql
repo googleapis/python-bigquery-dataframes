@@ -5,6 +5,7 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`json_types`
 )
 SELECT
-  `rowindex`,
-  `json_col`
+  *,
+  `rowindex` AS `rowindex`,
+  `json_col` AS `json_col`
 FROM `bfcte_0`

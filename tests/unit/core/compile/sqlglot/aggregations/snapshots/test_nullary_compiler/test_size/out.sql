@@ -22,5 +22,6 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 )
 SELECT
+  *,
   `bfcol_32` AS `size`
 FROM `bfcte_1`

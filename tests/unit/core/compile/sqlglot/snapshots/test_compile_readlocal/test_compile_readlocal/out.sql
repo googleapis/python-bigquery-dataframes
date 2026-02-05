@@ -166,6 +166,7 @@ WITH `bfcte_0` AS (
   )])
 )
 SELECT
+  *,
   `bfcol_0` AS `rowindex`,
   `bfcol_1` AS `bool_col`,
   `bfcol_2` AS `bytes_col`,
@@ -183,5 +184,3 @@ SELECT
   `bfcol_14` AS `timestamp_col`,
   `bfcol_15` AS `duration_col`
 FROM `bfcte_0`
-ORDER BY
-  `bfcol_16` ASC NULLS LAST

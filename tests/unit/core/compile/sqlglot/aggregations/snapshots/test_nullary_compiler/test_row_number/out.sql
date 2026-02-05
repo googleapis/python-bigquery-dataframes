@@ -16,12 +16,8 @@ WITH `bfcte_0` AS (
     `time_col`,
     `timestamp_col`
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER () - 1 AS `bfcol_32`
-  FROM `bfcte_0`
 )
 SELECT
-  `bfcol_32` AS `row_number`
-FROM `bfcte_1`
+  *,
+  ROW_NUMBER() OVER () - 1 AS `row_number`
+FROM `bfcte_0`
