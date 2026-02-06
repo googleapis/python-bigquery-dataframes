@@ -16,14 +16,6 @@
 
 import warnings
 
-from bigframes._config import option_context, options
-from bigframes._config.bigquery_options import BigQueryOptions
-from bigframes.core.global_session import close_session, get_global_session
-import bigframes.enums as enums
-import bigframes.exceptions as exceptions
-from bigframes.session import connect, Session
-from bigframes.version import __version__
-
 # Suppress Python version support warnings from google-cloud libraries.
 # These are particularly noisy in Colab which still uses Python 3.10.
 warnings.filterwarnings(
@@ -31,6 +23,17 @@ warnings.filterwarnings(
     category=FutureWarning,
     message=".*Google will stop supporting.*Python.*",
 )
+
+from bigframes._config import option_context, options  # noqa: E402
+from bigframes._config.bigquery_options import BigQueryOptions  # noqa: E402
+from bigframes.core.global_session import (  # noqa: E402
+    close_session,
+    get_global_session,
+)
+import bigframes.enums as enums  # noqa: E402
+import bigframes.exceptions as exceptions  # noqa: E402
+from bigframes.session import connect, Session  # noqa: E402
+from bigframes.version import __version__  # noqa: E402
 
 _MAGIC_NAMES = ["bqsql"]
 
