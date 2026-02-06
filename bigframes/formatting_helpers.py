@@ -169,7 +169,7 @@ def progress_callback(
         ):
             previous_display_html = ""
             current_display_id = str(random.random())
-            current_display = display.HTML("Starting.")
+            current_display = display.HTML("")
             display.display(
                 current_display,
                 display_id=current_display_id,
@@ -213,7 +213,7 @@ def progress_callback(
             )
     elif progress_bar == "terminal":
         if isinstance(event, bigframes.core.events.ExecutionStarted):
-            print("Starting execution.")
+            pass
         elif isinstance(event, bigframes.core.events.BigQuerySentEvent):
             message = render_bqquery_sent_event_plaintext(event)
             print(message)
