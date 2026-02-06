@@ -24,8 +24,7 @@ This library is an evolving attempt to:
 """
 
 import abc
-import typing
-from typing import Optional, TypeVar, Union
+from typing import cast, Optional, TypeVar, Union
 import warnings
 
 import bigframes_vendored.sklearn.base
@@ -134,7 +133,7 @@ class Predictor(BaseEstimator):
                 self._bqml_model = self._create_bqml_model()  # type: ignore
             except AttributeError:
                 raise RuntimeError("A model must be trained before register.")
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         self._bqml_model.register(vertex_ai_model_id)
         return self
@@ -287,7 +286,7 @@ class RetriableRemotePredictor(BaseEstimator):
                 bpd.concat([df_result, df_succ]) if df_result is not None else df_succ
             )
 
-        df_result = typing.cast(
+        df_result = cast(
             bpd.DataFrame,
             bpd.concat([df_result, df_fail]) if df_result is not None else df_fail,
         )
@@ -307,7 +306,7 @@ class BaseTransformer(BaseEstimator):
 
         output_names = []
         for transform_col in self._bqml_model._model._properties["transformColumns"]:
-            transform_col_dict = typing.cast(dict, transform_col)
+            transform_col_dict = cast(dict, transform_col)
             # pass the columns that are not transformed
             if "transformSql" not in transform_col_dict:
                 continue

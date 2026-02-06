@@ -16,8 +16,7 @@
 
 from __future__ import annotations
 
-import typing
-from typing import Mapping, Optional
+from typing import cast, Mapping, Optional
 
 from google.cloud import bigquery
 
@@ -79,7 +78,7 @@ class TensorFlowModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         (X,) = utils.batch_convert_to_dataframe(X)
 
@@ -100,7 +99,7 @@ class TensorFlowModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -158,7 +157,7 @@ class ONNXModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
@@ -179,7 +178,7 @@ class ONNXModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -277,7 +276,7 @@ class XGBoostModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
@@ -298,7 +297,7 @@ class XGBoostModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
