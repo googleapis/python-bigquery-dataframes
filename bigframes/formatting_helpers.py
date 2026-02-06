@@ -186,6 +186,7 @@ def progress_callback(
                     display_id=current_display_id,
                 )
             else:
+                current_display_id = str(random.random())
                 display.display(
                     display.HTML(display_html),
                     display_id=current_display_id,
