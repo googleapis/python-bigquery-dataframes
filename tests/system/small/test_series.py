@@ -4099,8 +4099,8 @@ def test_json_astype_others_raise_error(data, to_type):
         pytest.param(["true", None], dtypes.STRING_DTYPE, id="to_string"),
     ],
 )
-def test_json_astype_others_in_safe_mode(data, to_type):
-    bf_series = series.Series(data, dtype=dtypes.JSON_DTYPE)
+def test_json_astype_others_in_safe_mode(data, to_type, session):
+    bf_series = series.Series(data, dtype=dtypes.JSON_DTYPE, session=session)
     bf_result = bf_series.astype(to_type, errors="null")
     assert bf_result.dtype == to_type
 
