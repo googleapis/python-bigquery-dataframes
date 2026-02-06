@@ -93,6 +93,7 @@ def test_pd_col_unary_operators(scalars_dfs, op):
         "result": op(pd.col("float64_col")),  # type: ignore
     }
     df = scalars_df.assign(**bf_kwargs)
+
     bf_result = df.to_pandas()
     pd_result = scalars_pandas_df.assign(**pd_kwargs)
 
@@ -126,6 +127,7 @@ def test_pd_col_binary_operators(scalars_dfs, op):
         "reverse_result": op(2.4, pd.col("float64_col")),  # type: ignore
     }
     df = scalars_df.assign(**bf_kwargs)
+
     bf_result = df.to_pandas()
     pd_result = scalars_pandas_df.assign(**pd_kwargs)
 
@@ -151,6 +153,7 @@ def test_pd_col_binary_bool_operators(scalars_dfs, op):
         "reverse_result": op(False, pd.col("bool_col")),  # type: ignore
     }
     df = scalars_df.assign(**bf_kwargs)
+
     bf_result = df.to_pandas()
     pd_result = scalars_pandas_df.assign(**pd_kwargs)
 

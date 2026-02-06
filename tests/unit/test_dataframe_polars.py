@@ -840,6 +840,7 @@ def test_assign_using_pd_col(scalars_dfs):
         "new_col_1": 4 - pd.col("int64_col"),  # type: ignore
         "new_col_2": pd.col("int64_col") / (pd.col("float64_col") * 0.5),  # type: ignore
     }
+
     df = scalars_df.assign(**bf_kwargs)
     bf_result = df.to_pandas()
     pd_result = scalars_pandas_df.assign(**pd_kwargs)

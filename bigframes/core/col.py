@@ -22,7 +22,7 @@ import bigframes.core.expression as bf_expression
 import bigframes.operations as bf_ops
 
 
-# Not to be confused with internal Expressions class
+# Not to be confused with the Expression class in `bigframes.core.expressions`
 # Name collision unintended
 @dataclasses.dataclass(frozen=True)
 class Expression:
