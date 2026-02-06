@@ -156,6 +156,47 @@ class SQLGlotIR:
 
         return cls(expr=table_expr, uid_gen=uid_gen)
 
+    def select(
+        self,
+        selections: tuple[tuple[str, sge.Expression], ...] = (),
+        predicates: tuple[sge.Expression, ...] = (),
+        sorting: tuple[sge.Ordered, ...] = (),
+        limit: typing.Optional[int] = None,
+    ) -> SQLGlotIR:
+
+        # TODO: Explicitly insert CTEs into plan
+        if isinstance(self.expr, sge.Select):
+            new_expr = _select_to_cte(
+                self.expr,
+                sge.to_identifier(
+                    next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
+                ),
+            )
+        else:
+            new_expr = self.expr
+
+        if len(sorting) > 0:
+            new_expr = new_expr.order_by(*sorting)
+
+        to_select = [
+            sge.Alias(
+                this=expr,
+                alias=sge.to_identifier(id, quoted=self.quoted),
+            )
+            if expr.alias_or_name != id
+            else expr
+            for id, expr in selections
+        ]
+        new_expr = new_expr.select(*to_select, append=False)
+
+        if len(predicates) > 0:
+            condition = _and(predicates)
+            new_expr = new_expr.where(condition, append=False)
+        if limit is not None:
+            new_expr = new_expr.limit(limit)
+
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
     @classmethod
     def from_query_string(
         cls,
@@ -221,91 +262,6 @@ class SQLGlotIR:
         )
         final_select_expr = _set_query_ctes(final_select_expr, existing_ctes)
         return cls(expr=final_select_expr, uid_gen=uid_gen)
-
-    def select(
-        self,
-        selected_cols: tuple[tuple[str, sge.Expression], ...],
-    ) -> SQLGlotIR:
-        """Replaces new selected columns of the current SELECT clause."""
-        selections = [
-            sge.Alias(
-                this=expr,
-                alias=sge.to_identifier(id, quoted=self.quoted),
-            )
-            if expr.alias_or_name != id
-            else expr
-            for id, expr in selected_cols
-        ]
-
-        new_expr = _select_to_cte(
-            self.expr,
-            sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
-            ),
-        )
-        new_expr = new_expr.select(*selections, append=False)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
-
-    def project(
-        self,
-        projected_cols: tuple[tuple[str, sge.Expression], ...],
-    ) -> SQLGlotIR:
-        """Adds new columns to the SELECT clause."""
-        projected_cols_expr = [
-            sge.Alias(
-                this=expr,
-                alias=sge.to_identifier(id, quoted=self.quoted),
-            )
-            for id, expr in projected_cols
-        ]
-        new_expr = _select_to_cte(
-            self.expr,
-            sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
-            ),
-        )
-        new_expr = new_expr.select(*projected_cols_expr, append=True)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
-
-    def order_by(
-        self,
-        ordering: tuple[sge.Ordered, ...],
-    ) -> SQLGlotIR:
-        """Adds an ORDER BY clause to the query."""
-        if len(ordering) == 0:
-            return SQLGlotIR(expr=self.expr.copy(), uid_gen=self.uid_gen)
-        new_expr = self.expr.order_by(*ordering)
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
-
-    def limit(
-        self,
-        limit: int | None,
-    ) -> SQLGlotIR:
-        """Adds a LIMIT clause to the query."""
-        if limit is not None:
-            new_expr = self.expr.limit(limit)
-        else:
-            new_expr = self.expr.copy()
-        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
-
-    def filter(
-        self,
-        conditions: tuple[sge.Expression, ...],
-    ) -> SQLGlotIR:
-        """Filters the query by adding a WHERE clause."""
-        condition = _and(conditions)
-        if condition is None:
-            return SQLGlotIR(expr=self.expr.copy(), uid_gen=self.uid_gen)
-
-        new_expr = _select_to_cte(
-            self.expr,
-            sge.to_identifier(
-                next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
-            ),
-        )
-        return SQLGlotIR(
-            expr=new_expr.where(condition, append=False), uid_gen=self.uid_gen
-        )
 
     def join(
         self,
@@ -481,13 +437,6 @@ class SQLGlotIR:
         if condition is not None:
             new_expr = new_expr.where(condition, append=False)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
-
-    def window(
-        self,
-        window_op: sge.Expression,
-        output_column_id: str,
-    ) -> SQLGlotIR:
-        return self.project(((output_column_id, window_op),))
 
     def insert(
         self,

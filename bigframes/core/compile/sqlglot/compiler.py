@@ -31,8 +31,8 @@ from bigframes.core import (
 from bigframes.core.compile import configs
 import bigframes.core.compile.sqlglot.aggregate_compiler as aggregate_compiler
 from bigframes.core.compile.sqlglot.aggregations import windows
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions import typed_expr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 from bigframes.core.logging import data_types as data_type_logger
 import bigframes.core.ordering as bf_ordering
@@ -143,38 +143,32 @@ def _compile_node(
 @_compile_node.register
 def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
     sqlglot_ir = child
-    if node.sorting is not None:
-        ordering_cols = tuple(
-            sge.Ordered(
-                this=scalar_compiler.scalar_op_compiler.compile_expression(
-                    ordering.scalar_expression
-                ),
-                desc=ordering.direction.is_ascending is False,
-                nulls_first=ordering.na_last is False,
-            )
-            for ordering in node.sorting
+    ordering_cols = tuple(
+        sge.Ordered(
+            this=expression_compiler.expression_compiler.compile_expression(
+                ordering.scalar_expression
+            ),
+            desc=ordering.direction.is_ascending is False,
+            nulls_first=ordering.na_last is False,
         )
-        sqlglot_ir = sqlglot_ir.order_by(ordering_cols)
+        for ordering in node.sorting
+    )
 
     projected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
         (
             cdef.id.sql,
-            scalar_compiler.scalar_op_compiler.compile_expression(cdef.expression),
+            expression_compiler.expression_compiler.compile_expression(cdef.expression),
         )
         for cdef in node.selections
     )
     sqlglot_ir = sqlglot_ir.select(projected_cols)
 
-    if len(node.predicates) > 0:
-        sge_predicates = tuple(
-            scalar_compiler.scalar_op_compiler.compile_expression(expression)
-            for expression in node.predicates
-        )
-        sqlglot_ir = sqlglot_ir.filter(sge_predicates)
-    if node.limit is not None:
-        sqlglot_ir = sqlglot_ir.limit(node.limit)
+    sge_predicates = tuple(
+        expression_compiler.expression_compiler.compile_expression(expression)
+        for expression in node.predicates
+    )
 
-    return sqlglot_ir
+    return child.select(projected_cols, sge_predicates, ordering_cols, node.limit)
 
 
 @_compile_node.register
@@ -210,11 +204,11 @@ def compile_join(
     conditions = tuple(
         (
             typed_expr.TypedExpr(
-                scalar_compiler.scalar_op_compiler.compile_expression(left),
+                expression_compiler.expression_compiler.compile_expression(left),
                 left.output_type,
             ),
             typed_expr.TypedExpr(
-                scalar_compiler.scalar_op_compiler.compile_expression(right),
+                expression_compiler.expression_compiler.compile_expression(right),
                 right.output_type,
             ),
         )
@@ -236,11 +230,11 @@ def compile_isin_join(
     right_field = node.right_child.fields[0]
     conditions = (
         typed_expr.TypedExpr(
-            scalar_compiler.scalar_op_compiler.compile_expression(node.left_col),
+            expression_compiler.expression_compiler.compile_expression(node.left_col),
             node.left_col.output_type,
         ),
         typed_expr.TypedExpr(
-            scalar_compiler.scalar_op_compiler.compile_expression(
+            expression_compiler.expression_compiler.compile_expression(
                 expression.DerefOp(right_field.id)
             ),
             right_field.dtype,
@@ -303,7 +297,7 @@ def compile_aggregate(node: nodes.AggregateNode, child: ir.SQLGlotIR) -> ir.SQLG
         for agg, id in node.aggregations
     )
     by_cols: tuple[sge.Expression, ...] = tuple(
-        scalar_compiler.scalar_op_compiler.compile_expression(by_col)
+        expression_compiler.expression_compiler.compile_expression(by_col)
         for by_col in node.by_column_ids
     )
 
