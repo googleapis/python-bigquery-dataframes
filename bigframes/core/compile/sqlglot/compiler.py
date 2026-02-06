@@ -141,7 +141,7 @@ def _compile_node(
 
 
 @_compile_node.register
-def compile_sql_select(node: sql_nodes.SelectNode, child: ir.SQLGlotIR):
+def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
     sqlglot_ir = child
     if node.sorting is not None:
         ordering_cols = tuple(
@@ -165,6 +165,12 @@ def compile_sql_select(node: sql_nodes.SelectNode, child: ir.SQLGlotIR):
     )
     sqlglot_ir = sqlglot_ir.select(projected_cols)
 
+    if len(node.predicates) > 0:
+        sge_predicates = tuple(
+            scalar_compiler.scalar_op_compiler.compile_expression(expression)
+            for expression in node.predicates
+        )
+        sqlglot_ir = sqlglot_ir.filter(sge_predicates)
     if node.limit is not None:
         sqlglot_ir = sqlglot_ir.limit(node.limit)
 
@@ -185,14 +191,12 @@ def compile_readlocal(node: nodes.ReadLocalNode, child: ir.SQLGlotIR) -> ir.SQLG
 
 
 @_compile_node.register
-def compile_readtable(node: nodes.ReadTableNode, child: ir.SQLGlotIR):
+def compile_readtable(node: sql_nodes.SqlDataSource, child: ir.SQLGlotIR):
     table = node.source.table
     return ir.SQLGlotIR.from_table(
         table.project_id,
         table.dataset_id,
         table.table_id,
-        col_names=[col.source_id for col in node.scan_list.items],
-        alias_names=[col.id.sql for col in node.scan_list.items],
         uid_gen=child.uid_gen,
         sql_predicate=node.source.sql_predicate,
         system_time=node.source.at_time,

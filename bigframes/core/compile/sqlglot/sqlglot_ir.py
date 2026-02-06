@@ -116,8 +116,6 @@ class SQLGlotIR:
         project_id: str,
         dataset_id: str,
         table_id: str,
-        col_names: typing.Sequence[str],
-        alias_names: typing.Sequence[str],
         uid_gen: guid.SequentialUIDGenerator,
         sql_predicate: typing.Optional[str] = None,
         system_time: typing.Optional[datetime.datetime] = None,
@@ -134,15 +132,6 @@ class SQLGlotIR:
             sql_predicate (typing.Optional[str]): An optional SQL predicate for filtering.
             system_time (typing.Optional[str]): An optional system time for time-travel queries.
         """
-        selections = [
-            sge.Alias(
-                this=sge.to_identifier(col_name, quoted=cls.quoted),
-                alias=sge.to_identifier(alias_name, quoted=cls.quoted),
-            )
-            if col_name != alias_name
-            else sge.to_identifier(col_name, quoted=cls.quoted)
-            for col_name, alias_name in zip(col_names, alias_names)
-        ]
         version = (
             sge.Version(
                 this="TIMESTAMP",
@@ -158,12 +147,14 @@ class SQLGlotIR:
             catalog=sg.to_identifier(project_id, quoted=cls.quoted),
             version=version,
         )
-        select_expr = sge.Select().select(*selections).from_(table_expr)
         if sql_predicate:
+            select_expr = sge.Select().select(sge.Star()).from_(table_expr)
             select_expr = select_expr.where(
                 sg.parse_one(sql_predicate, dialect="bigquery"), append=False
             )
-        return cls(expr=select_expr, uid_gen=uid_gen)
+            return cls(expr=select_expr, uid_gen=uid_gen)
+
+        return cls(expr=table_expr, uid_gen=uid_gen)
 
     @classmethod
     def from_query_string(

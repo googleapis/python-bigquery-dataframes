@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,14 +27,14 @@ from bigframes.core import (
 import bigframes.core.rewrite
 
 
-def _limit(select: sql_nodes.SelectNode, limit: int) -> sql_nodes.SelectNode:
+def _limit(select: sql_nodes.SqlSelectNode, limit: int) -> sql_nodes.SqlSelectNode:
     new_limit = limit if select.limit is None else min([select.limit, limit])
     return dataclasses.replace(select, limit=new_limit)
 
 
 def _try_sort(
-    select: sql_nodes.SelectNode, sort_by: Sequence[ordering.OrderingExpression]
-) -> Optional[sql_nodes.SelectNode]:
+    select: sql_nodes.SqlSelectNode, sort_by: Sequence[ordering.OrderingExpression]
+) -> Optional[sql_nodes.SqlSelectNode]:
     new_order_exprs = []
     for sort_expr in sort_by:
         new_expr = _try_bind(
@@ -50,8 +50,8 @@ def _try_sort(
 
 def _sort(
     node: nodes.BigFrameNode, sort_by: Sequence[ordering.OrderingExpression]
-) -> sql_nodes.SelectNode:
-    if isinstance(node, sql_nodes.SelectNode):
+) -> sql_nodes.SqlSelectNode:
+    if isinstance(node, sql_nodes.SqlSelectNode):
         merged = _try_sort(node, sort_by)
         if merged:
             return merged
@@ -73,8 +73,8 @@ def _try_bind(
 
 
 def _try_add_cdefs(
-    select: sql_nodes.SelectNode, cdefs: Sequence[nodes.ColumnDef]
-) -> Optional[sql_nodes.SelectNode]:
+    select: sql_nodes.SqlSelectNode, cdefs: Sequence[nodes.ColumnDef]
+) -> Optional[sql_nodes.SqlSelectNode]:
     # TODO: add up complexity measure while inlining refs
     new_defs = []
     for cdef in cdefs:
@@ -91,8 +91,8 @@ def _try_add_cdefs(
 
 def _add_cdefs(
     node: nodes.BigFrameNode, cdefs: Sequence[nodes.ColumnDef]
-) -> sql_nodes.SelectNode:
-    if isinstance(node, sql_nodes.SelectNode):
+) -> sql_nodes.SqlSelectNode:
+    if isinstance(node, sql_nodes.SqlSelectNode):
         merged = _try_add_cdefs(node, cdefs)
         if merged:
             return merged
@@ -103,8 +103,8 @@ def _add_cdefs(
 
 
 def _try_add_filter(
-    select: sql_nodes.SelectNode, predicates: Sequence[expression.Expression]
-) -> Optional[sql_nodes.SelectNode]:
+    select: sql_nodes.SqlSelectNode, predicates: Sequence[expression.Expression]
+) -> Optional[sql_nodes.SqlSelectNode]:
     # Constraint: filters can only be merged if they are scalar expression after binding
     new_predicates = []
     # bind variables, merge predicates
@@ -118,8 +118,8 @@ def _try_add_filter(
 
 def _add_filter(
     node: nodes.BigFrameNode, predicates: Sequence[expression.Expression]
-) -> sql_nodes.SelectNode:
-    if isinstance(node, sql_nodes.SelectNode):
+) -> sql_nodes.SqlSelectNode:
+    if isinstance(node, sql_nodes.SqlSelectNode):
         result = _try_add_filter(node, predicates)
         if result:
             return result
@@ -128,8 +128,8 @@ def _add_filter(
     return new_node
 
 
-def _create_noop_select(node: nodes.BigFrameNode) -> sql_nodes.SelectNode:
-    return sql_nodes.SelectNode(
+def _create_noop_select(node: nodes.BigFrameNode) -> sql_nodes.SqlSelectNode:
+    return sql_nodes.SqlSelectNode(
         node,
         selections=tuple(
             nodes.ColumnDef(expression.ResolvedDerefOp.from_field(field), field.id)
@@ -139,7 +139,7 @@ def _create_noop_select(node: nodes.BigFrameNode) -> sql_nodes.SelectNode:
 
 
 def _try_remap_select_cols(
-    select: sql_nodes.SelectNode, cols: Sequence[nodes.AliasedRef]
+    select: sql_nodes.SqlSelectNode, cols: Sequence[nodes.AliasedRef]
 ):
     new_defs = []
     for aliased_ref in cols:
@@ -151,7 +151,7 @@ def _try_remap_select_cols(
 
 
 def _remap_select_cols(node: nodes.BigFrameNode, cols: Sequence[nodes.AliasedRef]):
-    if isinstance(node, sql_nodes.SelectNode):
+    if isinstance(node, sql_nodes.SqlSelectNode):
         result = _try_remap_select_cols(node, cols)
         if result:
             return result
@@ -183,7 +183,14 @@ def _get_added_cdefs(node: Union[nodes.ProjectionNode, nodes.WindowOpNode]):
 
 def _as_sql_node(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
     # case one, can be converted to select
-    if isinstance(node, (nodes.ProjectionNode, nodes.WindowOpNode)):
+    if isinstance(node, nodes.ReadTableNode):
+        leaf = sql_nodes.SqlDataSource(source=node.source)
+        mappings = [
+            nodes.AliasedRef(expression.deref(scan_item.source_id), scan_item.id)
+            for scan_item in node.scan_list.items
+        ]
+        return _remap_select_cols(leaf, mappings)
+    elif isinstance(node, (nodes.ProjectionNode, nodes.WindowOpNode)):
         cdefs = _get_added_cdefs(node)
         return _add_cdefs(node.child, cdefs)
     elif isinstance(node, (nodes.SelectionNode)):

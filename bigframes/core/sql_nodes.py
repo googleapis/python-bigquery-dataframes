@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,26 +18,74 @@ import dataclasses
 import functools
 from typing import Mapping, Optional, Sequence, Tuple
 
-from bigframes.core import identifiers, nodes
+from bigframes.core import bq_data, identifiers, nodes
 import bigframes.core.expression as ex
 from bigframes.core.ordering import OrderingExpression
 import bigframes.dtypes
 
-# A fixed number of variable to assume for overhead on some operations
-OVERHEAD_VARIABLES = 5
 
+# TODO: Join node, union node
+@dataclasses.dataclass(frozen=True)
+class SqlDataSource(nodes.LeafNode):
+    source: bq_data.BigqueryDataSource
 
-@dataclasses.dataclass(frozen=True, eq=True)
-class ColumnDef:
-    expression: ex.Expression
-    id: identifiers.ColumnId
+    @functools.cached_property
+    def fields(self) -> Sequence[nodes.Field]:
+        return tuple(
+            nodes.Field(
+                identifiers.ColumnId(source_id),
+                self.source.schema.get_type(source_id),
+                self.source.table.schema_by_id[source_id].is_nullable,
+            )
+            for source_id in self.source.schema.names
+        )
 
+    @property
+    def variables_introduced(self) -> int:
+        # This operation only renames variables, doesn't actually create new ones
+        return 0
 
-# TODO: Raw data source node, join node, union node
+    @property
+    def defines_namespace(self) -> bool:
+        return True
+
+    @property
+    def explicitly_ordered(self) -> bool:
+        return False
+
+    @property
+    def order_ambiguous(self) -> bool:
+        return True
+
+    @property
+    def row_count(self) -> Optional[int]:
+        return self.source.n_rows
+
+    @property
+    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
+        return tuple(self.ids)
+
+    @property
+    def consumed_ids(self):
+        return ()
+
+    @property
+    def _node_expressions(self):
+        return ()
+
+    def remap_vars(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> SqlSelectNode:
+        raise NotImplementedError()
+
+    def remap_refs(
+        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
+    ) -> SqlSelectNode:
+        raise NotImplementedError()  # type: ignore
 
 
 @dataclasses.dataclass(frozen=True)
-class SelectNode(nodes.UnaryNode):
+class SqlSelectNode(nodes.UnaryNode):
     selections: tuple[nodes.ColumnDef, ...] = ()
     predicates: tuple[ex.Expression, ...] = ()
     sorting: tuple[OrderingExpression, ...] = ()
@@ -106,10 +154,10 @@ class SelectNode(nodes.UnaryNode):
 
     def remap_vars(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
-    ) -> SelectNode:
+    ) -> SqlSelectNode:
         raise NotImplementedError()
 
     def remap_refs(
         self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
-    ) -> SelectNode:
+    ) -> SqlSelectNode:
         raise NotImplementedError()  # type: ignore
