@@ -429,7 +429,13 @@ if polars_installed:
         @compile_op.register(json_ops.JSONDecode)
         def _(self, op: ops.ScalarOp, input: pl.Expr) -> pl.Expr:
             assert isinstance(op, json_ops.JSONDecode)
-            return input.str.json_decode(_DTYPE_MAPPING[op.to_type])
+            if op.safe:
+                # Polars does not support safe JSON decoding (returning null on failure).
+                # Fallback to BigQuery execution.
+                raise NotImplementedError(
+                    "Safe JSON decoding is not supported in Polars executor."
+                )
+            return input.str.json_decode(_bigframes_dtype_to_polars_dtype(op.to_type))
 
         @compile_op.register(arr_ops.ToArrayOp)
         def _(self, op: ops.ToArrayOp, *inputs: pl.Expr) -> pl.Expr:
