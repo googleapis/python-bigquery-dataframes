@@ -213,6 +213,7 @@ def progress_callback(
             )
     elif progress_bar == "terminal":
         if isinstance(event, bigframes.core.events.ExecutionStarted):
+            # No action needed as "Starting execution." is too noisy for terminal.
             pass
         elif isinstance(event, bigframes.core.events.BigQuerySentEvent):
             message = render_bqquery_sent_event_plaintext(event)
