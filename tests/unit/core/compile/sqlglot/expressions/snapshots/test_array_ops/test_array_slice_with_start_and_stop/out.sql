@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
 )
 SELECT
-  *,
   ARRAY(
     SELECT
       el

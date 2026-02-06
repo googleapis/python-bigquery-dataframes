@@ -166,7 +166,6 @@ WITH `bfcte_0` AS (
   )])
 )
 SELECT
-  *,
   `bfcol_0` AS `rowindex`,
   `bfcol_1` AS `bool_col`,
   `bfcol_2` AS `bytes_col`,

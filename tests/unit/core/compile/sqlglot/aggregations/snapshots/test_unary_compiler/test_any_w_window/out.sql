@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   COALESCE(
     LOGICAL_OR(`bool_col`) OVER (
       ORDER BY `bool_col` ASC NULLS LAST

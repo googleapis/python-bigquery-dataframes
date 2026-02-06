@@ -5,7 +5,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   CAST(TIMESTAMP(
     DATETIME(
       CASE

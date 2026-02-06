@@ -7,7 +7,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   [COALESCE(`bool_col`, FALSE)] AS `bool_col`,
   [COALESCE(`int64_col`, 0)] AS `int64_col`,
   [COALESCE(`string_col`, ''), COALESCE(`string_col`, '')] AS `strs_col`,

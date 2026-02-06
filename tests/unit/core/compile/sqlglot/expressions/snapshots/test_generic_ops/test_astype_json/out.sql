@@ -7,7 +7,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   PARSE_JSON(CAST(`int64_col` AS STRING)) AS `int64_col`,
   PARSE_JSON(CAST(`float64_col` AS STRING)) AS `float64_col`,
   PARSE_JSON(CAST(`bool_col` AS STRING)) AS `bool_col`,

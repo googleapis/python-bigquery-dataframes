@@ -11,7 +11,6 @@ WITH `bfcte_0` AS (
   LEFT JOIN UNNEST(`int_list_col`) AS `bfcol_8` WITH OFFSET AS `bfcol_4`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
-  `int_list_col` AS `int_list_col`
+  `rowindex`,
+  `int_list_col`
 FROM `bfcte_1`

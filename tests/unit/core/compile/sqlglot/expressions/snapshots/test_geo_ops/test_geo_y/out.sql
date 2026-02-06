@@ -4,6 +4,5 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   ST_Y(`geography_col`) AS `geography_col`
 FROM `bfcte_0`

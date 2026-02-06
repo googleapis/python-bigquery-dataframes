@@ -5,8 +5,7 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
+  `rowindex`,
   JSON_VALUE(
     OBJ.GET_ACCESS_URL(
       OBJ.MAKE_REF(`string_col`, 'bigframes-dev.test-region.bigframes-default-connection'),

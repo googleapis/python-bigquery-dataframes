@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   AI.GENERATE_DOUBLE(
     prompt => (`string_col`, ' is the same as ', `string_col`),
     request_type => 'SHARED',

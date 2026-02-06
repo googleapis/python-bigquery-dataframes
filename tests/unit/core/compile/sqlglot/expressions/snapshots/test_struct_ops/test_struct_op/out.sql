@@ -7,7 +7,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   STRUCT(
     `bool_col` AS bool_col,
     `int64_col` AS int64_col,

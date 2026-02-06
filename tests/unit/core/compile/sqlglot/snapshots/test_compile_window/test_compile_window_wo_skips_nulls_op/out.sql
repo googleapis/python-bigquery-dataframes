@@ -5,8 +5,7 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
+  `rowindex`,
   CASE
     WHEN COUNT(NOT `int64_col` IS NULL) OVER (ORDER BY `rowindex` ASC NULLS LAST ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) < 5
     THEN NULL

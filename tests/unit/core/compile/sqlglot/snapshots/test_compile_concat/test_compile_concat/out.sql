@@ -21,7 +21,6 @@ WITH `bfcte_1` AS (
   FROM (
     (
       SELECT
-        *,
         `rowindex` AS `bfcol_9`,
         `rowindex` AS `bfcol_10`,
         `int64_col` AS `bfcol_11`,
@@ -33,7 +32,6 @@ WITH `bfcte_1` AS (
     UNION ALL
     (
       SELECT
-        *,
         `rowindex` AS `bfcol_24`,
         `rowindex` AS `bfcol_25`,
         `int64_col` AS `bfcol_26`,
@@ -45,7 +43,6 @@ WITH `bfcte_1` AS (
   )
 )
 SELECT
-  *,
   `bfcol_30` AS `rowindex`,
   `bfcol_31` AS `rowindex_1`,
   `bfcol_32` AS `int64_col`,

@@ -163,7 +163,7 @@ def compile_sql_select(node: sql_nodes.SelectNode, child: ir.SQLGlotIR):
         )
         for cdef in node.selections
     )
-    sqlglot_ir = sqlglot_ir.project(projected_cols)
+    sqlglot_ir = sqlglot_ir.select(projected_cols)
 
     if node.limit is not None:
         sqlglot_ir = sqlglot_ir.limit(node.limit)

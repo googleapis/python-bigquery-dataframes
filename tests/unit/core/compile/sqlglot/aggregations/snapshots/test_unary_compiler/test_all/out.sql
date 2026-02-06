@@ -10,7 +10,6 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 )
 SELECT
-  *,
   `bfcol_2` AS `bool_col`,
   `bfcol_3` AS `int64_col`
 FROM `bfcte_1`

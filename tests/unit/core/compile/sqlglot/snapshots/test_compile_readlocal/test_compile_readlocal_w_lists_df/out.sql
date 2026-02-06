@@ -34,7 +34,6 @@ WITH `bfcte_0` AS (
   )])
 )
 SELECT
-  *,
   `bfcol_0` AS `rowindex`,
   `bfcol_1` AS `int_list_col`,
   `bfcol_2` AS `bool_list_col`,

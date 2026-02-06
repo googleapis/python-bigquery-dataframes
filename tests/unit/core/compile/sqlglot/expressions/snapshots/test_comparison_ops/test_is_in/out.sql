@@ -6,7 +6,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   COALESCE(`bool_col` IN (TRUE, FALSE), FALSE) AS `bools`,
   COALESCE(`int64_col` IN (1, 2, 3), FALSE) AS `ints`,
   `int64_col` IS NULL AS `ints_w_null`,

@@ -29,7 +29,6 @@ WITH `bfcte_3` AS (
   FROM (
     (
       SELECT
-        *,
         `float64_col` AS `bfcol_6`,
         `int64_col` AS `bfcol_7`,
         0 AS `bfcol_8`,
@@ -39,7 +38,6 @@ WITH `bfcte_3` AS (
     UNION ALL
     (
       SELECT
-        *,
         `float64_col` AS `bfcol_17`,
         `int64_too` AS `bfcol_18`,
         1 AS `bfcol_19`,
@@ -49,7 +47,6 @@ WITH `bfcte_3` AS (
     UNION ALL
     (
       SELECT
-        *,
         `float64_col` AS `bfcol_27`,
         `int64_col` AS `bfcol_28`,
         2 AS `bfcol_29`,
@@ -59,7 +56,6 @@ WITH `bfcte_3` AS (
     UNION ALL
     (
       SELECT
-        *,
         `float64_col` AS `bfcol_38`,
         `int64_too` AS `bfcol_39`,
         3 AS `bfcol_40`,
@@ -69,7 +65,6 @@ WITH `bfcte_3` AS (
   )
 )
 SELECT
-  *,
   `bfcol_42` AS `float64_col`,
   `bfcol_43` AS `int64_col`
 FROM `bfcte_4`

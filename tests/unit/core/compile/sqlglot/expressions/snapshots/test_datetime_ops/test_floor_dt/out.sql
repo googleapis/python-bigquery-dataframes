@@ -5,7 +5,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   TIMESTAMP_TRUNC(`timestamp_col`, MICROSECOND) AS `timestamp_col_us`,
   TIMESTAMP_TRUNC(`timestamp_col`, MILLISECOND) AS `timestamp_col_ms`,
   TIMESTAMP_TRUNC(`timestamp_col`, SECOND) AS `timestamp_col_s`,

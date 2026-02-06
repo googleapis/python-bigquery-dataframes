@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`json_types`
 )
 SELECT
-  *,
   INT64(`json_col`) AS `int64_col`,
   FLOAT64(`json_col`) AS `float64_col`,
   BOOL(`json_col`) AS `bool_col`,

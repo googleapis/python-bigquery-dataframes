@@ -18,6 +18,5 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   ROW_NUMBER() OVER () - 1 AS `row_number`
 FROM `bfcte_0`

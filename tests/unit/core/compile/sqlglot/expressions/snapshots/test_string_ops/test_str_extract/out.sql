@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   IF(
     REGEXP_CONTAINS(`string_col`, '([a-z]*)'),
     REGEXP_REPLACE(`string_col`, CONCAT('.*?(', '([a-z]*)', ').*'), '\\1'),

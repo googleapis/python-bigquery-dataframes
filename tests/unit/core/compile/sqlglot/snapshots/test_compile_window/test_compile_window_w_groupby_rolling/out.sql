@@ -6,9 +6,8 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `bool_col` AS `bool_col`,
-  `rowindex` AS `rowindex`,
+  `bool_col`,
+  `rowindex`,
   CASE
     WHEN COALESCE(
       SUM(CAST(NOT `bool_col` IS NULL AS INT64)) OVER (

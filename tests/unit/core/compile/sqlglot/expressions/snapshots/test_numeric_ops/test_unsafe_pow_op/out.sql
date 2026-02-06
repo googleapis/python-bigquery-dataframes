@@ -6,7 +6,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   POWER(`int64_col`, `int64_col`) AS `int_pow_int`,
   POWER(`int64_col`, `float64_col`) AS `int_pow_float`,
   POWER(`float64_col`, `int64_col`) AS `float_pow_int`,

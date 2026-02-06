@@ -7,11 +7,10 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
-  `int64_col` AS `int64_col`,
-  `bool_col` AS `bool_col`,
-  `float64_col` AS `float64_col`,
+  `rowindex`,
+  `int64_col`,
+  `bool_col`,
+  `float64_col`,
   IEEE_DIVIDE(`int64_col`, `int64_col`) AS `int_div_int`,
   IEEE_DIVIDE(`int64_col`, 1) AS `int_div_1`,
   IEEE_DIVIDE(`int64_col`, 0.0) AS `int_div_0`,

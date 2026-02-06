@@ -4,6 +4,5 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   IF(`float64_col` > 709.78, CAST('Infinity' AS FLOAT64), EXP(`float64_col`) - 1) AS `float64_col`
 FROM `bfcte_0`

@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   CASE
     WHEN `float64_col` < 1
     THEN CAST('NaN' AS FLOAT64)

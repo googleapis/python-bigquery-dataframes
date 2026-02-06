@@ -5,7 +5,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`int64_col` * 0.001) AS INT64)) AS TIMESTAMP) AS `int64_col`,
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`float64_col` * 0.001) AS INT64)) AS TIMESTAMP) AS `float64_col`,
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`int64_col` * 1000000) AS INT64)) AS TIMESTAMP) AS `int64_col_s`,

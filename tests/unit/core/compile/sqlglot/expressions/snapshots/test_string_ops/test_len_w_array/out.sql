@@ -4,6 +4,5 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
 )
 SELECT
-  *,
   ARRAY_LENGTH(`int_list_col`) AS `int_list_col`
 FROM `bfcte_0`

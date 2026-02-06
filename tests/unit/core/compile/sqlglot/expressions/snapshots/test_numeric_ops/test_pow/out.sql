@@ -6,10 +6,9 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
-  `int64_col` AS `int64_col`,
-  `float64_col` AS `float64_col`,
+  `rowindex`,
+  `int64_col`,
+  `float64_col`,
   CASE
     WHEN `int64_col` <> 0 AND `int64_col` * LN(ABS(`int64_col`)) > 43.66827237527655
     THEN NULL

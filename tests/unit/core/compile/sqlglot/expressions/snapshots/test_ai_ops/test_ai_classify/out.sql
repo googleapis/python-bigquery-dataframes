@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   AI.CLASSIFY(
     input => (`string_col`),
     categories => ['greeting', 'rejection'],

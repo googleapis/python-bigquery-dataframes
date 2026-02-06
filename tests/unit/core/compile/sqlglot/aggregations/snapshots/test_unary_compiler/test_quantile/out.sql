@@ -11,7 +11,6 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 )
 SELECT
-  *,
   `bfcol_4` AS `int64`,
   `bfcol_5` AS `bool`,
   `bfcol_6` AS `int64_w_floor`

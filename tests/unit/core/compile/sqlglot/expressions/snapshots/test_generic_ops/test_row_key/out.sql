@@ -18,7 +18,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   CONCAT(
     CAST(FARM_FINGERPRINT(
       CONCAT(

@@ -6,10 +6,9 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
-  `int64_col` AS `int64_col`,
-  `bool_col` AS `bool_col`,
+  `rowindex`,
+  `int64_col`,
+  `bool_col`,
   `int64_col` = `int64_col` AS `int_eq_int`,
   `int64_col` = 1 AS `int_eq_1`,
   `int64_col` IS NULL AS `int_eq_null`,

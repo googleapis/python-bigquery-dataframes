@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   LPAD(`string_col`, GREATEST(LENGTH(`string_col`), 10), '-') AS `left`,
   RPAD(`string_col`, GREATEST(LENGTH(`string_col`), 10), '-') AS `right`,
   RPAD(

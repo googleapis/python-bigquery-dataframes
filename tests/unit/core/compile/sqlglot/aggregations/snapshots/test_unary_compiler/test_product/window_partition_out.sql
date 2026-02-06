@@ -5,7 +5,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   CASE
     WHEN LOGICAL_OR(`int64_col` = 0) OVER (PARTITION BY `string_col`)
     THEN 0

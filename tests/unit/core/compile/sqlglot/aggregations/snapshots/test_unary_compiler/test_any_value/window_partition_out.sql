@@ -5,7 +5,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   ANY_VALUE(`int64_col`) OVER (
     PARTITION BY `string_col`
     ORDER BY `int64_col` ASC NULLS LAST

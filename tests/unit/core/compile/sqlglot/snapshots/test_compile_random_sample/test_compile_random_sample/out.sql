@@ -164,7 +164,6 @@ WITH `bfcte_0` AS (
     `bfcol_16` < 0.1
 )
 SELECT
-  *,
   `bfcol_0` AS `bool_col`,
   `bfcol_1` AS `bytes_col`,
   `bfcol_2` AS `date_col`,

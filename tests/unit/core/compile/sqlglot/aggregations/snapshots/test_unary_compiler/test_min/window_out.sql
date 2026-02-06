@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   MIN(`int64_col`) OVER (
     ORDER BY `int64_col` ASC NULLS LAST
     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING

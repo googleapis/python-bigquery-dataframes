@@ -5,9 +5,8 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
-    *,
-    `bool_col` AS `bool_col`,
-    `int64_too` AS `int64_too`,
+    `bool_col`,
+    `int64_too`,
     `int64_too` AS `bfcol_2`,
     `bool_col` AS `bfcol_3`
   FROM `bfcte_0`
@@ -22,7 +21,6 @@ WITH `bfcte_0` AS (
     `bfcol_3`
 )
 SELECT
-  *,
   `bfcol_3` AS `bool_col`,
   `bfcol_6` AS `int64_too`
 FROM `bfcte_2`

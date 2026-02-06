@@ -7,7 +7,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   FORMAT_DATE('%Y-%m-%d', `date_col`) AS `date_col`,
   FORMAT_DATETIME('%Y-%m-%d', `datetime_col`) AS `datetime_col`,
   FORMAT_TIME('%Y-%m-%d', `time_col`) AS `time_col`,

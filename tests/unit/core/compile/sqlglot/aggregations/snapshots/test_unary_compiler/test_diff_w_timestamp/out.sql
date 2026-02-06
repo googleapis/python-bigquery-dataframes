@@ -4,7 +4,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
   TIMESTAMP_DIFF(
     `timestamp_col`,
     LAG(`timestamp_col`, 1) OVER (ORDER BY `timestamp_col` DESC),

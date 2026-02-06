@@ -13,7 +13,6 @@ WITH `bfcte_0` AS (
   ), STRUCT(1.0, 1.0, 1.0, 1.0, STRUCT(1 AS `foo`), STRUCT(1 AS `foo`), [1, 2], 1), STRUCT(2.0, 2.0, 2.0, 2.0, STRUCT(2 AS `foo`), STRUCT(2 AS `foo`), [3, 4], 2)])
 )
 SELECT
-  *,
   `bfcol_0` AS `col_none`,
   `bfcol_1` AS `col_inf`,
   `bfcol_2` AS `col_neginf`,

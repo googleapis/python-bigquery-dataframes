@@ -6,10 +6,9 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 )
 SELECT
-  *,
-  `rowindex` AS `rowindex`,
-  `int64_col` AS `int64_col`,
-  `float64_col` AS `float64_col`,
+  `rowindex`,
+  `int64_col`,
+  `float64_col`,
   CASE
     WHEN `int64_col` = CAST(0 AS INT64)
     THEN CAST(0 AS INT64) * `int64_col`

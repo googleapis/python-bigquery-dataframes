@@ -6,7 +6,6 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
 )
 SELECT
-  *,
   (
     SELECT
       COALESCE(SUM(bf_arr_reduce_uid), 0)
