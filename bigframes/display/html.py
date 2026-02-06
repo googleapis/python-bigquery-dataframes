@@ -368,6 +368,7 @@ def repr_mimebundle(
                     warnings.simplefilter(
                         "ignore", category=bigframes.exceptions.JSONDtypeWarning
                     )
+                    warnings.simplefilter("ignore", category=FutureWarning)
                     return get_anywidget_bundle(obj, include=include, exclude=exclude)
         except ImportError:
             # Anywidget is an optional dependency, so warn rather than fail.
