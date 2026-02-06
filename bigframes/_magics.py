@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 from IPython.core import magic_arguments  # type: ignore
 from IPython.core.getipython import get_ipython
 from IPython.display import display
@@ -42,9 +44,11 @@ def _cell_magic(line, cell):
         print("Query is missing.")
         return
     pyformat_args = ipython.user_ns
-    dataframe = bigframes.pandas._read_gbq_colab(
-        cell, pyformat_args=pyformat_args, dry_run=args.dry_run
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        dataframe = bigframes.pandas._read_gbq_colab(
+            cell, pyformat_args=pyformat_args, dry_run=args.dry_run
+        )
     if args.destination_var:
         ipython.push({args.destination_var: dataframe})
 

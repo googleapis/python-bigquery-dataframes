@@ -328,33 +328,35 @@ def _read_gbq_colab(
     if pyformat_args is None:
         pyformat_args = {}
 
-    # Only try to set the global location if it's not a dry run. We don't want
-    # to bind to a location too early. This is especially important if the query
-    # only refers to local data and not any BigQuery tables.
-    if dry_run:
-        result = _try_read_gbq_colab_sessionless_dry_run(
-            query_or_table, pyformat_args=pyformat_args
-        )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
 
-        if result is not None:
-            return result
+        # Only try to set the global location if it's not a dry run. We don't want
+        # to bind to a location too early. This is especially important if the query
+        # only refers to local data and not any BigQuery tables.
+        if dry_run:
+            result = _try_read_gbq_colab_sessionless_dry_run(
+                query_or_table, pyformat_args=pyformat_args
+            )
 
-        # If we made it this far, we must have a session that has already
-        # started. That means we can safely call the "real" _read_gbq_colab,
-        # which generates slightly nicer SQL.
-    else:
-        # Delay formatting the query with the special "session-less" logic. This
-        # avoids doing unnecessary work if the session already has a location or has
-        # already started.
-        create_query = functools.partial(
-            bigframes.core.pyformat.pyformat,
-            query_or_table,
-            pyformat_args=pyformat_args,
-            dry_run=True,
-        )
-        _set_default_session_location_if_possible_deferred_query(create_query)
-        if not config.options.bigquery._session_started:
-            with warnings.catch_warnings():
+            if result is not None:
+                return result
+
+            # If we made it this far, we must have a session that has already
+            # started. That means we can safely call the "real" _read_gbq_colab,
+            # which generates slightly nicer SQL.
+        else:
+            # Delay formatting the query with the special "session-less" logic. This
+            # avoids doing unnecessary work if the session already has a location or has
+            # already started.
+            create_query = functools.partial(
+                bigframes.core.pyformat.pyformat,
+                query_or_table,
+                pyformat_args=pyformat_args,
+                dry_run=True,
+            )
+            _set_default_session_location_if_possible_deferred_query(create_query)
+            if not config.options.bigquery._session_started:
                 # Don't warning about Polars in SQL cell.
                 # Related to b/437090788.
                 try:
@@ -364,12 +366,12 @@ def _read_gbq_colab(
                 except ImportError:
                     pass  # don't fail if polars isn't available
 
-    return global_session.with_default_session(
-        bigframes.session.Session._read_gbq_colab,
-        query_or_table,
-        pyformat_args=pyformat_args,
-        dry_run=dry_run,
-    )
+        return global_session.with_default_session(
+            bigframes.session.Session._read_gbq_colab,
+            query_or_table,
+            pyformat_args=pyformat_args,
+            dry_run=dry_run,
+        )
 
 
 def read_gbq_model(model_name: str):

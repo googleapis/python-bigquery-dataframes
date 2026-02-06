@@ -14,6 +14,8 @@
 
 """BigQuery DataFrames provides a DataFrame API scaled by the BigQuery engine."""
 
+import warnings
+
 from bigframes._config import option_context, options
 from bigframes._config.bigquery_options import BigQueryOptions
 from bigframes.core.global_session import close_session, get_global_session
@@ -21,6 +23,14 @@ import bigframes.enums as enums
 import bigframes.exceptions as exceptions
 from bigframes.session import connect, Session
 from bigframes.version import __version__
+
+# Suppress Python version support warnings from google-cloud libraries.
+# These are particularly noisy in Colab which still uses Python 3.10.
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    message=".*Google will stop supporting.*Python.*",
+)
 
 _MAGIC_NAMES = ["bqsql"]
 
