@@ -17,7 +17,7 @@ from unittest import mock
 import pytest
 
 import bigframes.bigquery.table
-import bigframes.core.sql.table
+import bigframes.core.sql.ddl
 import bigframes.session
 
 
@@ -27,7 +27,7 @@ def mock_session():
 
 
 def test_create_external_table_ddl():
-    sql = bigframes.core.sql.table.create_external_table_ddl(
+    sql = bigframes.core.sql.ddl.create_external_table_ddl(
         "my-project.my_dataset.my_table",
         columns={"col1": "INT64", "col2": "STRING"},
         options={"format": "CSV", "uris": ["gs://bucket/path*"]},
@@ -37,7 +37,7 @@ def test_create_external_table_ddl():
 
 
 def test_create_external_table_ddl_replace():
-    sql = bigframes.core.sql.table.create_external_table_ddl(
+    sql = bigframes.core.sql.ddl.create_external_table_ddl(
         "my-project.my_dataset.my_table",
         replace=True,
         columns={"col1": "INT64", "col2": "STRING"},
@@ -48,7 +48,7 @@ def test_create_external_table_ddl_replace():
 
 
 def test_create_external_table_ddl_if_not_exists():
-    sql = bigframes.core.sql.table.create_external_table_ddl(
+    sql = bigframes.core.sql.ddl.create_external_table_ddl(
         "my-project.my_dataset.my_table",
         if_not_exists=True,
         columns={"col1": "INT64", "col2": "STRING"},
@@ -59,7 +59,7 @@ def test_create_external_table_ddl_if_not_exists():
 
 
 def test_create_external_table_ddl_partition_columns():
-    sql = bigframes.core.sql.table.create_external_table_ddl(
+    sql = bigframes.core.sql.ddl.create_external_table_ddl(
         "my-project.my_dataset.my_table",
         columns={"col1": "INT64", "col2": "STRING"},
         partition_columns={"part1": "DATE", "part2": "STRING"},
@@ -70,7 +70,7 @@ def test_create_external_table_ddl_partition_columns():
 
 
 def test_create_external_table_ddl_connection():
-    sql = bigframes.core.sql.table.create_external_table_ddl(
+    sql = bigframes.core.sql.ddl.create_external_table_ddl(
         "my-project.my_dataset.my_table",
         columns={"col1": "INT64", "col2": "STRING"},
         connection_name="my-connection",

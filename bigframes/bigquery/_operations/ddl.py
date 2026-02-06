@@ -21,7 +21,7 @@ import google.cloud.bigquery
 import pandas as pd
 
 import bigframes.core.logging.log_adapter as log_adapter
-import bigframes.core.sql.table
+import bigframes.core.sql.ddl
 import bigframes.session
 
 
@@ -81,7 +81,7 @@ def create_external_table(
     """
     import bigframes.pandas as bpd
 
-    sql = bigframes.core.sql.table.create_external_table_ddl(
+    sql = bigframes.core.sql.ddl.create_external_table_ddl(
         table_name=table_name,
         replace=replace,
         if_not_exists=if_not_exists,
@@ -163,7 +163,7 @@ def load_data(
     if isinstance(uris, str):
         uris = [uris]
 
-    sql = bigframes.core.sql.table.load_data_ddl(
+    sql = bigframes.core.sql.ddl.load_data_ddl(
         destination_table=destination_table,
         uris=uris,
         format=format,
