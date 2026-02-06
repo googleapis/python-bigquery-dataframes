@@ -44,3 +44,6 @@ SELECT
 FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 WHERE
   NOT `bool_col` IS NULL
+ORDER BY
+  `bool_col` ASC NULLS LAST,
+  `rowindex` ASC NULLS LAST

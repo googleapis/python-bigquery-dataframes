@@ -6,3 +6,5 @@ WITH `bfcte_0` AS (
 SELECT
   ST_SIMPLIFY(`bfcol_0`, 123.125) AS `0`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST

@@ -36,3 +36,6 @@ SELECT
   `bfcol_32` AS `int64_col`,
   `bfcol_33` AS `string_col`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_34` ASC NULLS LAST,
+  `bfcol_35` ASC NULLS LAST

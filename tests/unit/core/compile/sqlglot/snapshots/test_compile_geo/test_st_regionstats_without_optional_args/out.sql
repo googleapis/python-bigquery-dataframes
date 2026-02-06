@@ -11,3 +11,5 @@ SELECT
   ST_REGIONSTATS(`bfcol_0`, 'ee://some/raster/uri').`mean`,
   ST_REGIONSTATS(`bfcol_0`, 'ee://some/raster/uri').`area`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST

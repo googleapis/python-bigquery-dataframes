@@ -24,3 +24,6 @@ SELECT
     )
   END AS `int_col`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_0` ASC NULLS LAST,
+  `bfcol_2` ASC NULLS LAST

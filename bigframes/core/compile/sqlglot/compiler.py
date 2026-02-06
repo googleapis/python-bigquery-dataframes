@@ -108,6 +108,7 @@ def _compile_result_node(root: nodes.ResultNode) -> str:
     root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
 
     sqlglot_ir = compile_node(rewrite.as_sql_nodes(root), uid_gen)
+    print(sqlglot_ir.sql)
     return sqlglot_ir.sql
 
 

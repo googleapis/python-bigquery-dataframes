@@ -202,7 +202,7 @@ def _as_sql_node(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         if node.order_by is not None:
             result = _sort(result, node.order_by.all_ordering_columns)
         result = _remap_select_cols(
-            node.child,
+            result,
             [
                 nodes.AliasedRef(ref, identifiers.ColumnId(name))
                 for ref, name in node.output_cols

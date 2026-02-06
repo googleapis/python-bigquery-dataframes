@@ -193,13 +193,13 @@ def _get_window_bounds(
 def _compile_group_by_key(key: ex.Expression) -> sge.Expression:
     expr = expression_compiler.expression_compiler.compile_expression(key)
     # The group_by keys has been rewritten by bind_schema_to_node
-    assert isinstance(key, ex.ResolvedDerefOp)
+    assert key.is_scalar_expr and key.is_resolved
 
     # Some types need to be converted to another type to enable groupby
-    if key.dtype == dtypes.FLOAT_DTYPE:
+    if key.output_type == dtypes.FLOAT_DTYPE:
         expr = sge.Cast(this=expr, to="STRING")
-    elif key.dtype == dtypes.GEO_DTYPE:
+    elif key.output_type == dtypes.GEO_DTYPE:
         expr = sge.func("ST_ASBINARY", expr)
-    elif key.dtype == dtypes.JSON_DTYPE:
+    elif key.output_type == dtypes.JSON_DTYPE:
         expr = sge.func("TO_JSON_STRING", expr)
     return expr

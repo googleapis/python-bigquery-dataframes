@@ -180,3 +180,5 @@ SELECT
   `bfcol_13` AS `timestamp_col`,
   `bfcol_14` AS `duration_col`
 FROM `bfcte_1`
+ORDER BY
+  `bfcol_15` ASC NULLS LAST

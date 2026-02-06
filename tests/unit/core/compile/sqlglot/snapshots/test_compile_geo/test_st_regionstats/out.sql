@@ -47,3 +47,5 @@ SELECT
     options => JSON '{"scale": 100}'
   ).`area`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_1` ASC NULLS LAST

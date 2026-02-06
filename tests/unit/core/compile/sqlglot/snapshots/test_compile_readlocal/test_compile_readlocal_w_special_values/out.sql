@@ -21,3 +21,5 @@ SELECT
   `bfcol_5` AS `col_struct_w_none`,
   `bfcol_6` AS `col_list_none`
 FROM `bfcte_0`
+ORDER BY
+  `bfcol_7` ASC NULLS LAST
