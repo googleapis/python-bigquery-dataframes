@@ -117,6 +117,7 @@ class TableWidget(_WIDGET_BASE):
         if all(isinstance(col, str) for col in dataframe.columns):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", bigframes.exceptions.JSONDtypeWarning)
+                warnings.simplefilter("ignore", category=FutureWarning)
                 self.orderable_columns = [
                     str(col_name)
                     for col_name, dtype in dataframe.dtypes.items()
