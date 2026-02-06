@@ -23,6 +23,7 @@ import math
 import threading
 from typing import Any, Iterator, Optional
 import uuid
+import warnings
 
 import pandas as pd
 
@@ -114,11 +115,13 @@ class TableWidget(_WIDGET_BASE):
         # TODO(b/469861913): Nested columns from structs (e.g., 'struct_col.name') are not currently sortable.
         # TODO(b/463754889): Support non-string column labels for sorting.
         if all(isinstance(col, str) for col in dataframe.columns):
-            self.orderable_columns = [
-                str(col_name)
-                for col_name, dtype in dataframe.dtypes.items()
-                if dtypes.is_orderable(dtype)
-            ]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", bigframes.exceptions.JSONDtypeWarning)
+                self.orderable_columns = [
+                    str(col_name)
+                    for col_name, dtype in dataframe.dtypes.items()
+                    if dtypes.is_orderable(dtype)
+                ]
         else:
             self.orderable_columns = []
 
