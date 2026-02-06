@@ -813,13 +813,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         df = self
         blob_cols = []
         if bigframes.options.display.blob_display:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", bigframes.exceptions.JSONDtypeWarning)
-                blob_cols = [
-                    series_name
-                    for series_name, series in self.items()
-                    if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
-                ]
+            blob_cols = [
+                series_name
+                for series_name, series in self.items()
+                if series.dtype == bigframes.dtypes.OBJ_REF_DTYPE
+            ]
             if blob_cols:
                 df = self.copy()
                 for col in blob_cols:
