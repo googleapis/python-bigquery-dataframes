@@ -275,7 +275,8 @@ class TableWidget(_WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self) -> None:
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        with bigframes.option_context("display.progress_bar", None):
+            self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
 
         self._reset_batch_cache()
 
