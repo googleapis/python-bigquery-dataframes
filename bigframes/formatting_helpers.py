@@ -27,8 +27,6 @@ import google.cloud.bigquery as bigquery
 import humanize
 
 if TYPE_CHECKING:
-    from IPython import display
-
     import bigframes.core.events
 
 GenericJob = Union[
@@ -179,7 +177,7 @@ def progress_callback(
             display_html = render_bqquery_finished_event_html(event)
 
         elif isinstance(event, bigframes.core.events.SessionClosed):
-            display_html = f"Session {event.session_id} closed."),
+            display_html = f"Session {event.session_id} closed."
 
         if display_html:
             if current_display_id:
@@ -192,7 +190,7 @@ def progress_callback(
                     display.HTML(display_html),
                     display_id=current_display_id,
                 )
-                
+
     elif progress_bar == "terminal":
         message = None
 
