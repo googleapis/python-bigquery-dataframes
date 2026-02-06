@@ -3885,9 +3885,9 @@ def test_date_time_astype_int(
     assert bf_result.dtype == "Int64"
 
 
-def test_string_astype_int():
+def test_string_astype_int(session):
     pd_series = pd.Series(["4", "-7", "0", "    -03"])
-    bf_series = series.Series(pd_series)
+    bf_series = series.Series(pd_series, session=session)
 
     pd_result = pd_series.astype("Int64")
     bf_result = bf_series.astype("Int64").to_pandas()
@@ -3895,12 +3895,12 @@ def test_string_astype_int():
     pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
-def test_string_astype_float():
+def test_string_astype_float(session):
     pd_series = pd.Series(
         ["1", "-1", "-0", "000", "    -03.235", "naN", "-inf", "INf", ".33", "7.235e-8"]
     )
 
-    bf_series = series.Series(pd_series)
+    bf_series = series.Series(pd_series, session=session)
 
     pd_result = pd_series.astype("Float64")
     bf_result = bf_series.astype("Float64").to_pandas()
@@ -3960,13 +3960,14 @@ def test_string_astype_timestamp():
     pd.testing.assert_series_equal(bf_result, pd_result, check_index_type=False)
 
 
-def test_timestamp_astype_string():
+def test_timestamp_astype_string(session):
     bf_series = series.Series(
         [
             "2014-08-15 08:15:12+00:00",
             "2015-08-15 08:15:12.654754+05:00",
             "2016-02-29 00:00:00+08:00",
-        ]
+        ],
+        session=session,
     ).astype(pd.ArrowDtype(pa.timestamp("us", tz="UTC")))
 
     expected_result = pd.Series(
