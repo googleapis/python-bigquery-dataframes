@@ -142,7 +142,6 @@ def _compile_node(
 
 @_compile_node.register
 def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
-    sqlglot_ir = child
     ordering_cols = tuple(
         sge.Ordered(
             this=expression_compiler.expression_compiler.compile_expression(
@@ -161,7 +160,6 @@ def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
         )
         for cdef in node.selections
     )
-    sqlglot_ir = sqlglot_ir.select(projected_cols)
 
     sge_predicates = tuple(
         expression_compiler.expression_compiler.compile_expression(expression)

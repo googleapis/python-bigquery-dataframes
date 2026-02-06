@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `int64_col`,
@@ -238,4 +231,4 @@ SELECT
       END
     )
   END AS `float_pow_1`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

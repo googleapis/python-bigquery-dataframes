@@ -1,8 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   TIMESTAMP_TRUNC(`timestamp_col`, DAY) AS `timestamp_col`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

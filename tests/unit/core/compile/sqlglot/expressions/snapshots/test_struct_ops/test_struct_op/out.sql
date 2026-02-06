@@ -1,11 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `float64_col`,
-    `int64_col`,
-    `string_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   STRUCT(
     `bool_col` AS bool_col,
@@ -13,4 +5,4 @@ SELECT
     `float64_col` AS float64_col,
     `string_col` AS string_col
   ) AS `result_col`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

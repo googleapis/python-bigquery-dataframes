@@ -1,11 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `float64_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `int64_col`,
@@ -19,4 +11,4 @@ SELECT
   IEEE_DIVIDE(`float64_col`, 0.0) AS `float_div_0`,
   IEEE_DIVIDE(`int64_col`, CAST(`bool_col` AS INT64)) AS `int_div_bool`,
   IEEE_DIVIDE(CAST(`bool_col` AS INT64), `int64_col`) AS `bool_div_int`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

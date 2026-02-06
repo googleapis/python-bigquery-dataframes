@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `date_col`,
-    `rowindex`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `timestamp_col`,
@@ -14,4 +7,4 @@ SELECT
   TIMESTAMP_ADD(CAST(`date_col` AS DATETIME), INTERVAL 86400000000 MICROSECOND) AS `timedelta_add_date`,
   TIMESTAMP_ADD(`timestamp_col`, INTERVAL 86400000000 MICROSECOND) AS `timedelta_add_timestamp`,
   172800000000 AS `timedelta_add_timedelta`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

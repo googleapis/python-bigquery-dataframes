@@ -1,16 +1,4 @@
-WITH `bfcte_1` AS (
-  SELECT
-    `int64_col`,
-    `rowindex`,
-    `string_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_0` AS (
-  SELECT
-    `int64_col`,
-    `rowindex`,
-    `string_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_2` AS (
+WITH `bfcte_0` AS (
   SELECT
     `bfcol_9` AS `bfcol_30`,
     `bfcol_10` AS `bfcol_31`,
@@ -27,7 +15,7 @@ WITH `bfcte_1` AS (
         `string_col` AS `bfcol_12`,
         0 AS `bfcol_13`,
         ROW_NUMBER() OVER () - 1 AS `bfcol_14`
-      FROM `bfcte_1`
+      FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
     )
     UNION ALL
     (
@@ -38,7 +26,7 @@ WITH `bfcte_1` AS (
         `string_col` AS `bfcol_27`,
         1 AS `bfcol_28`,
         ROW_NUMBER() OVER () - 1 AS `bfcol_29`
-      FROM `bfcte_0`
+      FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
     )
   )
 )
@@ -47,4 +35,4 @@ SELECT
   `bfcol_31` AS `rowindex_1`,
   `bfcol_32` AS `int64_col`,
   `bfcol_33` AS `string_col`
-FROM `bfcte_2`
+FROM `bfcte_0`

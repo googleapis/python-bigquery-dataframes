@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `int64_col`,
@@ -13,4 +6,4 @@ SELECT
   CAST(FLOOR(`float64_col` * 1000000) AS INT64) AS `duration_s`,
   `int64_col` * 3600000000 AS `duration_w`,
   `int64_col` AS `duration_on_duration`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

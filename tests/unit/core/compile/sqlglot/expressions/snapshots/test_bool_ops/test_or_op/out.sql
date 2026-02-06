@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `bool_col`,
@@ -12,4 +5,4 @@ SELECT
   `int64_col` | `int64_col` AS `int_and_int`,
   `bool_col` OR `bool_col` AS `bool_and_bool`,
   IF(`bool_col` = TRUE, `bool_col`, NULL) AS `bool_and_null`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

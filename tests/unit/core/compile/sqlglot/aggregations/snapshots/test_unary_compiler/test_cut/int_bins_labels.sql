@@ -1,8 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CASE
     WHEN `int64_col` < MIN(`int64_col`) OVER () + (
@@ -16,4 +11,4 @@ SELECT
     WHEN `int64_col` IS NOT NULL
     THEN 'c'
   END AS `int_bins_labels`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

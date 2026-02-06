@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `float64_col`,
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   COALESCE(`bool_col` IN (TRUE, FALSE), FALSE) AS `bools`,
   COALESCE(`int64_col` IN (1, 2, 3), FALSE) AS `ints`,
@@ -18,4 +11,4 @@ SELECT
   (
     `float64_col` IS NULL
   ) OR `float64_col` IN (1, 2, 3) AS `float_in_ints`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

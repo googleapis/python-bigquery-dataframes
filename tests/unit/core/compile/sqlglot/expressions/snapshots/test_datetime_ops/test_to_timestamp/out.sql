@@ -1,9 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`int64_col` * 0.001) AS INT64)) AS TIMESTAMP) AS `int64_col`,
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`float64_col` * 0.001) AS INT64)) AS TIMESTAMP) AS `float64_col`,
@@ -11,4 +5,4 @@ SELECT
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`int64_col` * 1000) AS INT64)) AS TIMESTAMP) AS `int64_col_ms`,
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`int64_col`) AS INT64)) AS TIMESTAMP) AS `int64_col_us`,
   CAST(TIMESTAMP_MICROS(CAST(TRUNC(`int64_col` * 0.001) AS INT64)) AS TIMESTAMP) AS `int64_col_ns`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

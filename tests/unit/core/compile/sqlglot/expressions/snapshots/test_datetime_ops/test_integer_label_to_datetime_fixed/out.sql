@@ -1,11 +1,5 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CAST(TIMESTAMP_MICROS(
     CAST(CAST(`rowindex` AS BIGNUMERIC) * 86400000000 + CAST(UNIX_MICROS(CAST(`timestamp_col` AS TIMESTAMP)) AS BIGNUMERIC) AS INT64)
   ) AS TIMESTAMP) AS `fixed_freq`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

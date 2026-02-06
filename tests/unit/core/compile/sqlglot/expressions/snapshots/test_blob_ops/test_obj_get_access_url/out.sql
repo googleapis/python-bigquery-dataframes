@@ -1,9 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex`,
-    `string_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   JSON_VALUE(
@@ -13,4 +7,4 @@ SELECT
     ),
     '$.access_urls.read_url'
   ) AS `string_col`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

@@ -1,11 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `date_col`,
-    `duration_col`,
-    `rowindex`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `timestamp_col`,
@@ -16,4 +8,4 @@ SELECT
   TIMESTAMP_DIFF(CAST(`date_col` AS DATETIME), CAST(`date_col` AS DATETIME), MICROSECOND) AS `timestamp_sub_date`,
   TIMESTAMP_DIFF(`timestamp_col`, `timestamp_col`, MICROSECOND) AS `date_sub_timestamp`,
   `duration_col` - `duration_col` AS `timedelta_sub_timedelta`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

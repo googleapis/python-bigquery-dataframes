@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `int64_col`,
@@ -197,4 +190,4 @@ SELECT
     )
     ELSE MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(0 AS BIGNUMERIC))
   END AS `float_mod_0`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

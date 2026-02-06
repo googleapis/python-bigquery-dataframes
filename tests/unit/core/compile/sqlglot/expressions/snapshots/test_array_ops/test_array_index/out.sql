@@ -1,8 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `string_list_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
-)
 SELECT
   `string_list_col`[SAFE_OFFSET(1)] AS `string_list_col`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`

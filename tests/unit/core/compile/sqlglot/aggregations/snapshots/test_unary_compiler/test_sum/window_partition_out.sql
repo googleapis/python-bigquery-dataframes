@@ -1,9 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col`,
-    `string_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   COALESCE(
     SUM(`int64_col`) OVER (
@@ -13,4 +7,4 @@ SELECT
     ),
     0
   ) AS `agg_int64`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

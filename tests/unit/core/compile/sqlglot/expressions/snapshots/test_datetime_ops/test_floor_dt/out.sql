@@ -1,9 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `datetime_col`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   TIMESTAMP_TRUNC(`timestamp_col`, MICROSECOND) AS `timestamp_col_us`,
   TIMESTAMP_TRUNC(`timestamp_col`, MILLISECOND) AS `timestamp_col_ms`,
@@ -17,4 +11,4 @@ SELECT
   TIMESTAMP_TRUNC(`timestamp_col`, YEAR) AS `timestamp_col_Y`,
   TIMESTAMP_TRUNC(`datetime_col`, MICROSECOND) AS `datetime_col_q`,
   TIMESTAMP_TRUNC(`datetime_col`, MICROSECOND) AS `datetime_col_us`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

@@ -1,11 +1,5 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CAST(`int64_col` AS STRING),
   INITCAP(CAST(`bool_col` AS STRING)) AS `bool_col`,
   INITCAP(SAFE_CAST(`bool_col` AS STRING)) AS `bool_w_safe`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

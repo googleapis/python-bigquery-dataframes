@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `bool_col`,
   `rowindex`,
@@ -48,4 +41,6 @@ SELECT
       0
     )
   END AS `int64_col`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+WHERE
+  NOT `bool_col` IS NULL

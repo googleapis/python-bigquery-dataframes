@@ -1,8 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `int64_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CASE
     WHEN `int64_col` > 0 AND `int64_col` <= 1
@@ -10,4 +5,4 @@ SELECT
     WHEN `int64_col` > 1 AND `int64_col` <= 2
     THEN 1
   END AS `interval_bins_labels`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

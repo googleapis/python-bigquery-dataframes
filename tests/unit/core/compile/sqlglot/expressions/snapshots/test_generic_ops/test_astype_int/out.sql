@@ -1,12 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `datetime_col`,
-    `float64_col`,
-    `numeric_col`,
-    `time_col`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   UNIX_MICROS(CAST(`datetime_col` AS TIMESTAMP)) AS `datetime_col`,
   UNIX_MICROS(SAFE_CAST(`datetime_col` AS TIMESTAMP)) AS `datetime_w_safe`,
@@ -17,4 +8,4 @@ SELECT
   CAST(TRUNC(`float64_col`) AS INT64) AS `float64_col`,
   SAFE_CAST(TRUNC(`float64_col`) AS INT64) AS `float64_w_safe`,
   CAST('100' AS INT64) AS `str_const`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_list_col`,
-    `float_list_col`,
-    `string_list_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
-)
 SELECT
   (
     SELECT
@@ -26,4 +19,4 @@ SELECT
       COALESCE(LOGICAL_OR(bf_arr_reduce_uid), FALSE)
     FROM UNNEST(`bool_list_col`) AS bf_arr_reduce_uid
   ) AS `any_bool`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`

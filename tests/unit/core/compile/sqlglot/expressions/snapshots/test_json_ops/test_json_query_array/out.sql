@@ -1,8 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `json_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`json_types`
-)
 SELECT
   JSON_QUERY_ARRAY(`json_col`, '$') AS `json_col`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`json_types`

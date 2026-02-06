@@ -173,7 +173,7 @@ class SQLGlotIR:
                 ),
             )
         else:
-            new_expr = self.expr
+            new_expr = sge.Select().from_(self.expr)
 
         if len(sorting) > 0:
             new_expr = new_expr.order_by(*sorting)

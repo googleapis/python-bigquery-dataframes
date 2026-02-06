@@ -1,10 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col`,
-    `int64_col`,
-    `rowindex`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   `rowindex`,
   `int64_col`,
@@ -15,4 +8,4 @@ SELECT
   ROUND(`float64_col`, 0) AS `float_round_0`,
   ROUND(`float64_col`, 1) AS `float_round_1`,
   ROUND(`float64_col`, -1) AS `float_round_m1`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

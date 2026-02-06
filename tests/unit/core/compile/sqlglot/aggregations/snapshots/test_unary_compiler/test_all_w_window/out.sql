@@ -1,8 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   COALESCE(
     LOGICAL_AND(`bool_col`) OVER (
@@ -11,4 +6,4 @@ SELECT
     ),
     TRUE
   ) AS `agg_bool`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

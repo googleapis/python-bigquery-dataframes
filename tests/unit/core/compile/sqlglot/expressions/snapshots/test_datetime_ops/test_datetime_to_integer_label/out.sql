@@ -1,9 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `datetime_col`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CAST(FLOOR(
     IEEE_DIVIDE(
@@ -29,4 +23,4 @@ SELECT
       )
     ) AS INT64) + 1
   END AS `non_fixed_freq_weekly`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`

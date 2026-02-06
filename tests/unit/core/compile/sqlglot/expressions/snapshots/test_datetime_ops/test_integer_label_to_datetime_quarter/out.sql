@@ -1,9 +1,3 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex`,
-    `timestamp_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-)
 SELECT
   CAST(DATETIME(
     CASE
@@ -46,4 +40,4 @@ SELECT
     0,
     0
   ) - INTERVAL 1 DAY AS TIMESTAMP) AS `non_fixed_freq`
-FROM `bfcte_0`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
