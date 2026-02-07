@@ -14,7 +14,7 @@
 
 import pytest
 
-import bigframes.bigquery.ml as ml
+from bigframes.bigquery import ai, ml
 import bigframes.pandas as bpd
 
 
@@ -24,6 +24,16 @@ def embedding_model(bq_connection, dataset_id):
     return ml.create_model(
         model_name=model_name,
         options={"endpoint": "gemini-embedding-001"},
+        connection_name=bq_connection,
+    )
+
+
+@pytest.fixture(scope="session")
+def text_model(bq_connection, dataset_id):
+    model_name = f"{dataset_id}.text_model"
+    return ml.create_model(
+        model_name=model_name,
+        options={"endpoint": "gemini-2.5-flash"},
         connection_name=bq_connection,
     )
 
@@ -38,10 +48,12 @@ def test_generate_embedding(embedding_model):
         }
     )
 
-    result = ml.generate_embedding(embedding_model, df)
+    result = ai.generate_embedding(embedding_model, df)
+
     assert len(result) == 2
-    assert "ml_generate_embedding_result" in result.columns
-    assert "ml_generate_embedding_status" in result.columns
+    assert "embedding" in result.columns
+    assert "statistics" in result.columns
+    assert "status" in result.columns
 
 
 def test_generate_embedding_with_options(embedding_model):
@@ -54,38 +66,31 @@ def test_generate_embedding_with_options(embedding_model):
         }
     )
 
-    result = ml.generate_embedding(
+    result = ai.generate_embedding(
         embedding_model, df, task_type="RETRIEVAL_DOCUMENT", output_dimensionality=256
     )
+
     assert len(result) == 2
-    assert "ml_generate_embedding_result" in result.columns
-    assert "ml_generate_embedding_status" in result.columns
-    embedding = result["ml_generate_embedding_result"].to_pandas()
+    embedding = result["embedding"].to_pandas()
     assert len(embedding[0]) == 256
 
 
-def test_create_model_linear_regression(dataset_id):
-    df = bpd.DataFrame({"x": [1, 2, 3], "y": [2, 4, 6]})
-    model_name = f"{dataset_id}.linear_regression_model"
+def test_generate_text(text_model):
+    df = bpd.DataFrame({"prompt": ["Dog", "Cat"]})
 
-    result = ml.create_model(
-        model_name=model_name,
-        options={"model_type": "LINEAR_REG", "input_label_cols": ["y"]},
-        training_data=df,
-    )
+    result = ai.generate_text(text_model, df)
 
-    assert result["modelType"] == "LINEAR_REGRESSION"
+    assert len(result) == 2
+    assert "result" in result.columns
+    assert "statistics" in result.columns
+    assert "full_response" in result.columns
+    assert "status" in result.columns
 
 
-def test_create_model_with_transform(dataset_id):
-    df = bpd.DataFrame({"x": [1, 2, 3], "y": [2, 4, 6]})
-    model_name = f"{dataset_id}.transform_model"
+def test_generate_text_with_options(text_model):
+    df = bpd.DataFrame({"prompt": ["Dog", "Cat"]})
 
-    result = ml.create_model(
-        model_name=model_name,
-        options={"model_type": "LINEAR_REG", "input_label_cols": ["y"]},
-        training_data=df,
-        transform=["x * 2 AS x_doubled", "y"],
-    )
+    result = ai.generate_text(text_model, df, max_output_tokens=1)
 
-    assert result["modelType"] == "LINEAR_REGRESSION"
+    # It basically asserts that the results are still returned.
+    assert len(result) == 2
