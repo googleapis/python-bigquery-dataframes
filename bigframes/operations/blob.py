@@ -336,6 +336,76 @@ class BlobAccessor:
         runtime = self._get_runtime(mode=mode, with_metadata=with_metadata)
         return runtime._apply_unary_op(ops.ToJSONString())
 
+    def exif(
+        self,
+        *,
+        engine: Literal[None, "pillow"] = None,
+        connection: Optional[str] = None,
+        max_batching_rows: int = 8192,
+        container_cpu: Union[float, int] = 0.33,
+        container_memory: str = "512Mi",
+        verbose: bool = False,
+    ) -> bigframes.series.Series:
+        """Extract EXIF data. Now only support image types.
+
+        Args:
+            engine ('pillow' or None, default None): The engine (bigquery or third party library) used for the function. The value must be specified.
+            connection (str or None, default None): BQ connection used for function internet transactions, and the output blob if "dst" is str. If None, uses default connection of the session.
+            max_batching_rows (int, default 8,192): Max number of rows per batch send to cloud run to execute the function.
+            container_cpu (int or float, default 0.33): number of container CPUs. Possible values are [0.33, 8]. Floats larger than 1 are cast to intergers.
+            container_memory (str, default "512Mi"): container memory size. String of the format <number><unit>. Possible values are from 512Mi to 32Gi.
+            verbose (bool, default False): If True, returns a struct with status and content fields. If False, returns only the content.
+
+        Returns:
+            bigframes.series.Series: JSON series of key-value pairs if verbose=False, or struct with status and content if verbose=True.
+
+        Raises:
+            ValueError: If engine is not 'pillow'.
+            RuntimeError: If EXIF extraction fails or returns invalid structure.
+        """
+        if engine is None or engine.casefold() != "pillow":
+            raise ValueError("Must specify the engine, supported value is 'pillow'.")
+
+        import bigframes.bigquery as bbq
+        import bigframes.blob._functions as blob_func
+        import bigframes.pandas as bpd
+
+        connection = self._resolve_connection(connection)
+        df = self.get_runtime_json_str(mode="R").to_frame()
+        df["verbose"] = verbose
+
+        exif_udf = blob_func.TransformFunction(
+            blob_func.exif_func_def,
+            session=self._data._block.session,
+            connection=connection,
+            max_batching_rows=max_batching_rows,
+            container_cpu=container_cpu,
+            container_memory=container_memory,
+        ).udf()
+
+        res = self._apply_udf_or_raise_error(df, exif_udf, "EXIF extraction")
+
+        if verbose:
+            try:
+                exif_content_series = bbq.parse_json(
+                    res._apply_unary_op(ops.JSONValue(json_path="$.content"))
+                ).rename("exif_content")
+                exif_status_series = res._apply_unary_op(
+                    ops.JSONValue(json_path="$.status")
+                )
+            except Exception as e:
+                raise RuntimeError(f"Failed to parse EXIF JSON result: {e}") from e
+            results_df = bpd.DataFrame(
+                {"status": exif_status_series, "content": exif_content_series}
+            )
+            results_struct = bbq.struct(results_df).rename("exif_results")
+            return results_struct
+        else:
+            try:
+                return bbq.parse_json(res)
+            except Exception as e:
+                raise RuntimeError(f"Failed to parse EXIF JSON result: {e}") from e
+
     def image_blur(
         self,
         ksize: tuple[int, int],
