@@ -539,7 +539,7 @@ class SQLGlotIR:
         cte_name = sge.to_identifier(
             next(self.uid_gen.get_uid_stream("bfcte_")), quoted=self.quoted
         )
-        select_expr = self.expr._as_select().copy()
+        select_expr = self._as_select().copy()
         select_expr, existing_ctes = _pop_query_ctes(select_expr)
         new_cte = sge.CTE(
             this=select_expr,
