@@ -91,12 +91,6 @@ class SqlSelectNode(nodes.UnaryNode):
     sorting: tuple[OrderingExpression, ...] = ()
     limit: Optional[int] = None
 
-    def __post_init__(self):
-        try:
-            self.fields
-        except Exception:
-            ...
-
     @functools.cached_property
     def fields(self) -> Sequence[nodes.Field]:
         fields = []
