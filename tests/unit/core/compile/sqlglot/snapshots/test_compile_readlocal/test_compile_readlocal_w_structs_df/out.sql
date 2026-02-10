@@ -1,7 +1,15 @@
-WITH `bfcte_0` AS (
+SELECT
+`id` AS `id`,
+`person` AS `person`
+FROM
+(SELECT
+  `t0`.`level_0` AS `id`,
+  `t0`.`column_0` AS `person`,
+  `t0`.`bfuid_col_1505` AS `bfuid_col_1506`
+FROM (
   SELECT
     *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` INT64, `bfcol_1` STRUCT<name STRING, age INT64, address STRUCT<city STRING, country STRING>>, `bfcol_2` INT64>>[STRUCT(
+  FROM UNNEST(ARRAY<STRUCT<`level_0` INT64, `column_0` STRUCT<name STRING, age INT64, address STRUCT<city STRING, country STRING>>, `bfuid_col_1505` INT64>>[STRUCT(
     1,
     STRUCT(
       'Alice' AS `name`,
@@ -17,11 +25,6 @@ WITH `bfcte_0` AS (
       STRUCT('London' AS `city`, 'UK' AS `country`) AS `address`
     ),
     1
-  )])
-)
-SELECT
-  `bfcol_0` AS `id`,
-  `bfcol_1` AS `person`
-FROM `bfcte_0`
-ORDER BY
-  `bfcol_2` ASC NULLS LAST
+  )]) AS `level_0`
+) AS `t0`)
+ORDER BY `bfuid_col_1506` ASC NULLS LAST

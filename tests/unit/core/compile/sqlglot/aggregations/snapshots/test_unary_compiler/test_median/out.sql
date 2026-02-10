@@ -1,18 +1,15 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `date_col`,
-    `int64_col`,
-    `string_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    APPROX_QUANTILES(`int64_col`, 2)[OFFSET(1)] AS `bfcol_3`,
-    APPROX_QUANTILES(`date_col`, 2)[OFFSET(1)] AS `bfcol_4`,
-    APPROX_QUANTILES(`string_col`, 2)[OFFSET(1)] AS `bfcol_5`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_3` AS `int64_col`,
-  `bfcol_4` AS `date_col`,
-  `bfcol_5` AS `string_col`
-FROM `bfcte_1`
+  *
+FROM (
+  SELECT
+    APPROX_QUANTILES(`t1`.`int64_col`, 2)[offset(1)] AS `int64_col`,
+    APPROX_QUANTILES(`t1`.`date_col`, 2)[offset(1)] AS `date_col`,
+    APPROX_QUANTILES(`t1`.`string_col`, 2)[offset(1)] AS `string_col`
+  FROM (
+    SELECT
+      `t0`.`date_col`,
+      `t0`.`int64_col`,
+      `t0`.`string_col`
+    FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+  ) AS `t1`
+) AS `t2`

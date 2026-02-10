@@ -1,3 +1,15 @@
 SELECT
-  COALESCE(SUM(`int64_col`) OVER (PARTITION BY `string_col`), 0) AS `agg_int64`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+  COALESCE(
+    SUM(`t1`.`int64_col`) OVER (
+      PARTITION BY `t1`.`string_col`
+      ORDER BY `t1`.`int64_col` IS NULL ASC, `t1`.`int64_col` ASC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ),
+    0
+  ) AS `agg_int64`
+FROM (
+  SELECT
+    `t0`.`int64_col`,
+    `t0`.`string_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`

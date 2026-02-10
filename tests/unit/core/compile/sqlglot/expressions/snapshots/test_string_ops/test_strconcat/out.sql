@@ -1,3 +1,3 @@
 SELECT
-  CONCAT(`string_col`, 'a') AS `string_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+  CONCAT(`t0`.`string_col`, 'a') AS `string_col`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

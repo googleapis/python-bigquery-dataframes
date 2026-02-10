@@ -1,22 +1,17 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `rowindex` AS `bfcol_2`,
-    `int64_col` AS `bfcol_3`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    `int64_col` AS `bfcol_6`,
-    `int64_too` AS `bfcol_7`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_2` AS (
-  SELECT
-    *
-  FROM `bfcte_0`
-  LEFT JOIN `bfcte_1`
-    ON COALESCE(`bfcol_2`, 0) = COALESCE(`bfcol_6`, 0)
-    AND COALESCE(`bfcol_2`, 1) = COALESCE(`bfcol_6`, 1)
-)
 SELECT
-  `bfcol_3` AS `int64_col`,
-  `bfcol_7` AS `int64_too`
-FROM `bfcte_2`
+  `t3`.`int64_col`,
+  `t4`.`int64_too`
+FROM (
+  SELECT
+    `t0`.`rowindex` AS `bfuid_col_1`,
+    `t0`.`int64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t3`
+LEFT OUTER JOIN (
+  SELECT
+    `t0`.`int64_col` AS `bfuid_col_1482`,
+    `t0`.`int64_too`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t4`
+  ON COALESCE(`t3`.`bfuid_col_1`, 0) = COALESCE(`t4`.`bfuid_col_1482`, 0)
+  AND COALESCE(`t3`.`bfuid_col_1`, 1) = COALESCE(`t4`.`bfuid_col_1482`, 1)

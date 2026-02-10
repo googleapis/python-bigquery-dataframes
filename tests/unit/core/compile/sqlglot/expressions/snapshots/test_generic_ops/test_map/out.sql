@@ -1,9 +1,9 @@
 SELECT
   CASE
-    WHEN `string_col` = 'value1'
+    WHEN `t0`.`string_col` = 'value1'
     THEN 'mapped1'
-    WHEN `string_col` IS NULL
+    WHEN `t0`.`string_col` IS NULL
     THEN 'UNKNOWN'
-    ELSE `string_col`
+    ELSE `t0`.`string_col`
   END AS `string_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

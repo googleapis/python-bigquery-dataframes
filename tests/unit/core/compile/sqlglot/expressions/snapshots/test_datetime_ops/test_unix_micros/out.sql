@@ -1,3 +1,7 @@
 SELECT
-  UNIX_MICROS(`timestamp_col`) AS `timestamp_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+  UNIX_MICROS(`t1`.`timestamp_col`) AS `timestamp_col`
+FROM (
+  SELECT
+    `t0`.`timestamp_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`

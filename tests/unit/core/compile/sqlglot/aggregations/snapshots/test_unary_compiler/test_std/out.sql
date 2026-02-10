@@ -1,23 +1,16 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `bool_col`,
-    `duration_col`,
-    `int64_col`,
-    `int64_col` AS `bfcol_6`,
-    `bool_col` AS `bfcol_7`,
-    `duration_col` AS `bfcol_8`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
-), `bfcte_1` AS (
-  SELECT
-    STDDEV(`bfcol_6`) AS `bfcol_12`,
-    STDDEV(CAST(`bfcol_7` AS INT64)) AS `bfcol_13`,
-    CAST(FLOOR(STDDEV(`bfcol_8`)) AS INT64) AS `bfcol_14`,
-    CAST(FLOOR(STDDEV(`bfcol_6`)) AS INT64) AS `bfcol_15`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_12` AS `int64_col`,
-  `bfcol_13` AS `bool_col`,
-  `bfcol_14` AS `duration_col`,
-  `bfcol_15` AS `int64_col_w_floor`
-FROM `bfcte_1`
+  *
+FROM (
+  SELECT
+    STDDEV_SAMP(`t1`.`bfuid_col_31`) AS `int64_col`,
+    STDDEV_SAMP(CAST(`t1`.`bfuid_col_32` AS INT64)) AS `bool_col`,
+    CAST(FLOOR(STDDEV_SAMP(`t1`.`bfuid_col_33`)) AS INT64) AS `duration_col`,
+    CAST(FLOOR(STDDEV_SAMP(`t1`.`bfuid_col_31`)) AS INT64) AS `int64_col_w_floor`
+  FROM (
+    SELECT
+      `t0`.`int64_col` AS `bfuid_col_31`,
+      `t0`.`bool_col` AS `bfuid_col_32`,
+      CAST(FLOOR(`t0`.`duration_col` * 1) AS INT64) AS `bfuid_col_33`
+    FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+  ) AS `t1`
+) AS `t2`
