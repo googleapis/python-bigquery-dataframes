@@ -17,6 +17,15 @@ import bigframes
 import bigframes.pandas as bpd
 
 
+@pytest.fixture()
+def fresh_global_session():
+    bpd.reset_session()
+    yield None
+    bpd.close_session()
+    # Undoes side effect of using ths global session to read table
+    bpd.options.bigquery.location = None
+
+
 def test_read_iceberg_table_w_location():
     session = bigframes.Session(bigframes.BigQueryOptions(location="us-central1"))
     df = session.read_gbq(
@@ -33,8 +42,7 @@ def test_read_iceberg_table_w_wrong_location():
         )
 
 
-def test_read_iceberg_table_wo_location():
-    bpd.reset_session()
+def test_read_iceberg_table_wo_location(fresh_global_session):
     df = bpd.read_gbq(
         "bigquery-public-data.biglake-public-nyc-taxi-iceberg.public_data.nyc_taxicab_2021"
     )

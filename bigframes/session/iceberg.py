@@ -62,7 +62,6 @@ def get_table(
             "Authorization": f"Bearer {credentials.token}",
             "Content-Type": "application/json",
             "header.x-goog-user-project": user_project_id,
-            # "token": token,
         },
     )
     response.raise_for_status()
