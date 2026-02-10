@@ -1,13 +1,17 @@
 SELECT
-  LPAD(`string_col`, GREATEST(LENGTH(`string_col`), 10), '-') AS `left`,
-  RPAD(`string_col`, GREATEST(LENGTH(`string_col`), 10), '-') AS `right`,
+  LPAD(`t0`.`string_col`, GREATEST(LENGTH(`t0`.`string_col`), 10), '-') AS `left`,
+  RPAD(`t0`.`string_col`, GREATEST(LENGTH(`t0`.`string_col`), 10), '-') AS `right`,
   RPAD(
     LPAD(
-      `string_col`,
-      CAST(FLOOR(SAFE_DIVIDE(GREATEST(LENGTH(`string_col`), 10) - LENGTH(`string_col`), 2)) AS INT64) + LENGTH(`string_col`),
+      `t0`.`string_col`,
+      (
+        CAST(FLOOR(
+          ieee_divide(GREATEST(LENGTH(`t0`.`string_col`), 10) - LENGTH(`t0`.`string_col`), 2)
+        ) AS INT64)
+      ) + LENGTH(`t0`.`string_col`),
       '-'
     ),
-    GREATEST(LENGTH(`string_col`), 10),
+    GREATEST(LENGTH(`t0`.`string_col`), 10),
     '-'
   ) AS `both`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

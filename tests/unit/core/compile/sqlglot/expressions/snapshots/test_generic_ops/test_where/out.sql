@@ -1,3 +1,3 @@
 SELECT
-  IF(`bool_col`, `int64_col`, `float64_col`) AS `result_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+  CASE WHEN `t0`.`bool_col` THEN `t0`.`int64_col` ELSE `t0`.`float64_col` END AS `result_col`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
