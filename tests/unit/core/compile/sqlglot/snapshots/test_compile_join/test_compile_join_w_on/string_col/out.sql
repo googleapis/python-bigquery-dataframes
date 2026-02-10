@@ -5,8 +5,8 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_1` AS (
   SELECT
-    `rowindex` AS `bfcol_0`,
-    `string_col` AS `bfcol_1`
+    `rowindex` AS `bfcol_4`,
+    `string_col` AS `bfcol_5`
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
 ), `bfcte_2` AS (
   SELECT
