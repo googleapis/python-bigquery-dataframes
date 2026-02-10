@@ -94,7 +94,7 @@ def _(*operands: TypedExpr, op: ops.SqlScalarOp) -> sge.Expression:
 
 @register_unary_op(ops.isnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.Is(this=expr.expr, expression=sge.Null())
+    return sge.Is(this=sge.paren(expr.expr), expression=sge.Null())
 
 
 @register_unary_op(ops.MapOp, pass_op=True)
@@ -125,7 +125,7 @@ def _(expr: TypedExpr, op: ops.MapOp) -> sge.Expression:
 
 @register_unary_op(ops.notnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.Not(this=sge.Is(this=expr.expr, expression=sge.Null()))
+    return sge.Not(this=sge.Is(this=sge.paren(expr.expr), expression=sge.Null()))
 
 
 @register_ternary_op(ops.where_op)

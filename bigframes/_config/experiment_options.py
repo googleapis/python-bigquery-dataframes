@@ -27,8 +27,7 @@ class ExperimentOptions:
     def __init__(self):
         self._semantic_operators: bool = False
         self._ai_operators: bool = False
-        # TODO: DO NOT SUBMIT, revert before submitting
-        self._sql_compiler: Literal["legacy", "stable", "experimental"] = "experimental"
+        self._sql_compiler: Literal["legacy", "stable", "experimental"] = "stable"
 
     @property
     def semantic_operators(self) -> bool:

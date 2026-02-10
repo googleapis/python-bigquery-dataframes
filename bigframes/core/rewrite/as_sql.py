@@ -105,6 +105,13 @@ def _add_cdefs(
 def _try_add_filter(
     select: sql_nodes.SqlSelectNode, predicates: Sequence[expression.Expression]
 ) -> Optional[sql_nodes.SqlSelectNode]:
+    # Filter implicitly happens first, so merging it into ths select will modify non-scalar col expressions
+    if not all(cdef.expression.is_scalar_expr for cdef in select.selections):
+        return None
+    if not all(
+        sort_expr.scalar_expression.is_scalar_expr for sort_expr in select.sorting
+    ):
+        return None
     # Constraint: filters can only be merged if they are scalar expression after binding
     new_predicates = []
     # bind variables, merge predicates
