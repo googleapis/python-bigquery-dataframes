@@ -267,7 +267,7 @@ class SQLGlotIR:
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
         left_select, left_cte_name = self._select_to_cte()
-        right_select, right_cte_name = self._select_to_cte()
+        right_select, right_cte_name = right._select_to_cte()
 
         left_select, left_ctes = _pop_query_ctes(left_select)
         right_select, right_ctes = _pop_query_ctes(right_select)
