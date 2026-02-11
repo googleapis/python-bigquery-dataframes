@@ -270,7 +270,7 @@ def test_generate_table_with_options(mock_dataframe, mock_session):
 
 
 @mock.patch("bigframes.pandas.read_pandas")
-def test_generate_table_with_pandas_dataframe(
+def test_generate_text_with_pandas_dataframe(
     read_pandas_mock, mock_dataframe, mock_session
 ):
     # This tests that pandas input path works and calls read_pandas
@@ -281,10 +281,9 @@ def test_generate_table_with_pandas_dataframe(
 
     pandas_df = pd.DataFrame({"content": ["test"]})
 
-    bbq.ai.generate_table(
+    bbq.ai.generate_text(
         model_name,
         pandas_df,
-        output_schema="col1 STRING",
     )
 
     read_pandas_mock.assert_called_once()
