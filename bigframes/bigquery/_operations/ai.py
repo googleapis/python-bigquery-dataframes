@@ -604,7 +604,7 @@ def generate_text(
 @log_adapter.method_logger(custom_base_name="bigquery_ai")
 def generate_table(
     model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
-    data: Union[dataframe.DataFrame, pd.DataFrame],
+    data: Union[dataframe.DataFrame, series.Series, pd.DataFrame, pd.Series],
     *,
     output_schema: str,
     temperature: Optional[float] = None,
@@ -637,9 +637,11 @@ def generate_table(
     Args:
         model (bigframes.ml.base.BaseEstimator or str):
             The model to use for table generation.
-        data (bigframes.pandas.DataFrame or pandas.DataFrame):
-            The data to use as input for table generation. It must contain the
-            columns that the model expects for constructing the prompt.
+        data (bigframes.pandas.DataFrame or bigframes.pandas.Series):
+            The data to generate embeddings for. If a Series is provided, it is
+            treated as the 'content' column.  If a DataFrame is provided, it
+            must contain a 'content' column, or you must rename the column you
+            wish to embed to 'content'.
         output_schema (str):
             A string defining the output schema (e.g., "col1 STRING, col2 INT64").
         temperature (float, optional):
@@ -650,7 +652,7 @@ def generate_table(
             output.
         max_output_tokens (int, optional):
             An INT64 value that sets the maximum number of tokens in the
-            generated text.
+            generated table.
         stop_sequences (List[str], optional):
             An ARRAY<STRING> value that contains the stop sequences for the model.
         request_type (str, optional):
