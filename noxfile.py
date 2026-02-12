@@ -613,17 +613,6 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     )
     already_installed.add("pandas")
 
-    # Try to avoid a cap on our SQLGlot so that bigframes
-    # can be integrated with SQLMesh. See:
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/942
-    # If SQLGlot introduces something that breaks us, lets file an issue
-    # upstream and/or make sure we fix bigframes to work with it.
-    session.install(
-        "--upgrade",
-        "git+https://github.com/tobymao/sqlglot.git#egg=sqlglot",
-    )
-    already_installed.add("sqlglot")
-
     # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
     session.install("--no-deps", "db-dtypes")
     already_installed.add("db-dtypes")
@@ -674,7 +663,8 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
 
     # We use --no-deps to ensure that pre-release versions aren't overwritten
     # by the version ranges in setup.py.
-    session.install(*deps)
+    if deps:
+        session.install(*deps)
     session.install("--no-deps", "-e", ".")
 
     # Print out prerelease package versions.
