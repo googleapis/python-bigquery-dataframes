@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections
 import dataclasses
 import functools
 import itertools
@@ -22,7 +23,39 @@ from bigframes.core import identifiers, nodes
 def column_pruning(
     root: nodes.BigFrameNode,
 ) -> nodes.BigFrameNode:
-    return nodes.top_down(root, prune_columns)
+    # We wrap the entire process in a fixed-point iteration to ensure
+    # the global push-down through CTEs fully settles.
+    @to_fixed(max_iterations=100)
+    def prune_tree(current_root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+        # Apply local top-down pruning rules (pushes selections to CteRefNodes)
+        pushed_root = nodes.top_down(current_root, prune_columns)
+
+        # Gather the union of required columns globally across all CTE refs
+        cte_reqs: typing.DefaultDict[
+            nodes.BigFrameNode, set[identifiers.ColumnId]
+        ] = collections.defaultdict(set)
+
+        def gather_reqs(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+            if isinstance(node, nodes.CteRefNode):
+                # node.child is the referenced CTE definition (CteNode)
+                for col in node.cols:
+                    cte_reqs[node.child].add(col.id)
+            return node
+
+        nodes.top_down(pushed_root, gather_reqs)
+
+        # Apply the unioned required columns to the CTE definitions
+        def apply_cte_reqs(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
+            if isinstance(node, nodes.CteNode) and node in cte_reqs:
+                needed_ids = frozenset(cte_reqs[node])
+                pruned_child = prune_node(node.child, needed_ids)
+                if pruned_child is not node.child:
+                    return node.replace_child(pruned_child)
+            return node
+
+        return nodes.top_down(pushed_root, apply_cte_reqs)
+
+    return prune_tree(root)
 
 
 def to_fixed(max_iterations: int = 100):
@@ -67,7 +100,8 @@ def prune_selection_child(
 
     # Important to check this first
     if list(selection.ids) == list(child.ids):
-        if (ref.ref.id == ref.id for ref in selection.input_output_pairs):
+        # Added all() here - a generator object is natively truthy
+        if all(ref.ref.id == ref.id for ref in selection.input_output_pairs):
             # selection is no-op so just remove it entirely
             return child
 
@@ -75,6 +109,25 @@ def prune_selection_child(
         return selection.remap_refs(
             {id: ref.id for ref, id in child.input_output_pairs}
         ).replace_child(child.child)
+
+    elif isinstance(child, nodes.CteRefNode):
+        # Push selection locally into the CTE Reference
+        needed_ids = selection.consumed_ids
+        new_cols = (
+            tuple(col for col in child.cols if col.id in needed_ids) or child.cols[0:1]
+        )
+
+        if new_cols == child.cols:
+            return selection
+        return selection.replace_child(dataclasses.replace(child, cols=new_cols))
+
+    elif isinstance(child, nodes.CteNode):
+        # Pass-through selection to the CTE Definition just in case it's wrapped locally
+        pruned_child = prune_node(child.child, selection.consumed_ids)
+        if pruned_child is child.child:
+            return selection
+        return selection.replace_child(child.replace_child(pruned_child))
+
     elif isinstance(child, nodes.AdditiveNode):
         if not set(field.id for field in child.added_fields) & selection.consumed_ids:
             return selection.replace_child(child.additive_base)

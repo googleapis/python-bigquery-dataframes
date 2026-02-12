@@ -488,6 +488,15 @@ class BigQueryCachingExecutor(executor.Executor):
 
         return plan
 
+    def simplify_plan(
+        self, plan: nodes.BigFrameNode, use_cache: bool = True
+    ) -> nodes.BigFrameNode:
+        if use_cache:
+            plan = self.replace_cached_subtrees(plan)
+        plan = rewrite.column_pruning(plan)
+        plan = plan.top_down(rewrite.fold_row_counts)
+        return plan
+
     def _cache_with_cluster_cols(
         self, array_value: bigframes.core.ArrayValue, cluster_cols: Sequence[str]
     ):

@@ -48,6 +48,8 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
         output_cols=output_names,
         limit=request.peek_count,
     )
+    # Extract CTEs early, as later rewriters could otherwise make common subtrees diverge
+    result_node = typing.cast(nodes.ResultNode, rewrite.extract_ctes(result_node))
     if request.sort_rows:
         # Can only pullup slice if we are doing ORDER BY in outermost SELECT
         # Need to do this before replacing unsupported ops, as that will rewrite slice ops
@@ -103,11 +105,21 @@ def _compile_result_node(root: nodes.ResultNode) -> str:
     root = _remap_variables(root, uid_gen)
     root = typing.cast(nodes.ResultNode, rewrite.defer_selection(root))
 
+    # TODO: Extract out CTEs to a with_ctes node?
+    cte_nodes = _get_ctes(root)
+
     # Have to bind schema as the final step before compilation.
     # Probably, should defer even further
     root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
 
     sqlglot_ir = compile_node(rewrite.as_sql_nodes(root), uid_gen)
+    sqlglot_ir = sqlglot_ir.with_ctes(
+        tuple(
+            (compile_node(cte_node, uid_gen)._as_select(), cte_node.name)
+            for cte_node in cte_nodes
+        )
+    )
+
     return sqlglot_ir.sql
 
 
@@ -248,6 +260,31 @@ def compile_isin_join(
 
 
 @_compile_node.register
+def compile_cte_node(node: nodes.CteRefNode, _)
+    table = node.name
+    return ir.SQLGlotIR.from_table(
+        table.project_id,
+        table.dataset_id,
+        table.table_id,
+        uid_gen=child.uid_gen,
+        sql_predicate=node.source.sql_predicate,
+        system_time=node.source.at_time,
+    )
+
+@_compile_node.register
+def compile_cte_node(node: nodes.CteNode, _)
+    table = node.source.table
+    return ir.SQLGlotIR.from_table(
+        table.project_id,
+        table.dataset_id,
+        table.table_id,
+        uid_gen=child.uid_gen,
+        sql_predicate=node.source.sql_predicate,
+        system_time=node.source.at_time,
+    )
+
+
+@_compile_node.register
 def compile_concat(node: nodes.ConcatNode, *children: ir.SQLGlotIR) -> ir.SQLGlotIR:
     assert len(children) >= 1
     uid_gen = children[0].uid_gen
@@ -312,3 +349,16 @@ def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node
+
+
+def _get_ctes(root: nodes.ResultNode) -> typing.Sequence[nodes.CteNode]:
+    """
+    Get ctes from plan in topological order.
+    """
+
+    def merge_list(node, cte_list):
+        if isinstance(node, nodes.CteNode):
+            return (*cte_list, node)
+        return cte_list
+
+    return root.reduce_up(merge_list)
