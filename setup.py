@@ -33,10 +33,10 @@ description = (
 # 'Development Status :: 5 - Production/Stable'
 release_status = "Development Status :: 5 - Production/Stable"
 dependencies = [
-    # please keep these in sync with the minimum versions in testing/constraints-3.9.txt
+    # please keep these in sync with the minimum versions in testing/constraints-3.10.txt
     "cloudpickle >= 2.0.0",
     "fsspec >=2023.3.0",
-    "gcsfs >=2023.3.0, !=2025.5.0",
+    "gcsfs >=2023.3.0, !=2025.5.0, !=2026.2.0",
     "geopandas >=0.12.2",
     "google-auth >=2.15.0,<3.0",
     "google-cloud-bigquery[bqstorage,pandas] >=3.36.0",
@@ -58,6 +58,7 @@ dependencies = [
     "humanize >=4.6.0",
     "matplotlib >=3.7.1",
     "db-dtypes >=1.4.2",
+    "pyiceberg >= 0.7.1",
     # For vendored ibis-framework.
     "atpublic>=2.3,<6",
     "python-dateutil>=2.8.2,<3",
@@ -133,7 +134,6 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
@@ -150,7 +150,7 @@ setuptools.setup(
         "bigframes_vendored": "third_party/bigframes_vendored",
     },
     packages=packages,
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     include_package_data=True,
     zip_safe=False,
 )

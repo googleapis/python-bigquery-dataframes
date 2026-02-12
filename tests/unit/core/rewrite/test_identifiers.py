@@ -13,11 +13,14 @@
 # limitations under the License.
 import typing
 
+from bigframes.core import bq_data
 import bigframes.core as core
+import bigframes.core.agg_expressions as agg_ex
 import bigframes.core.expression as ex
 import bigframes.core.identifiers as identifiers
 import bigframes.core.nodes as nodes
 import bigframes.core.rewrite.identifiers as id_rewrite
+import bigframes.operations.aggregations as agg_ops
 
 
 def test_remap_variables_single_node(leaf):
@@ -51,11 +54,56 @@ def test_remap_variables_projection(leaf):
     assert set(mapping.values()) == {identifiers.ColumnId(f"id_{i}") for i in range(3)}
 
 
+def test_remap_variables_aggregate(leaf):
+    # Aggregation: sum(col_a) AS sum_a
+    # Group by nothing
+    agg_op = agg_ex.UnaryAggregation(
+        op=agg_ops.sum_op,
+        arg=ex.DerefOp(leaf.fields[0].id),
+    )
+    node = nodes.AggregateNode(
+        child=leaf,
+        aggregations=((agg_op, identifiers.ColumnId("sum_a")),),
+        by_column_ids=(),
+    )
+
+    id_generator = (identifiers.ColumnId(f"id_{i}") for i in range(100))
+    _, mapping = id_rewrite.remap_variables(node, id_generator)
+
+    # leaf has 2 columns: col_a, col_b
+    # AggregateNode defines 1 column: sum_a
+    # Output of AggregateNode should only be sum_a
+    assert len(mapping) == 1
+    assert identifiers.ColumnId("sum_a") in mapping
+
+
+def test_remap_variables_aggregate_with_grouping(leaf):
+    # Aggregation: sum(col_b) AS sum_b
+    # Group by col_a
+    agg_op = agg_ex.UnaryAggregation(
+        op=agg_ops.sum_op,
+        arg=ex.DerefOp(leaf.fields[1].id),
+    )
+    node = nodes.AggregateNode(
+        child=leaf,
+        aggregations=((agg_op, identifiers.ColumnId("sum_b")),),
+        by_column_ids=(ex.DerefOp(leaf.fields[0].id),),
+    )
+
+    id_generator = (identifiers.ColumnId(f"id_{i}") for i in range(100))
+    _, mapping = id_rewrite.remap_variables(node, id_generator)
+
+    # Output should have 2 columns: col_a (grouping) and sum_b (agg)
+    assert len(mapping) == 2
+    assert leaf.fields[0].id in mapping
+    assert identifiers.ColumnId("sum_b") in mapping
+
+
 def test_remap_variables_nested_join_stability(leaf, fake_session, table):
     # Create two more distinct leaf nodes
     leaf2_uncached = core.ArrayValue.from_table(
         session=fake_session,
-        table=table,
+        table=bq_data.GbqNativeTable.from_table(table),
     ).node
     leaf2 = leaf2_uncached.remap_vars(
         {
@@ -65,7 +113,7 @@ def test_remap_variables_nested_join_stability(leaf, fake_session, table):
     )
     leaf3_uncached = core.ArrayValue.from_table(
         session=fake_session,
-        table=table,
+        table=bq_data.GbqNativeTable.from_table(table),
     ).node
     leaf3 = leaf3_uncached.remap_vars(
         {
