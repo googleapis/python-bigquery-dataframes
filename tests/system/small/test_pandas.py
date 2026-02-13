@@ -21,7 +21,7 @@ import pytest
 import pytz
 
 import bigframes.pandas as bpd
-from bigframes.testing.utils import assert_frame_equal
+from bigframes.testing.utils import assert_frame_equal, assert_series_equal
 
 
 @pytest.mark.parametrize(
@@ -548,9 +548,9 @@ def _convert_pandas_category(pd_s: pd.Series):
         right_key = "right_inclusive"
 
     subtype = pd_s.cat.categories.dtype.subtype  # type: ignore
-    if pd.api.types.is_float_dtype(subtype):
+    if pd.api.types.is_float_dtype(subtype):  # type: ignore
         interval_dtype = pa.float64()
-    elif pd.api.types.is_integer_dtype(subtype):
+    elif pd.api.types.is_integer_dtype(subtype):  # type: ignore
         interval_dtype = pa.int64()
     else:
         raise ValueError(f"Unknown category type: {subtype}")
@@ -1019,10 +1019,8 @@ def test_to_timedelta_with_bf_integer_series(session, unit):
         .astype("timedelta64[ns]")
     )
 
-    expected_result = pd.to_timedelta(pd_series, unit)
-    pd.testing.assert_series_equal(
-        actual_result, expected_result, check_index_type=False
-    )
+    expected_result = pd.to_timedelta(pd_series, unit).astype("timedelta64[ns]")
+    assert_series_equal(actual_result, expected_result, check_index_type=False)
 
 
 def test_to_timedelta_with_bf_float_series_value_rounded_down(session):
@@ -1034,7 +1032,9 @@ def test_to_timedelta_with_bf_float_series_value_rounded_down(session):
         .astype("timedelta64[ns]")
     )
 
-    expected_result = pd.Series([pd.Timedelta(1, "us"), pd.Timedelta(2, "us")])
+    expected_result = pd.Series([pd.Timedelta(1, "us"), pd.Timedelta(2, "us")]).astype(
+        "timedelta64[ns]"
+    )
     pd.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )

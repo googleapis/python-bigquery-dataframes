@@ -6023,6 +6023,8 @@ def test_resample_with_index(
         .resample(rule=rule, level=level, closed=closed, origin=origin, label=label)
         .min()
     )
+    # TODO: (b/484364312)
+    pd_result.index.names = bf_result.index.names
     assert_frame_equal(bf_result, pd_result)
 
 

@@ -974,7 +974,9 @@ def test_read_pandas_timedelta_dataframes(session, write_engine):
 
 @all_write_engines
 def test_read_pandas_timedelta_series(session, write_engine):
-    expected_series = pd.Series(pd.to_timedelta([1, 2, 3], unit="d"))
+    expected_series = pd.Series(pd.to_timedelta([1, 2, 3], unit="d")).astype(
+        "timedelta64[ns]"
+    )
 
     actual_result = (
         session.read_pandas(expected_series, write_engine=write_engine)
@@ -989,8 +991,8 @@ def test_read_pandas_timedelta_series(session, write_engine):
 
 @all_write_engines
 def test_read_pandas_timedelta_index(session, write_engine):
-    expected_index = pd.to_timedelta(
-        [1, 2, 3], unit="d"
+    expected_index = pd.to_timedelta([1, 2, 3], unit="d").astype(
+        "timedelta64[ns]"
     )  # to_timedelta returns an index
 
     actual_result = (
