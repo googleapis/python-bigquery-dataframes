@@ -593,32 +593,24 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     # PyArrow prerelease packages are published to an alternative PyPI host.
     # https://arrow.apache.org/docs/python/install.html#installing-nightly-packages
     session.install(
+        "--no-deps",
+        "--upgrade",
         "--extra-index-url",
         "https://pypi.fury.io/arrow-nightlies/",
-        "--prefer-binary",
-        "--pre",
-        "--upgrade",
         "pyarrow",
-        "--prefer-binary",
-        "--pre",
-        "--upgrade",
         # We exclude each version individually so that we can continue to test
         # some prerelease packages. See:
         # https://github.com/googleapis/python-bigquery-dataframes/pull/268#discussion_r1423205172
         # "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
         "pandas",
         # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
-        "--no-deps",
         "db-dtypes",
         # Ensure we catch breaking changes in the client libraries early.
-        "--upgrade",
         "git+https://github.com/googleapis/python-bigquery.git#egg=google-cloud-bigquery",
         "--upgrade",
         "-e",
         "git+https://github.com/googleapis/google-cloud-python.git#egg=google-cloud-bigquery-storage&subdirectory=packages/google-cloud-bigquery-storage",
-        "--upgrade",
         "git+https://github.com/googleapis/python-bigquery-pandas.git#egg=pandas-gbq",
-        "--no-deps",
     )
 
     # Print out prerelease package versions.
