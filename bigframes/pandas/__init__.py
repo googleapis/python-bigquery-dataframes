@@ -363,6 +363,13 @@ def reset_session():
 reset_session.__doc__ = global_session.close_session.__doc__
 
 
+def job_history() -> pandas.DataFrame:
+    return global_session.with_default_session(bigframes.session.Session.job_history)
+
+
+job_history.__doc__ = inspect.getdoc(bigframes.session.Session.job_history)
+
+
 # SQL Compilation uses recursive algorithms on deep trees
 # 10M tree depth should be sufficient to generate any sql that is under bigquery limit
 # Note: This limit does not have the desired effect on Python 3.12 in
@@ -386,6 +393,7 @@ _functions = [
     deploy_remote_function,
     deploy_udf,
     get_default_session_id,
+    job_history,
     get_dummies,
     merge,
     qcut,
@@ -421,6 +429,7 @@ __all__ = [
     "deploy_remote_function",
     "deploy_udf",
     "get_default_session_id",
+    "job_history",
     "get_dummies",
     "merge",
     "qcut",

@@ -256,6 +256,7 @@ def check_if_index_columns_are_unique(
     index_cols: Sequence[str],
     *,
     publisher: bigframes.core.events.Publisher,
+    metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
 ) -> Tuple[str, ...]:
     import bigframes.core.sql
     import bigframes.session._io.bigquery
@@ -273,7 +274,7 @@ def check_if_index_columns_are_unique(
         timeout=None,
         location=None,
         project=None,
-        metrics=None,
+        metrics=metrics,
         query_with_job=False,
         publisher=publisher,
     )
