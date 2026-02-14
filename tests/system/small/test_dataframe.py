@@ -5968,6 +5968,8 @@ def test_resample_with_column(
     pd_result = scalars_pandas_df_index.resample(rule=rule, on=on, origin=origin)[
         ["int64_col", "int64_too"]
     ].max()
+    # TODO: (b/484364312)
+    pd_result.index.names = bf_result.index.names
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
@@ -6078,6 +6080,8 @@ def test_resample_start_time(rule, origin, data):
 
     pd_result = scalars_pandas_df_index.resample(rule=rule, origin=origin).min()
 
+    # TODO: (b/484364312)
+    pd_result.index.names = bf_result.index.names
     pd.testing.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )

@@ -21,6 +21,7 @@ import pytest
 import pytz
 
 import bigframes.pandas as bpd
+import bigframes.testing
 from bigframes.testing.utils import assert_frame_equal, assert_series_equal
 
 
@@ -64,7 +65,7 @@ def test_concat_series(scalars_dfs):
         ]
     )
 
-    pd.testing.assert_series_equal(bf_result, pd_result)
+    bigframes.testing.assert_series_equal(bf_result, pd_result)
 
 
 @pytest.mark.parametrize(
@@ -591,7 +592,7 @@ def test_cut_for_array():
     bf_result = bpd.cut(sc, x)
 
     pd_result = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+    bigframes.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -610,7 +611,7 @@ def test_cut_by_int_bins(scalars_dfs, labels, right):
     bf_result = bpd.cut(scalars_df["float64_col"], 5, labels=labels, right=right)
 
     pd_result = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+    bigframes.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 def test_cut_by_int_bins_w_labels(scalars_dfs):
@@ -621,7 +622,7 @@ def test_cut_by_int_bins_w_labels(scalars_dfs):
     bf_result = bpd.cut(scalars_df["float64_col"], 5, labels=labels)
 
     pd_result = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+    bigframes.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -664,7 +665,7 @@ def test_cut_by_numeric_breaks(scalars_dfs, breaks, right, labels):
     ).to_pandas()
 
     pd_result_converted = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result, pd_result_converted)
+    bigframes.testing.assert_series_equal(bf_result, pd_result_converted)
 
 
 def test_cut_by_numeric_breaks_w_labels(scalars_dfs):
@@ -676,7 +677,7 @@ def test_cut_by_numeric_breaks_w_labels(scalars_dfs):
     bf_result = bpd.cut(scalars_df["float64_col"], bins, labels=labels)
 
     pd_result = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+    bigframes.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -716,7 +717,7 @@ def test_cut_by_interval_bins(scalars_dfs, bins, right, labels):
     pd_result = pd.cut(scalars_pandas_df["int64_too"], bins, labels=labels, right=right)
 
     pd_result_converted = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result, pd_result_converted)
+    bigframes.testing.assert_series_equal(bf_result, pd_result_converted)
 
 
 def test_cut_by_interval_bins_w_labels(scalars_dfs):
@@ -728,7 +729,7 @@ def test_cut_by_interval_bins_w_labels(scalars_dfs):
     bf_result = bpd.cut(scalars_df["float64_col"], bins, labels=labels)
 
     pd_result = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+    bigframes.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -745,7 +746,7 @@ def test_cut_by_edge_cases_bins(scalars_dfs, bins, labels):
     pd_result = pd.cut(scalars_pandas_df["int64_too"], bins, labels=labels)
 
     pd_result_converted = _convert_pandas_category(pd_result)
-    pd.testing.assert_series_equal(bf_result, pd_result_converted)
+    bigframes.testing.assert_series_equal(bf_result, pd_result_converted)
 
 
 def test_cut_empty_array_raises_error():
@@ -774,7 +775,7 @@ def test_qcut(scalars_dfs, q):
     bf_result = bpd.qcut(scalars_df["float64_col"], q, labels=False, duplicates="drop")
     pd_result = pd_result.astype("Int64")
 
-    pd.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
+    bigframes.testing.assert_series_equal(bf_result.to_pandas(), pd_result)
 
 
 @pytest.mark.parametrize(
@@ -819,7 +820,7 @@ def test_to_datetime_iterable(arg, utc, unit, format):
     pd_result = pd.Series(
         pd.to_datetime(arg, utc=utc, unit=unit, format=format)
     ).dt.floor("us")
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
@@ -831,7 +832,7 @@ def test_to_datetime_series(scalars_dfs):
         bpd.to_datetime(scalars_df[col], unit="s").to_pandas().astype("datetime64[s]")
     )
     pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col], unit="s"))
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
@@ -853,7 +854,7 @@ def test_to_datetime_series(scalars_dfs):
 def test_to_datetime_unit_param(arg, unit):
     bf_result = bpd.to_datetime(arg, unit=unit).to_pandas().astype("datetime64[ns]")
     pd_result = pd.Series(pd.to_datetime(arg, unit=unit)).dt.floor("us")
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
@@ -874,7 +875,7 @@ def test_to_datetime_format_param(arg, utc, format):
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
     pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
@@ -927,7 +928,7 @@ def test_to_datetime_string_inputs(arg, utc, output_in_utc, format):
         .astype("datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]")
     )
     pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
@@ -970,7 +971,7 @@ def test_to_datetime_timestamp_inputs(arg, utc, output_in_utc):
         .astype("datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]")
     )
     pd_result = pd.Series(pd.to_datetime(arg, utc=utc)).dt.floor("us")
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
 
@@ -1035,7 +1036,7 @@ def test_to_timedelta_with_bf_float_series_value_rounded_down(session):
     expected_result = pd.Series([pd.Timedelta(1, "us"), pd.Timedelta(2, "us")]).astype(
         "timedelta64[ns]"
     )
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
 
@@ -1055,8 +1056,8 @@ def test_to_timedelta_with_list_like_input(session, input):
         .astype("timedelta64[ns]")
     )
 
-    expected_result = pd.Series(pd.to_timedelta(input, "s"))
-    pd.testing.assert_series_equal(
+    expected_result = pd.Series(pd.to_timedelta(input, "s")).astype("timedelta64[ns]")
+    bigframes.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
 
@@ -1087,6 +1088,6 @@ def test_to_timedelta_on_timedelta_series__should_be_no_op(scalars_dfs):
     )
 
     expected_result = pd.to_timedelta(pd_series, unit="s")
-    pd.testing.assert_series_equal(
+    bigframes.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )

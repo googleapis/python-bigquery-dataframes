@@ -70,9 +70,9 @@ def temporal_dfs(session):
                 ],
                 dtype=dtypes.TIMEDELTA_DTYPE,
             ),
-            "float_col": [1.5, 2, -3],
-            "int_col": [1, 2, -3],
-            "positive_int_col": [1, 2, 3],
+            "float_col": pd.Series([1.5, 2, -3], dtype=dtypes.FLOAT_DTYPE),
+            "int_col": pd.Series([1, 2, -3], dtype="Int64"),
+            "positive_int_col": pd.Series([1, 2, 3], dtype="Int64"),
         },
         index=pd.Index(range(3), dtype="Int64"),
     )
@@ -84,20 +84,11 @@ def temporal_dfs(session):
 
 def _assert_series_equal(actual: pd.Series, expected: pd.Series):
     """Helper function specifically for timedelta testsing. Don't use it outside of this module."""
-    if actual.dtype == dtypes.FLOAT_DTYPE:
-        bigframes.testing.assert_series_equal(
-            actual, expected.astype("Float64"), check_index_type=False
-        )
-    elif actual.dtype == dtypes.INT_DTYPE:
-        bigframes.testing.assert_series_equal(
-            actual, expected.astype("Int64"), check_index_type=False
-        )
-    else:
-        bigframes.testing.assert_series_equal(
-            actual.astype("timedelta64[ns]"),
-            expected.dt.floor("us"),  # in BF the precision is microsecond
-            check_index_type=False,
-        )
+    bigframes.testing.assert_series_equal(
+        actual,
+        expected,
+        check_index_type=False,
+    )
 
 
 @pytest.mark.parametrize(
