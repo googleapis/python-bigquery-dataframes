@@ -157,6 +157,10 @@ def assert_series_equal(
     pd.testing.assert_series_equal(left, right, **kwargs)
 
 
+def assert_index_equal(left, right, **kwargs):
+    pd.testing.assert_index_equal(left, right, **kwargs)
+
+
 def _standardize_index(idx):
     return pd.Index(list(idx), name=idx.name)
 

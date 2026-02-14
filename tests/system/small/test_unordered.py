@@ -261,6 +261,8 @@ def test_resample_with_index(unordered_session, rule, origin, data):
 
     assert isinstance(bf_result.index, bpd.DatetimeIndex)
     assert isinstance(pd_result.index, pd.DatetimeIndex)
+    # TODO: (b/484364312)
+    pd_result.index.name = bf_result.index.name
     pd.testing.assert_frame_equal(
         bf_result.to_pandas(),
         pd_result,
