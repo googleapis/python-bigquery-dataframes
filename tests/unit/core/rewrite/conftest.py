@@ -16,9 +16,8 @@ import unittest.mock as mock
 import google.cloud.bigquery
 import pytest
 
-import bigframes
-from bigframes.core import bq_data
 import bigframes.core as core
+import bigframes.core.schema
 
 TABLE_REF = google.cloud.bigquery.TableReference.from_string("project.dataset.table")
 SCHEMA = (
@@ -72,7 +71,7 @@ def fake_session():
 def leaf(fake_session, table):
     return core.ArrayValue.from_table(
         session=fake_session,
-        table=bq_data.GbqNativeTable.from_table(table),
+        table=table,
     ).node
 
 
@@ -80,5 +79,5 @@ def leaf(fake_session, table):
 def leaf_too(fake_session, table_too):
     return core.ArrayValue.from_table(
         session=fake_session,
-        table=bq_data.GbqNativeTable.from_table(table_too),
+        table=table_too,
     ).node

@@ -14,18 +14,16 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Sequence
 
 from google.cloud import bigquery
 import pandas
 
 from bigframes import dtypes
-from bigframes.core import bigframe_node, bq_data, nodes
+from bigframes.core import bigframe_node, nodes
 
 
-def get_table_stats(
-    table: Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable]
-) -> pandas.Series:
+def get_table_stats(table: bigquery.Table) -> pandas.Series:
     values: List[Any] = []
     index: List[Any] = []
 
@@ -34,7 +32,7 @@ def get_table_stats(
     values.append(False)
 
     # Populate column and index types
-    col_dtypes = dtypes.bf_type_from_type_kind(table.physical_schema)
+    col_dtypes = dtypes.bf_type_from_type_kind(table.schema)
     index.append("columnCount")
     values.append(len(col_dtypes))
     index.append("columnDtypes")
@@ -42,22 +40,17 @@ def get_table_stats(
 
     # Add raw BQ schema
     index.append("bigquerySchema")
-    values.append(table.physical_schema)
+    values.append(table.schema)
 
-    index.append("numBytes")
-    values.append(table.metadata.numBytes)
-    index.append("numRows")
-    values.append(table.metadata.numRows)
-    index.append("location")
-    values.append(table.metadata.location)
-    index.append("type")
-    values.append(table.metadata.type)
+    for key in ("numBytes", "numRows", "location", "type"):
+        index.append(key)
+        values.append(table._properties[key])
 
     index.append("creationTime")
-    values.append(table.metadata.created_time)
+    values.append(table.created)
 
     index.append("lastModifiedTime")
-    values.append(table.metadata.modified_time)
+    values.append(table.modified)
 
     return pandas.Series(values, index=index)
 

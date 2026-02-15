@@ -67,10 +67,14 @@ E2E_TEST_PYTHON_VERSION = "3.12"
 UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
+    "asyncmock",
     PYTEST_VERSION,
+    "pytest-asyncio",
     "pytest-cov",
+    "pytest-mock",
     "pytest-timeout",
 ]
+UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
@@ -102,6 +106,8 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
     "google-cloud-bigquery",
 ]
+SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
+SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
@@ -123,7 +129,7 @@ nox.options.sessions = [
     # TODO(tswast): Consider removing this when unit_noextras and cover is run
     # from GitHub actions.
     "unit_noextras",
-    "system-3.10",  # No extras.
+    "system-3.9",  # No extras.
     f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
@@ -200,20 +206,20 @@ def lint_setup_py(session):
 
 
 def install_unittest_dependencies(session, install_test_extra, *constraints):
-    extras = []
+    standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
+    session.install(*standard_deps, *constraints)
+
+    if UNIT_TEST_LOCAL_DEPENDENCIES:
+        session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
+
     if install_test_extra:
         if session.python in UNIT_TEST_EXTRAS_BY_PYTHON:
             extras = UNIT_TEST_EXTRAS_BY_PYTHON[session.python]
         else:
             extras = UNIT_TEST_EXTRAS
-
-    session.install(
-        *UNIT_TEST_STANDARD_DEPENDENCIES,
-        *UNIT_TEST_DEPENDENCIES,
-        "-e",
-        f".[{','.join(extras)}]" if extras else ".",
-        *constraints,
-    )
+        session.install("-e", f".[{','.join(extras)}]", *constraints)
+    else:
+        session.install("-e", ".", *constraints)
 
 
 def run_unit(session, install_test_extra):
@@ -302,6 +308,22 @@ def mypy(session):
 
 
 def install_systemtest_dependencies(session, install_test_extra, *constraints):
+    # Use pre-release gRPC for system tests.
+    # Exclude version 1.49.0rc1 which has a known issue.
+    # See https://github.com/grpc/grpc/pull/30642
+    session.install("--pre", "grpcio!=1.49.0rc1")
+
+    session.install(*SYSTEM_TEST_STANDARD_DEPENDENCIES, *constraints)
+
+    if SYSTEM_TEST_EXTERNAL_DEPENDENCIES:
+        session.install(*SYSTEM_TEST_EXTERNAL_DEPENDENCIES, *constraints)
+
+    if SYSTEM_TEST_LOCAL_DEPENDENCIES:
+        session.install("-e", *SYSTEM_TEST_LOCAL_DEPENDENCIES, *constraints)
+
+    if SYSTEM_TEST_DEPENDENCIES:
+        session.install("-e", *SYSTEM_TEST_DEPENDENCIES, *constraints)
+
     if install_test_extra and SYSTEM_TEST_EXTRAS_BY_PYTHON:
         extras = SYSTEM_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
     elif install_test_extra and SYSTEM_TEST_EXTRAS:
@@ -309,19 +331,10 @@ def install_systemtest_dependencies(session, install_test_extra, *constraints):
     else:
         extras = []
 
-    # Use pre-release gRPC for system tests.
-    # Exclude version 1.49.0rc1 which has a known issue.
-    # See https://github.com/grpc/grpc/pull/30642
-
-    session.install(
-        "--pre",
-        "grpcio!=1.49.0rc1",
-        *SYSTEM_TEST_STANDARD_DEPENDENCIES,
-        *SYSTEM_TEST_EXTERNAL_DEPENDENCIES,
-        "-e",
-        f".[{','.join(extras)}]" if extras else ".",
-        *constraints,
-    )
+    if extras:
+        session.install("-e", f".[{','.join(extras)}]", *constraints)
+    else:
+        session.install("-e", ".", *constraints)
 
 
 def run_system(
@@ -424,15 +437,11 @@ def doctest(session: nox.sessions.Session):
             "--ignore",
             "third_party/bigframes_vendored/ibis",
             "--ignore",
-            "third_party/bigframes_vendored/sqlglot",
-            "--ignore",
             "bigframes/core/compile/polars",
             "--ignore",
             "bigframes/testing",
             "--ignore",
             "bigframes/display/anywidget.py",
-            "--ignore",
-            "bigframes/bigquery/_operations/ai.py",
         ),
         test_folder="bigframes",
         check_cov=True,
@@ -512,7 +521,6 @@ def docs(session):
     session.install("-e", ".[scikit-learn]")
     session.install(
         "sphinx==8.2.3",
-        "sphinx-sitemap==2.9.0",
         "myst-parser==4.0.1",
         "pydata-sphinx-theme==0.16.1",
     )
@@ -545,7 +553,6 @@ def docfx(session):
     session.install("-e", ".[scikit-learn]")
     session.install(
         SPHINX_VERSION,
-        "sphinx-sitemap==2.9.0",
         "pydata-sphinx-theme==0.13.3",
         "myst-parser==0.18.1",
         "gcp-sphinx-docfx-yaml==3.2.4",
@@ -661,7 +668,9 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     # version, the first version we test with in the unit tests sessions has a
     # constraints file containing all dependencies and extras.
     with open(
-        CURRENT_DIRECTORY / "testing" / f"constraints-{DEFAULT_PYTHON_VERSION}.txt",
+        CURRENT_DIRECTORY
+        / "testing"
+        / f"constraints-{UNIT_TEST_PYTHON_VERSIONS[0]}.txt",
         encoding="utf-8",
     ) as constraints_file:
         constraints_text = constraints_file.read()

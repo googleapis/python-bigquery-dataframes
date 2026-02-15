@@ -35,7 +35,7 @@ class SamplingOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.sampling.max_download_size = 1000
+        >>> bpd.options.sampling.max_download_size = 1000  # doctest: +SKIP
     """
 
     enable_downsampling: bool = False
@@ -49,7 +49,7 @@ class SamplingOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.sampling.enable_downsampling = True
+        >>> bpd.options.sampling.enable_downsampling = True  # doctest: +SKIP
     """
 
     sampling_method: Literal["head", "uniform"] = "uniform"
@@ -64,7 +64,7 @@ class SamplingOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.sampling.sampling_method = "head"
+        >>> bpd.options.sampling.sampling_method = "head"  # doctest: +SKIP
     """
 
     random_state: Optional[int] = None
@@ -77,7 +77,7 @@ class SamplingOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.sampling.random_state = 42
+        >>> bpd.options.sampling.random_state = 42  # doctest: +SKIP
     """
 
     def with_max_download_size(self, max_rows: Optional[int]) -> SamplingOptions:

@@ -20,8 +20,7 @@ import google.cloud.bigquery.job as bq_job
 import google.cloud.bigquery.table as bq_table
 
 from bigframes.core import compile, nodes
-import bigframes.core.compile.ibis_compiler.ibis_compiler as ibis_compiler
-import bigframes.core.compile.sqlglot.compiler as sqlglot_compiler
+from bigframes.core.compile import sqlglot
 import bigframes.core.events
 from bigframes.session import executor, semi_executor
 import bigframes.session._io.bigquery as bq_io
@@ -41,9 +40,7 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
     ):
         self.bqclient = bqclient
         self._compile_fn = (
-            ibis_compiler.compile_sql
-            if compiler == "ibis"
-            else sqlglot_compiler.compile_sql
+            compile.compile_sql if compiler == "ibis" else sqlglot.compile_sql
         )
         self._publisher = publisher
 
@@ -63,7 +60,6 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
 
         iterator, query_job = self._run_execute_query(
             sql=compiled.sql,
-            session=plan.session,
         )
 
         # just immediately downlaod everything for simplicity
@@ -79,7 +75,6 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
         self,
         sql: str,
         job_config: Optional[bq_job.QueryJobConfig] = None,
-        session=None,
     ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
@@ -94,5 +89,4 @@ class DirectGbqExecutor(semi_executor.SemiExecutor):
             metrics=None,
             query_with_job=False,
             publisher=self._publisher,
-            session=session,
         )

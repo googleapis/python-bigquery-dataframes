@@ -26,7 +26,6 @@ import pytest
 
 import bigframes
 from bigframes import version
-from bigframes.core import bq_data
 import bigframes.enums
 import bigframes.exceptions
 from bigframes.testing import mocks
@@ -244,7 +243,7 @@ def test_read_gbq_cached_table():
     table._properties["type"] = "TABLE"
     session._loader._df_snapshot[str(table_ref)] = (
         datetime.datetime(1999, 1, 2, 3, 4, 5, 678901, tzinfo=datetime.timezone.utc),
-        bq_data.GbqNativeTable.from_table(table),
+        table,
     )
 
     session.bqclient._query_and_wait_bigframes = mock.MagicMock(
@@ -275,7 +274,7 @@ def test_read_gbq_cached_table_doesnt_warn_for_anonymous_tables_and_doesnt_inclu
     table._properties["type"] = "TABLE"
     session._loader._df_snapshot[str(table_ref)] = (
         datetime.datetime(1999, 1, 2, 3, 4, 5, 678901, tzinfo=datetime.timezone.utc),
-        bq_data.GbqNativeTable.from_table(table),
+        table,
     )
 
     session.bqclient._query_and_wait_bigframes = mock.MagicMock(

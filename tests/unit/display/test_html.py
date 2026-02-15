@@ -130,8 +130,9 @@ def test_render_html_alignment_and_precision(
     df = pd.DataFrame(data)
     html = bf_html.render_html(dataframe=df, table_id="test-table")
 
-    for align in expected_alignments.values():
-        assert f'class="cell-align-{align}"' in html
+    for _, align in expected_alignments.items():
+        assert 'th style="text-align: left;"' in html
+        assert f'<td style="text-align: {align};' in html
 
     for expected_string in expected_strings:
         assert expected_string in html
@@ -148,40 +149,3 @@ def test_render_html_precision():
     # Make sure we reset to default
     html = bf_html.render_html(dataframe=df, table_id="test-table")
     assert "3.141593" in html
-
-
-def test_render_html_max_columns_truncation():
-    # Create a DataFrame with 10 columns
-    data = {f"col_{i}": [i] for i in range(10)}
-    df = pd.DataFrame(data)
-
-    # Test max_columns=4
-    # max_columns=4 -> 2 left, 2 right. col_0, col_1 ... col_8, col_9
-    html = bf_html.render_html(dataframe=df, table_id="test", max_columns=4)
-
-    assert "col_0" in html
-    assert "col_1" in html
-    assert "col_2" not in html
-    assert "col_7" not in html
-    assert "col_8" in html
-    assert "col_9" in html
-    assert "..." in html
-
-    # Test max_columns=3
-    # 3 // 2 = 1. Left: col_0. Right: 3 - 1 = 2. col_8, col_9.
-    # Total displayed: col_0, ..., col_8, col_9. (3 data cols + 1 ellipsis)
-    html = bf_html.render_html(dataframe=df, table_id="test", max_columns=3)
-    assert "col_0" in html
-    assert "col_1" not in html
-    assert "col_7" not in html
-    assert "col_8" in html
-    assert "col_9" in html
-
-    # Test max_columns=1
-    # 1 // 2 = 0. Left: []. Right: 1. col_9.
-    # Total: ..., col_9.
-    html = bf_html.render_html(dataframe=df, table_id="test", max_columns=1)
-    assert "col_0" not in html
-    assert "col_8" not in html
-    assert "col_9" in html
-    assert "..." in html

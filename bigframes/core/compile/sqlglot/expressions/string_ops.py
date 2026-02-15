@@ -17,15 +17,15 @@ from __future__ import annotations
 import functools
 import typing
 
-import bigframes_vendored.sqlglot.expressions as sge
+import sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes import operations as ops
-import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
+import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
-register_unary_op = expression_compiler.expression_compiler.register_unary_op
-register_binary_op = expression_compiler.expression_compiler.register_binary_op
+register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 
 
 @register_unary_op(ops.capitalize_op)
@@ -48,14 +48,12 @@ def _(expr: TypedExpr, op: ops.StrExtractOp) -> sge.Expression:
     # Cannot use BigQuery's REGEXP_EXTRACT function, which only allows one
     # capturing group.
     pat_expr = sge.convert(op.pat)
-    if op.n == 0:
-        pat_expr = sge.func("CONCAT", sge.convert(".*?("), pat_expr, sge.convert(").*"))
-        n = 1
-    else:
+    if op.n != 0:
         pat_expr = sge.func("CONCAT", sge.convert(".*?"), pat_expr, sge.convert(".*"))
-        n = op.n
+    else:
+        pat_expr = sge.func("CONCAT", sge.convert(".*?("), pat_expr, sge.convert(").*"))
 
-    rex_replace = sge.func("REGEXP_REPLACE", expr.expr, pat_expr, sge.convert(f"\\{n}"))
+    rex_replace = sge.func("REGEXP_REPLACE", expr.expr, pat_expr, sge.convert(r"\1"))
     rex_contains = sge.func("REGEXP_CONTAINS", expr.expr, sge.convert(op.pat))
     return sge.If(this=rex_contains, true=rex_replace, false=sge.null())
 

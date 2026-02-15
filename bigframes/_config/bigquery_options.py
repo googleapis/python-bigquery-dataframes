@@ -130,7 +130,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.application_name = "my-app/1.0.0"
+            >>> bpd.options.bigquery.application_name = "my-app/1.0.0"  # doctest: +SKIP
 
         Returns:
             None or str:
@@ -154,8 +154,8 @@ class BigQueryOptions:
 
             >>> import bigframes.pandas as bpd
             >>> import google.auth
-            >>> credentials, project = google.auth.default()
-            >>> bpd.options.bigquery.credentials = credentials
+            >>> credentials, project = google.auth.default()  # doctest: +SKIP
+            >>> bpd.options.bigquery.credentials = credentials  # doctest: +SKIP
 
         Returns:
             None or google.auth.credentials.Credentials:
@@ -178,7 +178,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.location = "US"
+            >>> bpd.options.bigquery.location = "US"  # doctest: +SKIP
 
         Returns:
             None or str:
@@ -199,7 +199,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.project = "my-project"
+            >>> bpd.options.bigquery.project = "my-project"  # doctest: +SKIP
 
         Returns:
             None or str:
@@ -231,7 +231,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.bq_connection = "my-project.us.my-connection"
+            >>> bpd.options.bigquery.bq_connection = "my-project.us.my-connection"  # doctest: +SKIP
 
         Returns:
             None or str:
@@ -258,7 +258,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.skip_bq_connection_check = True
+            >>> bpd.options.bigquery.skip_bq_connection_check = True  # doctest: +SKIP
 
         Returns:
             bool:
@@ -335,8 +335,8 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.location = "europe-west3"
-            >>> bpd.options.bigquery.use_regional_endpoints = True
+            >>> bpd.options.bigquery.location = "europe-west3"  # doctest: +SKIP
+            >>> bpd.options.bigquery.use_regional_endpoints = True  # doctest: +SKIP
 
         Returns:
             bool:
@@ -380,7 +380,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.kms_key_name = "projects/my-project/locations/us/keyRings/my-ring/cryptoKeys/my-key"
+            >>> bpd.options.bigquery.kms_key_name = "projects/my-project/locations/us/keyRings/my-ring/cryptoKeys/my-key"  # doctest: +SKIP
 
         Returns:
             None or str:
@@ -402,7 +402,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.ordering_mode = "partial"
+            >>> bpd.options.bigquery.ordering_mode = "partial"  # doctest: +SKIP
 
         Returns:
             Literal:
@@ -485,7 +485,7 @@ class BigQueryOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.bigquery.enable_polars_execution = True
+            >>> bpd.options.bigquery.enable_polars_execution = True  # doctest: +SKIP
 
         """
         return self._enable_polars_execution

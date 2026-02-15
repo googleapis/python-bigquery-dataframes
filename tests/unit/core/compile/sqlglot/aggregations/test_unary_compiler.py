@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import typing
 
 import pytest
@@ -63,47 +64,41 @@ def _apply_unary_window_op(
 
 
 def test_all(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["bool_col", "int64_col"]]
-    ops_map = {
-        "bool_col": agg_ops.AllOp().as_expr("bool_col"),
-        "int64_col": agg_ops.AllOp().as_expr("int64_col"),
-    }
-    sql = _apply_unary_agg_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
-
-    snapshot.assert_match(sql, "out.sql")
-
-
-def test_all_w_window(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "bool_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_ops.AllOp().as_expr(col_name)
-
-    # Window tests
-    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
-    sql_window = _apply_unary_window_op(bf_df, agg_expr, window, "agg_bool")
-    snapshot.assert_match(sql_window, "out.sql")
-
-
-def test_any(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["bool_col", "int64_col"]]
-    ops_map = {
-        "bool_col": agg_ops.AnyOp().as_expr("bool_col"),
-        "int64_col": agg_ops.AnyOp().as_expr("int64_col"),
-    }
-    sql = _apply_unary_agg_ops(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
 
     snapshot.assert_match(sql, "out.sql")
 
+    # Window tests
+    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
+    sql_window = _apply_unary_window_op(bf_df, agg_expr, window, "agg_bool")
+    snapshot.assert_match(sql_window, "window_out.sql")
 
-def test_any_w_window(scalar_types_df: bpd.DataFrame, snapshot):
+    bf_df_str = scalar_types_df[[col_name, "string_col"]]
+    window_partition = window_spec.WindowSpec(
+        grouping_keys=(expression.deref("string_col"),),
+        ordering=(ordering.descending_over(col_name),),
+    )
+    sql_window_partition = _apply_unary_window_op(
+        bf_df_str, agg_expr, window_partition, "agg_bool"
+    )
+    snapshot.assert_match(sql_window_partition, "window_partition_out.sql")
+
+
+def test_any(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "bool_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_ops.AnyOp().as_expr(col_name)
+    sql = _apply_unary_agg_ops(bf_df, [agg_expr], [col_name])
+
+    snapshot.assert_match(sql, "out.sql")
 
     # Window tests
     window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
     sql_window = _apply_unary_window_op(bf_df, agg_expr, window, "agg_bool")
-    snapshot.assert_match(sql_window, "out.sql")
+    snapshot.assert_match(sql_window, "window_out.sql")
 
 
 def test_approx_quartiles(scalar_types_df: bpd.DataFrame, snapshot):
@@ -253,17 +248,6 @@ def test_diff_w_datetime(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(sql, "out.sql")
 
 
-def test_diff_w_date(scalar_types_df: bpd.DataFrame, snapshot):
-    col_name = "date_col"
-    bf_df_date = scalar_types_df[[col_name]]
-    window = window_spec.WindowSpec(ordering=(ordering.ascending_over(col_name),))
-    op = agg_exprs.UnaryAggregation(
-        agg_ops.DiffOp(periods=1), expression.deref(col_name)
-    )
-    sql = _apply_unary_window_op(bf_df_date, op, window, "diff_date")
-    snapshot.assert_match(sql, "out.sql")
-
-
 def test_diff_w_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "timestamp_col"
     bf_df_timestamp = scalar_types_df[[col_name]]
@@ -276,6 +260,10 @@ def test_diff_w_timestamp(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_first(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(agg_ops.FirstOp(), expression.deref(col_name))
@@ -286,6 +274,10 @@ def test_first(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_first_non_null(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(
@@ -298,6 +290,10 @@ def test_first_non_null(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_last(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(agg_ops.LastOp(), expression.deref(col_name))
@@ -308,6 +304,10 @@ def test_last(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_last_non_null(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
     col_name = "int64_col"
     bf_df = scalar_types_df[[col_name]]
     agg_expr = agg_exprs.UnaryAggregation(
@@ -475,6 +475,11 @@ def test_product(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
+    if sys.version_info < (3, 12):
+        pytest.skip(
+            "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        )
+
     col_name = "int64_col"
     bf = scalar_types_df[[col_name]]
     bf["qcut_w_int"] = bpd.qcut(bf[col_name], q=4, labels=False, duplicates="drop")
@@ -491,12 +496,12 @@ def test_qcut(scalar_types_df: bpd.DataFrame, snapshot):
 
 
 def test_quantile(scalar_types_df: bpd.DataFrame, snapshot):
-    bf_df = scalar_types_df[["int64_col", "bool_col"]]
+    col_name = "int64_col"
+    bf_df = scalar_types_df[[col_name]]
     agg_ops_map = {
-        "int64": agg_ops.QuantileOp(q=0.5).as_expr("int64_col"),
-        "bool": agg_ops.QuantileOp(q=0.5).as_expr("bool_col"),
-        "int64_w_floor": agg_ops.QuantileOp(q=0.5, should_floor_result=True).as_expr(
-            "int64_col"
+        "quantile": agg_ops.QuantileOp(q=0.5).as_expr(col_name),
+        "quantile_floor": agg_ops.QuantileOp(q=0.5, should_floor_result=True).as_expr(
+            col_name
         ),
     }
     sql = _apply_unary_agg_ops(

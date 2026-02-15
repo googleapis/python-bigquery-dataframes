@@ -27,8 +27,7 @@ from google.cloud import bigquery
 import pandas as pd
 
 from bigframes import dataframe
-from bigframes.core import nodes
-from bigframes.core.logging import log_adapter
+from bigframes.core import log_adapter, nodes
 import bigframes.exceptions as bfe
 import bigframes.session
 
@@ -251,7 +250,7 @@ class StreamingDataFrame(StreamingBase):
     def _original_table(self):
         def traverse(node: nodes.BigFrameNode):
             if isinstance(node, nodes.ReadTableNode):
-                return node.source.table.get_full_id(quoted=False)
+                return f"{node.source.table.project_id}.{node.source.table.dataset_id}.{node.source.table.table_id}"
             for child in node.child_nodes:
                 original_table = traverse(child)
                 if original_table:

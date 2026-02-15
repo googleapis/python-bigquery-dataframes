@@ -40,7 +40,6 @@ from bigframes.operations.base_ops import (
 )
 from bigframes.operations.blob_ops import (
     obj_fetch_metadata_op,
-    obj_make_ref_json_op,
     obj_make_ref_op,
     ObjGetAccessUrl,
 )
@@ -366,7 +365,6 @@ __all__ = [
     "ArrayToStringOp",
     # Blob ops
     "ObjGetAccessUrl",
-    "obj_make_ref_json_op",
     "obj_make_ref_op",
     "obj_fetch_metadata_op",
     # Struct ops

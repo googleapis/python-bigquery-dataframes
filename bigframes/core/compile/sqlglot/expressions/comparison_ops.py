@@ -16,40 +16,32 @@ from __future__ import annotations
 
 import typing
 
-import bigframes_vendored.sqlglot as sg
-import bigframes_vendored.sqlglot.expressions as sge
 import pandas as pd
+import sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes import operations as ops
-from bigframes.core.compile.sqlglot import sqlglot_ir
-import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
+import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
-register_unary_op = expression_compiler.expression_compiler.register_unary_op
-register_binary_op = expression_compiler.expression_compiler.register_binary_op
+register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
 
 
 @register_unary_op(ops.IsInOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.IsInOp) -> sge.Expression:
     values = []
-    is_numeric_expr = dtypes.is_numeric(expr.dtype, include_bool=False)
+    is_numeric_expr = dtypes.is_numeric(expr.dtype)
     for value in op.values:
-        if _is_null(value):
+        if value is None:
             continue
         dtype = dtypes.bigframes_type(type(value))
-        if (
-            expr.dtype == dtype
-            or is_numeric_expr
-            and dtypes.is_numeric(dtype, include_bool=False)
-        ):
+        if expr.dtype == dtype or is_numeric_expr and dtypes.is_numeric(dtype):
             values.append(sge.convert(value))
 
     if op.match_nulls:
         contains_nulls = any(_is_null(value) for value in op.values)
         if contains_nulls:
-            if len(values) == 0:
-                return sge.Is(this=expr.expr, expression=sge.Null())
             return sge.Is(this=expr.expr, expression=sge.Null()) | sge.In(
                 this=expr.expr, expressions=values
             )
@@ -64,10 +56,6 @@ def _(expr: TypedExpr, op: ops.IsInOp) -> sge.Expression:
 
 @register_binary_op(ops.eq_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if sqlglot_ir._is_null_literal(left.expr):
-        return sge.Is(this=right.expr, expression=sge.Null())
-    if sqlglot_ir._is_null_literal(right.expr):
-        return sge.Is(this=left.expr, expression=sge.Null())
     left_expr = _coerce_bool_to_int(left)
     right_expr = _coerce_bool_to_int(right)
     return sge.EQ(this=left_expr, expression=right_expr)
@@ -95,9 +83,6 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.ge_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if left.expr == sge.null() or right.expr == sge.null():
-        return sge.null()
-
     left_expr = _coerce_bool_to_int(left)
     right_expr = _coerce_bool_to_int(right)
     return sge.GTE(this=left_expr, expression=right_expr)
@@ -105,9 +90,6 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.gt_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if left.expr == sge.null() or right.expr == sge.null():
-        return sge.null()
-
     left_expr = _coerce_bool_to_int(left)
     right_expr = _coerce_bool_to_int(right)
     return sge.GT(this=left_expr, expression=right_expr)
@@ -115,9 +97,6 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.lt_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if left.expr == sge.null() or right.expr == sge.null():
-        return sge.null()
-
     left_expr = _coerce_bool_to_int(left)
     right_expr = _coerce_bool_to_int(right)
     return sge.LT(this=left_expr, expression=right_expr)
@@ -125,9 +104,6 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.le_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if left.expr == sge.null() or right.expr == sge.null():
-        return sge.null()
-
     left_expr = _coerce_bool_to_int(left)
     right_expr = _coerce_bool_to_int(right)
     return sge.LTE(this=left_expr, expression=right_expr)
@@ -145,17 +121,6 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
 @register_binary_op(ops.ne_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
-    if sqlglot_ir._is_null_literal(left.expr):
-        return sge.Is(
-            this=sge.paren(right.expr, copy=False),
-            expression=sg.not_(sge.Null(), copy=False),
-        )
-    if sqlglot_ir._is_null_literal(right.expr):
-        return sge.Is(
-            this=sge.paren(left.expr, copy=False),
-            expression=sg.not_(sge.Null(), copy=False),
-        )
-
     left_expr = _coerce_bool_to_int(left)
     right_expr = _coerce_bool_to_int(right)
     return sge.NEQ(this=left_expr, expression=right_expr)

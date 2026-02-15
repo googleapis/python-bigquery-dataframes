@@ -71,7 +71,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.max_columns = 50
+        >>> bpd.options.display.max_columns = 50  # doctest: +SKIP
     """
 
     max_rows: int = 10
@@ -83,7 +83,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.max_rows = 50
+        >>> bpd.options.display.max_rows = 50  # doctest: +SKIP
     """
 
     precision: int = 6
@@ -95,7 +95,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.precision = 2
+        >>> bpd.options.display.precision = 2  # doctest: +SKIP
     """
 
     # Options unique to BigQuery DataFrames.
@@ -109,7 +109,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.progress_bar = "terminal"
+        >>> bpd.options.display.progress_bar = "terminal"  # doctest: +SKIP
     """
 
     repr_mode: Literal["head", "deferred", "anywidget"] = "head"
@@ -129,7 +129,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.repr_mode = "deferred"
+        >>> bpd.options.display.repr_mode = "deferred"  # doctest: +SKIP
     """
 
     max_colwidth: Optional[int] = 50
@@ -142,7 +142,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.max_colwidth = 20
+        >>> bpd.options.display.max_colwidth = 20  # doctest: +SKIP
     """
 
     max_info_columns: int = 100
@@ -153,7 +153,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.max_info_columns = 50
+        >>> bpd.options.display.max_info_columns = 50  # doctest: +SKIP
     """
 
     max_info_rows: Optional[int] = 200_000
@@ -169,7 +169,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.max_info_rows = 100
+        >>> bpd.options.display.max_info_rows = 100  # doctest: +SKIP
     """
 
     memory_usage: bool = True
@@ -182,7 +182,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.memory_usage = False
+        >>> bpd.options.display.memory_usage = False  # doctest: +SKIP
     """
 
     blob_display: bool = True
@@ -193,7 +193,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.blob_display = True
+        >>> bpd.options.display.blob_display = True  # doctest: +SKIP
     """
 
     blob_display_width: Optional[int] = None
@@ -203,7 +203,7 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.blob_display_width = 100
+        >>> bpd.options.display.blob_display_width = 100  # doctest: +SKIP
     """
     blob_display_height: Optional[int] = None
     """
@@ -212,5 +212,5 @@ class DisplayOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.display.blob_display_height = 100
+        >>> bpd.options.display.blob_display_height = 100  # doctest: +SKIP
     """

@@ -64,4 +64,3 @@ tests/js/node_modules/
 pylintrc
 pylintrc.test
 dummy.pkl
-.mypy_cache/

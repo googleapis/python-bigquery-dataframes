@@ -11,7 +11,6 @@ packages.
     bigframes.bigquery
     bigframes.bigquery.ai
     bigframes.bigquery.ml
-    bigframes.bigquery.obj
     bigframes.enums
     bigframes.exceptions
     bigframes.geopandas

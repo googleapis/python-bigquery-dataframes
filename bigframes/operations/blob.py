@@ -18,11 +18,12 @@ import os
 from typing import cast, Literal, Optional, Union
 import warnings
 
+import IPython.display as ipy_display
 import pandas as pd
 import requests
 
 from bigframes import clients, dtypes
-from bigframes.core.logging import log_adapter
+from bigframes.core import log_adapter
 import bigframes.dataframe
 import bigframes.exceptions as bfe
 import bigframes.operations as ops
@@ -240,8 +241,6 @@ class BlobAccessor:
             width (int or None, default None): width in pixels that the image/video are constrained to. If unset, use the global setting in bigframes.options.display.blob_display_width, otherwise image/video's original size or ratio is used. No-op for other content types.
             height (int or None, default None): height in pixels that the image/video are constrained to. If unset, use the global setting in bigframes.options.display.blob_display_height, otherwise image/video's original size or ratio is used. No-op for other content types.
         """
-        import IPython.display as ipy_display
-
         width = width or bigframes.options.display.blob_display_width
         height = height or bigframes.options.display.blob_display_height
 

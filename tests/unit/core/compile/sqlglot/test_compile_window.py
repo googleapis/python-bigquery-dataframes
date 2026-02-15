@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -19,6 +21,13 @@ import pytest
 import bigframes.pandas as bpd
 
 pytest.importorskip("pytest_snapshot")
+
+
+if sys.version_info < (3, 12):
+    pytest.skip(
+        "Skipping test due to inconsistent SQL formatting on Python < 3.12.",
+        allow_module_level=True,
+    )
 
 
 def test_compile_window_w_skips_nulls_op(scalar_types_df: bpd.DataFrame, snapshot):

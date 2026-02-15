@@ -14,7 +14,9 @@
 
 import json
 
+from packaging import version
 import pytest
+import sqlglot
 
 from bigframes import dataframe
 from bigframes import operations as ops
@@ -83,6 +85,11 @@ def test_ai_generate_with_output_schema(scalar_types_df: dataframe.DataFrame, sn
 
 
 def test_ai_generate_with_model_param(scalar_types_df: dataframe.DataFrame, snapshot):
+    if version.Version(sqlglot.__version__) < version.Version("25.18.0"):
+        pytest.skip(
+            "Skip test because SQLGLot cannot compile model params to JSON at this version."
+        )
+
     col_name = "string_col"
 
     op = ops.AIGenerate(
@@ -142,6 +149,11 @@ def test_ai_generate_bool_with_connection_id(
 def test_ai_generate_bool_with_model_param(
     scalar_types_df: dataframe.DataFrame, snapshot
 ):
+    if version.Version(sqlglot.__version__) < version.Version("25.18.0"):
+        pytest.skip(
+            "Skip test because SQLGLot cannot compile model params to JSON at this version."
+        )
+
     col_name = "string_col"
 
     op = ops.AIGenerateBool(
@@ -202,6 +214,11 @@ def test_ai_generate_int_with_connection_id(
 def test_ai_generate_int_with_model_param(
     scalar_types_df: dataframe.DataFrame, snapshot
 ):
+    if version.Version(sqlglot.__version__) < version.Version("25.18.0"):
+        pytest.skip(
+            "Skip test because SQLGLot cannot compile model params to JSON at this version."
+        )
+
     col_name = "string_col"
 
     op = ops.AIGenerateInt(
@@ -263,6 +280,11 @@ def test_ai_generate_double_with_connection_id(
 def test_ai_generate_double_with_model_param(
     scalar_types_df: dataframe.DataFrame, snapshot
 ):
+    if version.Version(sqlglot.__version__) < version.Version("25.18.0"):
+        pytest.skip(
+            "Skip test because SQLGLot cannot compile model params to JSON at this version."
+        )
+
     col_name = "string_col"
 
     op = ops.AIGenerateDouble(

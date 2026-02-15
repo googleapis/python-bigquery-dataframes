@@ -174,9 +174,7 @@ class BigQueryCachingExecutor(executor.Executor):
             else array_value.node
         )
         node = self._substitute_large_local_sources(node)
-        compiled = compile.compiler().compile_sql(
-            compile.CompileRequest(node, sort_rows=ordered)
-        )
+        compiled = compile.compile_sql(compile.CompileRequest(node, sort_rows=ordered))
         return compiled.sql
 
     def execute(
@@ -292,9 +290,7 @@ class BigQueryCachingExecutor(executor.Executor):
         # validate destination table
         existing_table = self._maybe_find_existing_table(spec)
 
-        compiled = compile.compiler().compile_sql(
-            compile.CompileRequest(plan, sort_rows=False)
-        )
+        compiled = compile.compile_sql(compile.CompileRequest(plan, sort_rows=False))
         sql = compiled.sql
 
         if (existing_table is not None) and _if_schema_match(
@@ -322,14 +318,11 @@ class BigQueryCachingExecutor(executor.Executor):
                 clustering_fields=spec.cluster_cols if spec.cluster_cols else None,
             )
 
-        # Attach data type usage to the job labels
-        job_config.labels["bigframes-dtypes"] = compiled.encoded_type_refs
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
         iterator, job = self._run_execute_query(
             sql=sql,
             job_config=job_config,
-            session=array_value.session,
         )
 
         has_timedelta_col = any(
@@ -396,7 +389,6 @@ class BigQueryCachingExecutor(executor.Executor):
         sql: str,
         job_config: Optional[bq_job.QueryJobConfig] = None,
         query_with_job: bool = True,
-        session=None,
     ) -> Tuple[bq_table.RowIterator, Optional[bigquery.QueryJob]]:
         """
         Starts BigQuery query job and waits for results.
@@ -423,7 +415,6 @@ class BigQueryCachingExecutor(executor.Executor):
                     timeout=None,
                     query_with_job=True,
                     publisher=self._publisher,
-                    session=session,
                 )
             else:
                 return bq_io.start_query_with_client(
@@ -436,7 +427,6 @@ class BigQueryCachingExecutor(executor.Executor):
                     timeout=None,
                     query_with_job=False,
                     publisher=self._publisher,
-                    session=session,
                 )
 
         except google.api_core.exceptions.BadRequest as e:
@@ -647,7 +637,7 @@ class BigQueryCachingExecutor(executor.Executor):
                 ]
                 cluster_cols = cluster_cols[:_MAX_CLUSTER_COLUMNS]
 
-        compiled = compile.compiler().compile_sql(
+        compiled = compile.compile_sql(
             compile.CompileRequest(
                 plan,
                 sort_rows=ordered,
@@ -667,13 +657,10 @@ class BigQueryCachingExecutor(executor.Executor):
             )
             job_config.destination = destination_table
 
-        # Attach data type usage to the job labels
-        job_config.labels["bigframes-dtypes"] = compiled.encoded_type_refs
         iterator, query_job = self._run_execute_query(
             sql=compiled.sql,
             job_config=job_config,
             query_with_job=(destination_table is not None),
-            session=plan.session,
         )
 
         # we could actually cache even when caching is not explicitly requested, but being conservative for now
@@ -683,12 +670,13 @@ class BigQueryCachingExecutor(executor.Executor):
             result_bf_schema = _result_schema(og_schema, list(compiled.sql_schema))
             dst = query_job.destination
             result_bq_data = bq_data.BigqueryDataSource(
-                table=bq_data.GbqNativeTable.from_ref_and_schema(
-                    dst,
+                table=bq_data.GbqTable(
+                    dst.project,
+                    dst.dataset_id,
+                    dst.table_id,
                     tuple(compiled_schema),
+                    is_physically_stored=True,
                     cluster_cols=tuple(cluster_cols),
-                    location=iterator.location or self.storage_manager.location,
-                    table_type="TABLE",
                 ),
                 schema=result_bf_schema,
                 ordering=compiled.row_order,

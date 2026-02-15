@@ -25,6 +25,8 @@ import bigframes_vendored.constants as constants
 import google.api_core.exceptions as api_core_exceptions
 import google.cloud.bigquery as bigquery
 import humanize
+import IPython
+import IPython.display as display
 
 if TYPE_CHECKING:
     import bigframes.core.events
@@ -66,7 +68,7 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
         query_job:
             The job representing the execution of the query on the server.
     Returns:
-        Formatted string.
+        Pywidget html table.
     """
     if query_job is None:
         return "No job information available"
@@ -92,54 +94,16 @@ def repr_query_job(query_job: Optional[bigquery.QueryJob]):
     return res
 
 
-def repr_query_job_html(query_job: Optional[bigquery.QueryJob]):
-    """Return query job as a formatted html string.
-    Args:
-        query_job:
-            The job representing the execution of the query on the server.
-    Returns:
-        Html string.
-    """
-    if query_job is None:
-        return "No job information available"
-    if query_job.dry_run:
-        return f"Computation deferred. Computation will process {get_formatted_bytes(query_job.total_bytes_processed)}"
-
-    # We can reuse the plaintext repr for now or make a nicer table.
-    # For deferred mode consistency, let's just wrap the text in a pre block or similar,
-    # but the request implies we want a distinct HTML representation if possible.
-    # However, existing repr_query_job returns a simple string.
-    # Let's format it as a simple table or list.
-
-    res = "<h3>Query Job Info</h3><ul>"
-    for key, value in query_job_prop_pairs.items():
-        job_val = getattr(query_job, value)
-        if job_val is not None:
-            if key == "Job Id":  # add link to job
-                url = get_job_url(
-                    project_id=query_job.project,
-                    location=query_job.location,
-                    job_id=query_job.job_id,
-                )
-                res += f'<li>Job: <a target="_blank" href="{url}">{query_job.job_id}</a></li>'
-            elif key == "Slot Time":
-                res += f"<li>{key}: {get_formatted_time(job_val)}</li>"
-            elif key == "Bytes Processed":
-                res += f"<li>{key}: {get_formatted_bytes(job_val)}</li>"
-            else:
-                res += f"<li>{key}: {job_val}</li>"
-    res += "</ul>"
-    return res
-
-
+current_display: Optional[display.HTML] = None
 current_display_id: Optional[str] = None
+previous_display_html: str = ""
 
 
 def progress_callback(
     event: bigframes.core.events.Event,
 ):
     """Displays a progress bar while the query is running"""
-    global current_display_id
+    global current_display, current_display_id, previous_display_html
 
     try:
         import bigframes._config
@@ -156,46 +120,57 @@ def progress_callback(
         progress_bar = "notebook" if in_ipython() else "terminal"
 
     if progress_bar == "notebook":
-        import IPython.display as display
-
-        display_html = None
-
-        if isinstance(event, bigframes.core.events.ExecutionStarted):
-            # Start a new context for progress output.
-            current_display_id = None
-
-        elif isinstance(event, bigframes.core.events.BigQuerySentEvent):
-            display_html = render_bqquery_sent_event_html(event)
-
-        elif isinstance(event, bigframes.core.events.BigQueryRetryEvent):
-            display_html = render_bqquery_retry_event_html(event)
-
-        elif isinstance(event, bigframes.core.events.BigQueryReceivedEvent):
-            display_html = render_bqquery_received_event_html(event)
-
-        elif isinstance(event, bigframes.core.events.BigQueryFinishedEvent):
-            display_html = render_bqquery_finished_event_html(event)
-
-        elif isinstance(event, bigframes.core.events.SessionClosed):
-            display_html = f"Session {event.session_id} closed."
-
-        if display_html:
-            if current_display_id:
-                display.update_display(
-                    display.HTML(display_html),
-                    display_id=current_display_id,
-                )
-            else:
-                current_display_id = str(random.random())
-                display.display(
-                    display.HTML(display_html),
-                    display_id=current_display_id,
-                )
-
-    elif progress_bar == "terminal":
-        message = None
+        if (
+            isinstance(event, bigframes.core.events.ExecutionStarted)
+            or current_display is None
+            or current_display_id is None
+        ):
+            previous_display_html = ""
+            current_display_id = str(random.random())
+            current_display = display.HTML("Starting.")
+            display.display(
+                current_display,
+                display_id=current_display_id,
+            )
 
         if isinstance(event, bigframes.core.events.BigQuerySentEvent):
+            previous_display_html = render_bqquery_sent_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.BigQueryRetryEvent):
+            previous_display_html = render_bqquery_retry_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.BigQueryReceivedEvent):
+            previous_display_html = render_bqquery_received_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.BigQueryFinishedEvent):
+            previous_display_html = render_bqquery_finished_event_html(event)
+            display.update_display(
+                display.HTML(previous_display_html),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.ExecutionFinished):
+            display.update_display(
+                display.HTML(f"✅ Completed. {previous_display_html}"),
+                display_id=current_display_id,
+            )
+        elif isinstance(event, bigframes.core.events.SessionClosed):
+            display.update_display(
+                display.HTML(f"Session {event.session_id} closed."),
+                display_id=current_display_id,
+            )
+    elif progress_bar == "terminal":
+        if isinstance(event, bigframes.core.events.ExecutionStarted):
+            print("Starting execution.")
+        elif isinstance(event, bigframes.core.events.BigQuerySentEvent):
             message = render_bqquery_sent_event_plaintext(event)
             print(message)
         elif isinstance(event, bigframes.core.events.BigQueryRetryEvent):
@@ -207,6 +182,8 @@ def progress_callback(
         elif isinstance(event, bigframes.core.events.BigQueryFinishedEvent):
             message = render_bqquery_finished_event_plaintext(event)
             print(message)
+        elif isinstance(event, bigframes.core.events.ExecutionFinished):
+            print("Execution done.")
 
 
 def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
@@ -222,8 +199,6 @@ def wait_for_job(job: GenericJob, progress_bar: Optional[str] = None):
 
     try:
         if progress_bar == "notebook":
-            import IPython.display as display
-
             display_id = str(random.random())
             loading_bar = display.HTML(get_base_job_loading_html(job))
             display.display(loading_bar, display_id=display_id)
@@ -533,7 +508,7 @@ def get_base_job_loading_html(job: GenericJob):
     Returns:
         Html string.
     """
-    return f"""{job.job_type.capitalize()} job {job.job_id} is {job.state}. <a target=\"_blank\" href="{get_job_url(
+    return f"""{job.job_type.capitalize()} job {job.job_id} is {job.state}. <a target="_blank" href="{get_job_url(
         project_id=job.job_id,
         location=job.location,
         job_id=job.job_id,
@@ -592,8 +567,4 @@ def get_bytes_processed_string(val: Any):
 
 def in_ipython():
     """Return True iff we're in a colab-like IPython."""
-    try:
-        import IPython
-    except (ImportError, NameError):
-        return False
     return hasattr(IPython.get_ipython(), "kernel")

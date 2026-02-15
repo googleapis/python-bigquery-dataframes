@@ -260,11 +260,9 @@ def test_str_contains_regex(scalar_types_df: bpd.DataFrame, snapshot):
 def test_str_extract(scalar_types_df: bpd.DataFrame, snapshot):
     col_name = "string_col"
     bf_df = scalar_types_df[[col_name]]
-    ops_map = {
-        "zero": ops.StrExtractOp(r"([a-z]*)", 0).as_expr(col_name),
-        "one": ops.StrExtractOp(r"([a-z]*)", 1).as_expr(col_name),
-    }
-    sql = utils._apply_ops_to_sql(bf_df, list(ops_map.values()), list(ops_map.keys()))
+    sql = utils._apply_ops_to_sql(
+        bf_df, [ops.StrExtractOp(r"([a-z]*)", 1).as_expr(col_name)], [col_name]
+    )
 
     snapshot.assert_match(sql, "out.sql")
 

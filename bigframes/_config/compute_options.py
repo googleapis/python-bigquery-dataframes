@@ -66,7 +66,7 @@ class ComputeOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.compute.ai_ops_confirmation_threshold = 100
+        >>> bpd.options.compute.ai_ops_confirmation_threshold = 100  # doctest: +SKIP
 
     Returns:
         Optional[int]: Number of rows.
@@ -81,7 +81,7 @@ class ComputeOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.compute.ai_ops_threshold_autofail = True
+        >>> bpd.options.compute.ai_ops_threshold_autofail = True  # doctest: +SKIP
 
     Returns:
         bool: True if the guard is enabled.
@@ -98,7 +98,7 @@ class ComputeOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.compute.allow_large_results = True
+        >>> bpd.options.compute.allow_large_results = True  # doctest: +SKIP
 
     Returns:
         bool | None: True if results > 10 GB are enabled.
@@ -114,7 +114,7 @@ class ComputeOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.compute.enable_multi_query_execution = True
+        >>> bpd.options.compute.enable_multi_query_execution = True  # doctest: +SKIP
 
     Returns:
         bool | None: True if enabled.
@@ -142,7 +142,7 @@ class ComputeOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.compute.maximum_bytes_billed = 1000
+        >>> bpd.options.compute.maximum_bytes_billed = 1000  # doctest: +SKIP
 
     Returns:
         int | None: Number of bytes, if set.
@@ -162,7 +162,7 @@ class ComputeOptions:
     **Examples:**
 
         >>> import bigframes.pandas as bpd
-        >>> bpd.options.compute.maximum_result_rows = 1000
+        >>> bpd.options.compute.maximum_result_rows = 1000  # doctest: +SKIP
 
     Returns:
         int | None: Number of rows, if set.

@@ -4524,7 +4524,7 @@ def test_df_kurt(scalars_dfs):
         "n_default",
     ],
 )
-def test_df_to_pandas_sample(scalars_dfs, frac, n, random_state):
+def test_sample(scalars_dfs, frac, n, random_state):
     scalars_df, _ = scalars_dfs
     df = scalars_df.sample(frac=frac, n=n, random_state=random_state)
     bf_result = df.to_pandas()
@@ -4535,7 +4535,7 @@ def test_df_to_pandas_sample(scalars_dfs, frac, n, random_state):
     assert bf_result.shape[1] == scalars_df.shape[1]
 
 
-def test_df_to_pandas_sample_determinism(penguins_df_default_index):
+def test_sample_determinism(penguins_df_default_index):
     df = penguins_df_default_index.sample(n=100, random_state=12345).head(15)
     bf_result = df.to_pandas()
     bf_result2 = df.to_pandas()
@@ -4543,7 +4543,7 @@ def test_df_to_pandas_sample_determinism(penguins_df_default_index):
     pandas.testing.assert_frame_equal(bf_result, bf_result2)
 
 
-def test_df_to_pandas_sample_raises_value_error(scalars_dfs):
+def test_sample_raises_value_error(scalars_dfs):
     scalars_df, _ = scalars_dfs
     with pytest.raises(
         ValueError, match="Only one of 'n' or 'frac' parameter can be specified."
@@ -5754,9 +5754,16 @@ def test_df_dot_operator_series(
     )
 
 
+# TODO(tswast): We may be able to re-enable this test after we break large
+# queries up in https://github.com/googleapis/python-bigquery-dataframes/pull/427
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    # See: https://github.com/python/cpython/issues/112282
+    reason="setrecursionlimit has no effect on the Python C stack since Python 3.12.",
+)
 def test_recursion_limit(scalars_df_index):
     scalars_df_index = scalars_df_index[["int64_too", "int64_col", "float64_col"]]
-    for i in range(250):
+    for i in range(400):
         scalars_df_index = scalars_df_index + 4
     scalars_df_index.to_pandas()
 
@@ -5957,7 +5964,7 @@ def test_resample_with_column(
     scalars_df_index, scalars_pandas_df_index, on, rule, origin
 ):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
-    pytest.importorskip("pandas", minversion="2.2.0")
+    pytest.importorskip("pandas", minversion="2.0.0")
     bf_result = (
         scalars_df_index.resample(rule=rule, on=on, origin=origin)[
             ["int64_col", "int64_too"]
