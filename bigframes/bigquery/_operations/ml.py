@@ -14,64 +14,18 @@
 
 from __future__ import annotations
 
-from typing import cast, Mapping, Optional, Union
+from typing import List, Mapping, Optional, Union
 
 import bigframes_vendored.constants
 import google.cloud.bigquery
 import pandas as pd
 
-import bigframes.core.log_adapter as log_adapter
+from bigframes.bigquery._operations import utils
+import bigframes.core.logging.log_adapter as log_adapter
 import bigframes.core.sql.ml
 import bigframes.dataframe as dataframe
 import bigframes.ml.base
 import bigframes.session
-
-
-# Helper to convert DataFrame to SQL string
-def _to_sql(df_or_sql: Union[pd.DataFrame, dataframe.DataFrame, str]) -> str:
-    import bigframes.pandas as bpd
-
-    if isinstance(df_or_sql, str):
-        return df_or_sql
-
-    if isinstance(df_or_sql, pd.DataFrame):
-        bf_df = bpd.read_pandas(df_or_sql)
-    else:
-        bf_df = cast(dataframe.DataFrame, df_or_sql)
-
-    # Cache dataframes to make sure base table is not a snapshot.
-    # Cached dataframe creates a full copy, never uses snapshot.
-    # This is a workaround for internal issue b/310266666.
-    bf_df.cache()
-    sql, _, _ = bf_df._to_sql_query(include_index=False)
-    return sql
-
-
-def _get_model_name_and_session(
-    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
-    # Other dataframe arguments to extract session from
-    *dataframes: Optional[Union[pd.DataFrame, dataframe.DataFrame, str]],
-) -> tuple[str, Optional[bigframes.session.Session]]:
-    if isinstance(model, pd.Series):
-        try:
-            model_ref = model["modelReference"]
-            model_name = f"{model_ref['projectId']}.{model_ref['datasetId']}.{model_ref['modelId']}"  # type: ignore
-        except KeyError:
-            raise ValueError("modelReference must be present in the pandas Series.")
-    elif isinstance(model, str):
-        model_name = model
-    else:
-        if model._bqml_model is None:
-            raise ValueError("Model must be fitted to be used in ML operations.")
-        return model._bqml_model.model_name, model._bqml_model.session
-
-    session = None
-    for df in dataframes:
-        if isinstance(df, dataframe.DataFrame):
-            session = df._session
-            break
-
-    return model_name, session
 
 
 def _get_model_metadata(
@@ -143,8 +97,12 @@ def create_model(
     """
     import bigframes.pandas as bpd
 
-    training_data_sql = _to_sql(training_data) if training_data is not None else None
-    custom_holiday_sql = _to_sql(custom_holiday) if custom_holiday is not None else None
+    training_data_sql = (
+        utils.to_sql(training_data) if training_data is not None else None
+    )
+    custom_holiday_sql = (
+        utils.to_sql(custom_holiday) if custom_holiday is not None else None
+    )
 
     # Determine session from DataFrames if not provided
     if session is None:
@@ -227,8 +185,8 @@ def evaluate(
     """
     import bigframes.pandas as bpd
 
-    model_name, session = _get_model_name_and_session(model, input_)
-    table_sql = _to_sql(input_) if input_ is not None else None
+    model_name, session = utils.get_model_name_and_session(model, input_)
+    table_sql = utils.to_sql(input_) if input_ is not None else None
 
     sql = bigframes.core.sql.ml.evaluate(
         model_name=model_name,
@@ -281,8 +239,8 @@ def predict(
     """
     import bigframes.pandas as bpd
 
-    model_name, session = _get_model_name_and_session(model, input_)
-    table_sql = _to_sql(input_)
+    model_name, session = utils.get_model_name_and_session(model, input_)
+    table_sql = utils.to_sql(input_)
 
     sql = bigframes.core.sql.ml.predict(
         model_name=model_name,
@@ -340,8 +298,8 @@ def explain_predict(
     """
     import bigframes.pandas as bpd
 
-    model_name, session = _get_model_name_and_session(model, input_)
-    table_sql = _to_sql(input_)
+    model_name, session = utils.get_model_name_and_session(model, input_)
+    table_sql = utils.to_sql(input_)
 
     sql = bigframes.core.sql.ml.explain_predict(
         model_name=model_name,
@@ -383,10 +341,197 @@ def global_explain(
     """
     import bigframes.pandas as bpd
 
-    model_name, session = _get_model_name_and_session(model)
+    model_name, session = utils.get_model_name_and_session(model)
     sql = bigframes.core.sql.ml.global_explain(
         model_name=model_name,
         class_level_explain=class_level_explain,
+    )
+
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
+
+
+@log_adapter.method_logger(custom_base_name="bigquery_ml")
+def transform(
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    input_: Union[pd.DataFrame, dataframe.DataFrame, str],
+) -> dataframe.DataFrame:
+    """
+    Transforms input data using a BigQuery ML model.
+
+    See the `BigQuery ML TRANSFORM function syntax
+    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-transform>`_
+    for additional reference.
+
+    Args:
+        model (bigframes.ml.base.BaseEstimator or str):
+            The model to use for transformation.
+        input_ (Union[bigframes.pandas.DataFrame, str]):
+            The DataFrame or query to use for transformation.
+
+    Returns:
+        bigframes.pandas.DataFrame:
+            The transformed data.
+    """
+    import bigframes.pandas as bpd
+
+    model_name, session = utils.get_model_name_and_session(model, input_)
+    table_sql = utils.to_sql(input_)
+
+    sql = bigframes.core.sql.ml.transform(
+        model_name=model_name,
+        table=table_sql,
+    )
+
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
+
+
+@log_adapter.method_logger(custom_base_name="bigquery_ml")
+def generate_text(
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    input_: Union[pd.DataFrame, dataframe.DataFrame, str],
+    *,
+    temperature: Optional[float] = None,
+    max_output_tokens: Optional[int] = None,
+    top_k: Optional[int] = None,
+    top_p: Optional[float] = None,
+    flatten_json_output: Optional[bool] = None,
+    stop_sequences: Optional[List[str]] = None,
+    ground_with_google_search: Optional[bool] = None,
+    request_type: Optional[str] = None,
+) -> dataframe.DataFrame:
+    """
+    Generates text using a BigQuery ML model.
+
+    See the `BigQuery ML GENERATE_TEXT function syntax
+    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-generate-text>`_
+    for additional reference.
+
+    Args:
+        model (bigframes.ml.base.BaseEstimator or str):
+            The model to use for text generation.
+        input_ (Union[bigframes.pandas.DataFrame, str]):
+            The DataFrame or query to use for text generation.
+        temperature (float, optional):
+            A FLOAT64 value that is used for sampling promiscuity. The value
+            must be in the range ``[0.0, 1.0]``. A lower temperature works well
+            for prompts that expect a more deterministic and less open-ended
+            or creative response, while a higher temperature can lead to more
+            diverse or creative results. A temperature of ``0`` is
+            deterministic, meaning that the highest probability response is
+            always selected.
+        max_output_tokens (int, optional):
+            An INT64 value that sets the maximum number of tokens in the
+            generated text.
+        top_k (int, optional):
+            An INT64 value that changes how the model selects tokens for
+            output. A ``top_k`` of ``1`` means the next selected token is the
+            most probable among all tokens in the model's vocabulary. A
+            ``top_k`` of ``3`` means that the next token is selected from
+            among the three most probable tokens by using temperature. The
+            default value is ``40``.
+        top_p (float, optional):
+            A FLOAT64 value that changes how the model selects tokens for
+            output. Tokens are selected from most probable to least probable
+            until the sum of their probabilities equals the ``top_p`` value.
+            For example, if tokens A, B, and C have a probability of 0.3, 0.2,
+            and 0.1 and the ``top_p`` value is ``0.5``, then the model will
+            select either A or B as the next token by using temperature. The
+            default value is ``0.95``.
+        flatten_json_output (bool, optional):
+            A BOOL value that determines the content of the generated JSON column.
+        stop_sequences (List[str], optional):
+            An ARRAY<STRING> value that contains the stop sequences for the model.
+        ground_with_google_search (bool, optional):
+            A BOOL value that determines whether to ground the model with Google Search.
+        request_type (str, optional):
+            A STRING value that contains the request type for the model.
+
+    Returns:
+        bigframes.pandas.DataFrame:
+            The generated text.
+    """
+    import bigframes.pandas as bpd
+
+    model_name, session = utils.get_model_name_and_session(model, input_)
+    table_sql = utils.to_sql(input_)
+
+    sql = bigframes.core.sql.ml.generate_text(
+        model_name=model_name,
+        table=table_sql,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        top_k=top_k,
+        top_p=top_p,
+        flatten_json_output=flatten_json_output,
+        stop_sequences=stop_sequences,
+        ground_with_google_search=ground_with_google_search,
+        request_type=request_type,
+    )
+
+    if session is None:
+        return bpd.read_gbq_query(sql)
+    else:
+        return session.read_gbq_query(sql)
+
+
+@log_adapter.method_logger(custom_base_name="bigquery_ml")
+def generate_embedding(
+    model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
+    input_: Union[pd.DataFrame, dataframe.DataFrame, str],
+    *,
+    flatten_json_output: Optional[bool] = None,
+    task_type: Optional[str] = None,
+    output_dimensionality: Optional[int] = None,
+) -> dataframe.DataFrame:
+    """
+    Generates text embedding using a BigQuery ML model.
+
+    See the `BigQuery ML GENERATE_EMBEDDING function syntax
+    <https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-generate-embedding>`_
+    for additional reference.
+
+    Args:
+        model (bigframes.ml.base.BaseEstimator or str):
+            The model to use for text embedding.
+        input_ (Union[bigframes.pandas.DataFrame, str]):
+            The DataFrame or query to use for text embedding.
+        flatten_json_output (bool, optional):
+            A BOOL value that determines the content of the generated JSON column.
+        task_type (str, optional):
+            A STRING value that specifies the intended downstream application task.
+            Supported values are:
+            - `RETRIEVAL_QUERY`
+            - `RETRIEVAL_DOCUMENT`
+            - `SEMANTIC_SIMILARITY`
+            - `CLASSIFICATION`
+            - `CLUSTERING`
+            - `QUESTION_ANSWERING`
+            - `FACT_VERIFICATION`
+            - `CODE_RETRIEVAL_QUERY`
+        output_dimensionality (int, optional):
+            An INT64 value that specifies the size of the output embedding.
+
+    Returns:
+        bigframes.pandas.DataFrame:
+            The generated text embedding.
+    """
+    import bigframes.pandas as bpd
+
+    model_name, session = utils.get_model_name_and_session(model, input_)
+    table_sql = utils.to_sql(input_)
+
+    sql = bigframes.core.sql.ml.generate_embedding(
+        model_name=model_name,
+        table=table_sql,
+        flatten_json_output=flatten_json_output,
+        task_type=task_type,
+        output_dimensionality=output_dimensionality,
     )
 
     if session is None:

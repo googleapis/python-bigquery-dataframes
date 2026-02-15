@@ -14,14 +14,14 @@
 
 from __future__ import annotations
 
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import operations as ops
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
-register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
-register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
+register_unary_op = expression_compiler.expression_compiler.register_unary_op
+register_binary_op = expression_compiler.expression_compiler.register_binary_op
 
 
 @register_unary_op(ops.obj_fetch_metadata_op)
@@ -29,11 +29,24 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.func("OBJ.FETCH_METADATA", expr.expr)
 
 
-@register_unary_op(ops.ObjGetAccessUrl)
-def _(expr: TypedExpr) -> sge.Expression:
-    return sge.func("OBJ.GET_ACCESS_URL", expr.expr)
+@register_unary_op(ops.ObjGetAccessUrl, pass_op=True)
+def _(expr: TypedExpr, op: ops.ObjGetAccessUrl) -> sge.Expression:
+    args = [expr.expr, sge.Literal.string(op.mode)]
+    if op.duration is not None:
+        args.append(
+            sge.Interval(
+                this=sge.Literal.number(op.duration),
+                unit=sge.Var(this="MICROSECOND"),
+            )
+        )
+    return sge.func("OBJ.GET_ACCESS_URL", *args)
 
 
 @register_binary_op(ops.obj_make_ref_op)
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.func("OBJ.MAKE_REF", left.expr, right.expr)
+
+
+@register_unary_op(ops.obj_make_ref_json_op)
+def _(expr: TypedExpr) -> sge.Expression:
+    return sge.func("OBJ.MAKE_REF", expr.expr)

@@ -16,16 +16,16 @@ from __future__ import annotations
 
 import typing
 
+import bigframes_vendored.sqlglot.expressions as sge
 import pandas as pd
 import pyarrow as pa
-import sqlglot.expressions as sge
 
 from bigframes import operations as ops
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
-register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
-register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
+register_nary_op = expression_compiler.expression_compiler.register_nary_op
+register_unary_op = expression_compiler.expression_compiler.register_unary_op
 
 
 @register_unary_op(ops.StructFieldOp, pass_op=True)

@@ -49,6 +49,8 @@ from pandas._typing import (
 import pyarrow as pa
 
 import bigframes._config as config
+import bigframes._importing
+from bigframes.core import bq_data
 import bigframes.core.global_session as global_session
 import bigframes.core.indexes
 import bigframes.dataframe
@@ -58,6 +60,7 @@ import bigframes.session
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery
 import bigframes.session.clients
+import bigframes.session.iceberg
 import bigframes.session.metrics
 
 # Note: the following methods are duplicated from Session. This duplication
@@ -253,7 +256,7 @@ def _run_read_gbq_colab_sessionless_dry_run(
         pyformat_args=pyformat_args,
         dry_run=True,
     )
-    bqclient = _get_bqclient()
+    bqclient, _ = _get_bqclient_and_project()
     job = _dry_run(query_formatted, bqclient)
     return dry_runs.get_query_stats_with_inferred_dtypes(job, (), ())
 
@@ -353,11 +356,14 @@ def _read_gbq_colab(
         )
         _set_default_session_location_if_possible_deferred_query(create_query)
         if not config.options.bigquery._session_started:
-            with warnings.catch_warnings():
-                # Don't warning about Polars in SQL cell.
-                # Related to b/437090788.
+            # Don't warning about Polars in SQL cell.
+            # Related to b/437090788.
+            try:
+                bigframes._importing.import_polars()
                 warnings.simplefilter("ignore", bigframes.exceptions.PreviewWarning)
                 config.options.bigquery.enable_polars_execution = True
+            except ImportError:
+                pass  # don't fail if polars isn't available
 
     return global_session.with_default_session(
         bigframes.session.Session._read_gbq_colab,
@@ -624,7 +630,7 @@ from_glob_path.__doc__ = inspect.getdoc(bigframes.session.Session.from_glob_path
 _default_location_lock = threading.Lock()
 
 
-def _get_bqclient() -> bigquery.Client:
+def _get_bqclient_and_project() -> Tuple[bigquery.Client, str]:
     # Address circular imports in doctest due to bigframes/session/__init__.py
     # containing a lot of logic and samples.
     from bigframes.session import clients
@@ -639,7 +645,7 @@ def _get_bqclient() -> bigquery.Client:
         client_endpoints_override=config.options.bigquery.client_endpoints_override,
         requests_transport_adapters=config.options.bigquery.requests_transport_adapters,
     )
-    return clients_provider.bqclient
+    return clients_provider.bqclient, clients_provider._project
 
 
 def _dry_run(query, bqclient) -> bigquery.QueryJob:
@@ -684,7 +690,7 @@ def _set_default_session_location_if_possible_deferred_query(create_query):
             return
 
         query = create_query()
-        bqclient = _get_bqclient()
+        bqclient, default_project = _get_bqclient_and_project()
 
         if bigquery.is_query(query):
             # Intentionally run outside of the session so that we can detect the
@@ -692,6 +698,13 @@ def _set_default_session_location_if_possible_deferred_query(create_query):
             # aren't necessary.
             job = _dry_run(query, bqclient)
             config.options.bigquery.location = job.location
+        elif bq_data.is_irc_table(query):
+            irc_table = bigframes.session.iceberg.get_table(
+                default_project, query, bqclient._credentials
+            )
+            config.options.bigquery.location = bq_data.get_default_bq_region(
+                irc_table.metadata.location
+            )
         else:
             table = bqclient.get_table(query)
             config.options.bigquery.location = table.location
