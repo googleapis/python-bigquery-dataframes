@@ -67,6 +67,11 @@ class DisplayOptions:
     Maximum number of columns to display. Default 20.
 
     If `max_columns` is exceeded, switch to truncate view.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.max_columns = 50
     """
 
     max_rows: int = 10
@@ -74,6 +79,11 @@ class DisplayOptions:
     Maximum number of rows to display. Default 10.
 
     If `max_rows` is exceeded, switch to truncate view.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.max_rows = 50
     """
 
     precision: int = 6
@@ -81,6 +91,11 @@ class DisplayOptions:
     Controls the floating point output precision. Defaults to 6.
 
     See :attr:`pandas.options.display.precision`.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.precision = 2
     """
 
     # Options unique to BigQuery DataFrames.
@@ -90,6 +105,11 @@ class DisplayOptions:
 
     Valid values are `auto`, `notebook`, and `terminal`. Set
     to `None` to remove progress bars.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.progress_bar = "terminal"
     """
 
     repr_mode: Literal["head", "deferred", "anywidget"] = "head"
@@ -105,6 +125,11 @@ class DisplayOptions:
         Instead, estimated bytes processed will be shown. DataFrame and Series
         objects can still be computed with methods that explicitly execute and
         download results.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.repr_mode = "deferred"
     """
 
     max_colwidth: Optional[int] = 50
@@ -113,12 +138,22 @@ class DisplayOptions:
 
     When the column overflows, a "..." placeholder is embedded in the output. A
     'None' value means unlimited.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.max_colwidth = 20
     """
 
     max_info_columns: int = 100
     """
     Used in DataFrame.info method to decide if information in each column will
     be printed. Default 100.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.max_info_columns = 50
     """
 
     max_info_rows: Optional[int] = 200_000
@@ -130,6 +165,11 @@ class DisplayOptions:
     For large frames, this can be quite slow. max_info_rows and max_info_cols
     limit this null check only to frames with smaller dimensions than
     specified.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.max_info_rows = 100
     """
 
     memory_usage: bool = True
@@ -138,19 +178,39 @@ class DisplayOptions:
     df.info() is called. Default True.
 
     Valid values True, False.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.memory_usage = False
     """
 
     blob_display: bool = True
     """
     If True, display the blob content in notebook DataFrame preview. Default
     True.
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.blob_display = True
     """
 
     blob_display_width: Optional[int] = None
     """
     Width in pixels that the blob constrained to. Default None..
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.blob_display_width = 100
     """
     blob_display_height: Optional[int] = None
     """
     Height in pixels that the blob constrained to. Default None..
+
+    **Examples:**
+
+        >>> import bigframes.pandas as bpd
+        >>> bpd.options.display.blob_display_height = 100
     """
