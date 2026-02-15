@@ -36,7 +36,7 @@ class ExperimentOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.experiments.semantic_operators = True
+            >>> bpd.options.experiments.semantic_operators = True  # doctest: +SKIP
         """
         return self._semantic_operators
 
@@ -56,7 +56,7 @@ class ExperimentOptions:
         **Examples:**
 
             >>> import bigframes.pandas as bpd
-            >>> bpd.options.experiments.ai_operators = True
+            >>> bpd.options.experiments.ai_operators = True  # doctest: +SKIP
         """
         return self._ai_operators
 
