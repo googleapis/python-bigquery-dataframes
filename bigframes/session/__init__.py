@@ -23,6 +23,7 @@ import inspect
 import logging
 import os
 import secrets
+import threading
 import typing
 from typing import (
     Any,
@@ -66,10 +67,11 @@ import bigframes._config.bigquery_options as bigquery_options
 import bigframes.clients
 import bigframes.constants
 import bigframes.core
-from bigframes.core import blocks, log_adapter, utils
+from bigframes.core import blocks, utils
 import bigframes.core.events
 import bigframes.core.indexes
 import bigframes.core.indexes.multi
+from bigframes.core.logging import log_adapter
 import bigframes.core.pyformat
 import bigframes.formatting_helpers
 import bigframes.functions._function_session as bff_session
@@ -207,6 +209,9 @@ class Session(
         # at the same time in the same region
         self._session_id: str = "session" + secrets.token_hex(3)
         # store table ids and delete them when the session is closed
+
+        self._api_methods: list[str] = []
+        self._api_methods_lock = threading.Lock()
 
         self._objects: list[
             weakref.ReferenceType[
@@ -2160,6 +2165,7 @@ class Session(
             query_with_job=True,
             job_retry=third_party_gcb_retry.DEFAULT_ML_JOB_RETRY,
             publisher=self._publisher,
+            session=self,
         )
         return iterator, query_job
 
@@ -2188,6 +2194,7 @@ class Session(
             timeout=None,
             query_with_job=True,
             publisher=self._publisher,
+            session=self,
         )
 
         return table
@@ -2284,6 +2291,11 @@ class Session(
             bigframes.pandas.DataFrame:
                 Result BigFrames DataFrame.
         """
+        warnings.warn(
+            "read_gbq_object_table is deprecated and will be removed in a future release. Use read_gbq with 'ref' column instead.",
+            category=bfe.ApiDeprecationWarning,
+            stacklevel=2,
+        )
         # TODO(garrettwu): switch to pseudocolumn when b/374988109 is done.
         table = self.bqclient.get_table(object_table)
         connection = table._properties["externalDataConfiguration"]["connectionId"]

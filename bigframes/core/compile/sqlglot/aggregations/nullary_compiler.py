@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import typing
 
-import sqlglot.expressions as sge
+import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes.core import window_spec
 import bigframes.core.compile.sqlglot.aggregations.op_registration as reg
@@ -30,6 +30,8 @@ def compile(
     op: agg_ops.WindowOp,
     window: typing.Optional[window_spec.WindowSpec] = None,
 ) -> sge.Expression:
+    if op.order_independent and (window is not None) and window.is_unbounded:
+        window = window.without_order()
     return NULLARY_OP_REGISTRATION[op](op, window=window)
 
 

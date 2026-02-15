@@ -140,6 +140,7 @@ class Block:
         column_labels: typing.Union[pd.Index, typing.Iterable[Label]],
         index_labels: typing.Union[pd.Index, typing.Iterable[Label], None] = None,
         *,
+        value_columns: Optional[Iterable[str]] = None,
         transpose_cache: Optional[Block] = None,
     ):
         """Construct a block object, will create default index if no index columns specified."""
@@ -158,7 +159,13 @@ class Block:
             if index_labels
             else tuple([None for _ in index_columns])
         )
-        self._expr = self._normalize_expression(expr, self._index_columns)
+        if value_columns is None:
+            value_columns = [
+                col_id for col_id in expr.column_ids if col_id not in index_columns
+            ]
+        self._expr = self._normalize_expression(
+            expr, self._index_columns, value_columns
+        )
         # Use pandas index to more easily replicate column indexing, especially for hierarchical column index
         self._column_labels = (
             column_labels.copy()
@@ -818,49 +825,30 @@ class Block:
             total_rows = result_batches.approx_total_rows
             # Remove downsampling config from subsequent invocations, as otherwise could result in many
             # iterations if downsampling undershoots
-            return self._downsample(
-                total_rows=total_rows,
-                sampling_method=sample_config.sampling_method,
-                fraction=fraction,
-                random_state=sample_config.random_state,
-            )._materialize_local(
-                MaterializationOptions(ordered=materialize_options.ordered)
-            )
+            if sample_config.sampling_method == "head":
+                # Just truncates the result iterator without a follow-up query
+                raw_df = result_batches.to_pandas(limit=int(total_rows * fraction))
+            elif (
+                sample_config.sampling_method == "uniform"
+                and sample_config.random_state is None
+            ):
+                # Pushes sample into result without new query
+                sampled_batches = execute_result.batches(sample_rate=fraction)
+                raw_df = sampled_batches.to_pandas()
+            else:  # uniform sample with random state requires a full follow-up query
+                down_sampled_block = self.split(
+                    fracs=(fraction,),
+                    random_state=sample_config.random_state,
+                    sort=False,
+                )[0]
+                return down_sampled_block._materialize_local(
+                    MaterializationOptions(ordered=materialize_options.ordered)
+                )
         else:
-            df = result_batches.to_pandas()
-            df = self._copy_index_to_pandas(df)
-            df.set_axis(self.column_labels, axis=1, copy=False)
-            return df, execute_result.query_job
-
-    def _downsample(
-        self, total_rows: int, sampling_method: str, fraction: float, random_state
-    ) -> Block:
-        # either selecting fraction or number of rows
-        if sampling_method == _HEAD:
-            filtered_block = self.slice(stop=int(total_rows * fraction))
-            return filtered_block
-        elif (sampling_method == _UNIFORM) and (random_state is None):
-            filtered_expr = self.expr._uniform_sampling(fraction)
-            block = Block(
-                filtered_expr,
-                index_columns=self.index_columns,
-                column_labels=self.column_labels,
-                index_labels=self.index.names,
-            )
-            return block
-        elif sampling_method == _UNIFORM:
-            block = self.split(
-                fracs=(fraction,),
-                random_state=random_state,
-                sort=False,
-            )[0]
-            return block
-        else:
-            # This part should never be called, just in case.
-            raise NotImplementedError(
-                f"The downsampling method {sampling_method} is not implemented, "
-                f"please choose from {','.join(_SAMPLING_METHODS)}."
-            )
+            raw_df = result_batches.to_pandas()
+        df = self._copy_index_to_pandas(raw_df)
+        df.set_axis(self.column_labels, axis=1, copy=False)
+        return df, execute_result.query_job
 
     def split(
         self,
@@ -1133,13 +1121,15 @@ class Block:
         labels: Union[Sequence[Label], pd.Index],
         drop=False,
     ) -> Block:
-        new_array, _ = self.expr.compute_values(exprs)
+        new_array, new_cols = self.expr.compute_values(exprs)
         if drop:
             new_array = new_array.drop_columns(self.value_columns)
 
+        new_val_cols = new_cols if drop else (*self.value_columns, *new_cols)
         return Block(
             new_array,
             index_columns=self.index_columns,
+            value_columns=new_val_cols,
             column_labels=labels
             if drop
             else self.column_labels.append(pd.Index(labels)),
@@ -1561,17 +1551,13 @@ class Block:
     def _normalize_expression(
         self,
         expr: core.ArrayValue,
-        index_columns: typing.Sequence[str],
-        assert_value_size: typing.Optional[int] = None,
+        index_columns: Iterable[str],
+        value_columns: Iterable[str],
     ):
         """Normalizes expression by moving index columns to left."""
-        value_columns = [
-            col_id for col_id in expr.column_ids if col_id not in index_columns
-        ]
-        if (assert_value_size is not None) and (
-            len(value_columns) != assert_value_size
-        ):
-            raise ValueError("Unexpected number of value columns.")
+        normalized_ids = (*index_columns, *value_columns)
+        if tuple(expr.column_ids) == normalized_ids:
+            return expr
         return expr.select_columns([*index_columns, *value_columns])
 
     def grouped_head(

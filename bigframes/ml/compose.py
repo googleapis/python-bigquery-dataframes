@@ -21,14 +21,14 @@ from __future__ import annotations
 import re
 import types
 import typing
-from typing import cast, Iterable, List, Optional, Set, Tuple, Union
+from typing import Iterable, List, Optional, Set, Tuple, Union
 
 from bigframes_vendored import constants
 import bigframes_vendored.sklearn.compose._column_transformer
 from google.cloud import bigquery
 
-from bigframes.core import log_adapter
 import bigframes.core.compile.googlesql as sql_utils
+from bigframes.core.logging import log_adapter
 import bigframes.core.utils as core_utils
 from bigframes.ml import base, core, globals, impute, preprocessing, utils
 import bigframes.pandas as bpd
@@ -218,7 +218,7 @@ class ColumnTransformer(
 
         output_names = []
         for transform_col in bq_model._properties["transformColumns"]:
-            transform_col_dict = cast(dict, transform_col)
+            transform_col_dict = typing.cast(dict, transform_col)
             # pass the columns that are not transformed
             if "transformSql" not in transform_col_dict:
                 continue
@@ -282,7 +282,7 @@ class ColumnTransformer(
             return self  # SQLScalarColumnTransformer only work inside ColumnTransformer
         feature_columns_sorted = sorted(
             [
-                cast(str, feature_column.name)
+                typing.cast(str, feature_column.name)
                 for feature_column in bq_model.feature_columns
             ]
         )
