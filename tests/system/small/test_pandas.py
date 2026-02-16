@@ -817,9 +817,11 @@ def test_to_datetime_iterable(arg, utc, unit, format):
         .to_pandas()
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
-    pd_result = pd.Series(
-        pd.to_datetime(arg, utc=utc, unit=unit, format=format)
-    ).dt.floor("us")
+    pd_result = (
+        pd.Series(pd.to_datetime(arg, utc=utc, unit=unit, format=format))
+        .dt.floor("us")
+        .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
+    )
     bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
@@ -831,7 +833,9 @@ def test_to_datetime_series(scalars_dfs):
     bf_result = (
         bpd.to_datetime(scalars_df[col], unit="s").to_pandas().astype("datetime64[s]")
     )
-    pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col], unit="s"))
+    pd_result = pd.Series(pd.to_datetime(scalars_pandas_df[col], unit="s")).astype(
+        "datetime64[s]"
+    )
     bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
@@ -853,7 +857,11 @@ def test_to_datetime_series(scalars_dfs):
 )
 def test_to_datetime_unit_param(arg, unit):
     bf_result = bpd.to_datetime(arg, unit=unit).to_pandas().astype("datetime64[ns]")
-    pd_result = pd.Series(pd.to_datetime(arg, unit=unit)).dt.floor("us")
+    pd_result = (
+        pd.Series(pd.to_datetime(arg, unit=unit))
+        .dt.floor("us")
+        .astype("datetime64[ns]")
+    )
     bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
@@ -874,7 +882,11 @@ def test_to_datetime_format_param(arg, utc, format):
         .to_pandas()
         .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
     )
-    pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
+    pd_result = (
+        pd.Series(pd.to_datetime(arg, utc=utc, format=format))
+        .dt.floor("us")
+        .astype("datetime64[ns, UTC]" if utc else "datetime64[ns]")
+    )
     bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
@@ -922,12 +934,17 @@ def test_to_datetime_format_param(arg, utc, format):
     ],
 )
 def test_to_datetime_string_inputs(arg, utc, output_in_utc, format):
+    normalized_type = "datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]"
+
     bf_result = (
-        bpd.to_datetime(arg, utc=utc, format=format)
-        .to_pandas()
-        .astype("datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]")
+        bpd.to_datetime(arg, utc=utc, format=format).to_pandas().astype(normalized_type)
     )
-    pd_result = pd.Series(pd.to_datetime(arg, utc=utc, format=format)).dt.floor("us")
+    pd_result = (
+        pd.Series(pd.to_datetime(arg, utc=utc, format=format))
+        .dt.floor("us")
+        .astype(normalized_type)
+    )
+
     bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
@@ -965,12 +982,13 @@ def test_to_datetime_string_inputs(arg, utc, output_in_utc, format):
     ],
 )
 def test_to_datetime_timestamp_inputs(arg, utc, output_in_utc):
-    bf_result = (
-        bpd.to_datetime(arg, utc=utc)
-        .to_pandas()
-        .astype("datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]")
+    normalized_type = "datetime64[ns, UTC]" if output_in_utc else "datetime64[ns]"
+
+    bf_result = bpd.to_datetime(arg, utc=utc).to_pandas().astype(normalized_type)
+    pd_result = (
+        pd.Series(pd.to_datetime(arg, utc=utc)).dt.floor("us").astype(normalized_type)
     )
-    pd_result = pd.Series(pd.to_datetime(arg, utc=utc)).dt.floor("us")
+
     bigframes.testing.assert_series_equal(
         bf_result, pd_result, check_index_type=False, check_names=False
     )
@@ -1087,7 +1105,7 @@ def test_to_timedelta_on_timedelta_series__should_be_no_op(scalars_dfs):
         bpd.to_timedelta(bf_series, unit="s").to_pandas().astype("timedelta64[ns]")
     )
 
-    expected_result = pd.to_timedelta(pd_series, unit="s")
+    expected_result = pd.to_timedelta(pd_series, unit="s").astype("timedelta64[ns]")
     bigframes.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )

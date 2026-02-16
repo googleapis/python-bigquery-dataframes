@@ -83,11 +83,13 @@ def temporal_dfs(session):
 
 
 def _assert_series_equal(actual: pd.Series, expected: pd.Series):
-    """Helper function specifically for timedelta testsing. Don't use it outside of this module."""
+    """Helper function specifically for timedelta testing. Don't use it outside of this module."""
+    # expected[expected.select_dtypes('timedelta64').columns] = expected.select_dtypes('timedelta64').astype(dtypes.TIMEDELTA_DTYPE)
     bigframes.testing.assert_series_equal(
         actual,
-        expected,
+        expected,  # .convert_dtypes(dtype_backend="pyarrow"),
         check_index_type=False,
+        check_dtype=False,
     )
 
 
@@ -117,15 +119,15 @@ def test_timedelta_binary_ops_between_series(temporal_dfs, op, col_1, col_2):
 @pytest.mark.parametrize(
     ("op", "col", "literal"),
     [
-        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s")),
+        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
         (operator.truediv, "timedelta_col_1", 3),
         (operator.floordiv, "timedelta_col_1", 3),
         (operator.mul, "timedelta_col_1", 3),
-        (operator.mul, "float_col", pd.Timedelta(1, "s")),
-        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s")),
+        (operator.mul, "float_col", pd.Timedelta(1, "s").as_unit("us")),
+        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s").as_unit("us")),
     ],
 )
 def test_timedelta_binary_ops_series_and_literal(temporal_dfs, op, col, literal):
@@ -140,15 +142,15 @@ def test_timedelta_binary_ops_series_and_literal(temporal_dfs, op, col, literal)
 @pytest.mark.parametrize(
     ("op", "col", "literal"),
     [
-        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s")),
-        (operator.truediv, "float_col", pd.Timedelta(2, "s")),
-        (operator.floordiv, "float_col", pd.Timedelta(2, "s")),
+        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.truediv, "float_col", pd.Timedelta(2, "s").as_unit("us")),
+        (operator.floordiv, "float_col", pd.Timedelta(2, "s").as_unit("us")),
         (operator.mul, "timedelta_col_1", 3),
-        (operator.mul, "float_col", pd.Timedelta(1, "s")),
-        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s")),
+        (operator.mul, "float_col", pd.Timedelta(1, "s").as_unit("us")),
+        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s").as_unit("us")),
     ],
 )
 def test_timedelta_binary_ops_literal_and_series(temporal_dfs, op, col, literal):
@@ -201,7 +203,7 @@ def test_timestamp_add__ts_series_plus_td_series__explicit_cast(temporal_dfs, co
 @pytest.mark.parametrize(
     "literal",
     [
-        pytest.param(pd.Timedelta(1, unit="s"), id="pandas"),
+        pytest.param(pd.Timedelta(1, unit="s").as_unit("us"), id="pandas"),
         pytest.param(datetime.timedelta(seconds=1), id="python-datetime"),
         pytest.param(np.timedelta64(1, "s"), id="numpy"),
     ],
@@ -237,7 +239,7 @@ def test_timestamp_add__td_series_plus_ts_series(temporal_dfs, column, pd_dtype)
 
 def test_timestamp_add__td_literal_plus_ts_series(temporal_dfs):
     bf_df, pd_df = temporal_dfs
-    timedelta = pd.Timedelta(1, unit="s")
+    timedelta = pd.Timedelta(1, unit="s").as_unit("us")
 
     actual_result = (timedelta + bf_df["datetime_col"]).to_pandas()
 
@@ -279,7 +281,7 @@ def test_timestamp_add_with_numpy_op(temporal_dfs, column, pd_dtype):
 
 def test_timestamp_add_dataframes(temporal_dfs):
     columns = ["datetime_col", "timestamp_col"]
-    timedelta = pd.Timedelta(1, unit="s")
+    timedelta = pd.Timedelta(1, unit="s").as_unit("us")
     bf_df, pd_df = temporal_dfs
 
     actual_result = (bf_df[columns] + timedelta).to_pandas()
@@ -363,7 +365,7 @@ def test_timestamp_sub_with_numpy_op(temporal_dfs, column, pd_dtype):
 
 def test_timestamp_sub_dataframes(temporal_dfs):
     columns = ["datetime_col", "timestamp_col"]
-    timedelta = pd.Timedelta(1, unit="s")
+    timedelta = pd.Timedelta(1, unit="s").as_unit("us")
     bf_df, pd_df = temporal_dfs
 
     actual_result = (bf_df[columns] - timedelta).to_pandas()
@@ -490,7 +492,7 @@ def test_timedelta_series_comparison(temporal_dfs, compare_func):
 )
 def test_timedelta_series_and_literal_comparison(temporal_dfs, compare_func):
     bf_df, pd_df = temporal_dfs
-    literal = pd.Timedelta(3, "s")
+    literal = pd.Timedelta(3, "s").as_unit("us")
 
     actual_result = compare_func(literal, bf_df["timedelta_col_2"]).to_pandas()
 

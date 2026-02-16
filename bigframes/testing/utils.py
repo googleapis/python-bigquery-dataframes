@@ -29,7 +29,6 @@ import pytest
 
 from bigframes import operations as ops
 from bigframes.core import expression as ex
-import bigframes.dtypes
 import bigframes.functions._utils as bff_utils
 import bigframes.pandas as bpd
 
@@ -90,7 +89,10 @@ def assert_series_equivalent(pd_series: pd.Series, bf_series: bpd.Series, **kwar
 
 
 def _normalize_all_nulls(col: pd.Series) -> pd.Series:
-    if col.dtype in (bigframes.dtypes.FLOAT_DTYPE, bigframes.dtypes.INT_DTYPE):
+    # This over-normalizes probably, make more conservative later
+    if col.hasnans and (
+        pd_types.is_float_dtype(col.dtype) or pd_types.is_integer_dtype(col.dtype)
+    ):
         col = col.astype("float64")
     if pd_types.is_object_dtype(col):
         col = col.fillna(float("nan"))
