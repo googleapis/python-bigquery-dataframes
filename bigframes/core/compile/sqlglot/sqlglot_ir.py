@@ -134,18 +134,20 @@ class SQLGlotIR:
         """
         version = (
             sge.Version(
-                this="TIMESTAMP",
-                expression=sge.Literal(this=system_time.isoformat(), is_string=True),
+                this=sge.Identifier(this="SYSTEM_TIME", quoted=False),
+                expression=sge.Literal.string(system_time.isoformat()),
                 kind="AS OF",
             )
             if system_time
             else None
         )
+        table_alias = next(uid_gen.get_uid_stream("bft_"))
         table_expr = sge.Table(
             this=sg.to_identifier(table_id, quoted=cls.quoted),
             db=sg.to_identifier(dataset_id, quoted=cls.quoted),
             catalog=sg.to_identifier(project_id, quoted=cls.quoted),
             version=version,
+            alias=sge.Identifier(this=table_alias, quoted=cls.quoted),
         )
         if sql_predicate:
             select_expr = sge.Select().select(sge.Star()).from_(table_expr)
@@ -408,6 +410,47 @@ class SQLGlotIR:
         )
         if condition is not None:
             new_expr = new_expr.where(condition, append=False)
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
+
+    def resample(
+        self,
+        right: SQLGlotIR,
+        array_col_name: str,
+        start_expr: sge.Expression,
+        stop_expr: sge.Expression,
+        step_expr: sge.Expression,
+    ) -> SQLGlotIR:
+        # Get identifier for left and right by pushing them to CTEs
+        left_select, left_id = self._select_to_cte()
+        right_select, right_id = right._select_to_cte()
+
+        # Extract all CTEs from the returned select expressions
+        _, left_ctes = _pop_query_ctes(left_select)
+        _, right_ctes = _pop_query_ctes(right_select)
+        merged_ctes = _merge_ctes(left_ctes, right_ctes)
+
+        generate_array = sge.func("GENERATE_ARRAY", start_expr, stop_expr, step_expr)
+
+        unnested_column_alias = sge.to_identifier(
+            next(self.uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
+        )
+        unnest_expr = sge.Unnest(
+            expressions=[generate_array],
+            alias=sge.TableAlias(columns=[unnested_column_alias]),
+        )
+
+        final_col_id = sge.to_identifier(array_col_name, quoted=self.quoted)
+
+        # Build final expression by joining everything directly in a single SELECT
+        new_expr = (
+            sge.Select()
+            .select(unnested_column_alias.as_(final_col_id))
+            .from_(sge.Table(this=left_id))
+            .join(sge.Table(this=right_id), join_type="cross")
+            .join(unnest_expr, join_type="cross")
+        )
+        new_expr = _set_query_ctes(new_expr, merged_ctes)
+
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
