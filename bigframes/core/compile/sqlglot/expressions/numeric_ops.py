@@ -19,13 +19,13 @@ import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes import operations as ops
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 import bigframes.core.compile.sqlglot.expressions.constants as constants
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 from bigframes.operations import numeric_ops
 
-register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
-register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
+register_unary_op = expression_compiler.expression_compiler.register_unary_op
+register_binary_op = expression_compiler.expression_compiler.register_binary_op
 
 
 @register_unary_op(ops.abs_op)
@@ -93,12 +93,19 @@ def _(expr: TypedExpr) -> sge.Expression:
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
+            # |x| < 1: The standard formula
+            sge.If(
+                this=sge.func("ABS", expr.expr) < sge.convert(1),
+                true=sge.func("ATANH", expr.expr),
+            ),
+            # |x| > 1: Returns NaN
             sge.If(
                 this=sge.func("ABS", expr.expr) > sge.convert(1),
                 true=constants._NAN,
-            )
+            ),
         ],
-        default=sge.func("ATANH", expr.expr),
+        # |x| = 1: Returns Infinity or -Infinity
+        default=sge.Mul(this=constants._INF, expression=expr.expr),
     )
 
 
@@ -145,15 +152,11 @@ def _(expr: TypedExpr) -> sge.Expression:
 
 @register_unary_op(ops.expm1_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.Case(
-        ifs=[
-            sge.If(
-                this=expr.expr > constants._FLOAT64_EXP_BOUND,
-                true=constants._INF,
-            )
-        ],
-        default=sge.func("EXP", expr.expr),
-    ) - sge.convert(1)
+    return sge.If(
+        this=expr.expr > constants._FLOAT64_EXP_BOUND,
+        true=constants._INF,
+        false=sge.func("EXP", expr.expr) - sge.convert(1),
+    )
 
 
 @register_unary_op(ops.floor_op)
@@ -166,11 +169,22 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr <= sge.convert(0),
+                this=sge.Is(this=expr.expr, expression=sge.Null()),
+                true=sge.null(),
+            ),
+            # |x| > 0: The standard formula
+            sge.If(
+                this=expr.expr > sge.convert(0),
+                true=sge.Ln(this=expr.expr),
+            ),
+            # |x| < 0: Returns NaN
+            sge.If(
+                this=expr.expr < sge.convert(0),
                 true=constants._NAN,
-            )
+            ),
         ],
-        default=sge.Ln(this=expr.expr),
+        # |x| == 0: Returns -Infinity
+        default=constants._NEG_INF,
     )
 
 
@@ -179,11 +193,22 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr <= sge.convert(0),
+                this=sge.Is(this=expr.expr, expression=sge.Null()),
+                true=sge.null(),
+            ),
+            # |x| > 0: The standard formula
+            sge.If(
+                this=expr.expr > sge.convert(0),
+                true=sge.Log(this=sge.convert(10), expression=expr.expr),
+            ),
+            # |x| < 0: Returns NaN
+            sge.If(
+                this=expr.expr < sge.convert(0),
                 true=constants._NAN,
-            )
+            ),
         ],
-        default=sge.Log(this=expr.expr, expression=sge.convert(10)),
+        # |x| == 0: Returns -Infinity
+        default=constants._NEG_INF,
     )
 
 
@@ -192,11 +217,22 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.Case(
         ifs=[
             sge.If(
-                this=expr.expr <= sge.convert(-1),
+                this=sge.Is(this=expr.expr, expression=sge.Null()),
+                true=sge.null(),
+            ),
+            # Domain: |x| > -1 (The standard formula)
+            sge.If(
+                this=expr.expr > sge.convert(-1),
+                true=sge.Ln(this=sge.convert(1) + expr.expr),
+            ),
+            # Out of Domain: |x| < -1 (Returns NaN)
+            sge.If(
+                this=expr.expr < sge.convert(-1),
                 true=constants._NAN,
-            )
+            ),
         ],
-        default=sge.Ln(this=sge.convert(1) + expr.expr),
+        # Boundary: |x| == -1 (Returns -Infinity)
+        default=constants._NEG_INF,
     )
 
 
@@ -326,7 +362,7 @@ def _float_pow_op(
             sge.If(
                 this=sge.and_(
                     sge.LT(this=left_expr, expression=constants._ZERO),
-                    sge.Not(this=exponent_is_whole),
+                    sge.Not(this=sge.paren(exponent_is_whole)),
                 ),
                 true=constants._NAN,
             ),
@@ -608,7 +644,7 @@ def isfinite(arg: TypedExpr) -> sge.Expression:
     return sge.Not(
         this=sge.Or(
             this=sge.IsInf(this=arg.expr),
-            right=sge.IsNan(this=arg.expr),
+            expression=sge.IsNan(this=arg.expr),
         ),
     )
 

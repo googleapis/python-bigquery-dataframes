@@ -20,13 +20,13 @@ import bigframes_vendored.sqlglot.expressions as sge
 from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes.core.compile.sqlglot import sqlglot_ir, sqlglot_types
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
-register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
-register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
-register_nary_op = scalar_compiler.scalar_op_compiler.register_nary_op
-register_ternary_op = scalar_compiler.scalar_op_compiler.register_ternary_op
+register_unary_op = expression_compiler.expression_compiler.register_unary_op
+register_binary_op = expression_compiler.expression_compiler.register_binary_op
+register_nary_op = expression_compiler.expression_compiler.register_nary_op
+register_ternary_op = expression_compiler.expression_compiler.register_ternary_op
 
 
 @register_unary_op(ops.AsTypeOp, pass_op=True)
@@ -94,7 +94,7 @@ def _(*operands: TypedExpr, op: ops.SqlScalarOp) -> sge.Expression:
 
 @register_unary_op(ops.isnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.Is(this=expr.expr, expression=sge.Null())
+    return sge.Is(this=sge.paren(expr.expr), expression=sge.Null())
 
 
 @register_unary_op(ops.MapOp, pass_op=True)
@@ -125,7 +125,10 @@ def _(expr: TypedExpr, op: ops.MapOp) -> sge.Expression:
 
 @register_unary_op(ops.notnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.Not(this=sge.Is(this=expr.expr, expression=sge.Null()))
+    return sge.Is(
+        this=sge.paren(expr.expr, copy=False),
+        expression=sg.not_(sge.Null(), copy=False),
+    )
 
 
 @register_ternary_op(ops.where_op)
@@ -152,13 +155,17 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     return sge.Coalesce(this=left.expr, expressions=[right.expr])
 
 
-@register_unary_op(ops.RemoteFunctionOp, pass_op=True)
-def _(expr: TypedExpr, op: ops.RemoteFunctionOp) -> sge.Expression:
+def _get_remote_function_name(op):
     routine_ref = op.function_def.routine_ref
     # Quote project, dataset, and routine IDs to avoid keyword clashes.
-    func_name = (
+    return (
         f"`{routine_ref.project}`.`{routine_ref.dataset_id}`.`{routine_ref.routine_id}`"
     )
+
+
+@register_unary_op(ops.RemoteFunctionOp, pass_op=True)
+def _(expr: TypedExpr, op: ops.RemoteFunctionOp) -> sge.Expression:
+    func_name = _get_remote_function_name(op)
     func = sge.func(func_name, expr.expr)
 
     if not op.apply_on_null:
@@ -175,13 +182,14 @@ def _(expr: TypedExpr, op: ops.RemoteFunctionOp) -> sge.Expression:
 def _(
     left: TypedExpr, right: TypedExpr, op: ops.BinaryRemoteFunctionOp
 ) -> sge.Expression:
-    routine_ref = op.function_def.routine_ref
-    # Quote project, dataset, and routine IDs to avoid keyword clashes.
-    func_name = (
-        f"`{routine_ref.project}`.`{routine_ref.dataset_id}`.`{routine_ref.routine_id}`"
-    )
-
+    func_name = _get_remote_function_name(op)
     return sge.func(func_name, left.expr, right.expr)
+
+
+@register_nary_op(ops.NaryRemoteFunctionOp, pass_op=True)
+def _(*operands: TypedExpr, op: ops.NaryRemoteFunctionOp) -> sge.Expression:
+    func_name = _get_remote_function_name(op)
+    return sge.func(func_name, *(operand.expr for operand in operands))
 
 
 @register_nary_op(ops.case_when_op)
@@ -247,7 +255,7 @@ def _cast_to_json(expr: TypedExpr, op: ops.AsTypeOp) -> sge.Expression:
     sg_expr = expr.expr
 
     if from_type == dtypes.STRING_DTYPE:
-        func_name = "PARSE_JSON_IN_SAFE" if op.safe else "PARSE_JSON"
+        func_name = "SAFE.PARSE_JSON" if op.safe else "PARSE_JSON"
         return sge.func(func_name, sg_expr)
     if from_type in (dtypes.INT_DTYPE, dtypes.BOOL_DTYPE, dtypes.FLOAT_DTYPE):
         sg_expr = sge.Cast(this=sg_expr, to="STRING")
