@@ -53,6 +53,7 @@ import pandas.io.formats.format
 import pyarrow
 import tabulate
 
+from bigframes._tools import docs
 import bigframes.constants
 import bigframes.core
 from bigframes.core import agg_expressions
@@ -120,8 +121,8 @@ ERROR_IO_REQUIRES_WILDCARD = (
 
 # Inherits from pandas DataFrame so that we can use the same docstrings.
 @log_adapter.class_logger
-class DataFrame(vendored_pandas_frame.DataFrame):
-    __doc__ = vendored_pandas_frame.DataFrame.__doc__
+@docs.inherit_docs(vendored_pandas_frame.DataFrame)
+class DataFrame:
     # internal flag to disable cache at all
     _disable_cache_override: bool = False
     # Must be above 5000 for pandas to delegate to bigframes for binops
@@ -387,8 +388,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         rows, _ = self.shape
         return rows
 
-    __len__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__len__)
-
     def __iter__(self):
         return iter(self.columns)
 
@@ -599,45 +598,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def _set_internal_query_job(self, query_job: Optional[bigquery.QueryJob]):
         self._query_job = query_job
 
-    @overload
-    def __getitem__(
-        self,
-        key: bigframes.series.Series,
-    ) -> DataFrame:
-        ...
-
-    @overload
-    def __getitem__(
-        self,
-        key: slice,
-    ) -> DataFrame:
-        ...
-
-    @overload
-    def __getitem__(
-        self,
-        key: List[str],
-    ) -> DataFrame:
-        ...
-
-    @overload
-    def __getitem__(
-        self,
-        key: List[blocks.Label],
-    ) -> DataFrame:
-        ...
-
-    @overload
-    def __getitem__(self, key: pandas.Index) -> DataFrame:
-        ...
-
-    @overload
-    def __getitem__(
-        self,
-        key: blocks.Label,
-    ) -> bigframes.series.Series:
-        ...
-
     def __getitem__(
         self,
         key: Union[
@@ -669,8 +629,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         else:
             # TODO(tswast): What case is this supposed to be handling?
             return self._getitem_columns([cast(Hashable, key)])
-
-    __getitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__getitem__)
 
     def _getitem_columns(self, key: Sequence[blocks.Label]) -> DataFrame:
         selected_ids: Tuple[str, ...] = ()
@@ -858,8 +816,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             df = self._assign_single_item(key, value)
         self._set_block(df._get_block())
 
-    __setitem__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__setitem__)
-
     def _apply_binop(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -970,20 +926,14 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __eq__(self, other) -> DataFrame:  # type: ignore
         return self.eq(other)
 
-    __eq__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__eq__)
-
     def ne(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.ne_op, axis=axis)
 
     def __ne__(self, other) -> DataFrame:  # type: ignore
         return self.ne(other)
 
-    __ne__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__ne__)
-
     def __invert__(self) -> DataFrame:
         return self._apply_unary_op(ops.invert_op)
-
-    __invert__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__invert__)
 
     def le(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.le_op, axis=axis)
@@ -991,15 +941,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __le__(self, other) -> DataFrame:
         return self.le(other)
 
-    __le__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__le__)
-
     def lt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.lt_op, axis=axis)
 
     def __lt__(self, other) -> DataFrame:
         return self.lt(other)
-
-    __lt__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__lt__)
 
     def ge(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.ge_op, axis=axis)
@@ -1007,15 +953,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __ge__(self, other) -> DataFrame:
         return self.ge(other)
 
-    __ge__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__ge__)
-
     def gt(self, other: typing.Any, axis: str | int = "columns") -> DataFrame:
         return self._apply_binop(other, ops.gt_op, axis=axis)
 
     def __gt__(self, other) -> DataFrame:
         return self.gt(other)
-
-    __gt__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__gt__)
 
     def add(
         self,
@@ -1038,12 +980,8 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __add__(self, other) -> DataFrame:
         return self.add(other)
 
-    __add__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__add__)
-
     def __radd__(self, other) -> DataFrame:
         return self.radd(other)
-
-    __radd__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__radd__)
 
     def sub(
         self,
@@ -1053,12 +991,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_binop(other, ops.sub_op, axis=axis)
 
     subtract = sub
-    subtract.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.sub)
 
     def __sub__(self, other):
         return self.sub(other)
-
-    __sub__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__sub__)
 
     def rsub(
         self,
@@ -1070,8 +1005,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __rsub__(self, other):
         return self.rsub(other)
 
-    __rsub__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__rsub__)
-
     def mul(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -1080,12 +1013,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_binop(other, ops.mul_op, axis=axis)
 
     multiply = mul
-    multiply.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.mul)
 
     def __mul__(self, other):
         return self.mul(other)
-
-    __mul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__mul__)
 
     def rmul(
         self,
@@ -1097,8 +1027,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __rmul__(self, other):
         return self.rmul(other)
 
-    __rmul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__rmul__)
-
     def truediv(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -1106,13 +1034,10 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     ) -> DataFrame:
         return self._apply_binop(other, ops.div_op, axis=axis)
 
-    truediv.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.truediv)
     div = divide = truediv
 
     def __truediv__(self, other):
         return self.truediv(other)
-
-    __truediv__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__truediv__)
 
     def rtruediv(
         self,
@@ -1122,12 +1047,9 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_binop(other, ops.div_op, axis=axis, reverse=True)
 
     rdiv = rtruediv
-    rdiv.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.rtruediv)
 
     def __rtruediv__(self, other):
         return self.rtruediv(other)
-
-    __rtruediv__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__rtruediv__)
 
     def floordiv(
         self,
@@ -1139,8 +1061,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __floordiv__(self, other):
         return self.floordiv(other)
 
-    __floordiv__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__floordiv__)
-
     def rfloordiv(
         self,
         other: float | int | bigframes.series.Series | DataFrame,
@@ -1151,25 +1071,17 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __rfloordiv__(self, other):
         return self.rfloordiv(other)
 
-    __rfloordiv__.__doc__ = inspect.getdoc(
-        vendored_pandas_frame.DataFrame.__rfloordiv__
-    )
-
     def mod(self, other: int | bigframes.series.Series | DataFrame, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis)
 
     def __mod__(self, other):
         return self.mod(other)
 
-    __mod__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__mod__)
-
     def rmod(self, other: int | bigframes.series.Series | DataFrame, axis: str | int = "columns") -> DataFrame:  # type: ignore
         return self._apply_binop(other, ops.mod_op, axis=axis, reverse=True)
 
     def __rmod__(self, other):
         return self.rmod(other)
-
-    __rmod__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__rmod__)
 
     def pow(
         self, other: int | bigframes.series.Series, axis: str | int = "columns"
@@ -1179,8 +1091,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __pow__(self, other):
         return self.pow(other)
 
-    __pow__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__pow__)
-
     def rpow(
         self, other: int | bigframes.series.Series, axis: str | int = "columns"
     ) -> DataFrame:
@@ -1189,26 +1099,18 @@ class DataFrame(vendored_pandas_frame.DataFrame):
     def __rpow__(self, other):
         return self.rpow(other)
 
-    __rpow__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__rpow__)
-
     def __and__(self, other: bool | int | bigframes.series.Series) -> DataFrame:
         return self._apply_binop(other, ops.and_op)
-
-    __and__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__and__)
 
     __rand__ = __and__
 
     def __or__(self, other: bool | int | bigframes.series.Series) -> DataFrame:
         return self._apply_binop(other, ops.or_op)
 
-    __or__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__or__)
-
     __ror__ = __or__
 
     def __xor__(self, other: bool | int | bigframes.series.Series) -> DataFrame:
         return self._apply_binop(other, ops.xor_op)
-
-    __xor__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__xor__)
 
     __rxor__ = __xor__
 
@@ -1220,8 +1122,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __abs__(self) -> DataFrame:
         return self._apply_unary_op(ops.abs_op)
-
-    __abs__.__doc__ = abs.__doc__
 
     def align(
         self,
@@ -3186,7 +3086,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(block)
 
     product = prod
-    product.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.prod)
 
     def count(self, *, numeric_only: bool = False) -> bigframes.series.Series:
         if not numeric_only:
@@ -3265,7 +3164,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
             )
 
     aggregate = agg
-    aggregate.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.agg)
 
     @validations.requires_index
     @validations.requires_ordering()
@@ -3338,7 +3236,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return bigframes.series.Series(result_block)
 
     kurtosis = kurt
-    kurtosis.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.kurt)
 
     def _pivot(
         self,
@@ -3998,13 +3895,11 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return self._apply_unary_op(ops.isnull_op)
 
     isnull = isna
-    isnull.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.isna)
 
     def notna(self) -> DataFrame:
         return self._apply_unary_op(ops.notnull_op)
 
     notnull = notna
-    notnull.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.notna)
 
     @validations.requires_ordering()
     def cumsum(self):
@@ -4406,8 +4301,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         if copy is False:
             raise ValueError("Cannot convert to array without copy.")
         return self.to_numpy(dtype=dtype)
-
-    __array__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__array__)
 
     def to_parquet(
         self,
@@ -4946,7 +4839,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
         return
 
     applymap = map
-    applymap.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.map)
 
     def _slice(
         self,
@@ -5147,8 +5039,6 @@ class DataFrame(vendored_pandas_frame.DataFrame):
 
     def __matmul__(self, other) -> DataFrame:
         return self.dot(other)
-
-    __matmul__.__doc__ = inspect.getdoc(vendored_pandas_frame.DataFrame.__matmul__)
 
     @property
     def struct(self):
