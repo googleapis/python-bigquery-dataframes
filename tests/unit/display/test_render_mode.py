@@ -90,6 +90,15 @@ def test_repr_mimebundle_selection_logic():
 
         mock_anywidget.reset_mock()
 
+        # Test anywidget repr_mode (backward compatibility)
+        with bpd.option_context("display.repr_mode", "anywidget"):
+            bundle = bf_html.repr_mimebundle(mock_obj)
+            assert "application/vnd.jupyter.widget-view+json" in bundle[0]
+            mock_anywidget.assert_called_once()
+            mock_head.assert_not_called()
+
+        mock_anywidget.reset_mock()
+
         # Test default render_mode (should be "html")
         bundle = bf_html.repr_mimebundle(mock_obj)
         assert "text/plain" in bundle

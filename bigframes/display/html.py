@@ -361,7 +361,7 @@ def repr_mimebundle(
     if opts.repr_mode == "deferred":
         return repr_mimebundle_deferred(obj)
 
-    if opts.render_mode == "anywidget":
+    if opts.render_mode == "anywidget" or opts.repr_mode == "anywidget":
         try:
             with bigframes.option_context("display.progress_bar", None):
                 with warnings.catch_warnings():

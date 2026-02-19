@@ -112,7 +112,7 @@ class DisplayOptions:
         >>> bpd.options.display.progress_bar = "terminal"  # doctest: +SKIP
     """
 
-    repr_mode: Literal["head", "deferred"] = "head"
+    repr_mode: Literal["head", "deferred", "anywidget"] = "head"
     """
     Determines how to display a DataFrame or Series. Default "head".
 
@@ -125,6 +125,9 @@ class DisplayOptions:
         Instead, estimated bytes processed will be shown. DataFrame and Series
         objects can still be computed with methods that explicitly execute and
         download results.
+
+    `anywidget`
+        Display as interactive widget using `anywidget` library.
 
     **Examples:**
 
