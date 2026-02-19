@@ -778,6 +778,11 @@ class Index:
     def __len__(self):
         return self.shape[0]
 
+    def __bool__(self):
+        raise ValueError(
+            "Cannot convert Index into bool. Consider using .empty(), .item(), .any(), or .all() methods."
+        )
+
     def item(self):
         # Docstring is in third_party/bigframes_vendored/pandas/core/indexes/base.py
         return self.to_series().peek(2).item()

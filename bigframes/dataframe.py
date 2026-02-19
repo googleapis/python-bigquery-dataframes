@@ -388,6 +388,11 @@ class DataFrame:
         rows, _ = self.shape
         return rows
 
+    def __bool__(self):
+        raise ValueError(
+            "Cannot convert dataframe into bool. Consider using .empty(), .any(), or .all() methods."
+        )
+
     def __iter__(self):
         return iter(self.columns)
 

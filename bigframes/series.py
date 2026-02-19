@@ -359,6 +359,11 @@ class Series:
     def __len__(self):
         return self.shape[0]
 
+    def __bool__(self):
+        raise ValueError(
+            "Cannot convert Series into bool. Consider using .empty(), .item(), .any(), or .all() methods."
+        )
+
     def __iter__(self) -> typing.Iterator:
         return itertools.chain.from_iterable(
             map(lambda x: x.squeeze(axis=1), self._block.to_pandas_batches())
