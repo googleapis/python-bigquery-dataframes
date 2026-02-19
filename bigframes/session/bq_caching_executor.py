@@ -322,6 +322,8 @@ class BigQueryCachingExecutor(executor.Executor):
                 clustering_fields=spec.cluster_cols if spec.cluster_cols else None,
             )
 
+        # Attach data type usage to the job labels
+        job_config.labels["bigframes-dtypes"] = compiled.encoded_type_refs
         # TODO(swast): plumb through the api_name of the user-facing api that
         # caused this query.
         iterator, job = self._run_execute_query(
@@ -665,6 +667,8 @@ class BigQueryCachingExecutor(executor.Executor):
             )
             job_config.destination = destination_table
 
+        # Attach data type usage to the job labels
+        job_config.labels["bigframes-dtypes"] = compiled.encoded_type_refs
         iterator, query_job = self._run_execute_query(
             sql=compiled.sql,
             job_config=job_config,
@@ -679,13 +683,12 @@ class BigQueryCachingExecutor(executor.Executor):
             result_bf_schema = _result_schema(og_schema, list(compiled.sql_schema))
             dst = query_job.destination
             result_bq_data = bq_data.BigqueryDataSource(
-                table=bq_data.GbqTable(
-                    dst.project,
-                    dst.dataset_id,
-                    dst.table_id,
+                table=bq_data.GbqNativeTable.from_ref_and_schema(
+                    dst,
                     tuple(compiled_schema),
-                    is_physically_stored=True,
                     cluster_cols=tuple(cluster_cols),
+                    location=iterator.location or self.storage_manager.location,
+                    table_type="TABLE",
                 ),
                 schema=result_bf_schema,
                 ordering=compiled.row_order,

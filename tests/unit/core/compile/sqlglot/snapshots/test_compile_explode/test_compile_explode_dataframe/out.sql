@@ -1,9 +1,9 @@
 WITH `bfcte_0` AS (
   SELECT
-    `int_list_col`,
     `rowindex`,
+    `int_list_col`,
     `string_list_col`
-  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types`
+  FROM `bigframes-dev`.`sqlglot_test`.`repeated_types` AS `bft_0`
 ), `bfcte_1` AS (
   SELECT
     *
