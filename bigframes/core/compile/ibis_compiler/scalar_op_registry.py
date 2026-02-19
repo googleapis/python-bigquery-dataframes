@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import functools
 import typing
-from typing import cast, Union
+from typing import cast
 
 from bigframes_vendored import ibis
 import bigframes_vendored.ibis.expr.api as ibis_api
