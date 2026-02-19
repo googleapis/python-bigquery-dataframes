@@ -15,7 +15,7 @@
 import base64
 import decimal
 import re
-from typing import Iterable, Optional, Sequence, Set, Union
+from typing import Iterable, Optional, Sequence, Set, TypeVar, Union
 
 import geopandas as gpd  # type: ignore
 import google.api_core.operation
@@ -68,6 +68,8 @@ ML_MULTIMODAL_GENERATE_EMBEDDING_OUTPUT = [
     "content",
 ]
 
+SeriesOrIndexT = TypeVar("SeriesOrIndexT", pd.Series, pd.Index)
+
 
 def pandas_major_version() -> int:
     match = re.search(r"^v?(\d+)", pd.__version__.strip())
@@ -90,13 +92,25 @@ def assert_series_equivalent(pd_series: pd.Series, bf_series: bpd.Series, **kwar
 
 def _normalize_all_nulls(col: pd.Series) -> pd.Series:
     # This over-normalizes probably, make more conservative later
-    if col.hasnans and (
-        pd_types.is_float_dtype(col.dtype) or pd_types.is_integer_dtype(col.dtype)
-    ):
-        col = col.astype("float64")
+    if col.hasnans and (pd_types.is_float_dtype(col.dtype)):
+        col = col.astype("float64").astype("Float64")
     if pd_types.is_object_dtype(col):
-        col = col.fillna(float("nan"))
+        col = col.fillna(pd.NA)
     return col
+
+
+def _normalize_index_nulls(idx: pd.Index) -> pd.Index:
+    if isinstance(idx, pd.MultiIndex):
+        new_levels = [
+            _normalize_index_nulls(idx.get_level_values(i)) for i in range(idx.nlevels)
+        ]
+        return pd.MultiIndex.from_arrays(new_levels, names=idx.names)
+    if idx.hasnans:
+        if pd_types.is_float_dtype(idx.dtype) or pd_types.is_integer_dtype(idx.dtype):
+            idx = idx.astype("float64").astype("Float64")
+        if pd_types.is_object_dtype(idx.dtype):
+            idx = idx.fillna(pd.NA)
+    return idx
 
 
 def assert_frame_equal(
@@ -123,6 +137,8 @@ def assert_frame_equal(
     if nulls_are_nan:
         left = left.apply(_normalize_all_nulls)
         right = right.apply(_normalize_all_nulls)
+        left.index = _normalize_index_nulls(left.index)
+        right.index = _normalize_index_nulls(right.index)
 
     pd.testing.assert_frame_equal(left, right, **kwargs)
 
@@ -155,6 +171,10 @@ def assert_series_equal(
     if nulls_are_nan:
         left = _normalize_all_nulls(left)
         right = _normalize_all_nulls(right)
+        left.index = _normalize_index_nulls(left.index)
+        right.index = _normalize_index_nulls(right.index)
+        left.name = pd.NA if pd.isna(left.name) else left.name  # type: ignore
+        right.name = pd.NA if pd.isna(right.name) else right.name  # type: ignore
 
     pd.testing.assert_series_equal(left, right, **kwargs)
 

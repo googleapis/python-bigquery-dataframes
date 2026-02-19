@@ -25,6 +25,9 @@ import pytest
 from bigframes import dtypes
 import bigframes.testing
 
+# Some methods/features used by this test don't exist in pandas 1.x
+pytest.importorskip("pandas", minversion="2.0.0")
+
 
 @pytest.fixture(scope="module")
 def temporal_dfs(session):

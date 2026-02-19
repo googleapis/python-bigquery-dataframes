@@ -551,6 +551,8 @@ def test_series___getitem__(scalars_dfs, index_col, key):
     ),
 )
 def test_series___getitem___with_int_key(scalars_dfs, key):
+    if pd.__version__.startswith("3."):
+        pytest.skip("pandas 3.0 dropped getitem with int key")
     col_name = "int64_too"
     index_col = "string_col"
     scalars_df, scalars_pandas_df = scalars_dfs
