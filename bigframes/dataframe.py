@@ -347,6 +347,10 @@ class DataFrame:
         return self._block.shape
 
     @property
+    def axes(self) -> list:
+        return [self.index, self.columns]
+
+    @property
     def size(self) -> int:
         rows, cols = self.shape
         return rows * cols
