@@ -58,5 +58,5 @@ def test_struct_from_dataframe(columns_arg):
         bbq.struct(srs.struct.explode()).to_pandas(),
         check_index_type=False,
         check_dtype=False,
-        check_namesbool=False,  # None vs nan version dependent
+        check_names=False,  # None vs nan version dependent
     )

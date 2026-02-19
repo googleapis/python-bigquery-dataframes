@@ -40,6 +40,7 @@ import bigframes.dataframe
 import bigframes.enums
 import bigframes.features
 import bigframes.pandas as bpd
+import bigframes.testing
 
 
 def test_sql_executes(scalars_df_default_index, bigquery_client):
@@ -69,7 +70,7 @@ def test_sql_executes(scalars_df_default_index, bigquery_client):
         .sort_values("rowindex")
         .reset_index(drop=True)
     )
-    pandas.testing.assert_frame_equal(bf_result, bq_result, check_dtype=False)
+    bigframes.testing.assert_frame_equal(bf_result, bq_result, check_dtype=False)
 
 
 def test_sql_executes_and_includes_named_index(
@@ -100,7 +101,7 @@ def test_sql_executes_and_includes_named_index(
         .set_index("string_col")
         .sort_values("rowindex")
     )
-    pandas.testing.assert_frame_equal(
+    bigframes.testing.assert_frame_equal(
         bf_result, bq_result, check_dtype=False, check_index_type=False
     )
 
@@ -133,7 +134,7 @@ def test_sql_executes_and_includes_named_multiindex(
         .set_index(["string_col", "bool_col"])
         .sort_values("rowindex")
     )
-    pandas.testing.assert_frame_equal(
+    bigframes.testing.assert_frame_equal(
         bf_result, bq_result, check_dtype=False, check_index_type=False
     )
 
@@ -373,7 +374,7 @@ def test_to_pandas_batches_w_empty_dataframe(session):
     assert len(results) == 1
     assert list(results[0].index.names) == ["idx1", "idx2"]
     assert list(results[0].columns) == ["col1", "col2"]
-    pandas.testing.assert_series_equal(results[0].dtypes, empty.dtypes)
+    bigframes.testing.assert_series_equal(results[0].dtypes, empty.dtypes)
 
 
 @pytest.mark.skipif(

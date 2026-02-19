@@ -508,10 +508,11 @@ def test_timedelta_filtering(session):
             pd.Timestamp("2025-01-01 01:00:00"),
             pd.Timestamp("2025-01-01 02:00:00"),
             pd.Timestamp("2025-01-01 03:00:00"),
-        ]
+        ],
+        dtype=dtypes.TIMESTAMP_DTYPE,
     )
     bf_series = session.read_pandas(pd_series)
-    timestamp = pd.Timestamp("2025-01-01, 00:00:01")
+    timestamp = pd.Timestamp("2025-01-01, 00:00:01", tz="UTC")
 
     actual_result = bf_series[
         ((bf_series - timestamp) > pd.Timedelta(1, "h"))
@@ -526,16 +527,22 @@ def test_timedelta_filtering(session):
 def test_timedelta_ordering(session):
     pd_df = pd.DataFrame(
         {
-            "col_1": [
-                pd.Timestamp("2025-01-01 01:00:00"),
-                pd.Timestamp("2025-01-01 02:00:00"),
-                pd.Timestamp("2025-01-01 03:00:00"),
-            ],
-            "col_2": [
-                pd.Timestamp("2025-01-01 01:00:02"),
-                pd.Timestamp("2025-01-01 02:00:01"),
-                pd.Timestamp("2025-01-01 02:59:59"),
-            ],
+            "col_1": pd.Series(
+                [
+                    pd.Timestamp("2025-01-01 01:00:00"),
+                    pd.Timestamp("2025-01-01 02:00:00"),
+                    pd.Timestamp("2025-01-01 03:00:00"),
+                ],
+                dtype=dtypes.TIMESTAMP_DTYPE,
+            ),
+            "col_2": pd.Series(
+                [
+                    pd.Timestamp("2025-01-01 01:00:02"),
+                    pd.Timestamp("2025-01-01 02:00:01"),
+                    pd.Timestamp("2025-01-01 02:59:59"),
+                ],
+                dtype=dtypes.TIMESTAMP_DTYPE,
+            ),
         }
     )
     bf_df = session.read_pandas(pd_df)
