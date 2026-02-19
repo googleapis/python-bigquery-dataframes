@@ -37,6 +37,7 @@ from typing import (
     overload,
     Sequence,
     Tuple,
+    TypeVar,
     Union,
 )
 import warnings
@@ -108,6 +109,7 @@ if typing.TYPE_CHECKING:
         "DataFrame", Sequence[int | float | str | pandas.Timedelta | Callable]
     ]
 
+U = TypeVar("U")
 LevelType = typing.Hashable
 LevelsType = typing.Union[LevelType, typing.Sequence[LevelType]]
 
@@ -3759,6 +3761,22 @@ class DataFrame:
         return bigframes.core.window.Window(
             self._block, window, self._block.value_columns
         )
+
+    def pipe(
+        self,
+        func: Union[Callable[..., U], tuple[Callable[..., U], str]],
+        *args,
+        **kwargs,
+    ) -> U:
+        import bigframes_vendored.pandas.core.common as common
+
+        return common.pipe(self, func, *args, **kwargs)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except (KeyError, ValueError, IndexError):
+            return default
 
     def groupby(
         self,
