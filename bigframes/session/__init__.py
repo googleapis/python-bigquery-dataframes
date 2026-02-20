@@ -374,6 +374,18 @@ class Session(
     def _anonymous_dataset(self):
         return self._anon_dataset_manager.dataset
 
+    @property
+    def _bq_connection(self) -> str:
+        msg = bfe.format_message(
+            f"You are using the BigFrames session default connection: {self._bq_connection}, which can be different from the BigQuery project default connection."
+        )
+        warnings.warn(msg, category=FutureWarning)
+        return self._bq_connection
+
+    @_bq_connection.setter
+    def _bq_connection(self, value):
+        self._bq_connection = value
+
     def __hash__(self):
         # Stable hash needed to use in expression tree
         return hash(str(self._session_id))

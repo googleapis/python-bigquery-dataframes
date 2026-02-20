@@ -4233,7 +4233,7 @@ class DataFrame:
 
             # The client code owns this table reference now
             temp_table_ref = (
-                self._session._anon_dataset_manager.generate_unique_resource_id()
+                self._session._anon_dataset_manager.generate_unique_resource_id()  # type: ignore
             )
             destination_table = f"{temp_table_ref.project}.{temp_table_ref.dataset_id}.{temp_table_ref.table_id}"
 

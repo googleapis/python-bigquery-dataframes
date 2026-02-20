@@ -442,7 +442,7 @@ class Block:
             level_ids = self.index_columns
 
         expr = self._expr
-        replacement_idx_type = replacement or self.session._default_index_type
+        replacement_idx_type = replacement or self.session._default_index_type  # type: ignore
         if set(self.index_columns) > set(level_ids):
             new_index_cols = [col for col in self.index_columns if col not in level_ids]
             new_index_labels = [self.col_id_to_index_name[id] for id in new_index_cols]
@@ -2382,7 +2382,7 @@ class Block:
         if (
             self.index.is_null
             or other.index.is_null
-            or self.session._default_index_type == bigframes.enums.DefaultIndexKind.NULL
+            or self.session._default_index_type == bigframes.enums.DefaultIndexKind.NULL  # type: ignore
         ):
             return Block(joined_expr, index_columns=[], column_labels=labels)
         elif index_cols:
