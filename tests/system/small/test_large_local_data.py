@@ -23,6 +23,26 @@ large_dataframe = pd.DataFrame(np.random.rand(10000, 10), dtype="Float64")
 large_dataframe.index = large_dataframe.index.astype("Int64")
 
 
+@pytest.mark.parametrize(
+    ("default_write_engine",),
+    [
+        pytest.param("bigquery_load"),
+        pytest.param("bigquery_write"),
+    ],
+)
+def test_read_pandas_config_default_engine(
+    session: bigframes.Session, default_write_engine
+):
+    pytest.importorskip("pandas", minversion="2.0.0")
+    with bigframes.option_context(
+        "compute.default_write_engine",
+        default_write_engine,
+    ):
+        bf_df = session.read_pandas(large_dataframe)
+
+    assert_frame_equal(large_dataframe, bf_df.to_pandas())
+
+
 def test_read_pandas_defer_noop(session: bigframes.Session):
     pytest.importorskip("pandas", minversion="2.0.0")
     bf_df = session.read_pandas(large_dataframe, write_engine="_deferred")
