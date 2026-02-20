@@ -339,9 +339,7 @@ def test_dt_tz_localize(scalars_dfs, col_name, tz):
     bf_result = bf_series.dt.tz_localize(tz)
     pd_result = scalars_pandas_df[col_name].dt.tz_localize(tz)
 
-    testing.assert_series_equal(
-        bf_result.to_pandas(), pd_result, check_index_type=False
-    )
+    assert_series_equal(bf_result.to_pandas(), pd_result, check_index_type=False)
 
 
 @pytest.mark.parametrize(
