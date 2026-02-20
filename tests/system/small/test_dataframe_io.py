@@ -70,6 +70,7 @@ def test_sql_executes(scalars_df_default_index, bigquery_client):
         .sort_values("rowindex")
         .reset_index(drop=True)
     )
+    bq_result["bytes_col"] = bq_result["bytes_col"].astype(dtypes.BYTES_DTYPE)
     bigframes.testing.assert_frame_equal(bf_result, bq_result, check_dtype=False)
 
 
@@ -101,6 +102,7 @@ def test_sql_executes_and_includes_named_index(
         .set_index("string_col")
         .sort_values("rowindex")
     )
+    bq_result["bytes_col"] = bq_result["bytes_col"].astype(dtypes.BYTES_DTYPE)
     bigframes.testing.assert_frame_equal(
         bf_result, bq_result, check_dtype=False, check_index_type=False
     )
@@ -134,6 +136,7 @@ def test_sql_executes_and_includes_named_multiindex(
         .set_index(["string_col", "bool_col"])
         .sort_values("rowindex")
     )
+    bq_result["bytes_col"] = bq_result["bytes_col"].astype(dtypes.BYTES_DTYPE)
     bigframes.testing.assert_frame_equal(
         bf_result, bq_result, check_dtype=False, check_index_type=False
     )

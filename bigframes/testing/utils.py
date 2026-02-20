@@ -94,8 +94,6 @@ def _normalize_all_nulls(col: pd.Series) -> pd.Series:
     # This over-normalizes probably, make more conservative later
     if col.hasnans and (pd_types.is_float_dtype(col.dtype)):
         col = col.astype("float64").astype("Float64")
-    if pd_types.is_object_dtype(col):
-        col = col.fillna(pd.NA)
     return col
 
 
@@ -106,10 +104,8 @@ def _normalize_index_nulls(idx: pd.Index) -> pd.Index:
         ]
         return pd.MultiIndex.from_arrays(new_levels, names=idx.names)
     if idx.hasnans:
-        if pd_types.is_float_dtype(idx.dtype) or pd_types.is_integer_dtype(idx.dtype):
+        if pd_types.is_float_dtype(idx.dtype):
             idx = idx.astype("float64").astype("Float64")
-        if pd_types.is_object_dtype(idx.dtype):
-            idx = idx.fillna(pd.NA)
     return idx
 
 
@@ -119,6 +115,7 @@ def assert_frame_equal(
     *,
     ignore_order: bool = False,
     nulls_are_nan: bool = True,
+    downcast_object: bool = True,
     **kwargs,
 ):
     if ignore_order:
@@ -133,6 +130,12 @@ def assert_frame_equal(
         else:
             left = left.sort_index()
             right = right.sort_index()
+
+    # Pandas sometimes likes to produce object dtype columns
+    # However, nan/None/Null inconsistency makes comparison futile, convert to typed column
+    if downcast_object:
+        left = left.apply(lambda x: x.infer_objects())
+        right = right.apply(lambda x: x.infer_objects())
 
     if nulls_are_nan:
         left = left.apply(_normalize_all_nulls)

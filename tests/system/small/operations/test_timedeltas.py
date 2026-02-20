@@ -97,48 +97,63 @@ def _assert_series_equal(actual: pd.Series, expected: pd.Series):
 
 
 @pytest.mark.parametrize(
-    ("op", "col_1", "col_2"),
+    ("op", "col_1", "col_2", "arrow_supported"),
     [
-        (operator.add, "timedelta_col_1", "timedelta_col_2"),
-        (operator.sub, "timedelta_col_1", "timedelta_col_2"),
-        (operator.truediv, "timedelta_col_1", "timedelta_col_2"),
-        (operator.floordiv, "timedelta_col_1", "timedelta_col_2"),
-        (operator.truediv, "timedelta_col_1", "float_col"),
-        (operator.floordiv, "timedelta_col_1", "float_col"),
-        (operator.mul, "timedelta_col_1", "float_col"),
-        (operator.mul, "float_col", "timedelta_col_1"),
-        (operator.mod, "timedelta_col_1", "timedelta_col_2"),
+        (operator.add, "timedelta_col_1", "timedelta_col_2", True),
+        (operator.sub, "timedelta_col_1", "timedelta_col_2", True),
+        (operator.truediv, "timedelta_col_1", "timedelta_col_2", True),
+        (operator.floordiv, "timedelta_col_1", "timedelta_col_2", True),
+        (operator.truediv, "timedelta_col_1", "float_col", False),
+        (operator.floordiv, "timedelta_col_1", "float_col", False),
+        (operator.mul, "timedelta_col_1", "float_col", False),
+        (operator.mul, "float_col", "timedelta_col_1", False),
+        (operator.mod, "timedelta_col_1", "timedelta_col_2", False),
     ],
 )
-def test_timedelta_binary_ops_between_series(temporal_dfs, op, col_1, col_2):
+def test_timedelta_binary_ops_between_series(
+    temporal_dfs, op, col_1, col_2, arrow_supported
+):
     bf_df, pd_df = temporal_dfs
 
     actual_result = op(bf_df[col_1], bf_df[col_2]).to_pandas()
 
-    expected_result = op(pd_df[col_1], pd_df[col_2])
+    if not arrow_supported:
+        expected_result = pd_df.apply(lambda x: op(x[col_1], x[col_2]), axis=1)
+    else:
+        expected_result = op(pd_df[col_1], pd_df[col_2])
     _assert_series_equal(actual_result, expected_result)
 
 
 @pytest.mark.parametrize(
-    ("op", "col", "literal"),
+    ("op", "col", "literal", "arrow_supported"),
     [
-        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.truediv, "timedelta_col_1", 3),
-        (operator.floordiv, "timedelta_col_1", 3),
-        (operator.mul, "timedelta_col_1", 3),
-        (operator.mul, "float_col", pd.Timedelta(1, "s").as_unit("us")),
-        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s").as_unit("us")),
+        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us"), True),
+        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us"), True),
+        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us"), True),
+        (
+            operator.floordiv,
+            "timedelta_col_1",
+            pd.Timedelta(2, "s").as_unit("us"),
+            False,
+        ),
+        (operator.truediv, "timedelta_col_1", 3, True),
+        (operator.floordiv, "timedelta_col_1", 3, False),
+        (operator.mul, "timedelta_col_1", 3, True),
+        (operator.mul, "float_col", pd.Timedelta(1, "s").as_unit("us"), True),
+        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s").as_unit("us"), False),
     ],
 )
-def test_timedelta_binary_ops_series_and_literal(temporal_dfs, op, col, literal):
+def test_timedelta_binary_ops_series_and_literal(
+    temporal_dfs, op, col, literal, arrow_supported
+):
     bf_df, pd_df = temporal_dfs
 
     actual_result = op(bf_df[col], literal).to_pandas()
 
-    expected_result = op(pd_df[col], literal)
+    if not arrow_supported:
+        expected_result = pd_df[col].map(lambda x: op(x, literal))
+    else:
+        expected_result = op(pd_df[col], literal)
     _assert_series_equal(actual_result, expected_result)
 
 
@@ -298,13 +313,16 @@ def test_timestamp_add_dataframes(temporal_dfs):
 
 
 @pytest.mark.parametrize(
-    ("column", "pd_dtype"),
+    ("column",),
     [
-        ("datetime_col", "<M8[ns]"),
-        ("timestamp_col", "datetime64[ns, UTC]"),
+        ("datetime_col",),
+        ("timestamp_col",),
     ],
 )
-def test_timestamp_sub__ts_series_minus_td_series(temporal_dfs, column, pd_dtype):
+def test_timestamp_sub__ts_series_minus_td_series(
+    temporal_dfs,
+    column,
+):
     bf_df, pd_df = temporal_dfs
 
     actual_result = (bf_df[column] - bf_df["timedelta_col_1"]).to_pandas()
@@ -316,19 +334,23 @@ def test_timestamp_sub__ts_series_minus_td_series(temporal_dfs, column, pd_dtype
 
 
 @pytest.mark.parametrize(
-    ("column", "pd_dtype"),
+    ("column",),
     [
-        ("datetime_col", "<M8[ns]"),
-        ("timestamp_col", "datetime64[ns, UTC]"),
+        ("datetime_col",),
+        ("timestamp_col",),
     ],
 )
-def test_timestamp_sub__ts_series_minus_td_literal(temporal_dfs, column, pd_dtype):
+def test_timestamp_sub__ts_series_minus_td_literal(
+    temporal_dfs,
+    column,
+):
     bf_df, pd_df = temporal_dfs
     literal = pd.Timedelta(1, "h")
 
     actual_result = (bf_df[column] - literal).to_pandas()
 
-    expected_result = pd_df[column] - literal
+    # pandas type behavior changes per pandas version
+    expected_result = (pd_df[column] - literal).astype(actual_result.dtype)
     bigframes.testing.assert_series_equal(
         actual_result, expected_result, check_index_type=False
     )
@@ -584,7 +606,7 @@ def test_timedelta_agg__timedelta_result(temporal_dfs, agg_func):
 
     actual_result = agg_func(bf_df["timedelta_col_1"])
 
-    expected_result = agg_func(pd_df["timedelta_col_1"]).floor("us")
+    expected_result = agg_func(pd_df["timedelta_col_1"])
     assert actual_result == expected_result
 
 
