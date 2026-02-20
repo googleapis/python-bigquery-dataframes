@@ -377,7 +377,9 @@ class Session(
     @property
     def _bq_connection(self) -> str:
         msg = bfe.format_message(
-            f"You are using the BigFrames session default connection: {self._bq_connection}, which can be different from the BigQuery project default connection."
+            f"""You are using the BigFrames session default connection: {self._bq_connection},
+            which can be different from the BigQuery project default connection.
+            This default connection may change in the future."""
         )
         warnings.warn(msg, category=FutureWarning)
         return self._bq_connection
