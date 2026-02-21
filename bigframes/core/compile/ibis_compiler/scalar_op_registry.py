@@ -1029,11 +1029,6 @@ def timedelta_floor_op_impl(x: ibis_types.NumericValue):
     return ibis_api.case().when(x > 0, x.floor()).else_(x.ceil()).end()
 
 
-@scalar_op_compiler.register_unary_op(ops.timedelta_round_op)
-def timedelta_round_op_impl(x: ibis_types.NumericValue):
-    return ibis_api.case().when(x > 0, x.floor()).else_(x.ceil()).end()
-
-
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     udf_sig = op.function_def.signature
