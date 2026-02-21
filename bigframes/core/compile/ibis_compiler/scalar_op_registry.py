@@ -1026,7 +1026,7 @@ def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
 
 @scalar_op_compiler.register_unary_op(ops.timedelta_floor_op)
 def timedelta_floor_op_impl(x: ibis_types.NumericValue):
-    return x.floor()
+    return ibis_api.case().when(x > 0, x.floor()).else_(x.ceil()).end()
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
