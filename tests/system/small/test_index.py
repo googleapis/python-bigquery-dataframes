@@ -300,6 +300,20 @@ def test_index_fillna(scalars_df_index, scalars_pandas_df_index):
     pd.testing.assert_index_equal(bf_result, pd_result)
 
 
+def test_index_isna(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.set_index("int64_col").index.isna().to_pandas()
+    pd_result = scalars_pandas_df_index.set_index("int64_col").index.isna()
+
+    pd.testing.assert_index_equal(bf_result, pd.Index(pd_result))
+
+
+def test_index_notna(scalars_df_index, scalars_pandas_df_index):
+    bf_result = scalars_df_index.set_index("float64_col").index.notna().to_pandas()
+    pd_result = scalars_pandas_df_index.set_index("float64_col").index.notna()
+
+    pd.testing.assert_index_equal(bf_result, pd.Index(pd_result))
+
+
 def test_index_drop(scalars_df_index, scalars_pandas_df_index):
     bf_result = (
         scalars_df_index.set_index("int64_col").index.drop([2, 314159]).to_pandas()
