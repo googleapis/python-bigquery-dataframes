@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pandas.testing
+import pyarrow
 
 from bigframes import dtypes
 
@@ -52,6 +53,76 @@ def test_type_system_examples() -> None:
         pd.Series([pd.Timestamp(2025, 1, 1, 12)], dtype=dtypes.DATETIME_DTYPE),
         check_index_type=False,
     )
+
+    # [START bigquery_dataframes_type_system_simple_json]
+    import pandas as pd
+
+    import bigframes.pandas as bpd
+
+    json_data = [
+        "1",
+        '"str"',
+        "false",
+        '["a",{"b":1},null]',
+        '{"a":{"b":[1,2,3],"c":true}}',
+        None,
+    ]
+    bpd.Series(json_data, dtype="json")
+    # 0                               1
+    # 1                           "str"
+    # 2                           false
+    # 3              ["a",{"b":1},null]
+    # 4    {"a":{"b":[1,2,3],"c":true}}
+    # 5                            <NA>
+    # [END bigquery_dataframes_type_system_simple_json]
+    pandas.testing.assert_series_equal(
+        bpd.Series(json_data, dtype=dtypes.JSON_DTYPE).to_pandas(),
+        pd.Series(json_data, dtype=dtypes.JSON_DTYPE),
+        check_index_type=False,
+    )
+
+    assert pyarrow.__version__.startswith("19.") or pyarrow.__version__.startswith("2")
+    if hasattr(pyarrow, "JsonType"):
+        # [START bigquery_dataframes_type_system_mixed_json]
+        import db_dtypes
+        import pandas as pd
+        import pyarrow as pa
+
+        import bigframes.pandas as bpd
+
+        list_data = [
+            [{"key": "1"}],
+            [{"key": None}],
+            [{"key": '["1","3","5"]'}],
+            [{"key": '{"a":1,"b":["x","y"],"c":{"x":[],"z":false}}'}],
+        ]
+        pa_array = pa.array(list_data, type=pa.list_(pa.struct([("key", pa.string())])))
+        bpd.Series(
+            pd.arrays.ArrowExtensionArray(pa_array),
+            dtype=pd.ArrowDtype(
+                pa.list_(pa.struct([("key", pa.json_(pa.string()))])),
+            ),
+        )
+        # 0                                       [{'key': '1'}]
+        # 1                                      [{'key': None}]
+        # 2                           [{'key': '["1","3","5"]'}]
+        # 3    [{'key': '{"a":1,"b":["x","y"],"c":{"x":[],"z"...
+        # [END bigquery_dataframes_type_system_mixed_json]
+        pandas.testing.assert_series_equal(
+            bpd.Series(
+                pd.arrays.ArrowExtensionArray(pa_array),
+                dtype=pd.ArrowDtype(
+                    pa.list_(pa.struct([("key", pa.json_(pa.string()))])),
+                ),
+            ).to_pandas(),
+            pd.Series(
+                pd.arrays.ArrowExtensionArray(pa_array),
+                dtype=pd.ArrowDtype(
+                    pa.list_(pa.struct([("key", db_dtypes.JSONArrowType())])),
+                ),
+            ),
+            check_index_type=False,
+        )
 
     # [START bigquery_dataframes_type_system_load_timedelta]
     import pandas as pd
@@ -233,3 +304,46 @@ def test_type_system_examples() -> None:
         pd.Series([0.0, 1.0], dtype=dtypes.FLOAT_DTYPE),
         check_index_type=False,
     )
+
+    # [START bigquery_dataframes_type_system_json_query]
+    import pandas as pd
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
+
+    fruits = [
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+    ]
+
+    json_s = bpd.Series(fruits, dtype="json")
+    bbq.json_query(json_s, "$.fruits[0]")
+    # 0    {"name":"apple"}
+    # 1    {"name":"guava"}
+    # [END bigquery_dataframes_type_system_json_query]
+    pandas.testing.assert_series_equal(
+        bbq.json_query(json_s, "$.fruits[0]").to_pandas(),
+        pd.Series(['{"name":"apple"}', '{"name":"guava"}'], dtype=dtypes.JSON_DTYPE),
+        check_index_type=False,
+    )
+
+    # [START bigquery_dataframes_type_system_json_query_array]
+    import pandas as pd
+
+    import bigframes.bigquery as bbq
+    import bigframes.pandas as bpd
+
+    fruits = [
+        '{"fruits": [{"name": "apple"}, {"name": "cherry"}]}',
+        '{"fruits": [{"name": "guava"}, {"name": "grapes"}]}',
+    ]
+
+    json_s = bpd.Series(fruits, dtype="json")
+
+    bbq.json_query_array(json_s, "$.fruits")
+    # 0    ['{"name":"apple"}' '{"name":"cherry"}']
+    # 1    ['{"name":"guava"}' '{"name":"grapes"}']
+    # [END bigquery_dataframes_type_system_json_query_array]
+
+    # Can't test literals due to format issues
+    assert len(bbq.json_extract_array(json_s, "$.fruits")) == 2
