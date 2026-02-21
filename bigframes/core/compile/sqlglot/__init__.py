@@ -25,6 +25,7 @@ import bigframes.core.compile.sqlglot.expressions.generic_ops  # noqa: F401
 import bigframes.core.compile.sqlglot.expressions.geo_ops  # noqa: F401
 import bigframes.core.compile.sqlglot.expressions.json_ops  # noqa: F401
 import bigframes.core.compile.sqlglot.expressions.numeric_ops  # noqa: F401
+import bigframes.core.compile.sqlglot.expressions.search_ops  # noqa: F401
 import bigframes.core.compile.sqlglot.expressions.string_ops  # noqa: F401
 import bigframes.core.compile.sqlglot.expressions.struct_ops  # noqa: F401
 import bigframes.core.compile.sqlglot.expressions.timedelta_ops  # noqa: F401
