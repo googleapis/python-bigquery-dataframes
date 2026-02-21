@@ -30,6 +30,11 @@ def _(expr: TypedExpr) -> sge.Expression:
     return sge.Floor(this=expr.expr)
 
 
+@register_unary_op(ops.timedelta_round_op)
+def _(expr: TypedExpr) -> sge.Expression:
+    return sge.Round(this=expr.expr).cast()
+
+
 @register_unary_op(ops.ToTimedeltaOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.ToTimedeltaOp) -> sge.Expression:
     value = expr.expr

@@ -55,6 +55,25 @@ timedelta_floor_op = TimedeltaFloorOp()
 
 
 @dataclasses.dataclass(frozen=True)
+class TimedeltaRoundOp(base_ops.UnaryOp):
+    """Rounds the numeric value to the nearest integer and use it to represent a timedelta.
+
+    This operator is only meant to be used during expression tree rewrites. Do not use it anywhere else!
+    """
+
+    name: typing.ClassVar[str] = "timedelta_round"
+
+    def output_type(self, *input_types: dtypes.ExpressionType) -> dtypes.ExpressionType:
+        input_type = input_types[0]
+        if dtypes.is_numeric(input_type) or input_type == dtypes.TIMEDELTA_DTYPE:
+            return dtypes.TIMEDELTA_DTYPE
+        raise TypeError(f"unsupported type: {input_type}")
+
+
+timedelta_round_op = TimedeltaRoundOp()
+
+
+@dataclasses.dataclass(frozen=True)
 class TimestampAddOp(base_ops.BinaryOp):
     name: typing.ClassVar[str] = "timestamp_add"
 

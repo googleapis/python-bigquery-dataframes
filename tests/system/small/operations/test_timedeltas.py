@@ -87,10 +87,9 @@ def temporal_dfs(session):
 
 def _assert_series_equal(actual: pd.Series, expected: pd.Series):
     """Helper function specifically for timedelta testing. Don't use it outside of this module."""
-    # expected[expected.select_dtypes('timedelta64').columns] = expected.select_dtypes('timedelta64').astype(dtypes.TIMEDELTA_DTYPE)
     bigframes.testing.assert_series_equal(
         actual,
-        expected,  # .convert_dtypes(dtype_backend="pyarrow"),
+        expected,
         check_index_type=False,
         check_dtype=False,
     )
@@ -158,25 +157,35 @@ def test_timedelta_binary_ops_series_and_literal(
 
 
 @pytest.mark.parametrize(
-    ("op", "col", "literal"),
+    ("op", "col", "literal", "arrow_supported"),
     [
-        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.floordiv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.truediv, "float_col", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.floordiv, "float_col", pd.Timedelta(2, "s").as_unit("us")),
-        (operator.mul, "timedelta_col_1", 3),
-        (operator.mul, "float_col", pd.Timedelta(1, "s").as_unit("us")),
-        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s").as_unit("us")),
+        (operator.add, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us"), True),
+        (operator.sub, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us"), True),
+        (operator.truediv, "timedelta_col_1", pd.Timedelta(2, "s").as_unit("us"), True),
+        (
+            operator.floordiv,
+            "timedelta_col_1",
+            pd.Timedelta(2, "s").as_unit("us"),
+            True,
+        ),
+        (operator.truediv, "float_col", pd.Timedelta(2, "s").as_unit("us"), True),
+        (operator.floordiv, "float_col", pd.Timedelta(2, "s").as_unit("us"), True),
+        (operator.mul, "timedelta_col_1", 3, True),
+        (operator.mul, "float_col", pd.Timedelta(1, "s").as_unit("us"), False),
+        (operator.mod, "timedelta_col_1", pd.Timedelta(7, "s").as_unit("us"), False),
     ],
 )
-def test_timedelta_binary_ops_literal_and_series(temporal_dfs, op, col, literal):
+def test_timedelta_binary_ops_literal_and_series(
+    temporal_dfs, op, col, literal, arrow_supported
+):
     bf_df, pd_df = temporal_dfs
 
     actual_result = op(literal, bf_df[col]).to_pandas()
 
-    expected_result = op(literal, pd_df[col])
+    if not arrow_supported:
+        expected_result = pd_df[col].map(lambda x: op(literal, x))
+    else:
+        expected_result = op(literal, pd_df[col])
     _assert_series_equal(actual_result, expected_result)
 
 
