@@ -1354,7 +1354,7 @@ def test_remote_function_via_session_custom_build_sa(
         bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
 
         pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x * x)
+        pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x + x)
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
         assert_frame_equal(bf_result, pd_result, check_dtype=False)
