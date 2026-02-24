@@ -1542,6 +1542,8 @@ class Session(
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
         cloud_build_service_account: Optional[str] = None,
+        workers: Optional[int] = 0,
+        concurrency: Optional[int] = 0,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function. Check out
         the code samples at: https://cloud.google.com/bigquery/docs/remote-functions#bigquery-dataframes.
@@ -1770,6 +1772,8 @@ class Session(
             cloud_function_memory_mib=cloud_function_memory_mib,
             cloud_function_ingress_settings=cloud_function_ingress_settings,
             cloud_build_service_account=cloud_build_service_account,
+            workers=workers,
+            concurrency=concurrency,
         )
 
     def deploy_udf(

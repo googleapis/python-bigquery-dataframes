@@ -253,6 +253,8 @@ class FunctionSession:
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
         cloud_build_service_account: Optional[str] = None,
+        workers: Optional[int] = 0,
+        concurrency: Optional[int] = 0,
     ):
         """Decorator to turn a user defined function into a BigQuery remote function.
 
@@ -640,6 +642,8 @@ class FunctionSession:
                 cloud_function_memory_mib=cloud_function_memory_mib,
                 cloud_function_ingress_settings=cloud_function_ingress_settings,
                 bq_metadata=bqrf_metadata,
+                workers=workers,
+                concurrency=concurrency,
             )
 
             bigframes_cloud_function = (

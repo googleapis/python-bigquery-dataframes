@@ -93,6 +93,8 @@ def remote_function(
         "all", "internal-only", "internal-and-gclb"
     ] = "internal-only",
     cloud_build_service_account: Optional[str] = None,
+    workers: Optional[int] = 0,
+    concurrency: Optional[int] = 0,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -114,6 +116,8 @@ def remote_function(
         cloud_function_memory_mib=cloud_function_memory_mib,
         cloud_function_ingress_settings=cloud_function_ingress_settings,
         cloud_build_service_account=cloud_build_service_account,
+        workers=workers,
+        concurrency=concurrency,
     )
 
 

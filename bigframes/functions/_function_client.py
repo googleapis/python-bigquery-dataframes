@@ -404,6 +404,8 @@ class FunctionClient:
         vpc_connector_egress_settings="private-ranges-only",
         memory_mib=1024,
         ingress_settings="internal-only",
+        workers=None,
+        concurrency=None,
     ):
         """Create a cloud function from the given user defined function."""
 
@@ -517,6 +519,12 @@ class FunctionClient:
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
+            if concurrency:
+                function.service_config.max_instance_request_concurrency = concurrency
+            if workers:
+                function.service_config.environment_variables = {
+                    "WORKERS": str(workers)
+                }
             if ingress_settings not in _INGRESS_SETTINGS_MAP:
                 raise bf_formatting.create_exception_with_feedback_link(
                     ValueError,
@@ -583,6 +591,8 @@ class FunctionClient:
         cloud_function_memory_mib,
         cloud_function_ingress_settings,
         bq_metadata,
+        workers,
+        concurrency,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
@@ -631,6 +641,8 @@ class FunctionClient:
                 vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
                 memory_mib=cloud_function_memory_mib,
                 ingress_settings=cloud_function_ingress_settings,
+                workers=workers,
+                concurrency=concurrency,
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
