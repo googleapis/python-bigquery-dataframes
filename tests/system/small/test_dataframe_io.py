@@ -510,8 +510,9 @@ def test_to_csv_index(
     dtype = scalars_df.reset_index().dtypes.to_dict()
     dtype.pop("geography_col")
     dtype.pop("rowindex")
-    # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
+    # read_csv will decode into bytes, numeric inproperly, convert_pandas_dtypes will encode properly from string
     dtype.pop("bytes_col")
+    dtype.pop("numeric_col")
     gcs_df = pd.read_csv(
         utils.get_first_file_from_wildcard(path),
         dtype=dtype,
@@ -548,8 +549,9 @@ def test_to_csv_tabs(
     dtype = scalars_df.reset_index().dtypes.to_dict()
     dtype.pop("geography_col")
     dtype.pop("rowindex")
-    # read_csv will decode into bytes inproperly, convert_pandas_dtypes will encode properly from string
-    # dtype.pop("bytes_col")
+    # read_csv will decode into bytes, numeric inproperly, convert_pandas_dtypes will encode properly from string
+    dtype.pop("bytes_col")
+    dtype.pop("numeric_col")
     gcs_df = pd.read_csv(
         utils.get_first_file_from_wildcard(path),
         sep="\t",

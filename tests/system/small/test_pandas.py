@@ -541,7 +541,9 @@ def _convert_pandas_category(pd_s: pd.Series):
             f"Input must be a pandas Series with categorical data: {pd_s.dtype}"
         )
 
-    if pd.api.types.is_object_dtype(pd_s.cat.categories.dtype):
+    if pd.api.types.is_object_dtype(
+        pd_s.cat.categories.dtype
+    ) or pd.api.types.is_string_dtype(pd_s.cat.categories.dtype):
         return pd_s.astype(pd.StringDtype(storage="pyarrow"))
 
     if not isinstance(pd_s.cat.categories.dtype, pd.IntervalDtype):

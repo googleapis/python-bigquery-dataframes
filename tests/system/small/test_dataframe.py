@@ -5324,9 +5324,12 @@ def test_df_to_latex(scalars_df_index, scalars_pandas_df_index):
 
 
 def test_df_to_json_local_str(scalars_df_index, scalars_pandas_df_index):
-    bf_result = scalars_df_index.to_json()
+    # pandas 3.0 bugged for serializing date col
+    bf_result = scalars_df_index.drop(columns="date_col").to_json()
     # default_handler for arrow types that have no default conversion
-    pd_result = scalars_pandas_df_index.to_json(default_handler=str)
+    pd_result = scalars_pandas_df_index.drop(columns="date_col").to_json(
+        default_handler=str
+    )
 
     assert bf_result == pd_result
 
@@ -6170,6 +6173,11 @@ def test_agg_with_dict_lists_strings(scalars_dfs):
     )
 
 
+@pytest.mark.skipif(
+    pandas.__version__.startswith("3"),
+    # See: https://github.com/python/cpython/issues/112282
+    reason="pandas 3.0 miscaculates variance",
+)
 def test_agg_with_dict_lists_callables(scalars_dfs):
     bf_df, pd_df = scalars_dfs
     agg_funcs = {
