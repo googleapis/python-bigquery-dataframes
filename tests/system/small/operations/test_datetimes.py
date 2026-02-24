@@ -576,9 +576,12 @@ def test_timestamp_diff_series_sub_literal(scalars_dfs, column, value):
     bf_series = bf_df[column]
     pd_series = pd_df[column]
 
-    actual_result = (bf_series - value).to_pandas()
+    # Pandas doesn't handle nulls properly here so we ffill
+    # overflows for no good reason
+    # related? https://github.com/apache/arrow/issues/43031
+    actual_result = (bf_series.ffill() - value).to_pandas()
 
-    expected_result = pd_series - value
+    expected_result = pd_series.ffill() - value
     assert_series_equal(actual_result, expected_result)
 
 
@@ -594,9 +597,12 @@ def test_timestamp_diff_literal_sub_series(scalars_dfs, column, value):
     bf_series = bf_df[column]
     pd_series = pd_df[column]
 
-    actual_result = (value - bf_series).to_pandas()
+    # Pandas doesn't handle nulls properly here so we ffill
+    # overflows for no good reason
+    # related? https://github.com/apache/arrow/issues/43031
+    actual_result = (value - bf_series.ffill()).to_pandas()
 
-    expected_result = value - pd_series
+    expected_result = value - pd_series.ffill()
     assert_series_equal(actual_result, expected_result)
 
 

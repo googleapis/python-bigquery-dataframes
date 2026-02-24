@@ -778,6 +778,8 @@ def test_drop_bigframes_index(scalars_dfs):
 
 
 def test_drop_bigframes_index_with_na(scalars_dfs):
+    if pd.__version__.startswith("3"):
+        pytest.skip("Pandas 3.0 doesn't doesn't support drop with pd.NA values")
     scalars_df, scalars_pandas_df = scalars_dfs
     scalars_df = scalars_df.copy()
     scalars_pandas_df = scalars_pandas_df.copy()

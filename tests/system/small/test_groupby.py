@@ -502,16 +502,15 @@ def test_dataframe_groupby_skew(scalars_df_index, scalars_pandas_df_index):
     bigframes.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
 
 
+@pytest.mark.skipif(
+    not pd.__version__.startswith("3"),
+    reason="groupby.kurt not supported on legacy pandas versions",
+)
 def test_dataframe_groupby_kurt(scalars_df_index, scalars_pandas_df_index):
     col_names = ["float64_col", "int64_col", "bool_col"]
     bf_result = scalars_df_index[col_names].groupby("bool_col").kurt().to_pandas()
     # Pandas doesn't have groupby.kurt yet: https://github.com/pandas-dev/pandas/issues/40139
-    pd_result = (
-        scalars_pandas_df_index[col_names]
-        .groupby("bool_col")
-        .apply(pd.Series.kurt)
-        .drop("bool_col", axis=1)
-    )
+    pd_result = scalars_pandas_df_index[col_names].groupby("bool_col").kurt()
 
     bigframes.testing.assert_frame_equal(pd_result, bf_result, check_dtype=False)
 

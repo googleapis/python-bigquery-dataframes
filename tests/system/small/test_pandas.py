@@ -116,17 +116,25 @@ def test_get_dummies_dataframe_duplicate_labels(scalars_dfs):
     scalars_df, scalars_pandas_df = scalars_dfs
 
     scalars_renamed_df = scalars_df.rename(
-        columns={"int64_too": "int64_col", "float64_col": None, "string_col": None}
+        columns={
+            "int64_too": "int64_col",
+            "float64_col": "dup_col",
+            "string_col": "dup_col",
+        }
     )
     scalars_renamed_pandas_df = scalars_pandas_df.rename(
-        columns={"int64_too": "int64_col", "float64_col": None, "string_col": None}
+        columns={
+            "int64_too": "int64_col",
+            "float64_col": "dup_col",
+            "string_col": "dup_col",
+        }
     )
 
     bf_result = bpd.get_dummies(
-        scalars_renamed_df, columns=["int64_col", None], dtype=bool
+        scalars_renamed_df, columns=["int64_col", "dup_col"], dtype=bool
     )
     pd_result = pd.get_dummies(
-        scalars_renamed_pandas_df, columns=["int64_col", None], dtype=bool
+        scalars_renamed_pandas_df, columns=["int64_col", "dup_col"], dtype=bool
     )
     # dtype argument above is needed for pandas v1 only
 

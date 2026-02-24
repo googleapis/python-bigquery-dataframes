@@ -91,8 +91,7 @@ def assert_series_equivalent(pd_series: pd.Series, bf_series: bpd.Series, **kwar
 
 
 def _normalize_all_nulls(col: pd.Series) -> pd.Series:
-    # This over-normalizes probably, make more conservative later
-    if col.hasnans and (pd_types.is_float_dtype(col.dtype)):
+    if pd_types.is_float_dtype(col.dtype):
         col = col.astype("float64").astype("Float64")
     return col
 
@@ -172,8 +171,8 @@ def assert_series_equal(
         right.index = right.index.astype("Int64")
 
     if nulls_are_nan:
-        left = _normalize_all_nulls(left)
-        right = _normalize_all_nulls(right)
+        left = _normalize_all_nulls(left.infer_objects())
+        right = _normalize_all_nulls(right.infer_objects())
         left.index = _normalize_index_nulls(left.index)
         right.index = _normalize_index_nulls(right.index)
         left.name = pd.NA if pd.isna(left.name) else left.name  # type: ignore

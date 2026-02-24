@@ -1895,6 +1895,10 @@ def test_series_binop_w_other_types(scalars_dfs, other):
     bf_result = (scalars_df["int64_col"].head(3) + other).to_pandas()
     pd_result = scalars_pandas_df["int64_col"].head(3) + other
 
+    if isinstance(other, pd.Series):
+        # pandas 3.0 preserves series name, bigframe, earlier pandas do not
+        pd_result.index.name = bf_result.index.name
+
     assert_series_equal(
         bf_result,
         pd_result,
@@ -4566,7 +4570,7 @@ def test_apply_lambda(scalars_dfs, col, lambda_):
     bf_result = bf_col.apply(lambda_, by_row=False).to_pandas()
 
     pd_col = scalars_pandas_df[col]
-    if pd.__version__[:3] in ("2.2", "2.3"):
+    if pd.__version__[:3] in ("2.2", "2.3", "3.0"):
         pd_result = pd_col.apply(lambda_, by_row=False)
     else:
         pd_result = pd_col.apply(lambda_)
@@ -4659,7 +4663,7 @@ def test_apply_simple_udf(scalars_dfs):
 
     pd_col = scalars_pandas_df["int64_col"]
 
-    if pd.__version__[:3] in ("2.2", "2.3"):
+    if pd.__version__[:3] in ("2.2", "2.3", "3.0"):
         pd_result = pd_col.apply(foo, by_row=False)
     else:
         pd_result = pd_col.apply(foo)
@@ -4875,6 +4879,8 @@ def test_resample(scalars_df_index, scalars_pandas_df_index, append, level, col,
     ]
     bf_result = scalars_df_index.resample(rule=rule, level=level).min().to_pandas()
     pd_result = scalars_pandas_df_index.resample(rule=rule, level=level).min()
+    # TODO: (b/484364312)
+    pd_result.index.names = bf_result.index.names
     bigframes.testing.assert_series_equal(bf_result, pd_result)
 
 

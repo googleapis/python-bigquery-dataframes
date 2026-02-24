@@ -263,7 +263,7 @@ def test_resample_with_index(unordered_session, rule, origin, data):
     assert isinstance(pd_result.index, pd.DatetimeIndex)
     # TODO: (b/484364312)
     pd_result.index.name = bf_result.index.name
-    pd.testing.assert_frame_equal(
+    assert_frame_equal(
         bf_result.to_pandas(),
         pd_result,
         check_index_type=False,
@@ -292,4 +292,4 @@ def test_unordered_df_pivot(
     # Pandas produces NaN, where bq dataframes produces pd.NA
     bf_result = bf_result.fillna(float("nan"))
     pd_result = pd_result.fillna(float("nan"))
-    pd.testing.assert_frame_equal(bf_result, pd_result, check_dtype=False)
+    assert_frame_equal(bf_result, pd_result, check_dtype=False)

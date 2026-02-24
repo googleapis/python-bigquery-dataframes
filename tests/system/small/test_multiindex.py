@@ -514,10 +514,11 @@ def test_multi_index_dataframe_groupby_level_aggregate(
     )
     # For as_index=False, pandas will drop index levels used as groupings
     # In the future, it will include this in the result, bigframes already does this behavior
-    if not as_index:
-        for col in index_cols:
-            if col in bf_result.columns:
-                bf_result = bf_result.drop(col, axis=1)
+    if not pandas.__version__.startswith("3"):
+        if not as_index:
+            for col in index_cols:
+                if col in bf_result.columns:
+                    bf_result = bf_result.drop(col, axis=1)
 
     # Pandas will have int64 index, while bigquery will have Int64 when resetting
     bigframes.testing.assert_frame_equal(bf_result, pd_result, check_index_type=False)

@@ -269,6 +269,10 @@ def test_dataframe_window_agg_ops(scalars_dfs, windowing, agg_op):
     ],
 )
 def test_dataframe_window_agg_func(scalars_dfs, windowing, func):
+    if pd.__version__.startswith("3"):
+        pytest.skip(
+            "pandas 3.0 bugged for this case 'Length of values (8) does not match length of index (9)'"
+        )
     bf_df, pd_df = scalars_dfs
     target_columns = ["int64_too", "float64_col", "bool_col", "int64_col"]
     index_column = "bool_col"
