@@ -19,6 +19,7 @@ import typing
 
 import bigframes_vendored.sqlglot.expressions as sge
 
+from bigframes import dtypes
 from bigframes.core import (
     expression,
     guid,
@@ -153,13 +154,17 @@ def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
         for ordering in node.sorting
     )
 
-    projected_cols: tuple[tuple[str, sge.Expression], ...] = tuple(
-        (
-            cdef.id.sql,
-            expression_compiler.expression_compiler.compile_expression(cdef.expression),
+    projected_cols: tuple[tuple[str, sge.Expression], ...] = tuple()
+    if not node.is_star_selection:
+        projected_cols = tuple(
+            (
+                cdef.id.sql,
+                expression_compiler.expression_compiler.compile_expression(
+                    cdef.expression
+                ),
+            )
+            for cdef in node.selections
         )
-        for cdef in node.selections
-    )
 
     sge_predicates = tuple(
         expression_compiler.expression_compiler.compile_expression(expression)
@@ -271,6 +276,24 @@ def compile_explode(node: nodes.ExplodeNode, child: ir.SQLGlotIR) -> ir.SQLGlotI
     offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
     columns = tuple(ref.id.sql for ref in node.column_ids)
     return child.explode(columns, offsets_col)
+
+
+@_compile_node.register
+def compile_fromrange(
+    node: nodes.FromRangeNode, start: ir.SQLGlotIR, end: ir.SQLGlotIR
+) -> ir.SQLGlotIR:
+    start_col_id = node.start.fields[0].id
+    end_col_id = node.end.fields[0].id
+
+    start_expr = expression_compiler.expression_compiler.compile_expression(
+        expression.DerefOp(start_col_id)
+    )
+    end_expr = expression_compiler.expression_compiler.compile_expression(
+        expression.DerefOp(end_col_id)
+    )
+    step_expr = ir._literal(node.step, dtypes.INT_DTYPE)
+
+    return start.resample(end, node.output_id.sql, start_expr, end_expr, step_expr)
 
 
 @_compile_node.register

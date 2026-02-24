@@ -522,10 +522,10 @@ def generate_text(
         model (bigframes.ml.base.BaseEstimator or str):
             The model to use for text generation.
         data (bigframes.pandas.DataFrame or bigframes.pandas.Series):
-            The data to generate embeddings for. If a Series is provided, it is
-            treated as the 'content' column.  If a DataFrame is provided, it
-            must contain a 'content' column, or you must rename the column you
-            wish to embed to 'content'.
+            The data to generate text for. If a Series is provided, it is
+            treated as the 'prompt' column.  If a DataFrame is provided, it
+            must contain a 'prompt' column, or you must rename the column you
+            wish to generate text to 'prompt'.
         temperature (float, optional):
             A FLOAT64 value that is used for sampling promiscuity. The value
             must be in the range ``[0.0, 1.0]``. A lower temperature works well
@@ -606,7 +606,7 @@ def generate_table(
     model: Union[bigframes.ml.base.BaseEstimator, str, pd.Series],
     data: Union[dataframe.DataFrame, series.Series, pd.DataFrame, pd.Series],
     *,
-    output_schema: str,
+    output_schema: Union[str, Mapping[str, str]],
     temperature: Optional[float] = None,
     top_p: Optional[float] = None,
     max_output_tokens: Optional[int] = None,
@@ -638,12 +638,14 @@ def generate_table(
         model (bigframes.ml.base.BaseEstimator or str):
             The model to use for table generation.
         data (bigframes.pandas.DataFrame or bigframes.pandas.Series):
-            The data to generate embeddings for. If a Series is provided, it is
-            treated as the 'content' column.  If a DataFrame is provided, it
-            must contain a 'content' column, or you must rename the column you
-            wish to embed to 'content'.
-        output_schema (str):
-            A string defining the output schema (e.g., "col1 STRING, col2 INT64").
+            The data to generate table for. If a Series is provided, it is
+            treated as the 'prompt' column.  If a DataFrame is provided, it
+            must contain a 'prompt' column, or you must rename the column you
+            wish to generate table to 'prompt'.
+        output_schema (str | Mapping[str, str]):
+            A string defining the output schema (e.g., "col1 STRING, col2 INT64"),
+            or a mapping value that specifies the schema of the output, in the form {field_name: data_type}.
+            Supported data types include `STRING`, `INT64`, `FLOAT64`, `BOOL`, `ARRAY`, and `STRUCT`.
         temperature (float, optional):
             A FLOAT64 value that is used for sampling promiscuity. The value
             must be in the range ``[0.0, 1.0]``.
@@ -666,8 +668,17 @@ def generate_table(
     model_name, session = bq_utils.get_model_name_and_session(model, data)
     table_sql = bq_utils.to_sql(data)
 
+    if isinstance(output_schema, Mapping):
+        output_schema_str = ", ".join(
+            [f"{name} {sql_type}" for name, sql_type in output_schema.items()]
+        )
+        # Validate user input
+        output_schemas.parse_sql_fields(output_schema_str)
+    else:
+        output_schema_str = output_schema
+
     struct_fields_bq: Dict[str, bigframes.core.sql.literals.STRUCT_VALUES] = {
-        "output_schema": output_schema
+        "output_schema": output_schema_str
     }
     if temperature is not None:
         struct_fields_bq["temperature"] = temperature
@@ -1007,7 +1018,7 @@ def _convert_series(
 
 def _resolve_connection_id(series: series.Series, connection_id: str | None):
     return clients.get_canonical_bq_connection_id(
-        connection_id or series._session._bq_connection,
+        connection_id or series._session.bq_connection,
         series._session._project,
         series._session._location,
     )
