@@ -498,8 +498,8 @@ def cover(session):
         "report",
         "--show-missing",
         "--include=tests/system/small/*",
-        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
-        "--fail-under=99",
+        # Some tests only run under old pandas, some only under new pandas version
+        "--fail-under=98",
     )
 
     session.run("coverage", "erase")
