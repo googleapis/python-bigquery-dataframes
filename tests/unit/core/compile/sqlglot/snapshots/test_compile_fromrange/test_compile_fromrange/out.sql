@@ -157,7 +157,7 @@ WITH `bfcte_6` AS (
 SELECT
   CAST(TIMESTAMP_MICROS(
     CAST(CAST(`bfcol_41` AS BIGNUMERIC) * 7000000 + CAST(UNIX_MICROS(CAST(CAST(`bfcol_44` AS DATE) AS TIMESTAMP)) AS BIGNUMERIC) AS INT64)
-  ) AS DATETIME) AS `nan`,
+  ) AS DATETIME) AS `bigframes_unnamed_index`,
   `bfcol_55` AS `int64_col`,
   `bfcol_56` AS `int64_too`
 FROM `bfcte_30`
