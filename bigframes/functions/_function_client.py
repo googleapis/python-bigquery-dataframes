@@ -647,8 +647,8 @@ class FunctionClient:
             cloud_function_memory_mib
         )
         workers = expected_cpus
-        concurrency = expected_cpus
-        threads = 2  # (per worker)
+        threads = 4  # (per worker)
+        concurrency = workers * threads
 
         # Create the cloud function if it does not exist
         if not cf_endpoint:
