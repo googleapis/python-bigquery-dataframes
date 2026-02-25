@@ -603,8 +603,6 @@ class FunctionClient:
         cloud_function_cpus,
         cloud_function_ingress_settings,
         bq_metadata,
-        workers,
-        concurrency,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
