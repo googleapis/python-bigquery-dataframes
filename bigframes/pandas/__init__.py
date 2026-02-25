@@ -89,7 +89,7 @@ def remote_function(
         Literal["all", "private-ranges-only", "unspecified"]
     ] = None,
     cloud_function_memory_mib: Optional[int] = None,
-    cloud_function_cpus: Optional[int] = None,
+    cloud_function_cpus: Optional[float] = None,
     cloud_function_ingress_settings: Literal[
         "all", "internal-only", "internal-and-gclb"
     ] = "internal-only",

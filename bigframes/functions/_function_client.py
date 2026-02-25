@@ -645,8 +645,10 @@ class FunctionClient:
         # assumption is most bigframes functions are cpu bound, single-threaded and many won't release GIL
         # therefore, want to allocate a worker for each cpu, and allow a concurrent request per worker
         expected_milli_cpus = (
-            cloud_function_cpus * 1000
-        ) or _infer_milli_cpus_from_memory(cloud_function_memory_mib)
+            int(cloud_function_cpus * 1000)
+            if (cloud_function_cpus is not None)
+            else _infer_milli_cpus_from_memory(cloud_function_memory_mib)
+        )
         workers = -(expected_milli_cpus // -1000)  # ceil(cpus) without invoking floats
         threads = 4  # (per worker)
         # max concurrency==1 for vcpus < 1 hard limit from cloud run

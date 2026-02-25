@@ -249,7 +249,7 @@ class FunctionSession:
             Literal["all", "private-ranges-only", "unspecified"]
         ] = None,
         cloud_function_memory_mib: Optional[int] = None,
-        cloud_function_cpus: Optional[int] = None,
+        cloud_function_cpus: Optional[float] = None,
         cloud_function_ingress_settings: Literal[
             "all", "internal-only", "internal-and-gclb"
         ] = "internal-only",
@@ -445,8 +445,8 @@ class FunctionSession:
                 default memory of cloud functions be allocated, pass `None`. See
                 for more details
                 https://cloud.google.com/functions/docs/configuring/memory.
-            cloud_function_cpus (int, Optional):
-                The amounts of memory (in mebibytes) to allocate for the cloud
+            cloud_function_cpus (float, Optional):
+                The number of cpus to allocate for the cloud
                 function (2nd gen) created.
                 https://docs.cloud.google.com/run/docs/configuring/services/cpu.
             cloud_function_ingress_settings (str, Optional):
