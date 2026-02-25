@@ -644,12 +644,13 @@ class FunctionClient:
 
         # assumption is most bigframes functions are cpu bound, single-threaded and many won't release GIL
         # therefore, want to allocate a worker for each cpu, and allow a concurrent request per worker
-        expected_cpus = cloud_function_cpus or _infer_cpus_from_memory(
-            cloud_function_memory_mib
-        )
-        workers = expected_cpus
+        expected_milli_cpus = (
+            cloud_function_cpus * 1000
+        ) or _infer_milli_cpus_from_memory(cloud_function_memory_mib)
+        workers = -(expected_milli_cpus // -1000)  # ceil(cpus) without invoking floats
         threads = 4  # (per worker)
-        concurrency = workers * threads
+        # max concurrency==1 for vcpus < 1 hard limit from cloud run
+        concurrency = (workers * threads) if (expected_milli_cpus >= 1000) else 1
 
         # Create the cloud function if it does not exist
         if not cf_endpoint:
@@ -737,16 +738,23 @@ class FunctionClient:
         return (http_endpoint, bq_connection)
 
 
-def _infer_cpus_from_memory(memory_mib: int) -> int:
+def _infer_milli_cpus_from_memory(memory_mib: int) -> int:
     # observed values, not formally documented by cloud run functions
-    if memory_mib <= 2048:
-        # in actuality, will be 0.583 for 1024mb, 0.33 for 512mb, etc, but we round up to 1
-        return 1
+    if memory_mib <= 128:
+        return 83
+    elif memory_mib <= 256:
+        return 167
+    elif memory_mib <= 512:
+        return 333
+    elif memory_mib <= 1024:
+        return 583
+    elif memory_mib <= 2048:
+        return 1000
     elif memory_mib <= 8192:
-        return 2
+        return 2000
     elif memory_mib <= 16384:
-        return 4
+        return 4000
     elif memory_mib <= 32768:
-        return 8
+        return 8000
     else:
         raise ValueError("Cloud run supports at most 32768MiB per instance")
