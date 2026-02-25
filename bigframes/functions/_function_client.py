@@ -528,6 +528,9 @@ class FunctionClient:
             if concurrency:
                 function.service_config.max_instance_request_concurrency = concurrency
 
+            # Functions framework use environment variables to pass config to gunicorn
+            # See https://github.com/GoogleCloudPlatform/functions-framework-python/issues/241
+            # Code: https://github.com/GoogleCloudPlatform/functions-framework-python/blob/v3.10.1/src/functions_framework/_http/gunicorn.py#L37-L43
             env_vars = {}
             if workers:
                 env_vars["WORKERS"] = str(workers)
@@ -636,7 +639,7 @@ class FunctionClient:
         )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
-        if (cloud_function_cpus is None) and (cloud_function_memory_mib is None):
+        if cloud_function_memory_mib is None:
             cloud_function_memory_mib = _DEFAULT_FUNCTION_MEMORY_MIB
 
         # assumption is most bigframes functions are cpu bound, single-threaded and many won't release GIL
@@ -735,11 +738,10 @@ class FunctionClient:
 
 
 def _infer_cpus_from_memory(memory_mib: int) -> int:
+    # observed values, not formally documented by cloud run functions
     if memory_mib <= 2048:
         # in actuality, will be 0.583 for 1024mb, 0.33 for 512mb, etc, but we round up to 1
         return 1
-    elif memory_mib <= 8192:
-        return 2
     elif memory_mib <= 8192:
         return 2
     elif memory_mib <= 16384:
@@ -747,4 +749,4 @@ def _infer_cpus_from_memory(memory_mib: int) -> int:
     elif memory_mib <= 32768:
         return 8
     else:
-        raise ValueError("Cloud run support at most 32768MiB per instance")
+        raise ValueError("Cloud run supports at most 32768MiB per instance")
