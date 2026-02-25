@@ -42,7 +42,6 @@ def test_repr_mimebundle_selection_logic():
     ) as mock_anywidget, mock.patch(
         "bigframes.display.html.repr_mimebundle_deferred"
     ) as mock_deferred:
-
         mock_head.side_effect = lambda obj: {"text/plain": "plain", "text/html": "html"}
         mock_anywidget.return_value = (
             {
