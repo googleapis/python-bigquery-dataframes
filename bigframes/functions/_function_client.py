@@ -65,6 +65,8 @@ _VPC_EGRESS_SETTINGS_MAP = types.MappingProxyType(
 # BQ managed functions (@udf) currently only support Python 3.11.
 _MANAGED_FUNC_PYTHON_VERSION = "python-3.11"
 
+_DEFAULT_FUNCTION_MEMORY_MIB = 1024
+
 
 class FunctionClient:
     # Wait time (in seconds) for an IAM binding to take effect after creation.
@@ -402,9 +404,11 @@ class FunctionClient:
         is_row_processor=False,
         vpc_connector=None,
         vpc_connector_egress_settings="private-ranges-only",
-        memory_mib=1024,
+        memory_mib=None,
+        cpus=None,
         ingress_settings="internal-only",
         workers=None,
+        threads=None,
         concurrency=None,
     ):
         """Create a cloud function from the given user defined function."""
@@ -488,6 +492,8 @@ class FunctionClient:
             function.service_config = functions_v2.ServiceConfig()
             if memory_mib is not None:
                 function.service_config.available_memory = f"{memory_mib}Mi"
+            if cpus is not None:
+                function.service_config.available_cpu = str(cpus)
             if timeout_seconds is not None:
                 if timeout_seconds > 1200:
                     raise bf_formatting.create_exception_with_feedback_link(
@@ -521,10 +527,15 @@ class FunctionClient:
             )
             if concurrency:
                 function.service_config.max_instance_request_concurrency = concurrency
+
+            env_vars = {}
             if workers:
-                function.service_config.environment_variables = {
-                    "WORKERS": str(workers)
-                }
+                env_vars["WORKERS"] = str(workers)
+            if threads:
+                env_vars["THREADS"] = str(threads)
+            if env_vars:
+                function.service_config.environment_variables = env_vars
+
             if ingress_settings not in _INGRESS_SETTINGS_MAP:
                 raise bf_formatting.create_exception_with_feedback_link(
                     ValueError,
@@ -589,6 +600,7 @@ class FunctionClient:
         cloud_function_vpc_connector,
         cloud_function_vpc_connector_egress_settings,
         cloud_function_memory_mib,
+        cloud_function_cpus,
         cloud_function_ingress_settings,
         bq_metadata,
         workers,
@@ -626,6 +638,18 @@ class FunctionClient:
         )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
+        if (cloud_function_cpus is None) and (cloud_function_memory_mib is None):
+            cloud_function_memory_mib = _DEFAULT_FUNCTION_MEMORY_MIB
+
+        # assumption is most bigframes functions are cpu bound, single-threaded and many won't release GIL
+        # therefore, want to allocate a worker for each cpu, and allow a concurrent request per worker
+        expected_cpus = cloud_function_cpus or _infer_cpus_from_memory(
+            cloud_function_memory_mib
+        )
+        workers = expected_cpus
+        concurrency = expected_cpus
+        threads = 2  # (per worker)
+
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
@@ -640,8 +664,10 @@ class FunctionClient:
                 vpc_connector=cloud_function_vpc_connector,
                 vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
                 memory_mib=cloud_function_memory_mib,
+                cpus=cloud_function_cpus,
                 ingress_settings=cloud_function_ingress_settings,
                 workers=workers,
+                threads=threads,
                 concurrency=concurrency,
             )
         else:
@@ -708,3 +734,19 @@ class FunctionClient:
             # Note: list_routines doesn't make an API request until we iterate on the response object.
             pass
         return (http_endpoint, bq_connection)
+
+
+def _infer_cpus_from_memory(memory_mib: int) -> int:
+    if memory_mib <= 2048:
+        # in actuality, will be 0.583 for 1024mb, 0.33 for 512mb, etc, but we round up to 1
+        return 1
+    elif memory_mib <= 8192:
+        return 2
+    elif memory_mib <= 8192:
+        return 2
+    elif memory_mib <= 16384:
+        return 4
+    elif memory_mib <= 32768:
+        return 8
+    else:
+        raise ValueError("Cloud run support at most 32768MiB per instance")

@@ -88,13 +88,12 @@ def remote_function(
     cloud_function_vpc_connector_egress_settings: Optional[
         Literal["all", "private-ranges-only", "unspecified"]
     ] = None,
-    cloud_function_memory_mib: Optional[int] = 1024,
+    cloud_function_memory_mib: Optional[int] = None,
+    cloud_function_cpus: Optional[int] = None,
     cloud_function_ingress_settings: Literal[
         "all", "internal-only", "internal-and-gclb"
     ] = "internal-only",
     cloud_build_service_account: Optional[str] = None,
-    workers: Optional[int] = 0,
-    concurrency: Optional[int] = 0,
 ):
     return global_session.with_default_session(
         bigframes.session.Session.remote_function,
@@ -114,10 +113,9 @@ def remote_function(
         cloud_function_vpc_connector=cloud_function_vpc_connector,
         cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
         cloud_function_memory_mib=cloud_function_memory_mib,
+        cloud_function_cpus=cloud_function_cpus,
         cloud_function_ingress_settings=cloud_function_ingress_settings,
         cloud_build_service_account=cloud_build_service_account,
-        workers=workers,
-        concurrency=concurrency,
     )
 
 
