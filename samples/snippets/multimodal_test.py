@@ -429,7 +429,7 @@ def test_multimodal_example(gcs_bucket_snippets: str) -> None:
 
     result = bbq.ai.generate_text(gemini_model, df_chunked["prompt"])
     result
-    # [START bigquery_dataframes_multimodal_analyze_pdf]
+    # [END bigquery_dataframes_multimodal_analyze_pdf]
 
     # [START bigquery_dataframes_multimodal_create_embed_table]
     df_products_mm["content"] = bbq.obj.get_access_url(df_products_mm["image"], "R")
