@@ -87,13 +87,18 @@ def test_progress_bar_extract_jobs(
 def test_progress_bar_load_jobs(
     session: bf.Session, penguins_pandas_df_default_index: pd.DataFrame, capsys
 ):
+
     # repeat the DF to be big enough to trigger the load job.
     df = penguins_pandas_df_default_index
     while len(df) < MAX_INLINE_DF_BYTES:
         df = pd.DataFrame(np.repeat(df.values, 2, axis=0))
 
+    # default write engine usually streaming, which doesn't have job
     with bf.option_context(
-        "display.progress_bar", "terminal"
+        "display.progress_bar",
+        "terminal",
+        "compute.default_write_engine",
+        "bigquery_load",
     ), tempfile.TemporaryDirectory() as dir:
         path = dir + "/test_read_csv_progress_bar*.csv"
         df.to_csv(path, index=False)

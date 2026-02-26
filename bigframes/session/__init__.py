@@ -991,8 +991,7 @@ class Session(
                   quota and your data cannot be embedded in SQL due to size or
                   data type limitations.
                 * "bigquery_write":
-                  [Preview] Use the BigQuery Storage Write API. This feature
-                  is in public preview.
+                  Use the BigQuery Storage Write API.
         Returns:
             An equivalent bigframes.pandas.(DataFrame/Series/Index) object
 
@@ -1041,7 +1040,7 @@ class Session(
         mem_usage = pandas_dataframe.memory_usage(deep=True).sum()
         if write_engine == "default":
             write_engine = (
-                "bigquery_load"
+                bigframes.options.compute.default_write_engine
                 if mem_usage > bigframes.constants.MAX_INLINE_BYTES
                 else "bigquery_inline"
             )
