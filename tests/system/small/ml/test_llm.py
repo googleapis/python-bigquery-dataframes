@@ -18,7 +18,6 @@ from unittest import mock
 import pandas as pd
 import pytest
 
-from bigframes import exceptions
 from bigframes.ml import core, llm
 import bigframes.pandas as bpd
 from bigframes.testing import utils
@@ -584,15 +583,6 @@ def test_text_embedding_generator_retry_no_progress(session, bq_connection):
             check_dtype=False,
             check_index_type=False,
         )
-
-
-@pytest.mark.parametrize(
-    "model_name",
-    ("gemini-2.0-flash-exp",),
-)
-def test_gemini_preview_model_warnings(model_name):
-    with pytest.warns(exceptions.PreviewWarning):
-        llm.GeminiTextGenerator(model_name=model_name)
 
 
 # b/436340035 temp disable the test to unblock presumbit

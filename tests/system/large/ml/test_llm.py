@@ -24,7 +24,6 @@ from bigframes.testing import utils
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
         "gemini-2.5-pro",
@@ -32,9 +31,7 @@ from bigframes.testing import utils
         "gemini-2.5-flash-lite",
     ),
 )
-@pytest.mark.flaky(
-    retries=2
-)  # usually create model shouldn't be flaky, but this one due to the limited quota of gemini-2.0-flash-exp.
+@pytest.mark.flaky(retries=2)
 def test_create_load_gemini_text_generator_model(
     dataset_id, model_name, session, bq_connection
 ):
@@ -56,7 +53,6 @@ def test_create_load_gemini_text_generator_model(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
         "gemini-2.5-pro",
@@ -80,7 +76,6 @@ def test_gemini_text_generator_predict_default_params_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
         "gemini-2.5-pro",
@@ -106,7 +101,6 @@ def test_gemini_text_generator_predict_with_params_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
         "gemini-2.5-pro",
@@ -134,7 +128,6 @@ def test_gemini_text_generator_multi_cols_predict_success(
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
         "gemini-2.5-pro",

@@ -22,7 +22,6 @@ from bigframes.testing import utils
 @pytest.mark.parametrize(
     "model_name",
     (
-        "gemini-2.0-flash-exp",
         "gemini-2.0-flash-001",
         "gemini-2.0-flash-lite-001",
     ),
