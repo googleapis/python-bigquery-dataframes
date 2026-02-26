@@ -1,4 +1,4 @@
-### Adding a scalar operator
+## Adding a scalar operator
 
 For an example, see commit
 [c5b7fdae74a22e581f7705bc0cf5390e928f4425](https://github.com/googleapis/python-bigquery-dataframes/commit/c5b7fdae74a22e581f7705bc0cf5390e928f4425).
