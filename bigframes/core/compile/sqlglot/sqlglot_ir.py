@@ -134,26 +134,39 @@ class SQLGlotIR:
         """
         version = (
             sge.Version(
-                this="TIMESTAMP",
-                expression=sge.Literal(this=system_time.isoformat(), is_string=True),
+                this=sge.Identifier(this="SYSTEM_TIME", quoted=False),
+                expression=sge.Literal.string(system_time.isoformat()),
                 kind="AS OF",
             )
             if system_time
             else None
         )
+        table_alias = next(uid_gen.get_uid_stream("bft_"))
         table_expr = sge.Table(
             this=sg.to_identifier(table_id, quoted=cls.quoted),
             db=sg.to_identifier(dataset_id, quoted=cls.quoted),
             catalog=sg.to_identifier(project_id, quoted=cls.quoted),
             version=version,
+            alias=sge.Identifier(this=table_alias, quoted=cls.quoted),
         )
         if sql_predicate:
             select_expr = sge.Select().select(sge.Star()).from_(table_expr)
             select_expr = select_expr.where(
-                sg.parse_one(sql_predicate, dialect="bigquery"), append=False
+                sg.parse_one(sql_predicate, dialect=cls.dialect), append=False
             )
             return cls(expr=select_expr, uid_gen=uid_gen)
 
+        return cls(expr=table_expr, uid_gen=uid_gen)
+
+    @classmethod
+    def from_cte_ref(
+        cls,
+        cte_ref: str,
+        uid_gen: guid.SequentialUIDGenerator,
+    ) -> SQLGlotIR:
+        table_expr = sge.Table(
+            this=cte_ref,
+        )
         return cls(expr=table_expr, uid_gen=uid_gen)
 
     def select(
@@ -172,16 +185,19 @@ class SQLGlotIR:
         if len(sorting) > 0:
             new_expr = new_expr.order_by(*sorting)
 
-        to_select = [
-            sge.Alias(
-                this=expr,
-                alias=sge.to_identifier(id, quoted=self.quoted),
-            )
-            if expr.alias_or_name != id
-            else expr
-            for id, expr in selections
-        ]
-        new_expr = new_expr.select(*to_select, append=False)
+        if len(selections) > 0:
+            to_select = [
+                sge.Alias(
+                    this=expr,
+                    alias=sge.to_identifier(id, quoted=self.quoted),
+                )
+                if expr.alias_or_name != id
+                else expr
+                for id, expr in selections
+            ]
+            new_expr = new_expr.select(*to_select, append=False)
+        else:
+            new_expr = new_expr.select(sge.Star(), append=False)
 
         if len(predicates) > 0:
             condition = _and(predicates)
@@ -396,6 +412,42 @@ class SQLGlotIR:
         ]
         select_expr = _set_query_ctes(self._as_select(), sge_ctes)
         return SQLGlotIR(expr=select_expr, uid_gen=self.uid_gen)
+
+    def resample(
+        self,
+        right: SQLGlotIR,
+        array_col_name: str,
+        start_expr: sge.Expression,
+        stop_expr: sge.Expression,
+        step_expr: sge.Expression,
+    ) -> SQLGlotIR:
+        generate_array = sge.func(
+            "GENERATE_ARRAY",
+            start_expr._as_select(),
+            stop_expr._as_select(),
+            step_expr._as_select(),
+        )
+
+        unnested_column_alias = sge.to_identifier(
+            next(self.uid_gen.get_uid_stream("bfcol_")), quoted=self.quoted
+        )
+        unnest_expr = sge.Unnest(
+            expressions=[generate_array],
+            alias=sge.TableAlias(columns=[unnested_column_alias]),
+        )
+
+        final_col_id = sge.to_identifier(array_col_name, quoted=self.quoted)
+
+        # Build final expression by joining everything directly in a single SELECT
+        new_expr = (
+            sge.Select()
+            .select(unnested_column_alias.as_(final_col_id))
+            .from_(self._as_from_item())
+            .join(right._as_from_item(), join_type="cross")
+            .join(unnest_expr, join_type="cross")
+        )
+
+        return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def insert(
         self,

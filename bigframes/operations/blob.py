@@ -79,7 +79,8 @@ class BlobAccessor:
         """Retrieve the metadata of the Blob.
 
         Returns:
-            bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time)."""
+            bigframes.series.Series: JSON metadata of the Blob. Contains fields: content_type, md5_hash, size and updated(time).
+        """
         series_to_check = bigframes.series.Series(self._data._block)
         # Check if it's a struct series from a verbose operation
         if dtypes.is_struct_like(series_to_check.dtype):
@@ -311,7 +312,7 @@ class BlobAccessor:
         Raises:
             ValueError: If the connection cannot be resolved to a valid string.
         """
-        connection = connection or self._data._block.session._bq_connection
+        connection = connection or self._data._block.session.bq_connection
         return clients.get_canonical_bq_connection_id(
             connection,
             default_project=self._data._block.session._project,

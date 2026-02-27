@@ -39,7 +39,9 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
+    Union,
 )
+import warnings
 
 import bigframes_vendored.constants as constants
 import bigframes_vendored.pandas.io.gbq as third_party_pandas_gbq
@@ -68,11 +70,13 @@ import bigframes.core.blocks as blocks
 import bigframes.core.events
 import bigframes.core.schema as schemata
 import bigframes.dtypes
+import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as formatting_helpers
 from bigframes.session import dry_runs
 import bigframes.session._io.bigquery as bf_io_bigquery
 import bigframes.session._io.bigquery.read_gbq_query as bf_read_gbq_query
 import bigframes.session._io.bigquery.read_gbq_table as bf_read_gbq_table
+import bigframes.session.iceberg
 import bigframes.session.metrics
 import bigframes.session.temporary_storage
 import bigframes.session.time as session_time
@@ -97,6 +101,8 @@ _STREAM_JOB_TYPE_OVERRIDES = {
     # Timedelta is emulated using integer in bq type system
     bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
 }
+
+TABLE_TYPE = Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable]
 
 
 def _to_index_cols(
@@ -287,7 +293,7 @@ class GbqDataLoader:
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
         self._force_total_order = force_total_order
-        self._df_snapshot: Dict[str, Tuple[datetime.datetime, bigquery.Table]] = {}
+        self._df_snapshot: Dict[str, Tuple[datetime.datetime, TABLE_TYPE]] = {}
         self._metrics = metrics
         self._publisher = publisher
         # Unfortunate circular reference, but need to pass reference when constructing objects
@@ -344,16 +350,38 @@ class GbqDataLoader:
             session=self._session,
         )
 
+    def load_data_or_write_data(
+        self,
+        data: local_data.ManagedArrowTable,
+        offsets_col: str,
+    ) -> bq_data.BigqueryDataSource:
+        """Write local data into BigQuery using the local API if possible,
+        otherwise use the write API."""
+        can_load = all(
+            _is_dtype_can_load(item.column, item.dtype) for item in data.schema.items
+        )
+        if can_load:
+            return self.load_data(data, offsets_col=offsets_col)
+        else:
+            return self.write_data(data, offsets_col=offsets_col)
+
     def load_data(
         self,
         data: local_data.ManagedArrowTable,
         offsets_col: str,
     ) -> bq_data.BigqueryDataSource:
         """Load managed data into bigquery"""
+        cannot_load_columns = {
+            item.column: item.dtype
+            for item in data.schema.items
+            if not _is_dtype_can_load(item.column, item.dtype)
+        }
 
-        # JSON support incomplete
-        for item in data.schema.items:
-            _validate_dtype_can_load(item.column, item.dtype)
+        if cannot_load_columns:
+            raise NotImplementedError(
+                f"Nested JSON types are currently unsupported for BigQuery Load API. "
+                f"Unsupported columns: {cannot_load_columns}. {constants.FEEDBACK_LINK}"
+            )
 
         schema_w_offsets = data.schema.append(
             schemata.SchemaItem(offsets_col, bigframes.dtypes.INT_DTYPE)
@@ -391,7 +419,7 @@ class GbqDataLoader:
         # must get table metadata after load job for accurate metadata
         destination_table = self._bqclient.get_table(load_table_destination)
         return bq_data.BigqueryDataSource(
-            bq_data.GbqTable.from_table(destination_table),
+            bq_data.GbqNativeTable.from_table(destination_table),
             schema=schema_w_offsets,
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
             n_rows=data.metadata.row_count,
@@ -445,7 +473,7 @@ class GbqDataLoader:
                     )
         destination_table = self._bqclient.get_table(load_table_destination)
         return bq_data.BigqueryDataSource(
-            bq_data.GbqTable.from_table(destination_table),
+            bq_data.GbqNativeTable.from_table(destination_table),
             schema=schema_w_offsets,
             ordering=ordering.TotalOrdering.from_offset_col(offsets_col),
             n_rows=data.metadata.row_count,
@@ -544,8 +572,12 @@ class GbqDataLoader:
         for error in response.stream_errors:
             raise ValueError(f"Errors commiting stream {error}")
 
-        result_table = bq_data.GbqTable.from_ref_and_schema(
-            bq_table_ref, schema=bq_schema, cluster_cols=[offsets_col]
+        result_table = bq_data.GbqNativeTable.from_ref_and_schema(
+            bq_table_ref,
+            schema=bq_schema,
+            cluster_cols=[offsets_col],
+            location=self._storage_manager.location,
+            table_type="TABLE",
         )
         return bq_data.BigqueryDataSource(
             result_table,
@@ -716,33 +748,33 @@ class GbqDataLoader:
         # Fetch table metadata and validate
         # ---------------------------------
 
-        time_travel_timestamp, table = bf_read_gbq_table.get_table_metadata(
-            self._bqclient,
+        time_travel_timestamp, table = self._get_table_metadata(
             table_id=table_id,
             default_project=self._bqclient.project,
             bq_time=self._clock.get_time(),
-            cache=self._df_snapshot,
             use_cache=use_cache,
-            publisher=self._publisher,
         )
 
-        if table.location.casefold() != self._storage_manager.location.casefold():
+        if not bq_data.is_compatible(
+            table.metadata.location, self._storage_manager.location
+        ):
             raise ValueError(
-                f"Current session is in {self._storage_manager.location} but dataset '{table.project}.{table.dataset_id}' is located in {table.location}"
+                f"Current session is in {self._storage_manager.location} but table '{table.get_full_id()}' is located in {table.metadata.location}"
             )
 
-        table_column_names = [field.name for field in table.schema]
+        table_column_names = [field.name for field in table.physical_schema]
         rename_to_schema: Optional[Dict[str, str]] = None
         if names is not None:
             _check_names_param(names, index_col, columns, table_column_names)
 
             # Additional unnamed columns is going to set as index columns
             len_names = len(list(names))
-            len_schema = len(table.schema)
+            len_schema = len(table.physical_schema)
             if len(columns) == 0 and len_names < len_schema:
                 index_col = range(len_schema - len_names)
                 names = [
-                    field.name for field in table.schema[: len_schema - len_names]
+                    field.name
+                    for field in table.physical_schema[: len_schema - len_names]
                 ] + list(names)
 
             assert len_schema >= len_names
@@ -799,7 +831,7 @@ class GbqDataLoader:
                 itertools.chain(index_cols, columns) if columns else ()
             )
             query = bf_io_bigquery.to_query(
-                f"{table.project}.{table.dataset_id}.{table.table_id}",
+                table.get_full_id(quoted=False),
                 columns=all_columns,
                 sql_predicate=bf_io_bigquery.compile_filters(filters)
                 if filters
@@ -884,7 +916,7 @@ class GbqDataLoader:
                     bigframes.core.events.ExecutionFinished(),
                 )
 
-        selected_cols = None if include_all_columns else index_cols + columns
+        selected_cols = None if include_all_columns else (*index_cols, *columns)
         array_value = core.ArrayValue.from_table(
             table,
             columns=selected_cols,
@@ -958,6 +990,90 @@ class GbqDataLoader:
         if len(index_cols) > 0:
             df.sort_index()
         return df
+
+    def _get_table_metadata(
+        self,
+        *,
+        table_id: str,
+        default_project: Optional[str],
+        bq_time: datetime.datetime,
+        use_cache: bool = True,
+    ) -> Tuple[
+        datetime.datetime, Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable]
+    ]:
+        """Get the table metadata, either from cache or via REST API."""
+
+        cached_table = self._df_snapshot.get(table_id)
+        if use_cache and cached_table is not None:
+            snapshot_timestamp, table = cached_table
+
+            if bf_read_gbq_table.is_time_travel_eligible(
+                bqclient=self._bqclient,
+                table=table,
+                columns=None,
+                snapshot_time=snapshot_timestamp,
+                filter_str=None,
+                # Don't warn, because that will already have been taken care of.
+                should_warn=False,
+                should_dry_run=False,
+                publisher=self._publisher,
+            ):
+                # This warning should only happen if the cached snapshot_time will
+                # have any effect on bigframes (b/437090788). For example, with
+                # cached query results, such as after re-running a query, time
+                # travel won't be applied and thus this check is irrelevent.
+                #
+                # In other cases, such as an explicit read_gbq_table(), Cache hit
+                # could be unexpected. See internal issue 329545805. Raise a
+                # warning with more information about how to avoid the problems
+                # with the cache.
+                msg = bfe.format_message(
+                    f"Reading cached table from {snapshot_timestamp} to avoid "
+                    "incompatibilies with previous reads of this table. To read "
+                    "the latest version, set `use_cache=False` or close the "
+                    "current session with Session.close() or "
+                    "bigframes.pandas.close_session()."
+                )
+                # There are many layers before we get to (possibly) the user's code:
+                # pandas.read_gbq_table
+                # -> with_default_session
+                # -> Session.read_gbq_table
+                # -> _read_gbq_table
+                # -> _get_snapshot_sql_and_primary_key
+                # -> get_snapshot_datetime_and_table_metadata
+                warnings.warn(msg, category=bfe.TimeTravelCacheWarning, stacklevel=7)
+
+            return cached_table
+
+        if bf_read_gbq_table.is_information_schema(table_id):
+            client_table = bf_read_gbq_table.get_information_schema_metadata(
+                bqclient=self._bqclient,
+                table_id=table_id,
+                default_project=default_project,
+            )
+            table = bq_data.GbqNativeTable.from_table(client_table)
+        elif bq_data.is_irc_table(table_id):
+            table = bigframes.session.iceberg.get_table(
+                self._bqclient.project, table_id, self._bqclient._credentials
+            )
+        else:
+            table_ref = google.cloud.bigquery.table.TableReference.from_string(
+                table_id, default_project=default_project
+            )
+            client_table = self._bqclient.get_table(table_ref)
+            table = bq_data.GbqNativeTable.from_table(client_table)
+
+        # local time will lag a little bit do to network latency
+        # make sure it is at least table creation time.
+        # This is relevant if the table was created immediately before loading it here.
+        if (table.metadata.created_time is not None) and (
+            table.metadata.created_time > bq_time
+        ):
+            bq_time = table.metadata.created_time
+
+        cached_table = (bq_time, table)
+        self._df_snapshot[table_id] = cached_table
+        return cached_table
 
     def load_file(
         self,
@@ -1380,7 +1496,7 @@ def _transform_read_gbq_configuration(configuration: Optional[dict]) -> dict:
     return configuration
 
 
-def _validate_dtype_can_load(name: str, column_type: bigframes.dtypes.Dtype):
+def _is_dtype_can_load(name: str, column_type: bigframes.dtypes.Dtype) -> bool:
     """
     Determines whether a datatype is supported by bq load jobs.
 
@@ -1388,23 +1504,19 @@ def _validate_dtype_can_load(name: str, column_type: bigframes.dtypes.Dtype):
     we're using a workaround: storing JSON as strings and then parsing them into JSON
     objects.
     TODO(b/395912450): Remove workaround solution once b/374784249 got resolved.
-
-    Raises:
-        NotImplementedError: Type is not yet supported by load jobs.
     """
     # we can handle top-level json, but not nested yet through string conversion
     if column_type == bigframes.dtypes.JSON_DTYPE:
-        return
+        return True
 
     if isinstance(
         column_type, pandas.ArrowDtype
     ) and bigframes.dtypes.contains_db_dtypes_json_arrow_type(
         column_type.pyarrow_dtype
     ):
-        raise NotImplementedError(
-            f"Nested JSON types, found in column `{name}`: `{column_type}`', "
-            f"are currently unsupported for upload. {constants.FEEDBACK_LINK}"
-        )
+        return False
+
+    return True
 
 
 # itertools.batched not available in python <3.12, so we use this instead

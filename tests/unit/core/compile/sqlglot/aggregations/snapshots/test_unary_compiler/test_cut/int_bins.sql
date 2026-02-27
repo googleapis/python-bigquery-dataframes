@@ -30,7 +30,9 @@ SELECT
         2 * IEEE_DIVIDE(MAX(`int64_col`) OVER () - MIN(`int64_col`) OVER (), 3)
       ) + 0 AS `right_inclusive`
     )
-    WHEN `int64_col` IS NOT NULL
+    WHEN (
+      `int64_col`
+    ) IS NOT NULL
     THEN STRUCT(
       (
         MIN(`int64_col`) OVER () + (
@@ -42,4 +44,4 @@ SELECT
       ) + 0 AS `right_inclusive`
     )
   END AS `int_bins`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types`
+FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`

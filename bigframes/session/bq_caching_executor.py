@@ -613,7 +613,7 @@ class BigQueryCachingExecutor(executor.Executor):
         # Might be better as a queue and a worker thread
         with self._upload_lock:
             if local_table not in self.cache._uploaded_local_data:
-                uploaded = self.loader.load_data(
+                uploaded = self.loader.load_data_or_write_data(
                     local_table, bigframes.core.guid.generate_guid()
                 )
                 self.cache.cache_remote_replacement(local_table, uploaded)
@@ -642,7 +642,6 @@ class BigQueryCachingExecutor(executor.Executor):
 
             create_table = True
             if not cache_spec.cluster_cols:
-
                 offsets_id = bigframes.core.identifiers.ColumnId(
                     bigframes.core.guid.generate_guid()
                 )
@@ -692,13 +691,12 @@ class BigQueryCachingExecutor(executor.Executor):
             result_bf_schema = _result_schema(og_schema, list(compiled.sql_schema))
             dst = query_job.destination
             result_bq_data = bq_data.BigqueryDataSource(
-                table=bq_data.GbqTable(
-                    dst.project,
-                    dst.dataset_id,
-                    dst.table_id,
+                table=bq_data.GbqNativeTable.from_ref_and_schema(
+                    dst,
                     tuple(compiled_schema),
-                    is_physically_stored=True,
                     cluster_cols=tuple(cluster_cols),
+                    location=iterator.location or self.storage_manager.location,
+                    table_type="TABLE",
                 ),
                 schema=result_bf_schema,
                 ordering=compiled.row_order,
