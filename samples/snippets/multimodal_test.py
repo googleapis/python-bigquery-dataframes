@@ -190,7 +190,7 @@ def test_multimodal_example(gcs_bucket_snippets: str) -> None:
     # [END bigquery_dataframes_multimodal_create_embedding]
 
     # [START bigquery_dataframes_multimodal_create_df_products_mm]
-    df_images = bpd.read_gbq("cymbal_pets.product_images")
+    df_images = bpd.read_gbq("SELECT * FROM cymbal_pets.product_images")
     df_products = bpd.read_gbq("cymbal_pets.products")
 
     df_products_mm = df_images.merge(df_products, on="uri").drop(columns="uri")
@@ -406,7 +406,7 @@ def test_multimodal_example(gcs_bucket_snippets: str) -> None:
     # [END bigquery_dataframes_multimodal_define_chunk_pdf]
 
     # [START bigquery_dataframes_multimodal_apply_chunk_pdf]
-    df_manuals = bpd.read_gbq("cymbal_pets.product_manuals")
+    df_manuals = bpd.read_gbq("SELECT * FROM cymbal_pets.product_manuals")
     df_manuals["url"] = bbq.to_json_string(
         bbq.obj.get_access_url(df_manuals["ref"], "R")
     )
@@ -476,7 +476,9 @@ def test_multimodal_example(gcs_bucket_snippets: str) -> None:
     # [END bigquery_dataframes_create_external_table_all]
 
     # [START bigquery_dataframes_create_manual_to_chunks]
-    df1 = bpd.read_gbq("cymbal_pets.product_manuals_all").sort_values("uri")
+    df1 = bpd.read_gbq("SELECT * FROM cymbal_pets.product_manuals_all").sort_values(
+        "uri"
+    )
     df2 = df1.copy()
     df1["name"] = df1["uri"].str.extract(r".*/([^.]*).[^/]+")
     df2["name"] = df2["uri"].str.extract(r".*/([^.]*)_page[0-9]+.[^/]+")
