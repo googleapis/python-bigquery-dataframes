@@ -20,7 +20,6 @@ import argparse
 import multiprocessing
 import os
 import pathlib
-import re
 import shutil
 import time
 from typing import Dict, List
@@ -28,13 +27,10 @@ from typing import Dict, List
 import nox
 import nox.sessions
 
-BLACK_VERSION = "black==22.3.0"
+BLACK_VERSION = "black==23.7.0"
 FLAKE8_VERSION = "flake8==7.1.2"
 ISORT_VERSION = "isort==5.12.0"
 MYPY_VERSION = "mypy==1.15.0"
-
-# TODO: switch to 3.13 once remote functions / cloud run adds a runtime for it (internal issue 333742751)
-LATEST_FULLY_SUPPORTED_PYTHON = "3.12"
 
 # Notebook tests should match colab and BQ Studio.
 # Check with import sys; sys.version_info
@@ -58,23 +54,15 @@ LINT_PATHS = [
     "setup.py",
 ]
 
-DEFAULT_PYTHON_VERSION = "3.10"
+DEFAULT_PYTHON_VERSION = "3.14"
 
-# Cloud Run Functions supports Python versions up to 3.12
-# https://cloud.google.com/run/docs/runtimes/python
-E2E_TEST_PYTHON_VERSION = "3.12"
-
-UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+UNIT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 UNIT_TEST_STANDARD_DEPENDENCIES = [
     "mock",
-    "asyncmock",
     PYTEST_VERSION,
-    "pytest-asyncio",
     "pytest-cov",
-    "pytest-mock",
     "pytest-timeout",
 ]
-UNIT_TEST_LOCAL_DEPENDENCIES: List[str] = []
 UNIT_TEST_DEPENDENCIES: List[str] = []
 UNIT_TEST_EXTRAS: List[str] = ["tests"]
 UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
@@ -83,13 +71,14 @@ UNIT_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
     "3.13": ["tests", "polars", "scikit-learn", "anywidget"],
+    "3.14": ["tests", "polars", "scikit-learn", "anywidget"],
 }
 
 # 3.11 is used by colab.
 # 3.10 is needed for Windows tests as it is the only version installed in the
 # bigframes-windows container image. For more information, search
 # bigframes/windows-docker, internally.
-SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+SYSTEM_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 SYSTEM_TEST_STANDARD_DEPENDENCIES = [
     "jinja2",
     "mock",
@@ -106,15 +95,14 @@ SYSTEM_TEST_STANDARD_DEPENDENCIES = [
 SYSTEM_TEST_EXTERNAL_DEPENDENCIES = [
     "google-cloud-bigquery",
 ]
-SYSTEM_TEST_LOCAL_DEPENDENCIES: List[str] = []
-SYSTEM_TEST_DEPENDENCIES: List[str] = []
 SYSTEM_TEST_EXTRAS: List[str] = ["tests"]
 SYSTEM_TEST_EXTRAS_BY_PYTHON: Dict[str, List[str]] = {
     # Make sure we leave some versions without "extras" so we know those
     # dependencies are actually optional.
     "3.10": ["tests", "scikit-learn", "anywidget"],
-    LATEST_FULLY_SUPPORTED_PYTHON: ["tests", "scikit-learn", "polars", "anywidget"],
+    "3.12": ["tests", "scikit-learn", "polars", "anywidget"],
     "3.13": ["tests", "polars", "anywidget"],
+    "3.14": ["tests", "polars", "anywidget"],
 }
 
 LOGGING_NAME_ENV_VAR = "BIGFRAMES_PERFORMANCE_LOG_NAME"
@@ -129,8 +117,8 @@ nox.options.sessions = [
     # TODO(tswast): Consider removing this when unit_noextras and cover is run
     # from GitHub actions.
     "unit_noextras",
-    "system-3.9",  # No extras.
-    f"system-{LATEST_FULLY_SUPPORTED_PYTHON}",  # All extras.
+    "system-3.10",  # No extras.
+    f"system-{DEFAULT_PYTHON_VERSION}",  # All extras.
     "cover",
     # TODO(b/401609005): remove
     "cleanup",
@@ -206,20 +194,20 @@ def lint_setup_py(session):
 
 
 def install_unittest_dependencies(session, install_test_extra, *constraints):
-    standard_deps = UNIT_TEST_STANDARD_DEPENDENCIES + UNIT_TEST_DEPENDENCIES
-    session.install(*standard_deps, *constraints)
-
-    if UNIT_TEST_LOCAL_DEPENDENCIES:
-        session.install(*UNIT_TEST_LOCAL_DEPENDENCIES, *constraints)
-
+    extras = []
     if install_test_extra:
         if session.python in UNIT_TEST_EXTRAS_BY_PYTHON:
             extras = UNIT_TEST_EXTRAS_BY_PYTHON[session.python]
         else:
             extras = UNIT_TEST_EXTRAS
-        session.install("-e", f".[{','.join(extras)}]", *constraints)
-    else:
-        session.install("-e", ".", *constraints)
+
+    session.install(
+        *UNIT_TEST_STANDARD_DEPENDENCIES,
+        *UNIT_TEST_DEPENDENCIES,
+        "-e",
+        f".[{','.join(extras)}]" if extras else ".",
+        *constraints,
+    )
 
 
 def run_unit(session, install_test_extra):
@@ -264,7 +252,7 @@ def unit_noextras(session):
     run_unit(session, install_test_extra=False)
 
 
-@nox.session(python=DEFAULT_PYTHON_VERSION)
+@nox.session(python="3.10")
 def mypy(session):
     """Run type checks with mypy."""
     # Editable mode is not compatible with mypy when there are multiple
@@ -308,22 +296,6 @@ def mypy(session):
 
 
 def install_systemtest_dependencies(session, install_test_extra, *constraints):
-    # Use pre-release gRPC for system tests.
-    # Exclude version 1.49.0rc1 which has a known issue.
-    # See https://github.com/grpc/grpc/pull/30642
-    session.install("--pre", "grpcio!=1.49.0rc1")
-
-    session.install(*SYSTEM_TEST_STANDARD_DEPENDENCIES, *constraints)
-
-    if SYSTEM_TEST_EXTERNAL_DEPENDENCIES:
-        session.install(*SYSTEM_TEST_EXTERNAL_DEPENDENCIES, *constraints)
-
-    if SYSTEM_TEST_LOCAL_DEPENDENCIES:
-        session.install("-e", *SYSTEM_TEST_LOCAL_DEPENDENCIES, *constraints)
-
-    if SYSTEM_TEST_DEPENDENCIES:
-        session.install("-e", *SYSTEM_TEST_DEPENDENCIES, *constraints)
-
     if install_test_extra and SYSTEM_TEST_EXTRAS_BY_PYTHON:
         extras = SYSTEM_TEST_EXTRAS_BY_PYTHON.get(session.python, [])
     elif install_test_extra and SYSTEM_TEST_EXTRAS:
@@ -331,10 +303,19 @@ def install_systemtest_dependencies(session, install_test_extra, *constraints):
     else:
         extras = []
 
-    if extras:
-        session.install("-e", f".[{','.join(extras)}]", *constraints)
-    else:
-        session.install("-e", ".", *constraints)
+    # Use pre-release gRPC for system tests.
+    # Exclude version 1.49.0rc1 which has a known issue.
+    # See https://github.com/grpc/grpc/pull/30642
+
+    session.install(
+        "--pre",
+        "grpcio!=1.49.0rc1",
+        *SYSTEM_TEST_STANDARD_DEPENDENCIES,
+        *SYSTEM_TEST_EXTERNAL_DEPENDENCIES,
+        "-e",
+        f".[{','.join(extras)}]" if extras else ".",
+        *constraints,
+    )
 
 
 def run_system(
@@ -414,7 +395,7 @@ def system(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def system_noextras(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -425,7 +406,7 @@ def system_noextras(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=LATEST_FULLY_SUPPORTED_PYTHON)
+@nox.session(python="3.12")
 def doctest(session: nox.sessions.Session):
     """Run the system test suite."""
     run_system(
@@ -453,7 +434,7 @@ def doctest(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=E2E_TEST_PYTHON_VERSION)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def e2e(session: nox.sessions.Session):
     """Run the large tests in system test suite."""
     run_system(
@@ -512,8 +493,8 @@ def cover(session):
         "report",
         "--show-missing",
         "--include=tests/system/small/*",
-        # TODO(b/353775058) resume coverage to 100 when the issue is fixed.
-        "--fail-under=99",
+        # Some tests only run under old pandas, some only under new pandas version
+        "--fail-under=98",
     )
 
     session.run("coverage", "erase")
@@ -551,7 +532,7 @@ def docs(session):
     )
 
 
-@nox.session(python=DEFAULT_PYTHON_VERSION)
+@nox.session(python="3.10")
 def docfx(session):
     """Build the docfx yaml files for this library."""
 
@@ -601,101 +582,36 @@ def prerelease(session: nox.sessions.Session, tests_path, extra_pytest_options=(
     constraints_path = str(
         CURRENT_DIRECTORY / "testing" / f"constraints-{session.python}.txt"
     )
-
-    # Ignore officially released versions of certain packages specified in
-    # testing/constraints-*.txt and install a more recent, pre-release versions
-    # directly
-    already_installed = set()
+    session.install(
+        *set(UNIT_TEST_STANDARD_DEPENDENCIES + SYSTEM_TEST_STANDARD_DEPENDENCIES),
+        "-c",
+        constraints_path,
+        "-e",
+        ".",
+    )
 
     # PyArrow prerelease packages are published to an alternative PyPI host.
     # https://arrow.apache.org/docs/python/install.html#installing-nightly-packages
     session.install(
+        "--no-deps",
+        "--upgrade",
         "--extra-index-url",
         "https://pypi.fury.io/arrow-nightlies/",
-        "--prefer-binary",
-        "--pre",
-        "--upgrade",
         "pyarrow",
-    )
-    already_installed.add("pyarrow")
-
-    session.install(
-        "--prefer-binary",
-        "--pre",
-        "--upgrade",
         # We exclude each version individually so that we can continue to test
         # some prerelease packages. See:
         # https://github.com/googleapis/python-bigquery-dataframes/pull/268#discussion_r1423205172
         # "pandas!=2.1.4, !=2.2.0rc0, !=2.2.0, !=2.2.1",
         "pandas",
-    )
-    already_installed.add("pandas")
-
-    # Try to avoid a cap on our SQLGlot so that bigframes
-    # can be integrated with SQLMesh. See:
-    # https://github.com/googleapis/python-bigquery-dataframes/issues/942
-    # If SQLGlot introduces something that breaks us, lets file an issue
-    # upstream and/or make sure we fix bigframes to work with it.
-    session.install(
-        "--upgrade",
-        "git+https://github.com/tobymao/sqlglot.git#egg=sqlglot",
-    )
-    already_installed.add("sqlglot")
-
-    # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
-    session.install("--no-deps", "db-dtypes")
-    already_installed.add("db-dtypes")
-
-    # Ensure we catch breaking changes in the client libraries early.
-    session.install(
-        "--upgrade",
+        # Workaround https://github.com/googleapis/python-db-dtypes-pandas/issues/178
+        "db-dtypes",
+        # Ensure we catch breaking changes in the client libraries early.
         "git+https://github.com/googleapis/python-bigquery.git#egg=google-cloud-bigquery",
-    )
-    already_installed.add("google-cloud-bigquery")
-    session.install(
         "--upgrade",
         "-e",
         "git+https://github.com/googleapis/google-cloud-python.git#egg=google-cloud-bigquery-storage&subdirectory=packages/google-cloud-bigquery-storage",
-    )
-    already_installed.add("google-cloud-bigquery-storage")
-    session.install(
-        "--upgrade",
         "git+https://github.com/googleapis/python-bigquery-pandas.git#egg=pandas-gbq",
     )
-    already_installed.add("pandas-gbq")
-
-    session.install(
-        *set(UNIT_TEST_STANDARD_DEPENDENCIES + SYSTEM_TEST_STANDARD_DEPENDENCIES),
-        "-c",
-        constraints_path,
-    )
-
-    # Because we test minimum dependency versions on the minimum Python
-    # version, the first version we test with in the unit tests sessions has a
-    # constraints file containing all dependencies and extras.
-    with open(
-        CURRENT_DIRECTORY
-        / "testing"
-        / f"constraints-{UNIT_TEST_PYTHON_VERSIONS[0]}.txt",
-        encoding="utf-8",
-    ) as constraints_file:
-        constraints_text = constraints_file.read()
-
-    # Ignore leading whitespace and comment lines.
-    deps = [
-        match.group(1)
-        for match in re.finditer(
-            r"^\s*(\S+)(?===\S+)", constraints_text, flags=re.MULTILINE
-        )
-        if match.group(1) not in already_installed
-    ]
-
-    print(already_installed)
-
-    # We use --no-deps to ensure that pre-release versions aren't overwritten
-    # by the version ranges in setup.py.
-    session.install(*deps)
-    session.install("--no-deps", "-e", ".")
 
     # Print out prerelease package versions.
     session.run("python", "-m", "pip", "freeze")
@@ -791,11 +707,9 @@ def notebook(session: nox.Session):
         # bq_dataframes_llm_code_generation creates a bucket in the sample.
         "notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb",  # Needs BUCKET_URI.
         "notebooks/generative_ai/sentiment_analysis.ipynb",  # Too slow
-        "notebooks/generative_ai/bq_dataframes_llm_gemini_2.ipynb",  # Gemini 2.0 backend hasn't ready in prod.
         "notebooks/generative_ai/bq_dataframes_llm_vector_search.ipynb",  # Limited quota for vector index ddl statements on table.
         "notebooks/generative_ai/bq_dataframes_ml_drug_name_generation.ipynb",  # Needs CONNECTION.
         # TODO(b/366290533): to protect BQML quota
-        "notebooks/generative_ai/bq_dataframes_llm_claude3_museum_art.ipynb",
         "notebooks/vertex_sdk/sdk2_bigframes_pytorch.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_sklearn.ipynb",  # Needs BUCKET_URI.
         "notebooks/vertex_sdk/sdk2_bigframes_tensorflow.ipynb",  # Needs BUCKET_URI.
@@ -812,20 +726,6 @@ def notebook(session: nox.Session):
         # produce metrics for the performance benchmark script.
         "notebooks/dataframes/anywidget_mode.ipynb",
     ]
-
-    # TODO: remove exception for Python 3.13 cloud run adds a runtime for it (internal issue 333742751)
-    # TODO: remove exception for Python 3.13 if nbmake adds support for
-    # sys.exit(0) or pytest.skip(...).
-    # See: https://github.com/treebeardtech/nbmake/issues/134
-    if session.python == "3.13":
-        denylist.extend(
-            [
-                "notebooks/getting_started/getting_started_bq_dataframes.ipynb",
-                "notebooks/remote_functions/remote_function_usecases.ipynb",
-                "notebooks/remote_functions/remote_function_vertex_claude_model.ipynb",
-                "notebooks/remote_functions/remote_function.ipynb",
-            ]
-        )
 
     # Convert each Path notebook object to a string using a list comprehension,
     # and remove tests that we choose not to test.
@@ -1001,7 +901,7 @@ def benchmark(session: nox.Session):
         )
 
 
-@nox.session(python="3.10")
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def release_dry_run(session):
     env = {}
 

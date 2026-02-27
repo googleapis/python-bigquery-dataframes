@@ -23,6 +23,7 @@ import math
 import threading
 from typing import Any, Iterator, Optional
 import uuid
+import warnings
 
 import pandas as pd
 
@@ -111,16 +112,7 @@ class TableWidget(_WIDGET_BASE):
         self.page_size = initial_page_size
         self.max_columns = initial_max_columns
 
-        # TODO(b/469861913): Nested columns from structs (e.g., 'struct_col.name') are not currently sortable.
-        # TODO(b/463754889): Support non-string column labels for sorting.
-        if all(isinstance(col, str) for col in dataframe.columns):
-            self.orderable_columns = [
-                str(col_name)
-                for col_name, dtype in dataframe.dtypes.items()
-                if dtypes.is_orderable(dtype)
-            ]
-        else:
-            self.orderable_columns = []
+        self.orderable_columns = self._get_orderable_columns(dataframe)
 
         self._initial_load()
 
@@ -128,30 +120,49 @@ class TableWidget(_WIDGET_BASE):
         # Also used as a guard to prevent observers from firing during initialization.
         self._initial_load_complete = True
 
+    def _get_orderable_columns(
+        self, dataframe: bigframes.dataframe.DataFrame
+    ) -> list[str]:
+        """Determine which columns can be used for client-side sorting."""
+        # TODO(b/469861913): Nested columns from structs (e.g., 'struct_col.name') are not currently sortable.
+        # TODO(b/463754889): Support non-string column labels for sorting.
+        if not all(isinstance(col, str) for col in dataframe.columns):
+            return []
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", bigframes.exceptions.JSONDtypeWarning)
+            warnings.simplefilter("ignore", category=FutureWarning)
+            return [
+                str(col_name)
+                for col_name, dtype in dataframe.dtypes.items()
+                if dtypes.is_orderable(dtype)
+            ]
+
     def _initial_load(self) -> None:
         """Get initial data and row count."""
         # obtain the row counts
         # TODO(b/428238610): Start iterating over the result of `to_pandas_batches()`
         # before we get here so that the count might already be cached.
-        self._reset_batches_for_new_page_size()
+        with bigframes.option_context("display.progress_bar", None):
+            self._reset_batches_for_new_page_size()
 
-        if self._batches is None:
-            self._error_message = (
-                "Could not retrieve data batches. Data might be unavailable or "
-                "an error occurred."
-            )
-            self.row_count = None
-        elif self._batches.total_rows is None:
-            # Total rows is unknown, this is an expected state.
-            # TODO(b/461536343): Cheaply discover if we have exactly 1 page.
-            # There are cases where total rows is not set, but there are no additional
-            # pages. We could disable the "next" button in these cases.
-            self.row_count = None
-        else:
-            self.row_count = self._batches.total_rows
+            if self._batches is None:
+                self._error_message = (
+                    "Could not retrieve data batches. Data might be unavailable or "
+                    "an error occurred."
+                )
+                self.row_count = None
+            elif self._batches.total_rows is None:
+                # Total rows is unknown, this is an expected state.
+                # TODO(b/461536343): Cheaply discover if we have exactly 1 page.
+                # There are cases where total rows is not set, but there are no additional
+                # pages. We could disable the "next" button in these cases.
+                self.row_count = None
+            else:
+                self.row_count = self._batches.total_rows
 
-        # get the initial page
-        self._set_table_html()
+            # get the initial page
+            self._set_table_html()
 
     @traitlets.observe("_initial_load_complete")
     def _on_initial_load_complete(self, change: dict[str, Any]):
@@ -274,14 +285,17 @@ class TableWidget(_WIDGET_BASE):
 
     def _reset_batches_for_new_page_size(self) -> None:
         """Reset the batch iterator when page size changes."""
-        self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
+        with bigframes.option_context("display.progress_bar", None):
+            self._batches = self._dataframe.to_pandas_batches(page_size=self.page_size)
 
         self._reset_batch_cache()
 
     def _set_table_html(self) -> None:
         """Sets the current html data based on the current page and page size."""
         new_page = None
-        with self._setting_html_lock:
+        with self._setting_html_lock, bigframes.option_context(
+            "display.progress_bar", None
+        ):
             if self._error_message:
                 self.table_html = (
                     f"<div class='bigframes-error-message'>"

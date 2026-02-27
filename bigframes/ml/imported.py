@@ -16,7 +16,8 @@
 
 from __future__ import annotations
 
-from typing import cast, Mapping, Optional
+import typing
+from typing import Mapping, Optional
 
 from google.cloud import bigquery
 
@@ -72,13 +73,14 @@ class TensorFlowModel(base.Predictor):
                 Input DataFrame. Schema is defined by the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model.
+        """
 
         if not self._bqml_model:
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
 
         (X,) = utils.batch_convert_to_dataframe(X)
 
@@ -99,7 +101,7 @@ class TensorFlowModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -151,13 +153,14 @@ class ONNXModel(base.Predictor):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame, schema is defined by the model.
+        """
 
         if not self._bqml_model:
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
@@ -178,7 +181,7 @@ class ONNXModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)
@@ -270,13 +273,14 @@ class XGBoostModel(base.Predictor):
                 Input DataFrame or Series. Schema is defined by the model.
 
         Returns:
-            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model."""
+            bigframes.dataframe.DataFrame: Output DataFrame. Schema is defined by the model.
+        """
 
         if not self._bqml_model:
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
 
         (X,) = utils.batch_convert_to_dataframe(X, session=self._bqml_model.session)
 
@@ -297,7 +301,7 @@ class XGBoostModel(base.Predictor):
             if self.model_path is None:
                 raise ValueError("Model GCS path must be provided.")
             self._bqml_model = self._create_bqml_model()
-        self._bqml_model = cast(core.BqmlModel, self._bqml_model)
+        self._bqml_model = typing.cast(core.BqmlModel, self._bqml_model)
 
         new_model = self._bqml_model.copy(model_name, replace)
         return new_model.session.read_gbq_model(model_name)

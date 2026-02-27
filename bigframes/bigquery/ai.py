@@ -22,7 +22,10 @@ from bigframes.bigquery._operations.ai import (
     generate,
     generate_bool,
     generate_double,
+    generate_embedding,
     generate_int,
+    generate_table,
+    generate_text,
     if_,
     score,
 )
@@ -33,7 +36,10 @@ __all__ = [
     "generate",
     "generate_bool",
     "generate_double",
+    "generate_embedding",
     "generate_int",
+    "generate_table",
+    "generate_text",
     "if_",
     "score",
 ]

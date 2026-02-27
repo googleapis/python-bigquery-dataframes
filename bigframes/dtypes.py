@@ -370,8 +370,11 @@ def is_comparable(type_: ExpressionType) -> bool:
 
 
 def can_compare(type1: ExpressionType, type2: ExpressionType) -> bool:
-    coerced_type = coerce_to_common(type1, type2)
-    return is_comparable(coerced_type)
+    try:
+        coerced_type = coerce_to_common(type1, type2)
+        return is_comparable(coerced_type)
+    except TypeError:
+        return False
 
 
 def get_struct_fields(type_: ExpressionType) -> dict[str, Dtype]:
@@ -800,7 +803,7 @@ def convert_to_schema_field(
                 name, inner_field.field_type, mode="REPEATED", fields=inner_field.fields
             )
         if pa.types.is_struct(bigframes_dtype.pyarrow_dtype):
-            inner_fields: list[pa.Field] = []
+            inner_fields: list[google.cloud.bigquery.SchemaField] = []
             struct_type = typing.cast(pa.StructType, bigframes_dtype.pyarrow_dtype)
             for i in range(struct_type.num_fields):
                 field = struct_type.field(i)
@@ -823,7 +826,7 @@ def convert_to_schema_field(
 
 
 def bf_type_from_type_kind(
-    bq_schema: list[google.cloud.bigquery.SchemaField],
+    bq_schema: Sequence[google.cloud.bigquery.SchemaField],
 ) -> typing.Dict[str, Dtype]:
     """Converts bigquery sql type to the default bigframes dtype."""
     return {name: dtype for name, dtype in map(convert_schema_field, bq_schema)}

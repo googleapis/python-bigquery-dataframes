@@ -4,6 +4,66 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.36.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.35.0...v2.36.0) (2026-02-17)
+
+
+### Documentation
+
+* update multimodal dataframe notebook to use public APIs (#2456) ([342fa723c4631d371364a87ae0ddd6fa03360a4b](https://github.com/googleapis/python-bigquery-dataframes/commit/342fa723c4631d371364a87ae0ddd6fa03360a4b))
+* use direct API for pdf chunk and pdf extract (#2452) ([543ce52c18269eab2a89886f226d1478dbabf9ba](https://github.com/googleapis/python-bigquery-dataframes/commit/543ce52c18269eab2a89886f226d1478dbabf9ba))
+* fix generate_text and generate_table input docs (#2455) ([078bd32ebd28af0d2cfba6bb874ba79e904183e2](https://github.com/googleapis/python-bigquery-dataframes/commit/078bd32ebd28af0d2cfba6bb874ba79e904183e2))
+* Update multimodal notebook to use public runtime helpers (#2451) ([e36dd8b492fd7ab433fa4cac732b31774c1e428b](https://github.com/googleapis/python-bigquery-dataframes/commit/e36dd8b492fd7ab433fa4cac732b31774c1e428b))
+* use direct API for audio transcription (#2447) ([59cbc5db66fd178ecce03bf4b8b4a504d7ef3e9f](https://github.com/googleapis/python-bigquery-dataframes/commit/59cbc5db66fd178ecce03bf4b8b4a504d7ef3e9f))
+* Add EXIF metadata extraction example to multimodal notebook (#2429) ([84c6f883aef8048e7013a8b3c03a1bde47e94eea](https://github.com/googleapis/python-bigquery-dataframes/commit/84c6f883aef8048e7013a8b3c03a1bde47e94eea))
+
+
+### Features
+
+* Initial support for biglake iceberg tables (#2409) ([ae35a9890a2f9903b12e431488362c091118bbdd](https://github.com/googleapis/python-bigquery-dataframes/commit/ae35a9890a2f9903b12e431488362c091118bbdd))
+* add bigquery.ai.generate_table function (#2453) ([b925aa243dad0e42ad126c9397f42be0aad7152d](https://github.com/googleapis/python-bigquery-dataframes/commit/b925aa243dad0e42ad126c9397f42be0aad7152d))
+
+## [2.35.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.34.0...v2.35.0) (2026-02-07)
+
+
+### Documentation
+
+* fix cast method shown on public docs (#2436) ([ad0f33c65ee01409826c381ae0f70aad65bb6a27](https://github.com/googleapis/python-bigquery-dataframes/commit/ad0f33c65ee01409826c381ae0f70aad65bb6a27))
+
+
+### Features
+
+* remove redundant "started." messages from progress output (#2440) ([2017cc2f27f0a432af46f60b3286b231caa4a98b](https://github.com/googleapis/python-bigquery-dataframes/commit/2017cc2f27f0a432af46f60b3286b231caa4a98b))
+* Add bigframes.pandas.col with basic operators (#2405) ([12741677c0391efb5d05281fc756445ccbb1387e](https://github.com/googleapis/python-bigquery-dataframes/commit/12741677c0391efb5d05281fc756445ccbb1387e))
+* Disable progress bars in Anywidget mode (#2444) ([4e2689a1c975c4cabaf36b7d0817dcbedc926853](https://github.com/googleapis/python-bigquery-dataframes/commit/4e2689a1c975c4cabaf36b7d0817dcbedc926853))
+* Disable progress bars in Anywidget mode to reduce notebook clutter (#2437) ([853240daf45301ad534c635c8955cb6ce91d23c2](https://github.com/googleapis/python-bigquery-dataframes/commit/853240daf45301ad534c635c8955cb6ce91d23c2))
+* add bigquery.ai.generate_text function (#2433) ([5bd0029a99e7653843de4ac7d57370c9dffeed4d](https://github.com/googleapis/python-bigquery-dataframes/commit/5bd0029a99e7653843de4ac7d57370c9dffeed4d))
+* Add a bigframes cell magic for ipython (#2395) ([e6de52ded6c5091275a936dec36f01a6cf701233](https://github.com/googleapis/python-bigquery-dataframes/commit/e6de52ded6c5091275a936dec36f01a6cf701233))
+* add `bigframes.bigquery.ai.generate_embedding` (#2343) ([e91536c8a5b2d8d896767510ced80c6fd2a68a97](https://github.com/googleapis/python-bigquery-dataframes/commit/e91536c8a5b2d8d896767510ced80c6fd2a68a97))
+* add bigframe.bigquery.load_data function (#2426) ([4b0f13b2fe10fa5b07d3ca3b7cb1ae1cb95030c7](https://github.com/googleapis/python-bigquery-dataframes/commit/4b0f13b2fe10fa5b07d3ca3b7cb1ae1cb95030c7))
+
+
+### Bug Fixes
+
+* suppress JSONDtypeWarning in Anywidget mode and clean up progress output (#2441) ([e0d185ad2c0245b17eac315f71152a46c6da41bb](https://github.com/googleapis/python-bigquery-dataframes/commit/e0d185ad2c0245b17eac315f71152a46c6da41bb))
+* exlcude gcsfs 2026.2.0 (#2445) ([311de31e79227408515f087dafbab7edc54ddf1b](https://github.com/googleapis/python-bigquery-dataframes/commit/311de31e79227408515f087dafbab7edc54ddf1b))
+* always display the results in the `%%bqsql` cell magics output (#2439) ([2d973b54550f30429dbd10894f78db7bb0c57345](https://github.com/googleapis/python-bigquery-dataframes/commit/2d973b54550f30429dbd10894f78db7bb0c57345))
+
+## [2.34.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.33.0...v2.34.0) (2026-02-02)
+
+
+### Features
+
+* add `bigframes.pandas.options.experiments.sql_compiler` for switching the backend compiler (#2417) ([7eba6ee03f07938315d99e2aeaf72368c02074cf](https://github.com/googleapis/python-bigquery-dataframes/commit/7eba6ee03f07938315d99e2aeaf72368c02074cf))
+* add bigquery.ml.generate_embedding function (#2422) ([35f3f5e6f8c64b47e6e7214034f96f047785e647](https://github.com/googleapis/python-bigquery-dataframes/commit/35f3f5e6f8c64b47e6e7214034f96f047785e647))
+* add bigquery.create_external_table method (#2415) ([76db2956e505aec4f1055118ac7ca523facc10ff](https://github.com/googleapis/python-bigquery-dataframes/commit/76db2956e505aec4f1055118ac7ca523facc10ff))
+* add deprecation warnings for .blob accessor and read_gbq_object_table (#2408) ([7261a4ea5cdab6b30f5bc333501648c60e70be59](https://github.com/googleapis/python-bigquery-dataframes/commit/7261a4ea5cdab6b30f5bc333501648c60e70be59))
+* add bigquery.ml.generate_text function (#2403) ([5ac681028624de15e31f0c2ae360b47b2dcf1e8d](https://github.com/googleapis/python-bigquery-dataframes/commit/5ac681028624de15e31f0c2ae360b47b2dcf1e8d))
+
+
+### Bug Fixes
+
+* broken job url (#2411) ([fcb5bc1761c656e1aec61dbcf96a36d436833b7a](https://github.com/googleapis/python-bigquery-dataframes/commit/fcb5bc1761c656e1aec61dbcf96a36d436833b7a))
+
 ## [2.33.0](https://github.com/googleapis/python-bigquery-dataframes/compare/v2.32.0...v2.33.0) (2026-01-22)
 
 

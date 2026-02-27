@@ -20,11 +20,11 @@ from bigframes import dtypes
 from bigframes import operations as ops
 from bigframes.core.compile.constants import UNIT_TO_US_CONVERSION_FACTORS
 from bigframes.core.compile.sqlglot import sqlglot_types
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 
-register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
-register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
+register_unary_op = expression_compiler.expression_compiler.register_unary_op
+register_binary_op = expression_compiler.expression_compiler.register_binary_op
 
 
 @register_binary_op(ops.DatetimeToIntegerLabelOp, pass_op=True)
@@ -371,7 +371,7 @@ def _(expr: TypedExpr, op: ops.ToDatetimeOp) -> sge.Expression:
         )
         return sge.Cast(this=result, to="DATETIME")
 
-    if expr.dtype == dtypes.STRING_DTYPE:
+    if expr.dtype in (dtypes.STRING_DTYPE, dtypes.TIMESTAMP_DTYPE):
         return sge.TryCast(this=expr.expr, to="DATETIME")
 
     value = expr.expr
@@ -396,7 +396,7 @@ def _(expr: TypedExpr, op: ops.ToTimestampOp) -> sge.Expression:
             "PARSE_TIMESTAMP", sge.convert(op.format), expr.expr, sge.convert("UTC")
         )
 
-    if expr.dtype == dtypes.STRING_DTYPE:
+    if expr.dtype in (dtypes.STRING_DTYPE, dtypes.DATETIME_DTYPE):
         return sge.func("TIMESTAMP", expr.expr)
 
     value = expr.expr

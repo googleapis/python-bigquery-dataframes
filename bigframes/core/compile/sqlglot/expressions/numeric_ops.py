@@ -19,13 +19,14 @@ import bigframes_vendored.sqlglot.expressions as sge
 
 from bigframes import dtypes
 from bigframes import operations as ops
+import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
+from bigframes.core.compile.sqlglot.expressions.common import round_towards_zero
 import bigframes.core.compile.sqlglot.expressions.constants as constants
 from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
-import bigframes.core.compile.sqlglot.scalar_compiler as scalar_compiler
 from bigframes.operations import numeric_ops
 
-register_unary_op = scalar_compiler.scalar_op_compiler.register_unary_op
-register_binary_op = scalar_compiler.scalar_op_compiler.register_binary_op
+register_unary_op = expression_compiler.expression_compiler.register_unary_op
+register_binary_op = expression_compiler.expression_compiler.register_binary_op
 
 
 @register_unary_op(ops.abs_op)
@@ -362,7 +363,7 @@ def _float_pow_op(
             sge.If(
                 this=sge.and_(
                     sge.LT(this=left_expr, expression=constants._ZERO),
-                    sge.Not(this=exponent_is_whole),
+                    sge.Not(this=sge.paren(exponent_is_whole)),
                 ),
                 true=constants._NAN,
             ),
@@ -467,7 +468,7 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 
     result = sge.func("IEEE_DIVIDE", left_expr, right_expr)
     if left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype):
-        return sge.Cast(this=sge.Floor(this=result), to="INT64")
+        return round_towards_zero(result)
     else:
         return result
 
@@ -510,7 +511,7 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     )
 
     if dtypes.is_numeric(right.dtype) and left.dtype == dtypes.TIMEDELTA_DTYPE:
-        result = sge.Cast(this=sge.Floor(this=result), to="INT64")
+        result = round_towards_zero(sge.func("IEEE_DIVIDE", left_expr, right_expr))
 
     return result
 
@@ -578,7 +579,7 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     if (dtypes.is_numeric(left.dtype) and right.dtype == dtypes.TIMEDELTA_DTYPE) or (
         left.dtype == dtypes.TIMEDELTA_DTYPE and dtypes.is_numeric(right.dtype)
     ):
-        return sge.Cast(this=sge.Floor(this=result), to="INT64")
+        return round_towards_zero(result)
     else:
         return result
 
