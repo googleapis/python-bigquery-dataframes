@@ -1,11 +1,12 @@
 Supported pandas APIs
 =====================
 
-The following tables show the pandas APIs that have been implemented (or not)
-in BigQuery DataFrames.
+The following tables show the pandas APIs that have been implemented in BigQuery DataFrames.
 
-* 'Y' means it implements all parameters.
-* 'P' means it implements only some parameters.
+* **Y**: BigQuery DataFrames implements all parameters of the pandas API.
+* **P**: BigQuery DataFrames implements only some parameters of the pandas API.
+
+For more information, see `Use BigQuery DataFrames <https://cloud.google.com/bigquery/docs/use-bigquery-dataframes/>`_.
 
 DataFrame
 ---------
