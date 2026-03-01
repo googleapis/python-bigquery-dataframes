@@ -612,7 +612,10 @@ class FunctionClient:
         # makes their naming more stable for the same udf code
         session_id = None if name else self._session.session_id
         cloud_function_name = _utils.get_cloud_function_name(
-            function_hash, session_id, uniq_suffix
+            function_hash,
+            user_given_name=name,
+            session_id=session_id,
+            uniq_suffix=uniq_suffix,
         )
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 

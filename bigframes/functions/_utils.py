@@ -16,6 +16,7 @@
 import hashlib
 import inspect
 import json
+import re
 import sys
 import typing
 from typing import Any, cast, Optional, Sequence, Set
@@ -212,9 +213,18 @@ def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> s
     return f"`{routine_ref.project}.{routine_ref.dataset_id}`.{routine_ref.routine_id}"
 
 
-def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
+def get_cloud_function_name(
+    function_hash: str,
+    user_given_name: Optional[str] = None,
+    session_id: Optional[str] = None,
+    uniq_suffix: Optional[str] = None,
+):
     "Get a name for the cloud function for the given user defined function."
     parts = [_BIGFRAMES_FUNCTION_PREFIX]
+    if user_given_name:
+        user_given_name_alphanumeric = re.sub(r"[^a-zA-Z0-9_]", "", user_given_name)
+        if user_given_name_alphanumeric:
+            parts.append(user_given_name_alphanumeric)
     if session_id:
         parts.append(session_id)
     parts.append(function_hash)

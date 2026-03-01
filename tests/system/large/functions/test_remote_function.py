@@ -530,7 +530,7 @@ def test_remote_function_restore_with_bigframes_series(
         package_requirements = bff_utils.get_updated_package_requirements()
         add_one_uniq_hash = bff_utils.get_hash(add_one_uniq, package_requirements)
         add_one_uniq_cf_name = bff_utils.get_cloud_function_name(
-            add_one_uniq_hash, session.session_id
+            add_one_uniq_hash, session_id=session.session_id
         )
 
         # There should be no cloud function yet for the unique udf
