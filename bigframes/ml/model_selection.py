@@ -118,6 +118,9 @@ def train_test_split(
     else:
         joined_df_train, joined_df_test = _stratify_split(joined_df, stratify)
 
+    joined_df_train = joined_df_train.cache()
+    joined_df_test = joined_df_test.cache()
+
     results = []
     for array in arrays:
         columns = array.name if isinstance(array, bpd.Series) else array.columns
