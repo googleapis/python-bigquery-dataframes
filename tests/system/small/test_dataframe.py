@@ -5866,9 +5866,8 @@ def test_read_gbq_to_pandas_no_exec(unordered_session: bigframes.Session):
 
 
 def test_to_gbq_table_labels(scalars_df_index):
-    destination_table = "bigframes-dev.bigframes_tests_sys.table_labels"
     result_table = scalars_df_index.to_gbq(
-        destination_table, labels={"test": "labels"}, if_exists="replace"
+        labels={"test": "labels"}, if_exists="replace"
     )
     client = scalars_df_index._session.bqclient
     table = client.get_table(result_table)
