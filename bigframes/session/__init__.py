@@ -366,6 +366,10 @@ class Session(
         """The sum of all slot time used by bigquery jobs in this session."""
         return self._metrics.slot_millis
 
+    def job_history(self) -> pandas.DataFrame:
+        """Returns a list of BigQuery jobs initiated by BigFrames in the current session."""
+        return pandas.DataFrame([job.__dict__ for job in self._metrics.jobs])
+
     @property
     def _allows_ambiguity(self) -> bool:
         return self._allow_ambiguity
