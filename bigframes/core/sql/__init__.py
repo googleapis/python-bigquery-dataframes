@@ -26,7 +26,7 @@ from typing import cast, Collection, Iterable, Mapping, Optional, TYPE_CHECKING,
 import bigframes_vendored.sqlglot.expressions as sge
 import shapely.geometry.base  # type: ignore
 
-import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
+from bigframes.core.compile.sqlglot import sqlglot_ir
 
 if TYPE_CHECKING:
     import google.cloud.bigquery as bigquery

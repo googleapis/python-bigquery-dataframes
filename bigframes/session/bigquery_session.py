@@ -24,7 +24,7 @@ import uuid
 import bigframes_vendored.ibis.backends.bigquery.datatypes as ibis_bq
 import google.cloud.bigquery as bigquery
 
-import bigframes.core.compile.sqlglot.sqlglot_ir as sqlglot_ir
+from bigframes.core.compile.sqlglot import sqlglot_ir
 import bigframes.core.events
 from bigframes.session import temporary_storage
 import bigframes.session._io.bigquery as bfbqio
