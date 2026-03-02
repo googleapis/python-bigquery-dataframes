@@ -169,6 +169,8 @@ def arctanh_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.floor_op)
 def floor_op_impl(x: ibis_types.Value):
     x_numeric = typing.cast(ibis_types.NumericValue, x)
+    if x_numeric.type().is_boolean():
+        return x_numeric.cast(ibis_dtypes.Int64()).cast(ibis_dtypes.Float64())
     if x_numeric.type().is_integer():
         return x_numeric.cast(ibis_dtypes.Float64())
     if x_numeric.type().is_floating():
@@ -181,6 +183,8 @@ def floor_op_impl(x: ibis_types.Value):
 @scalar_op_compiler.register_unary_op(ops.ceil_op)
 def ceil_op_impl(x: ibis_types.Value):
     x_numeric = typing.cast(ibis_types.NumericValue, x)
+    if x_numeric.type().is_boolean():
+        return x_numeric.cast(ibis_dtypes.Int64()).cast(ibis_dtypes.Float64())
     if x_numeric.type().is_integer():
         return x_numeric.cast(ibis_dtypes.Float64())
     if x_numeric.type().is_floating():
@@ -1002,7 +1006,6 @@ def to_timestamp_op_impl(x: ibis_types.Value, op: ops.ToTimestampOp):
             else timestamp(x)
         )
     elif x.type() == ibis_dtypes.Timestamp(None):  # type: ignore
-
         return timestamp(x)
     else:
         # Numerical inputs.
@@ -1026,7 +1029,7 @@ def to_timedelta_op_impl(x: ibis_types.Value, op: ops.ToTimedeltaOp):
 
 @scalar_op_compiler.register_unary_op(ops.timedelta_floor_op)
 def timedelta_floor_op_impl(x: ibis_types.NumericValue):
-    return x.floor()
+    return ibis_api.case().when(x > ibis.literal(0), x.floor()).else_(x.ceil()).end()
 
 
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
@@ -1904,7 +1907,6 @@ def struct_op_impl(
 def ai_generate(
     *values: ibis_types.Value, op: ops.AIGenerate
 ) -> ibis_types.StructValue:
-
     return ai_ops.AIGenerate(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.connection_id,  # type: ignore
@@ -1919,7 +1921,6 @@ def ai_generate(
 def ai_generate_bool(
     *values: ibis_types.Value, op: ops.AIGenerateBool
 ) -> ibis_types.StructValue:
-
     return ai_ops.AIGenerateBool(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.connection_id,  # type: ignore
@@ -1933,7 +1934,6 @@ def ai_generate_bool(
 def ai_generate_int(
     *values: ibis_types.Value, op: ops.AIGenerateInt
 ) -> ibis_types.StructValue:
-
     return ai_ops.AIGenerateInt(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.connection_id,  # type: ignore
@@ -1947,7 +1947,6 @@ def ai_generate_int(
 def ai_generate_double(
     *values: ibis_types.Value, op: ops.AIGenerateDouble
 ) -> ibis_types.StructValue:
-
     return ai_ops.AIGenerateDouble(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.connection_id,  # type: ignore
@@ -1959,7 +1958,6 @@ def ai_generate_double(
 
 @scalar_op_compiler.register_nary_op(ops.AIIf, pass_op=True)
 def ai_if(*values: ibis_types.Value, op: ops.AIIf) -> ibis_types.StructValue:
-
     return ai_ops.AIIf(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.connection_id,  # type: ignore
@@ -1970,7 +1968,6 @@ def ai_if(*values: ibis_types.Value, op: ops.AIIf) -> ibis_types.StructValue:
 def ai_classify(
     *values: ibis_types.Value, op: ops.AIClassify
 ) -> ibis_types.StructValue:
-
     return ai_ops.AIClassify(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.categories,  # type: ignore
@@ -1980,7 +1977,6 @@ def ai_classify(
 
 @scalar_op_compiler.register_nary_op(ops.AIScore, pass_op=True)
 def ai_score(*values: ibis_types.Value, op: ops.AIScore) -> ibis_types.StructValue:
-
     return ai_ops.AIScore(
         _construct_prompt(values, op.prompt_context),  # type: ignore
         op.connection_id,  # type: ignore

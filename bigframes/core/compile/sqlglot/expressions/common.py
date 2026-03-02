@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,20 @@
 
 from __future__ import annotations
 
-import abc
+import bigframes_vendored.sqlglot.expressions as sge
 
 
-class SQLSyntax(abc.ABC):
-    """Abstract base class provides GoogleSQL syntax."""
+def round_towards_zero(expr: sge.Expression):
+    """
+    Round a float value to to an integer, always rounding towards zero.
 
-    @abc.abstractmethod
-    def sql(self):
-        ...
+    This is used to handle duration/timedelta emulation mostly.
+    """
+    return sge.Cast(
+        this=sge.If(
+            this=sge.GT(this=expr, expression=sge.convert(0)),
+            true=sge.Floor(this=expr),
+            false=sge.Ceil(this=expr),
+        ),
+        to="INT64",
+    )
