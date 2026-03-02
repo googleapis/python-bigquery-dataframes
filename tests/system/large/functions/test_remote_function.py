@@ -2169,12 +2169,8 @@ def test_remote_function_gcf_memory(
         pytest.param(32769, id="set-32769-too-high"),
     ],
 )
-@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_gcf_memory_unsupported(session, memory_mib):
-    with pytest.raises(
-        google.api_core.exceptions.InvalidArgument,
-        match="Invalid value specified for container memory",
-    ):
+    with pytest.raises(ValueError, match="Cloud run supports"):
 
         @session.remote_function(
             reuse=False,

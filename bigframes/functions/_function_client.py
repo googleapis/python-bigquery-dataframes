@@ -742,11 +742,9 @@ class FunctionClient:
 
 def _infer_milli_cpus_from_memory(memory_mib: int) -> int:
     # observed values, not formally documented by cloud run functions
-    if memory_mib <= 128:
-        return 83
-    elif memory_mib <= 256:
-        return 167
-    elif memory_mib <= 512:
+    if memory_mib < 512:
+        raise ValueError("Cloud run supports at minimum 512MiB per instance")
+    elif memory_mib == 512:
         return 333
     elif memory_mib <= 1024:
         return 583
