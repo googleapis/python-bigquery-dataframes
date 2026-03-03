@@ -73,7 +73,6 @@ import bigframes.functions
 import bigframes.operations as ops
 import bigframes.operations.aggregations as agg_ops
 import bigframes.operations.blob as blob
-import bigframes.operations.datetimes as dt
 import bigframes.operations.lists as lists
 import bigframes.operations.plotting as plotting
 import bigframes.operations.python_op_maps as python_ops
@@ -82,6 +81,7 @@ import bigframes.session
 
 if typing.TYPE_CHECKING:
     import bigframes.geopandas.geoseries
+    import bigframes.operations.datetimes as dt
     import bigframes.operations.strings as strings
 
 
