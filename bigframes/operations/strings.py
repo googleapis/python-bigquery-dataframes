@@ -325,10 +325,10 @@ class StringMethods(Generic[T]):
             bigframes.series.Series: Blob Series.
 
         """
-        import bigframes.core.block
+        import bigframes.core.blocks
 
         if hasattr(self._data, "_block") and isinstance(
-            self._data._block, bigframes.core.block.Block
+            self._data._block, bigframes.core.blocks.Block
         ):
             session = self._data._block.session
         else:
