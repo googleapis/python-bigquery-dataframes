@@ -82,7 +82,10 @@ describe('TableWidget', () => {
         if (property === 'orderable_columns') {
           return ['col1'];
         }
-        if (property === 'sort_context') {
+        if (property === 'sort_columns') {
+          return [];
+        }
+        if (property === 'sort_ascending') {
           return [];
         }
         return null;
@@ -99,9 +102,8 @@ describe('TableWidget', () => {
       const header = el.querySelector('th');
       header.click();
 
-      expect(model.set).toHaveBeenCalledWith('sort_context', [
-        { column: 'col1', ascending: true },
-      ]);
+      expect(model.set).toHaveBeenCalledWith('sort_ascending', [true]);
+      expect(model.set).toHaveBeenCalledWith('sort_columns', ['col1']);
       expect(model.save_changes).toHaveBeenCalled();
     });
 
@@ -114,8 +116,11 @@ describe('TableWidget', () => {
         if (property === 'orderable_columns') {
           return ['col1'];
         }
-        if (property === 'sort_context') {
-          return [{ column: 'col1', ascending: true }];
+        if (property === 'sort_columns') {
+          return ['col1'];
+        }
+        if (property === 'sort_ascending') {
+          return [true];
         }
         return null;
       });
@@ -131,9 +136,8 @@ describe('TableWidget', () => {
       const header = el.querySelector('th');
       header.click();
 
-      expect(model.set).toHaveBeenCalledWith('sort_context', [
-        { column: 'col1', ascending: false },
-      ]);
+      expect(model.set).toHaveBeenCalledWith('sort_ascending', [false]);
+      expect(model.set).toHaveBeenCalledWith('sort_columns', ['col1']);
       expect(model.save_changes).toHaveBeenCalled();
     });
 
@@ -146,8 +150,11 @@ describe('TableWidget', () => {
         if (property === 'orderable_columns') {
           return ['col1'];
         }
-        if (property === 'sort_context') {
-          return [{ column: 'col1', ascending: false }];
+        if (property === 'sort_columns') {
+          return ['col1'];
+        }
+        if (property === 'sort_ascending') {
+          return [false];
         }
         return null;
       });
@@ -163,7 +170,8 @@ describe('TableWidget', () => {
       const header = el.querySelector('th');
       header.click();
 
-      expect(model.set).toHaveBeenCalledWith('sort_context', []);
+      expect(model.set).toHaveBeenCalledWith('sort_ascending', []);
+      expect(model.set).toHaveBeenCalledWith('sort_columns', []);
       expect(model.save_changes).toHaveBeenCalled();
     });
 
@@ -176,8 +184,11 @@ describe('TableWidget', () => {
         if (property === 'orderable_columns') {
           return ['col1', 'col2'];
         }
-        if (property === 'sort_context') {
-          return [{ column: 'col1', ascending: true }];
+        if (property === 'sort_columns') {
+          return ['col1'];
+        }
+        if (property === 'sort_ascending') {
+          return [true];
         }
         return null;
       });
@@ -207,8 +218,11 @@ describe('TableWidget', () => {
         if (property === 'orderable_columns') {
           return ['col1', 'col2'];
         }
-        if (property === 'sort_context') {
-          return [{ column: 'col1', ascending: true }];
+        if (property === 'sort_columns') {
+          return ['col1'];
+        }
+        if (property === 'sort_ascending') {
+          return [true];
         }
         return null;
       });
@@ -232,10 +246,8 @@ describe('TableWidget', () => {
       });
       header2.dispatchEvent(clickEvent);
 
-      expect(model.set).toHaveBeenCalledWith('sort_context', [
-        { column: 'col1', ascending: true },
-        { column: 'col2', ascending: true },
-      ]);
+      expect(model.set).toHaveBeenCalledWith('sort_ascending', [true, true]);
+      expect(model.set).toHaveBeenCalledWith('sort_columns', ['col1', 'col2']);
       expect(model.save_changes).toHaveBeenCalled();
     });
   });
@@ -418,7 +430,10 @@ describe('TableWidget', () => {
         // Only actual columns are orderable
         return ['col1', 'col10'];
       }
-      if (property === 'sort_context') {
+      if (property === 'sort_columns') {
+        return [];
+      }
+      if (property === 'sort_ascending') {
         return [];
       }
       return null;
