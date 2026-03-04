@@ -20,7 +20,8 @@ const ModelProperty = {
   PAGE: 'page',
   PAGE_SIZE: 'page_size',
   ROW_COUNT: 'row_count',
-  SORT_CONTEXT: 'sort_context',
+  SORT_COLUMNS: 'sort_columns',
+  SORT_ASCENDING: 'sort_ascending',
   TABLE_HTML: 'table_html',
   MAX_COLUMNS: 'max_columns',
 };
@@ -192,10 +193,10 @@ function render({ model, el }) {
     }, 0);
 
     const sortableColumns = model.get(ModelProperty.ORDERABLE_COLUMNS);
-    const currentSortContext = model.get(ModelProperty.SORT_CONTEXT) || [];
+    const currentSortColumns = model.get(ModelProperty.SORT_COLUMNS) || [];
+    const currentSortAscending = model.get(ModelProperty.SORT_ASCENDING) || [];
 
-    const getSortIndex = (colName) =>
-      currentSortContext.findIndex((item) => item.column === colName);
+    const getSortIndex = (colName) => currentSortColumns.indexOf(colName);
 
     const headers = tableContainer.querySelectorAll('th');
     headers.forEach((header) => {
@@ -214,7 +215,7 @@ function render({ model, el }) {
         const sortIndex = getSortIndex(columnName);
 
         if (sortIndex !== -1) {
-          const isAscending = currentSortContext[sortIndex].ascending;
+          const isAscending = currentSortAscending[sortIndex];
           indicator = isAscending ? '▲' : '▼';
           indicatorSpan.style.visibility = 'visible'; // Sorted arrows always visible
         } else {
@@ -239,48 +240,46 @@ function render({ model, el }) {
           }
         });
 
-        // Add click handler for three-state toggle
         header.addEventListener(Event.CLICK, (event) => {
           const sortIndex = getSortIndex(columnName);
-          let newContext = [...currentSortContext];
+          let newSortColumns = [...currentSortColumns];
+          let newSortAscending = [...currentSortAscending];
 
           if (event.shiftKey) {
             if (sortIndex !== -1) {
               // Already sorted. Toggle or Remove.
-              if (newContext[sortIndex].ascending) {
+              if (newSortAscending[sortIndex]) {
                 // Asc -> Desc
-                // Clone object to avoid mutation issues
-                newContext[sortIndex] = {
-                  ...newContext[sortIndex],
-                  ascending: false,
-                };
+                newSortAscending[sortIndex] = false;
               } else {
                 // Desc -> Remove
-                newContext.splice(sortIndex, 1);
+                newSortColumns.splice(sortIndex, 1);
+                newSortAscending.splice(sortIndex, 1);
               }
             } else {
               // Not sorted -> Append Asc
-              newContext.push({ column: columnName, ascending: true });
+              newSortColumns.push(columnName);
+              newSortAscending.push(true);
             }
           } else {
             // No shift key. Single column mode.
-            if (sortIndex !== -1 && newContext.length === 1) {
+            if (sortIndex !== -1 && newSortColumns.length === 1) {
               // Already only this column. Toggle or Remove.
-              if (newContext[sortIndex].ascending) {
-                newContext[sortIndex] = {
-                  ...newContext[sortIndex],
-                  ascending: false,
-                };
+              if (newSortAscending[sortIndex]) {
+                newSortAscending[sortIndex] = false;
               } else {
-                newContext = [];
+                newSortColumns = [];
+                newSortAscending = [];
               }
             } else {
               // Start fresh with this column
-              newContext = [{ column: columnName, ascending: true }];
+              newSortColumns = [columnName];
+              newSortAscending = [true];
             }
           }
 
-          model.set(ModelProperty.SORT_CONTEXT, newContext);
+          model.set(ModelProperty.SORT_ASCENDING, newSortAscending);
+          model.set(ModelProperty.SORT_COLUMNS, newSortColumns);
           model.save_changes();
         });
       }

@@ -70,7 +70,8 @@ class TableWidget(_WIDGET_BASE):
     max_columns = traitlets.Int(allow_none=True, default_value=None).tag(sync=True)
     row_count = traitlets.Int(allow_none=True, default_value=None).tag(sync=True)
     table_html = traitlets.Unicode("").tag(sync=True)
-    sort_context = traitlets.List(traitlets.Dict(), default_value=[]).tag(sync=True)
+    sort_columns = traitlets.List(traitlets.Unicode(), default_value=[]).tag(sync=True)
+    sort_ascending = traitlets.List(traitlets.Bool(), default_value=[]).tag(sync=True)
     orderable_columns = traitlets.List(traitlets.Unicode(), []).tag(sync=True)
     _initial_load_complete = traitlets.Bool(False).tag(sync=True)
     _batches: Optional[blocks.PandasBatches] = None
@@ -305,8 +306,8 @@ class TableWidget(_WIDGET_BASE):
 
             # Apply sorting if a column is selected
             df_to_display = self._dataframe
-            sort_columns = [item["column"] for item in self.sort_context]
-            sort_ascending = [item["ascending"] for item in self.sort_context]
+            sort_columns = list(self.sort_columns)
+            sort_ascending = list(self.sort_ascending)
 
             if sort_columns:
                 # TODO(b/463715504): Support sorting by index columns.
@@ -382,10 +383,11 @@ class TableWidget(_WIDGET_BASE):
             # re-enter _set_table_html. Since we've released the lock, this is safe.
             self.page = new_page
 
-    @traitlets.observe("sort_context")
-    def _sort_changed(self, _change: dict[str, Any]):
+    @traitlets.observe("sort_columns", "sort_ascending")
+    def _sort_changed(self, change: dict[str, Any]):
         """Handler for when sorting parameters change from the frontend."""
-        self._set_table_html()
+        if len(self.sort_columns) == len(self.sort_ascending):
+            self._set_table_html()
 
     @traitlets.observe("page")
     def _page_changed(self, _change: dict[str, Any]) -> None:
@@ -402,7 +404,8 @@ class TableWidget(_WIDGET_BASE):
         # Reset the page to 0 when page size changes to avoid invalid page states
         self.page = 0
         # Reset the sort state to default (no sort)
-        self.sort_context = []
+        self.sort_ascending = []
+        self.sort_columns = []
 
         # Reset batches to use new page size for future data fetching
         self._reset_batches_for_new_page_size()
