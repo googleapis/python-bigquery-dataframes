@@ -41,10 +41,12 @@ def replace(
         this=base.table(destination),
         using=_as_from_item(query_or_table),
         on=base.literal(False, dtypes.BOOL_DTYPE),
-        whens=[
-            sge.When(matched=False, source=True, then=sge.Delete()),
-            sge.When(matched=False, then=sge.Insert(this=sge.Var(this="ROW"))),
-        ],
+        whens=sge.Whens(
+            expressions=[
+                sge.When(matched=False, source=True, then=sge.Delete()),
+                sge.When(matched=False, then=sge.Insert(this=sge.Var(this="ROW"))),
+            ]
+        ),
     )
 
 

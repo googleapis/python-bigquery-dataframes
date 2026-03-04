@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ def identifier(id: str) -> sge.Identifier:
 
 
 def literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
+    """Return a string representing column reference in a SQL."""
     sqlglot_type = sgt.from_bigframes_dtype(dtype) if dtype else None
     if sqlglot_type is None:
         if not pd.isna(value):
@@ -110,6 +111,7 @@ def literal(value: typing.Any, dtype: dtypes.Dtype) -> sge.Expression:
 
 
 def cast(arg: typing.Any, to: str, safe: bool = False) -> sge.Cast | sge.TryCast:
+    """Return a SQL expression that casts the given argument to the specified type."""
     if safe:
         return sge.TryCast(this=arg, to=to)
     else:
@@ -117,6 +119,7 @@ def cast(arg: typing.Any, to: str, safe: bool = False) -> sge.Cast | sge.TryCast
 
 
 def table(table: bigquery.TableReference) -> sge.Table:
+    """Return a SQLGlot Table expression representing the given BigQuery table reference."""
     return sge.Table(
         this=sge.to_identifier(table.table_id, quoted=True),
         db=sge.to_identifier(table.dataset_id, quoted=True),
