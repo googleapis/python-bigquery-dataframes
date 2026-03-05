@@ -272,7 +272,7 @@ def get_insights(
     """Encode the ML.GET_INSIGHTS statement.
     See https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-get-insights for reference.
     """
-    sql = f"SELECT * FROM ML.GET_INSIGHTS(MODEL {sqlglot_ir.identifier(model_name)})\n"
+    sql = f"SELECT * FROM ML.GET_INSIGHTS(MODEL {sg_sql.to_sql(sg_sql.identifier(model_name))})\n"
     return sql
 
 
