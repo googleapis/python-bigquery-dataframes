@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,9 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
-__version__ = "2.37.0"
+from bigframes.core.compile.sqlglot.sql.base import (
+    cast,
+    escape_chars,
+    identifier,
+    is_null_literal,
+    literal,
+    table,
+    to_sql,
+)
+from bigframes.core.compile.sqlglot.sql.dml import insert, replace
 
-# {x-release-please-start-date}
-__release_date__ = "2026-03-03"
-# {x-release-please-end}
+__all__ = [
+    # From base.py
+    "cast",
+    "escape_chars",
+    "identifier",
+    "is_null_literal",
+    "literal",
+    "table",
+    "to_sql",
+    # From dml.py
+    "insert",
+    "replace",
+]
