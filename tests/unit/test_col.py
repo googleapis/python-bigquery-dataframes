@@ -101,6 +101,57 @@ def test_pd_col_unary_operators(scalars_dfs, op):
 
 
 @pytest.mark.parametrize(
+    ("op"),
+    [
+        (lambda x: x.sum()),
+        (lambda x: x.mean()),
+        (lambda x: x.min()),
+        (lambda x: x.max()),
+        (lambda x: x.std()),
+        (lambda x: x.var()),
+    ],
+    ids=[
+        "sum",
+        "mean",
+        "min",
+        "max",
+        "std",
+        "var",
+    ],
+)
+def test_pd_col_aggregate_op(scalars_dfs, op):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_kwargs = {
+        "result": op(bpd.col("float64_col")),
+    }
+    pd_kwargs = {
+        "result": op(pd.col("float64_col")),  # type: ignore
+    }
+    df = scalars_df.assign(**bf_kwargs)
+
+    bf_result = df.to_pandas()
+    pd_result = scalars_pandas_df.assign(**pd_kwargs)
+
+    assert_frame_equal(bf_result, pd_result)
+
+
+def test_pd_col_aggregate_of_aggregate(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+    bf_kwargs = {
+        "result": (bpd.col("int64_col") - bpd.col("int64_col").mean()).mean(),
+    }
+    pd_kwargs = {
+        "result": (pd.col("int64_col") - pd.col("int64_col").mean()).mean(),  # type: ignore
+    }
+    df = scalars_df.assign(**bf_kwargs)
+
+    bf_result = df.to_pandas()
+    pd_result = scalars_pandas_df.assign(**pd_kwargs)
+
+    assert_frame_equal(bf_result, pd_result)
+
+
+@pytest.mark.parametrize(
     ("op",),
     [
         (operator.add,),
@@ -176,3 +227,22 @@ def test_getitem_with_pd_col(scalars_dfs):
     pd_result = scalars_pandas_df[pd.col("float64_col") > 4]  # type: ignore
 
     assert_frame_equal(bf_result, pd_result)
+
+
+def test_col_str_accessor(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.assign(result=bpd.col("string_col").str.lower()).to_pandas()
+    pd_result = scalars_pandas_df.assign(result=pd.col("string_col").str.lower())  # type: ignore
+
+    assert_frame_equal(bf_result, pd_result)
+
+
+def test_col_dt_accessor(scalars_dfs):
+    scalars_df, scalars_pandas_df = scalars_dfs
+
+    bf_result = scalars_df.assign(result=bpd.col("date_col").dt.year).to_pandas()
+    pd_result = scalars_pandas_df.assign(result=pd.col("date_col").dt.year)  # type: ignore
+
+    # int64[pyarrow] vs Int64
+    assert_frame_equal(bf_result, pd_result, check_dtype=False)

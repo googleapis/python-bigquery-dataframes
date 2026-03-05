@@ -30,11 +30,11 @@ from bigframes.core import (
     sql_nodes,
 )
 from bigframes.core.compile import configs
+from bigframes.core.compile.sqlglot import sql, sqlglot_ir
 import bigframes.core.compile.sqlglot.aggregate_compiler as aggregate_compiler
 from bigframes.core.compile.sqlglot.aggregations import windows
 import bigframes.core.compile.sqlglot.expression_compiler as expression_compiler
 from bigframes.core.compile.sqlglot.expressions import typed_expr
-import bigframes.core.compile.sqlglot.sqlglot_ir as ir
 from bigframes.core.logging import data_types as data_type_logger
 import bigframes.core.ordering as bf_ordering
 from bigframes.core.rewrite import schema_binding
@@ -113,27 +113,27 @@ def _compile_result_node(root: nodes.ResultNode) -> str:
     # Probably, should defer even further
     root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
 
-    sqlglot_ir = compile_node(rewrite.as_sql_nodes(root), uid_gen)
-    sqlglot_ir = sqlglot_ir.with_ctes(
+    sqlglot_ir_obj = compile_node(rewrite.as_sql_nodes(root), uid_gen)
+    sqlglot_ir_obj = sqlglot_ir_obj.with_ctes(
         tuple(
             (compile_node(cte_node, uid_gen)._as_select(), cte_node.name)
             for cte_node in cte_nodes
         )
     )
 
-    return sqlglot_ir.sql
+    return sqlglot_ir_obj.sql
 
 
 def compile_node(
     node: nodes.BigFrameNode, uid_gen: guid.SequentialUIDGenerator
-) -> ir.SQLGlotIR:
+) -> sqlglot_ir.SQLGlotIR:
     """Compiles the given BigFrameNode from bottem-up into SQLGlotIR."""
-    bf_to_sqlglot: dict[nodes.BigFrameNode, ir.SQLGlotIR] = {}
-    child_results: tuple[ir.SQLGlotIR, ...] = ()
+    bf_to_sqlglot: dict[nodes.BigFrameNode, sqlglot_ir.SQLGlotIR] = {}
+    child_results: tuple[sqlglot_ir.SQLGlotIR, ...] = ()
     for current_node in list(node.iter_nodes_topo()):
         if current_node.child_nodes == ():
             # For leaf node, generates a dumpy child to pass the UID generator.
-            child_results = tuple([ir.SQLGlotIR(uid_gen=uid_gen)])
+            child_results = tuple([sqlglot_ir.SQLGlotIR(uid_gen=uid_gen)])
         else:
             # Child nodes should have been compiled in the reverse topological order.
             child_results = tuple(
@@ -147,14 +147,14 @@ def compile_node(
 
 @functools.singledispatch
 def _compile_node(
-    node: nodes.BigFrameNode, *compiled_children: ir.SQLGlotIR
-) -> ir.SQLGlotIR:
+    node: nodes.BigFrameNode, *compiled_children: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     """Defines transformation but isn't cached, always use compile_node instead"""
     raise ValueError(f"Can't compile unrecognized node: {node}")
 
 
 @_compile_node.register
-def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
+def compile_sql_select(node: sql_nodes.SqlSelectNode, child: sqlglot_ir.SQLGlotIR):
     ordering_cols = tuple(
         sge.Ordered(
             this=expression_compiler.expression_compiler.compile_expression(
@@ -187,7 +187,9 @@ def compile_sql_select(node: sql_nodes.SqlSelectNode, child: ir.SQLGlotIR):
 
 
 @_compile_node.register
-def compile_readlocal(node: nodes.ReadLocalNode, child: ir.SQLGlotIR) -> ir.SQLGlotIR:
+def compile_readlocal(
+    node: nodes.ReadLocalNode, child: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     pa_table = node.local_data_source.data
     pa_table = pa_table.select([item.source_id for item in node.scan_list.items])
     pa_table = pa_table.rename_columns([item.id.sql for item in node.scan_list.items])
@@ -196,16 +198,18 @@ def compile_readlocal(node: nodes.ReadLocalNode, child: ir.SQLGlotIR) -> ir.SQLG
     if offsets:
         pa_table = pyarrow_utils.append_offsets(pa_table, offsets)
 
-    return ir.SQLGlotIR.from_pyarrow(pa_table, node.schema, uid_gen=child.uid_gen)
+    return sqlglot_ir.SQLGlotIR.from_pyarrow(
+        pa_table, node.schema, uid_gen=child.uid_gen
+    )
 
 
 @_compile_node.register
-def compile_readtable(node: sql_nodes.SqlDataSource, child: ir.SQLGlotIR):
-    table = node.source.table
-    return ir.SQLGlotIR.from_table(
-        table.project_id,
-        table.dataset_id,
-        table.table_id,
+def compile_readtable(node: sql_nodes.SqlDataSource, child: sqlglot_ir.SQLGlotIR):
+    table_obj = node.source.table
+    return sqlglot_ir.SQLGlotIR.from_table(
+        table_obj.project_id,
+        table_obj.dataset_id,
+        table_obj.table_id,
         uid_gen=child.uid_gen,
         sql_predicate=node.source.sql_predicate,
         system_time=node.source.at_time,
@@ -214,20 +218,20 @@ def compile_readtable(node: sql_nodes.SqlDataSource, child: ir.SQLGlotIR):
 
 @_compile_node.register
 def compile_join(
-    node: nodes.JoinNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
-) -> ir.SQLGlotIR:
+    node: nodes.JoinNode, left: sqlglot_ir.SQLGlotIR, right: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     conditions = tuple(
         (
             typed_expr.TypedExpr(
-                expression_compiler.expression_compiler.compile_expression(left),
-                left.output_type,
+                expression_compiler.expression_compiler.compile_expression(left_expr),
+                left_expr.output_type,
             ),
             typed_expr.TypedExpr(
-                expression_compiler.expression_compiler.compile_expression(right),
-                right.output_type,
+                expression_compiler.expression_compiler.compile_expression(right_expr),
+                right_expr.output_type,
             ),
         )
-        for left, right in node.conditions
+        for left_expr, right_expr in node.conditions
     )
 
     return left.join(
@@ -240,8 +244,8 @@ def compile_join(
 
 @_compile_node.register
 def compile_isin_join(
-    node: nodes.InNode, left: ir.SQLGlotIR, right: ir.SQLGlotIR
-) -> ir.SQLGlotIR:
+    node: nodes.InNode, left: sqlglot_ir.SQLGlotIR, right: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     right_field = node.right_child.fields[0]
     conditions = (
         typed_expr.TypedExpr(
@@ -265,20 +269,22 @@ def compile_isin_join(
 
 
 @_compile_node.register
-def compile_cte_ref_node(node: nodes.CteRefNode, child: ir.SQLGlotIR):
-    return ir.SQLGlotIR.from_cte_ref(
+def compile_cte_ref_node(node: nodes.CteRefNode, child: sqlglot_ir.SQLGlotIR):
+    return sqlglot_ir.SQLGlotIR.from_cte_ref(
         node.child.name,  # type: ignore
         uid_gen=child.uid_gen,
     )
 
 
 @_compile_node.register
-def compile_cte_node(node: nodes.CteNode, child: ir.SQLGlotIR):
+def compile_cte_node(node: nodes.CteNode, child: sqlglot_ir.SQLGlotIR):
     raise ValueError("CTE definitions should not be directly compiled")
 
 
 @_compile_node.register
-def compile_concat(node: nodes.ConcatNode, *children: ir.SQLGlotIR) -> ir.SQLGlotIR:
+def compile_concat(
+    node: nodes.ConcatNode, *children: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     assert len(children) >= 1
     uid_gen = children[0].uid_gen
 
@@ -289,7 +295,7 @@ def compile_concat(node: nodes.ConcatNode, *children: ir.SQLGlotIR) -> ir.SQLGlo
         for default_output_id, output_id in zip(default_output_ids, node.output_ids)
     ]
 
-    return ir.SQLGlotIR.from_union(
+    return sqlglot_ir.SQLGlotIR.from_union(
         [child._as_select() for child in children],
         output_aliases=output_aliases,
         uid_gen=uid_gen,
@@ -297,7 +303,9 @@ def compile_concat(node: nodes.ConcatNode, *children: ir.SQLGlotIR) -> ir.SQLGlo
 
 
 @_compile_node.register
-def compile_explode(node: nodes.ExplodeNode, child: ir.SQLGlotIR) -> ir.SQLGlotIR:
+def compile_explode(
+    node: nodes.ExplodeNode, child: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     offsets_col = node.offsets_col.sql if (node.offsets_col is not None) else None
     columns = tuple(ref.id.sql for ref in node.column_ids)
     return child.explode(columns, offsets_col)
@@ -305,8 +313,8 @@ def compile_explode(node: nodes.ExplodeNode, child: ir.SQLGlotIR) -> ir.SQLGlotI
 
 @_compile_node.register
 def compile_fromrange(
-    node: nodes.FromRangeNode, start: ir.SQLGlotIR, end: ir.SQLGlotIR
-) -> ir.SQLGlotIR:
+    node: nodes.FromRangeNode, start: sqlglot_ir.SQLGlotIR, end: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     start_col_id = node.start.fields[0].id
     end_col_id = node.end.fields[0].id
 
@@ -316,20 +324,22 @@ def compile_fromrange(
     end_expr = expression_compiler.expression_compiler.compile_expression(
         expression.DerefOp(end_col_id)
     )
-    step_expr = ir._literal(node.step, dtypes.INT_DTYPE)
+    step_expr = sql.literal(node.step, dtypes.INT_DTYPE)
 
     return start.resample(end, node.output_id.sql, start_expr, end_expr, step_expr)
 
 
 @_compile_node.register
 def compile_random_sample(
-    node: nodes.RandomSampleNode, child: ir.SQLGlotIR
-) -> ir.SQLGlotIR:
+    node: nodes.RandomSampleNode, child: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     return child.sample(node.fraction)
 
 
 @_compile_node.register
-def compile_aggregate(node: nodes.AggregateNode, child: ir.SQLGlotIR) -> ir.SQLGlotIR:
+def compile_aggregate(
+    node: nodes.AggregateNode, child: sqlglot_ir.SQLGlotIR
+) -> sqlglot_ir.SQLGlotIR:
     # The BigQuery ordered aggregation cannot support for NULL FIRST/LAST,
     # so we need to add extra expressions to enforce the null ordering.
     ordering_cols = windows.get_window_order_by(node.order_by, override_null_order=True)
