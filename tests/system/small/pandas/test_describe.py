@@ -352,3 +352,22 @@ def test_series_groupby_describe(scalars_dfs):
             check_dtype=False,
             check_index_type=False,
         )
+
+
+def test_describe_json_and_obj_ref_returns_count(session):
+    # Test describe() works on JSON and OBJ_REF types (without nunique, which fails)
+    sql = """
+        SELECT
+            PARSE_JSON('{"a": 1}') AS json_col,
+            'gs://cloud-samples-data/vision/ocr/sign.jpg' AS uri_col
+    """
+    df = session.read_gbq(sql)
+
+    df["obj_ref_col"] = df["uri_col"].str.to_blob()
+    df = df.drop(columns=["uri_col"])
+
+    res = df.describe(include="all").to_pandas()
+
+    assert "count" in res.index
+    assert res.loc["count", "json_col"] == 1.0
+    assert res.loc["count", "obj_ref_col"] == 1.0

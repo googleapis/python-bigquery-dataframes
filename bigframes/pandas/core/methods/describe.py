@@ -120,5 +120,10 @@ def _get_aggs_for_dtype(dtype) -> list[aggregations.UnaryAggregateOp]:
         dtypes.TIME_DTYPE,
     ]:
         return [aggregations.count_op, aggregations.nunique_op]
+    elif dtype in [
+        dtypes.JSON_DTYPE,
+        dtypes.OBJ_REF_DTYPE,
+    ]:
+        return [aggregations.count_op]
     else:
         return []
