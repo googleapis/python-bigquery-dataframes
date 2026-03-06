@@ -49,8 +49,6 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
         output_cols=output_names,
         limit=request.peek_count,
     )
-    # Extract CTEs early, as later rewriters could otherwise make common subtrees diverge
-    result_node = typing.cast(nodes.ResultNode, rewrite.extract_ctes(result_node))
     if request.sort_rows:
         # Can only pullup slice if we are doing ORDER BY in outermost SELECT
         # Need to do this before replacing unsupported ops, as that will rewrite slice ops
@@ -64,6 +62,8 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     if request.sort_rows:
         result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
         encoded_type_refs = data_type_logger.encode_type_refs(result_node)
+        # TODO: Extract CTEs earlier
+        result_node = typing.cast(nodes.ResultNode, rewrite.extract_ctes(result_node))
         sql = _compile_result_node(result_node)
         return configs.CompileResult(
             sql,
@@ -76,6 +76,8 @@ def compile_sql(request: configs.CompileRequest) -> configs.CompileResult:
     result_node = dataclasses.replace(result_node, order_by=None)
     result_node = typing.cast(nodes.ResultNode, rewrite.column_pruning(result_node))
     encoded_type_refs = data_type_logger.encode_type_refs(result_node)
+    # TODO: Extract CTEs earlier
+    result_node = typing.cast(nodes.ResultNode, rewrite.extract_ctes(result_node))
     sql = _compile_result_node(result_node)
     # Return the ordering iff no extra columns are needed to define the row order
     if ordering is not None:
