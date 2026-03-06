@@ -10,11 +10,11 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
 ), `bfcte_2` AS (
   SELECT
-    `bfcte_0`.*
+    *
   FROM `bfcte_0`
 ), `bfcte_3` AS (
   SELECT
-    `bfcte_1`.*
+    *
   FROM `bfcte_1`
 )
 SELECT

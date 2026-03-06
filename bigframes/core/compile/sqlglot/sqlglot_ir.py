@@ -507,11 +507,7 @@ class SQLGlotIR:
         if isinstance(self.expr, sge.Select):
             return self.expr
         else:  # table or cte
-            return (
-                sge.Select()
-                .select(sge.Column(this=sge.Star(), table=self.expr))
-                .from_(self.expr)
-            )
+            return sge.Select().select(sge.Star()).from_(self.expr)
 
     def _as_subquery(self) -> sge.Subquery:
         return self._as_select().subquery()

@@ -24,11 +24,11 @@ WITH `bfcte_0` AS (
     `bool_col`
 ), `bfcte_4` AS (
   SELECT
-    `bfcte_0`.*
+    *
   FROM `bfcte_0`
 ), `bfcte_5` AS (
   SELECT
-    `bfcte_2`.*
+    *
   FROM `bfcte_2`
 )
 SELECT
