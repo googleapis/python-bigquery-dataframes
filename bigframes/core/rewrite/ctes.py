@@ -15,29 +15,24 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from bigframes.core import expression, nodes
+from bigframes.core import nodes
 
 
 def extract_ctes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     # identify candidates
-    # candidates
     node_parents: dict[nodes.BigFrameNode, int] = defaultdict(int)
     for parent in root.unique_nodes():
         for child in parent.child_nodes:
             node_parents[child] += 1
 
     counter = 0
-    # ok time to replace via extract
+
     # we just mark in place, rather than pull out of the tree.
-    # if we did pull out of tree, we'd want to make sure to extract bottom-up
     def insert_cte_markers(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         nonlocal counter
         if node_parents[node] > 1:
             counter += 1
-            return nodes.CteRefNode(
-                nodes.CteNode(node, name=f"cte_{counter})"),
-                cols=tuple(expression.DerefOp(id) for id in node.ids),
-            )
+            return nodes.CteNode(node)
         return node
 
     return root.top_down(insert_cte_markers)

@@ -222,6 +222,26 @@ def _as_sql_node(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         return node
 
 
+def _extract_ctes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
+    topological_ctes = list(
+        filter(lambda n: isinstance(n, nodes.CteNode), root.iter_nodes_topo())
+    )
+    cte_names = tuple(f"cte_{i}" for i in range(len(topological_ctes)))
+
+    mapping = {
+        cte_node: sql_nodes.SqlCteRefNode(cte_name, tuple(cte_node.fields))
+        for cte_node, cte_name in zip(topological_ctes, cte_names)
+    }
+
+    # Replace all CTEs with CTE references and wrap the new root in a WITH clause
+    return sql_nodes.SqlWithCtesNode(
+        root.top_down(lambda x: mapping.get(x, x)),
+        cte_names,
+        tuple(cte.top_down(lambda x: mapping.get(x, x)) for cte in topological_ctes),
+    )
+
+
 def as_sql_nodes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     # TODO: Aggregations, Unions, Joins, raw data sources
+    root = _extract_ctes(root)
     return nodes.bottom_up(root, _as_sql_node)

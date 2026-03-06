@@ -386,11 +386,11 @@ class SQLGlotIR:
 
     def with_ctes(
         self,
-        ctes: tuple[tuple[str, sge.Select], ...],
+        ctes: tuple[tuple[str, SQLGlotIR], ...],
     ) -> SQLGlotIR:
         sge_ctes = [
             sge.CTE(
-                this=cte,
+                this=cte._as_select(),
                 alias=cte_name,
             )
             for cte_name, cte in ctes

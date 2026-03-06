@@ -1714,43 +1714,10 @@ class ResultNode(UnaryNode):
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
-class CteRefNode(UnaryNode):
-    cols: tuple[ex.DerefOp, ...]
-
-    @property
-    def fields(self) -> Sequence[Field]:
-        # Fields property here is for output schema, not to be consumed by a parent node.
-        input_fields_by_id = {field.id: field for field in self.child.fields}
-        return tuple(input_fields_by_id[ref.id] for ref in self.cols)
-
-    @property
-    def variables_introduced(self) -> int:
-        # This operation only renames variables, doesn't actually create new ones
-        return 0
-
-    @property
-    def row_count(self) -> Optional[int]:
-        return self.child.row_count
-
-    @property
-    def node_defined_ids(self) -> Tuple[identifiers.ColumnId, ...]:
-        return ()
-
-    def remap_vars(
-        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
-    ) -> CteRefNode:
-        return self
-
-    def remap_refs(
-        self, mappings: Mapping[identifiers.ColumnId, identifiers.ColumnId]
-    ) -> CteRefNode:
-        new_cols = tuple(id.remap_column_refs(mappings) for id in self.cols)
-        return dataclasses.replace(self, cols=new_cols)
-
-
-@dataclasses.dataclass(frozen=True, eq=False)
 class CteNode(UnaryNode):
-    name: str
+    """
+    Semantically a no-op, used to indicate shared subtrees and act as optimization boundary.
+    """
 
     @property
     def fields(self) -> Sequence[Field]:
@@ -1758,7 +1725,6 @@ class CteNode(UnaryNode):
 
     @property
     def variables_introduced(self) -> int:
-        # This operation only renames variables, doesn't actually create new ones
         return 0
 
     @property

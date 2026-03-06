@@ -106,21 +106,11 @@ def _compile_result_node(root: nodes.ResultNode) -> str:
     root = _remap_variables(root, uid_gen)
     root = typing.cast(nodes.ResultNode, rewrite.defer_selection(root))
 
-    # TODO: Extract out CTEs to a with_ctes node?
-    cte_nodes = _get_ctes(root)
-
     # Have to bind schema as the final step before compilation.
     # Probably, should defer even further
     root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
 
     sqlglot_ir_obj = compile_node(rewrite.as_sql_nodes(root), uid_gen)
-    sqlglot_ir_obj = sqlglot_ir_obj.with_ctes(
-        tuple(
-            (compile_node(cte_node, uid_gen)._as_select(), cte_node.name)
-            for cte_node in cte_nodes
-        )
-    )
-
     return sqlglot_ir_obj.sql
 
 
@@ -269,16 +259,20 @@ def compile_isin_join(
 
 
 @_compile_node.register
-def compile_cte_ref_node(node: nodes.CteRefNode, child: sqlglot_ir.SQLGlotIR):
+def compile_cte_ref_node(node: sql_nodes.SqlCteRefNode, child: sqlglot_ir.SQLGlotIR):
     return sqlglot_ir.SQLGlotIR.from_cte_ref(
-        node.child.name,  # type: ignore
+        node.cte_name,
         uid_gen=child.uid_gen,
     )
 
 
 @_compile_node.register
-def compile_cte_node(node: nodes.CteNode, child: sqlglot_ir.SQLGlotIR):
-    raise ValueError("CTE definitions should not be directly compiled")
+def compile_with_ctes_node(
+    node: sql_nodes.SqlWithCtesNode,
+    child: sqlglot_ir.SQLGlotIR,
+    *ctes: sqlglot_ir.SQLGlotIR,
+):
+    return child.with_ctes(tuple(zip(node.cte_names, ctes)))
 
 
 @_compile_node.register
