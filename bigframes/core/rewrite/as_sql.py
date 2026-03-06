@@ -237,7 +237,9 @@ def _extract_ctes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     return sql_nodes.SqlWithCtesNode(
         root.top_down(lambda x: mapping.get(x, x)),
         cte_names,
-        tuple(cte.top_down(lambda x: mapping.get(x, x)) for cte in topological_ctes),
+        tuple(
+            cte.child.top_down(lambda x: mapping.get(x, x)) for cte in topological_ctes  # type: ignore
+        ),
     )
 
 
