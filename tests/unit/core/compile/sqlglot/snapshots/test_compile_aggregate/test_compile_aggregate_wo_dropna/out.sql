@@ -1,7 +1,10 @@
-(
+SELECT
+  `bfcol_3` AS `bool_col`,
+  `bfcol_6` AS `int64_too`
+FROM (
   SELECT
-    `bfcol_3` AS `bool_col`,
-    `bfcol_6` AS `int64_too`
+    `bfcol_3`,
+    COALESCE(SUM(`bfcol_2`), 0) AS `bfcol_6`
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   GROUP BY
     `bfcol_3`

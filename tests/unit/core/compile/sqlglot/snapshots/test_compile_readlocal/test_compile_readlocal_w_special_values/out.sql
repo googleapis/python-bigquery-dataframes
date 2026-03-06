@@ -1,12 +1,14 @@
-(
+SELECT
+  `bfcol_0` AS `col_none`,
+  `bfcol_1` AS `col_inf`,
+  `bfcol_2` AS `col_neginf`,
+  `bfcol_3` AS `col_nan`,
+  `bfcol_4` AS `col_struct_none`,
+  `bfcol_5` AS `col_struct_w_none`,
+  `bfcol_6` AS `col_list_none`
+FROM (
   SELECT
-    `bfcol_0` AS `col_none`,
-    `bfcol_1` AS `col_inf`,
-    `bfcol_2` AS `col_neginf`,
-    `bfcol_3` AS `col_nan`,
-    `bfcol_4` AS `col_struct_none`,
-    `bfcol_5` AS `col_struct_w_none`,
-    `bfcol_6` AS `col_list_none`
+    *
   FROM UNNEST(ARRAY<STRUCT<`bfcol_0` FLOAT64, `bfcol_1` FLOAT64, `bfcol_2` FLOAT64, `bfcol_3` FLOAT64, `bfcol_4` STRUCT<foo INT64>, `bfcol_5` STRUCT<foo INT64>, `bfcol_6` ARRAY<INT64>, `bfcol_7` INT64>>[STRUCT(
     CAST(NULL AS FLOAT64),
     CAST('Infinity' AS FLOAT64),

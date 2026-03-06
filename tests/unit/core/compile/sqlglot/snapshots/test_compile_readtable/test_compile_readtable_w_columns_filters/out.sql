@@ -1,4 +1,6 @@
-(
+SELECT
+  *
+FROM (
   SELECT
     *
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`

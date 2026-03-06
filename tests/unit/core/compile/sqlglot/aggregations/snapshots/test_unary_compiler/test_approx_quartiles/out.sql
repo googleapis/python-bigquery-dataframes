@@ -1,7 +1,11 @@
-(
+SELECT
+  `bfcol_1` AS `q1`,
+  `bfcol_2` AS `q2`,
+  `bfcol_3` AS `q3`
+FROM (
   SELECT
-    `bfcol_1` AS `q1`,
-    `bfcol_2` AS `q2`,
-    `bfcol_3` AS `q3`
+    APPROX_QUANTILES(`int64_col`, 4)[OFFSET(1)] AS `bfcol_1`,
+    APPROX_QUANTILES(`int64_col`, 4)[OFFSET(2)] AS `bfcol_2`,
+    APPROX_QUANTILES(`int64_col`, 4)[OFFSET(3)] AS `bfcol_3`
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
 )

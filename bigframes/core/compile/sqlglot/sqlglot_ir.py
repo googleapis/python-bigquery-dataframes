@@ -166,10 +166,7 @@ class SQLGlotIR:
         limit: typing.Optional[int] = None,
     ) -> SQLGlotIR:
         # TODO: Explicitly insert CTEs into plan
-        if isinstance(self.expr, sge.Select):
-            new_expr = self._as_from_item()
-        else:
-            new_expr = sge.Select().from_(self.expr)
+        new_expr = sge.Select().from_(self._as_from_item())
 
         if len(sorting) > 0:
             new_expr = new_expr.order_by(*sorting)
