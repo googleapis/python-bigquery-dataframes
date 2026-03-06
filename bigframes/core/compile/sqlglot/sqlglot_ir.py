@@ -280,32 +280,39 @@ class SQLGlotIR:
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
         left_from = self._as_from_item()
-        # Prefer subquery over CTE for the IN clause's right side to improve SQL readability.
         right_select = right._as_select()
-
-        left_condition = typed_expr.TypedExpr(
-            sge.Column(this=conditions[0].expr, table=left_from),
-            conditions[0].dtype,
-        )
 
         new_column: sge.Expression
         if joins_nulls:
-            right_table_name = sql.identifier(next(self.uid_gen.get_uid_stream("bft_")))
-            right_condition = typed_expr.TypedExpr(
-                sge.Column(this=conditions[1].expr, table=right_table_name),
-                conditions[1].dtype,
+            part1_id = sql.identifier(next(self.uid_gen.get_uid_stream("bfpart1_")))
+            part2_id = sql.identifier(next(self.uid_gen.get_uid_stream("bfpart2_")))
+            left_expr1, left_expr2 = _value_to_non_null_identity(conditions[0])
+            left_as_struct = sge.Struct(
+                expressions=[
+                    sge.PropertyEQ(this=part1_id, expression=left_expr1),
+                    sge.PropertyEQ(this=part2_id, expression=left_expr2),
+                ]
             )
-            new_column = sge.Exists(
-                this=sge.Select()
-                .select(sge.convert(1))
-                .from_(sge.Alias(this=right_select.subquery(), alias=right_table_name))
-                .where(
-                    _join_condition(left_condition, right_condition, joins_nulls=True)
-                )
+            right_expr1, right_expr2 = _value_to_non_null_identity(conditions[1])
+            right_select = right_select.select(
+                *[
+                    sge.Struct(
+                        expressions=[
+                            sge.PropertyEQ(this=part1_id, expression=right_expr1),
+                            sge.PropertyEQ(this=part2_id, expression=right_expr2),
+                        ]
+                    )
+                ],
+                append=False,
+            )
+
+            new_column = sge.In(
+                this=left_as_struct,
+                expressions=[right_select.subquery()],
             )
         else:
             new_column = sge.In(
-                this=left_condition.expr,
+                this=conditions[0].expr,
                 expressions=[right_select.subquery()],
             )
 
@@ -314,12 +321,7 @@ class SQLGlotIR:
             alias=sql.identifier(indicator_col),
         )
 
-        new_expr = (
-            sge.Select()
-            .select(sge.Column(this=sge.Star(), table=left_from), new_column)
-            .from_(left_from)
-        )
-
+        new_expr = sge.Select().select(sge.Star(), new_column).from_(left_from)
         return SQLGlotIR(expr=new_expr, uid_gen=self.uid_gen)
 
     def explode(
@@ -543,77 +545,48 @@ def _join_condition(
         joins_nulls: If True, generates complex logic to handle nulls/NaNs.
             Otherwise, uses a simple equality check where appropriate.
     """
-    is_floating_types = (
-        left.dtype == dtypes.FLOAT_DTYPE and right.dtype == dtypes.FLOAT_DTYPE
-    )
-    if not is_floating_types and not joins_nulls:
+    if not joins_nulls:
         return sge.EQ(this=left.expr, expression=right.expr)
-
-    is_numeric_types = dtypes.is_numeric(
-        left.dtype, include_bool=False
-    ) and dtypes.is_numeric(right.dtype, include_bool=False)
-    if is_numeric_types:
-        return _join_condition_for_numeric(left, right)
-    else:
-        return _join_condition_for_others(left, right)
-
-
-def _join_condition_for_others(
-    left: typed_expr.TypedExpr,
-    right: typed_expr.TypedExpr,
-) -> sge.And:
-    """Generates a join condition for non-numeric types to match pandas's
-    null-handling logic.
-    """
-    left_str = sql.cast(left.expr, "STRING")
-    right_str = sql.cast(right.expr, "STRING")
-    left_0 = sge.func("COALESCE", left_str, sql.literal("0", dtypes.STRING_DTYPE))
-    left_1 = sge.func("COALESCE", left_str, sql.literal("1", dtypes.STRING_DTYPE))
-    right_0 = sge.func("COALESCE", right_str, sql.literal("0", dtypes.STRING_DTYPE))
-    right_1 = sge.func("COALESCE", right_str, sql.literal("1", dtypes.STRING_DTYPE))
+    left_expr1, left_expr2 = _value_to_non_null_identity(left)
+    right_expr1, right_expr2 = _value_to_non_null_identity(right)
     return sge.And(
-        this=sge.EQ(this=left_0, expression=right_0),
-        expression=sge.EQ(this=left_1, expression=right_1),
+        this=sge.EQ(this=left_expr1, expression=right_expr1),
+        expression=sge.EQ(this=left_expr2, expression=right_expr2),
     )
 
 
-def _join_condition_for_numeric(
-    left: typed_expr.TypedExpr,
-    right: typed_expr.TypedExpr,
-) -> sge.And:
-    """Generates a join condition for non-numeric types to match pandas's
-    null-handling logic. Specifically for FLOAT types, Pandas treats NaN aren't
-    equal so need to coalesce as well with different constants.
-    """
-    is_floating_types = (
-        left.dtype == dtypes.FLOAT_DTYPE and right.dtype == dtypes.FLOAT_DTYPE
-    )
-    left_0 = sge.func("COALESCE", left.expr, sql.literal(0, left.dtype))
-    left_1 = sge.func("COALESCE", left.expr, sql.literal(1, left.dtype))
-    right_0 = sge.func("COALESCE", right.expr, sql.literal(0, right.dtype))
-    right_1 = sge.func("COALESCE", right.expr, sql.literal(1, right.dtype))
-    if not is_floating_types:
-        return sge.And(
-            this=sge.EQ(this=left_0, expression=right_0),
-            expression=sge.EQ(this=left_1, expression=right_1),
+def _value_to_non_null_identity(
+    value: typed_expr.TypedExpr,
+) -> tuple[sge.Expression, sge.Expression]:
+    # normal_value -> (normal_value, normal_value)
+    # null_value -> (0, 1)
+    # nan_value -> (2, 3)
+    if dtypes.is_numeric(value.dtype, include_bool=False):
+        expr1 = sge.func("COALESCE", value.expr, sql.literal(0, value.dtype))
+        expr2 = sge.func("COALESCE", value.expr, sql.literal(1, value.dtype))
+        if value.dtype == dtypes.FLOAT_DTYPE:
+            expr1 = sge.If(
+                this=sge.IsNan(this=value.expr),
+                true=sql.literal(2, value.dtype),
+                false=expr1,
+            )
+            expr2 = sge.If(
+                this=sge.IsNan(this=value.expr),
+                true=sql.literal(3, value.dtype),
+                false=expr2,
+            )
+    else:  # general case, convert to string and coalesce
+        expr1 = sge.func(
+            "COALESCE",
+            sql.cast(value.expr, "STRING"),
+            sql.literal("0", dtypes.STRING_DTYPE),
         )
-
-    left_2 = sge.If(
-        this=sge.IsNan(this=left.expr), true=sql.literal(2, left.dtype), false=left_0
-    )
-    left_3 = sge.If(
-        this=sge.IsNan(this=left.expr), true=sql.literal(3, left.dtype), false=left_1
-    )
-    right_2 = sge.If(
-        this=sge.IsNan(this=right.expr), true=sql.literal(2, right.dtype), false=right_0
-    )
-    right_3 = sge.If(
-        this=sge.IsNan(this=right.expr), true=sql.literal(3, right.dtype), false=right_1
-    )
-    return sge.And(
-        this=sge.EQ(this=left_2, expression=right_2),
-        expression=sge.EQ(this=left_3, expression=right_3),
-    )
+        expr2 = sge.func(
+            "COALESCE",
+            sql.cast(value.expr, "STRING"),
+            sql.literal("1", dtypes.STRING_DTYPE),
+        )
+    return expr1, expr2
 
 
 def _set_query_ctes(

@@ -3,18 +3,11 @@ SELECT
   `bfcol_5` AS `int64_col`
 FROM (
   SELECT
-    (
-      SELECT
-        `rowindex` AS `bfcol_2`,
-        `int64_col` AS `bfcol_3`
-      FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-    ).*,
-    EXISTS(
-      SELECT
-        1
-      FROM (
+    *,
+    STRUCT(COALESCE(`bfcol_3`, 0) AS `bfpart1_0`, COALESCE(`bfcol_3`, 1) AS `bfpart2_0`) IN (
+      (
         SELECT
-          `int64_too` AS `bfcol_4`
+          STRUCT(COALESCE(`bfcol_4`, 0) AS `bfpart1_0`, COALESCE(`bfcol_4`, 1) AS `bfpart2_0`)
         FROM (
           SELECT
             `int64_too`
@@ -22,26 +15,7 @@ FROM (
           GROUP BY
             `int64_too`
         )
-      ) AS `bft_1`
-      WHERE
-        COALESCE(
-          (
-            SELECT
-              `rowindex` AS `bfcol_2`,
-              `int64_col` AS `bfcol_3`
-            FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-          ).`bfcol_3`,
-          0
-        ) = COALESCE(`bft_1`.`bfcol_4`, 0)
-        AND COALESCE(
-          (
-            SELECT
-              `rowindex` AS `bfcol_2`,
-              `int64_col` AS `bfcol_3`
-            FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-          ).`bfcol_3`,
-          1
-        ) = COALESCE(`bft_1`.`bfcol_4`, 1)
+      )
     ) AS `bfcol_5`
   FROM (
     SELECT

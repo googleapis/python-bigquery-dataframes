@@ -3,18 +3,8 @@ SELECT
   `bfcol_5` AS `rowindex_2`
 FROM (
   SELECT
-    (
-      SELECT
-        `rowindex` AS `bfcol_2`,
-        `rowindex_2` AS `bfcol_3`
-      FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-    ).*,
-    (
-      SELECT
-        `rowindex` AS `bfcol_2`,
-        `rowindex_2` AS `bfcol_3`
-      FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-    ).`bfcol_3` IN (
+    *,
+    `bfcol_3` IN (
       (
         SELECT
           `rowindex_2` AS `bfcol_4`
