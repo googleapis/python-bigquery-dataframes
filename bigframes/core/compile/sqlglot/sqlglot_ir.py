@@ -167,7 +167,7 @@ class SQLGlotIR:
     ) -> SQLGlotIR:
         # TODO: Explicitly insert CTEs into plan
         if isinstance(self.expr, sge.Select):
-            new_expr, _ = self._as_from_item()
+            new_expr = self._as_from_item()
         else:
             new_expr = sge.Select().from_(self.expr)
 
