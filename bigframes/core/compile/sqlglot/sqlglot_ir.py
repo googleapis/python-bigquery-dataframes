@@ -154,7 +154,7 @@ class SQLGlotIR:
         uid_gen: guid.SequentialUIDGenerator,
     ) -> SQLGlotIR:
         table_expr = sge.Table(
-            this=cte_ref,
+            this=sql.identifier(cte_ref),
         )
         return cls(expr=table_expr, uid_gen=uid_gen)
 
@@ -391,7 +391,7 @@ class SQLGlotIR:
         sge_ctes = [
             sge.CTE(
                 this=cte._as_select(),
-                alias=cte_name,
+                alias=sql.identifier(cte_name),
             )
             for cte_name, cte in ctes
         ]
@@ -408,9 +408,9 @@ class SQLGlotIR:
     ) -> SQLGlotIR:
         generate_array = sge.func(
             "GENERATE_ARRAY",
-            start_expr._as_select(),
-            stop_expr._as_select(),
-            step_expr._as_select(),
+            start_expr,
+            stop_expr,
+            step_expr,
         )
 
         unnested_column_alias = sql.identifier(

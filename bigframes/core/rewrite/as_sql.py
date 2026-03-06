@@ -226,7 +226,7 @@ def _extract_ctes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     topological_ctes = list(
         filter(lambda n: isinstance(n, nodes.CteNode), root.iter_nodes_topo())
     )
-    cte_names = tuple(f"cte_{i}" for i in range(len(topological_ctes)))
+    cte_names = tuple(f"bfcte_{i}" for i in range(len(topological_ctes)))
 
     mapping = {
         cte_node: sql_nodes.SqlCteRefNode(cte_name, tuple(cte_node.fields))
