@@ -25,13 +25,9 @@ def extract_ctes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
         for child in parent.child_nodes:
             node_parents[child] += 1
 
-    counter = 0
-
     # we just mark in place, rather than pull out of the tree.
     def insert_cte_markers(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        nonlocal counter
         if node_parents[node] > 1:
-            counter += 1
             return nodes.CteNode(node)
         return node
 

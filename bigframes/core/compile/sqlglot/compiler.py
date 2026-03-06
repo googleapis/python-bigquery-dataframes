@@ -366,16 +366,3 @@ def _replace_unsupported_ops(node: nodes.BigFrameNode):
     node = nodes.bottom_up(node, rewrite.rewrite_slice)
     node = nodes.bottom_up(node, rewrite.rewrite_range_rolling)
     return node
-
-
-def _get_ctes(root: nodes.ResultNode) -> typing.Sequence[nodes.CteNode]:
-    """
-    Get ctes from plan in topological order.
-    """
-
-    def merge_list(node, cte_list):
-        if isinstance(node, nodes.CteNode):
-            return (*cte_list, node)
-        return cte_list
-
-    return root.reduce_up(merge_list)

@@ -503,13 +503,13 @@ class SQLGlotIR:
     def _as_from_item(self) -> typing.Union[sge.Subquery, sge.Table]:
         if isinstance(self.expr, sge.Select):
             return self.expr.subquery()
-        else:  # table
+        else:  # table or cte
             return self.expr
 
     def _as_select(self) -> sge.Select:
         if isinstance(self.expr, sge.Select):
             return self.expr
-        else:  # table
+        else:  # table or cte
             return (
                 sge.Select()
                 .select(sge.Column(this=sge.Star(), table=self.expr))

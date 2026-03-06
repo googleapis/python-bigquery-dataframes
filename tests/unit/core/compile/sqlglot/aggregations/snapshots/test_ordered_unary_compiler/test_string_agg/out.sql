@@ -1,10 +1,4 @@
-SELECT
-  (
-    SELECT
-      `bfcol_1` AS `string_col`
-    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-  ).*
-FROM (
+(
   SELECT
     `bfcol_1` AS `string_col`
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
