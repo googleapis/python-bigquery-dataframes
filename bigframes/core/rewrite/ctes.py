@@ -25,10 +25,17 @@ def extract_ctes(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
         for child in parent.child_nodes:
             node_parents[child] += 1
 
-    # we just mark in place, rather than pull out of the tree.
+    # everywhere a multi-parent node is referenced, wrap it in a CTE node
     def insert_cte_markers(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        if node_parents[node] > 1:
-            return nodes.CteNode(node)
-        return node
+        def _add_cte_if_needed(child: nodes.BigFrameNode) -> nodes.BigFrameNode:
+            if node_parents[child] > 1:
+                return nodes.CteNode(child)
+            return child
+
+        if isinstance(node, nodes.CteNode):
+            # don't re-wrap CTE nodes
+            return node
+
+        return node.transform_children(_add_cte_if_needed)
 
     return root.top_down(insert_cte_markers)

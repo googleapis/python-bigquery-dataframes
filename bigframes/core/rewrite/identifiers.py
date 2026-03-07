@@ -38,13 +38,13 @@ def _create_mapping_operator(
 
     def _mapping_operator(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         # Step 1: Get the local remapping for the current node.
-        local_def_remaps = id_def_remapping_by_node.get(node, {})
-        local_ref_remaps = id_ref_remapping_by_node.get(node, {})
+        local_def_remaps = id_def_remapping_by_node[node]
+        local_ref_remaps = id_ref_remapping_by_node[node]
 
-        node = node.remap_vars(local_def_remaps)
-        node = node.remap_refs(local_ref_remaps)
+        result = node.remap_vars(local_def_remaps)
+        result = result.remap_refs(local_ref_remaps)
 
-        return node
+        return result
 
     return _mapping_operator
 
@@ -80,19 +80,33 @@ def remap_variables(
     id_ref_remaps: dict[
         nodes.BigFrameNode, dict[identifiers.ColumnId, identifiers.ColumnId]
     ] = {}
-    for node in root.iter_nodes_topo():  # bottom_up
+    for node in root.iter_nodes_topo():  # bottom up
         local_def_remaps = {
             col_id: next(id_generator) for col_id in node.node_defined_ids
         }
         id_def_remaps[node] = local_def_remaps
 
         local_ref_remaps = {}
-        for child in node.child_nodes:  # inherit ref and def mappings from children
+
+        # InNode is special case as ID scope inherited purely from left side
+        inheriting_nodes = (
+            [node.child_nodes[0]]
+            if isinstance(node, nodes.InNode)
+            else node.child_nodes
+        )
+        for child in inheriting_nodes:  # inherit ref and def mappings from children
+            if not child.defines_namespace:  # these nodes represent new id spaces
+                local_ref_remaps.update(
+                    {
+                        old_id: new_id
+                        for old_id, new_id in id_ref_remaps[child].items()
+                        if old_id in child.ids
+                    }
+                )
             local_ref_remaps.update(id_def_remaps[child])
-            if not child.defines_namespace:
-                local_ref_remaps.update(id_ref_remaps[child])
         id_ref_remaps[node] = local_ref_remaps
 
+    # have to do top down to preserve node identities
     return (
         root.top_down(_create_mapping_operator(id_def_remaps, id_ref_remaps)),
         id_def_remaps[root],

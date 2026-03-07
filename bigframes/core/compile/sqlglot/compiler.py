@@ -98,6 +98,7 @@ def _remap_variables(
     result_node, _ = rewrite.remap_variables(
         node, map(identifiers.ColumnId, uid_gen.get_uid_stream("bfcol_"))
     )
+    result_node.validate_tree()
     return typing.cast(nodes.ResultNode, result_node)
 
 
