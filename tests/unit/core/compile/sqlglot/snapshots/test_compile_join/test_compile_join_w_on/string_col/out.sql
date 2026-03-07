@@ -8,16 +8,12 @@ SELECT
   `bfcol_0` AS `rowindex_x`,
   `bfcol_1` AS `string_col`,
   `bfcol_2` AS `rowindex_y`
-FROM (
+FROM `bfcte_0`
+INNER JOIN (
   SELECT
-    *
+    `bfcol_0` AS `bfcol_2`,
+    `bfcol_1` AS `bfcol_3`
   FROM `bfcte_0`
-  INNER JOIN (
-    SELECT
-      `bfcol_0` AS `bfcol_2`,
-      `bfcol_1` AS `bfcol_3`
-    FROM `bfcte_0`
-  )
-    ON COALESCE(CAST(`bfcol_1` AS STRING), '0') = COALESCE(CAST(`bfcol_3` AS STRING), '0')
-    AND COALESCE(CAST(`bfcol_1` AS STRING), '1') = COALESCE(CAST(`bfcol_3` AS STRING), '1')
 )
+  ON COALESCE(CAST(`bfcol_1` AS STRING), '0') = COALESCE(CAST(`bfcol_3` AS STRING), '0')
+  AND COALESCE(CAST(`bfcol_1` AS STRING), '1') = COALESCE(CAST(`bfcol_3` AS STRING), '1')

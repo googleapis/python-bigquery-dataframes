@@ -10,19 +10,15 @@ SELECT
   `bfcol_2` AS `rowindex_y`
 FROM (
   SELECT
-    *
-  FROM (
-    SELECT
-      `bfcol_1` AS `bfcol_4`,
-      `bfcol_0` AS `bfcol_5`
-    FROM `bfcte_0`
-  )
-  INNER JOIN (
-    SELECT
-      `bfcol_1` AS `bfcol_2`,
-      `bfcol_0` AS `bfcol_3`
-    FROM `bfcte_0`
-  )
-    ON IF(IS_NAN(`bfcol_5`), 2, COALESCE(`bfcol_5`, 0)) = IF(IS_NAN(`bfcol_3`), 2, COALESCE(`bfcol_3`, 0))
-    AND IF(IS_NAN(`bfcol_5`), 3, COALESCE(`bfcol_5`, 1)) = IF(IS_NAN(`bfcol_3`), 3, COALESCE(`bfcol_3`, 1))
+    `bfcol_1` AS `bfcol_4`,
+    `bfcol_0` AS `bfcol_5`
+  FROM `bfcte_0`
 )
+INNER JOIN (
+  SELECT
+    `bfcol_1` AS `bfcol_2`,
+    `bfcol_0` AS `bfcol_3`
+  FROM `bfcte_0`
+)
+  ON IF(IS_NAN(`bfcol_5`), 2, COALESCE(`bfcol_5`, 0)) = IF(IS_NAN(`bfcol_3`), 2, COALESCE(`bfcol_3`, 0))
+  AND IF(IS_NAN(`bfcol_5`), 3, COALESCE(`bfcol_5`, 1)) = IF(IS_NAN(`bfcol_3`), 3, COALESCE(`bfcol_3`, 1))

@@ -254,11 +254,6 @@ class SQLGlotIR:
         limit: typing.Optional[int] = None,
     ) -> SQLGlotIR:
         # TODO: Explicitly insert CTEs into plan
-        new_expr = sge.Select().from_(self._as_from_item())
-
-        if len(sorting) > 0:
-            new_expr = new_expr.order_by(*sorting)
-
         if len(selections) > 0:
             to_select = [
                 sge.Alias(
@@ -269,9 +264,12 @@ class SQLGlotIR:
                 else expr
                 for id, expr in selections
             ]
-            new_expr = new_expr.select(*to_select, append=False)
+            new_expr = self.expr.select(*to_select)
         else:
-            new_expr = new_expr.select(sge.Star(), append=False)
+            new_expr = self.expr.as_select_all()
+
+        if len(sorting) > 0:
+            new_expr = new_expr.order_by(*sorting)
 
         if len(predicates) > 0:
             condition = _and(predicates)
@@ -340,8 +338,8 @@ class SQLGlotIR:
         joins_nulls: bool = True,
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
-        left_from = self._as_from_item()
-        right_from = right._as_from_item()
+        left_from = self.expr.as_from_item()
+        right_from = right.expr.as_from_item()
 
         join_on = _and(
             tuple(
@@ -365,7 +363,7 @@ class SQLGlotIR:
         joins_nulls: bool = True,
     ) -> SQLGlotIR:
         """Joins the current query with another SQLGlotIR instance."""
-        left_from = self._as_from_item()
+        left_from = self.expr.as_from_item()
 
         new_column: sge.Expression
         if joins_nulls:
@@ -470,12 +468,12 @@ class SQLGlotIR:
     ) -> SQLGlotIR:
         sge_ctes = [
             sge.CTE(
-                this=cte._as_select(),
+                this=cte.expr.as_select_all(),
                 alias=sql.identifier(cte_name),
             )
             for cte_name, cte in ctes
         ]
-        select_expr = _set_query_ctes(self._as_select(), sge_ctes)
+        select_expr = _set_query_ctes(self.expr.as_select_all(), sge_ctes)
         return SQLGlotIR.from_expr(expr=select_expr, uid_gen=self.uid_gen)
 
     def resample(
@@ -507,8 +505,8 @@ class SQLGlotIR:
         new_expr = (
             sge.Select()
             .select(unnested_column_alias.as_(final_col_id))
-            .from_(self._as_from_item())
-            .join(right._as_from_item(), join_type="cross")
+            .from_(self.expr.as_from_item())
+            .join(right.expr.as_from_item(), join_type="cross")
             .join(unnest_expr, join_type="cross")
         )
 
@@ -574,15 +572,9 @@ class SQLGlotIR:
         new_expr = self.expr.select(selection).join(unnest_expr, join_type="LEFT")
         return SQLGlotIR.from_expr(expr=new_expr, uid_gen=self.uid_gen)
 
-    def _as_from_item(self) -> typing.Union[sge.Subquery, sge.Table, sge.Unnest]:
-        return self.expr.as_from_item()
-
-    def _as_select(self) -> sge.Select:
-        return self.expr.as_select_all()
-
     def _as_subquery(self) -> sge.Subquery:
         # Sometimes explicitly need a subquery, e.g. for IN expressions.
-        return self._as_select().subquery()
+        return self.expr.as_select_all().subquery()
 
 
 def _and(conditions: tuple[sge.Expression, ...]) -> typing.Optional[sge.Expression]:

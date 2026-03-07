@@ -293,7 +293,7 @@ def compile_concat(
     ]
 
     return sqlglot_ir.SQLGlotIR.from_union(
-        [child._as_select() for child in children],
+        [child.expr.as_select_all() for child in children],
         output_aliases=output_aliases,
         uid_gen=uid_gen,
     )
