@@ -109,5 +109,9 @@ def remap_variables(
     # have to do top down to preserve node identities
     return (
         root.top_down(_create_mapping_operator(id_def_remaps, id_ref_remaps)),
-        id_def_remaps[root],
+        # Only used by unit tests
+        {
+            old_id: (id_def_remaps[root] | id_ref_remaps[root])[old_id]
+            for old_id in root.ids
+        },
     )
