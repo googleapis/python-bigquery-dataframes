@@ -67,7 +67,6 @@ def prune_selection_child(
 
     # Important to check this first
     if list(selection.ids) == list(child.ids):
-        # Added all() here - a generator object is natively truthy
         if all(ref.ref.id == ref.id for ref in selection.input_output_pairs):
             # selection is no-op so just remove it entirely
             return child

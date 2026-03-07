@@ -126,7 +126,7 @@ def compile_node(
     for current_node in list(node.iter_nodes_topo()):
         if current_node.child_nodes == ():
             # For leaf node, generates a dumpy child to pass the UID generator.
-            child_results = tuple([sqlglot_ir.SQLGlotIR(uid_gen=uid_gen)])
+            child_results = tuple([sqlglot_ir.SQLGlotIR.empty(uid_gen=uid_gen)])
         else:
             # Child nodes should have been compiled in the reverse topological order.
             child_results = tuple(

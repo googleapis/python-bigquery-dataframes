@@ -3,5 +3,10 @@ SELECT
 FROM (
   SELECT
     CORR(`int64_col`, `float64_col`) AS `bfcol_2`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `int64_col`,
+      `float64_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

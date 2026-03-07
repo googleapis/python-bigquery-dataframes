@@ -5,5 +5,10 @@ FROM (
   SELECT
     COALESCE(SUM(`int64_col`), 0) AS `bfcol_4`,
     COALESCE(SUM(CAST(`bool_col` AS INT64)), 0) AS `bfcol_5`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `bool_col`,
+      `int64_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

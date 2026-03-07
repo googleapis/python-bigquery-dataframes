@@ -5,7 +5,14 @@ FROM (
   SELECT
     `bfcol_3`,
     COALESCE(SUM(`bfcol_2`), 0) AS `bfcol_6`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `bool_col`,
+      `int64_too`,
+      `int64_too` AS `bfcol_2`,
+      `bool_col` AS `bfcol_3`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
   GROUP BY
     `bfcol_3`
 )

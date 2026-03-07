@@ -7,5 +7,11 @@ FROM (
     APPROX_QUANTILES(`int64_col`, 2)[OFFSET(1)] AS `bfcol_3`,
     APPROX_QUANTILES(`date_col`, 2)[OFFSET(1)] AS `bfcol_4`,
     APPROX_QUANTILES(`string_col`, 2)[OFFSET(1)] AS `bfcol_5`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `date_col`,
+      `int64_col`,
+      `string_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

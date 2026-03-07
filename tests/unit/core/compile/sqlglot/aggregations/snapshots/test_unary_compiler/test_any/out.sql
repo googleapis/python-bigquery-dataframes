@@ -5,5 +5,10 @@ FROM (
   SELECT
     COALESCE(LOGICAL_OR(`bool_col`), FALSE) AS `bfcol_2`,
     COALESCE(LOGICAL_OR(`int64_col` <> 0), FALSE) AS `bfcol_3`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `bool_col`,
+      `int64_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

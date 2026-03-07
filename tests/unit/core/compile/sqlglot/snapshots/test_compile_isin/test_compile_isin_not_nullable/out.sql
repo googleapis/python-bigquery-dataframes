@@ -11,7 +11,11 @@ FROM (
         FROM (
           SELECT
             `rowindex_2`
-          FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+          FROM (
+            SELECT
+              `rowindex_2`
+            FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+          )
           GROUP BY
             `rowindex_2`
         )

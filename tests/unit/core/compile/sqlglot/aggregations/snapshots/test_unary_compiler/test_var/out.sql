@@ -5,5 +5,10 @@ FROM (
   SELECT
     VARIANCE(`int64_col`) AS `bfcol_4`,
     VARIANCE(CAST(`bool_col` AS INT64)) AS `bfcol_5`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `bool_col`,
+      `int64_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

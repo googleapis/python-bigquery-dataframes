@@ -41,10 +41,6 @@ SELECT
     include => 'some equation',
     options => JSON '{"scale": 100}'
   ).`area`
-FROM (
-  SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_0` STRING, `bfcol_1` INT64>>[STRUCT('POINT(1 1)', 0)])
-)
+FROM UNNEST(ARRAY<STRUCT<`bfcol_0` STRING, `bfcol_1` INT64>>[STRUCT('POINT(1 1)', 0)])
 ORDER BY
   `bfcol_1` ASC NULLS LAST

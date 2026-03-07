@@ -10,10 +10,18 @@ FROM (
           STRUCT(COALESCE(`bfcol_0`, 0) AS `bfpart1_0`, COALESCE(`bfcol_0`, 1) AS `bfpart2_0`)
         FROM (
           SELECT
-            `int64_too`
-          FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-          GROUP BY
-            `int64_too`
+            `int64_too` AS `bfcol_0`
+          FROM (
+            SELECT
+              `int64_too`
+            FROM (
+              SELECT
+                `int64_too`
+              FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+            )
+            GROUP BY
+              `int64_too`
+          )
         )
       )
     ) AS `bfcol_5`

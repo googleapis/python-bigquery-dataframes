@@ -3,5 +3,9 @@ SELECT
 FROM (
   SELECT
     APPROX_TOP_COUNT(`int64_col`, 10) AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `int64_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

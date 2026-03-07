@@ -9,5 +9,9 @@ FROM (
         `string_col` ASC),
       ''
     ) AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `string_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

@@ -3,5 +3,9 @@ SELECT
 FROM (
   SELECT
     ANY_VALUE(`int64_col`) AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      `int64_col`
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )

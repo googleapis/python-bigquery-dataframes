@@ -3,5 +3,9 @@ SELECT
 FROM (
   SELECT
     COUNT(1) AS `bfcol_32`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  FROM (
+    SELECT
+      *
+    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  )
 )
