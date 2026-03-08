@@ -1,5 +1,9 @@
 WITH `bfcte_0` AS (
   SELECT
+    `string_col`
+  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+), `bfcte_1` AS (
+  SELECT
     COALESCE(
       STRING_AGG(`string_col`, ','
       ORDER BY
@@ -7,12 +11,8 @@ WITH `bfcte_0` AS (
         `string_col` ASC),
       ''
     ) AS `bfcol_1`
-  FROM (
-    SELECT
-      `string_col`
-    FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-  )
+  FROM `bfcte_0`
 )
 SELECT
   `bfcol_1` AS `string_col`
-FROM `bfcte_0`
+FROM `bfcte_1`

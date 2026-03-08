@@ -107,6 +107,8 @@ def _compile_result_node(root: nodes.ResultNode) -> str:
     # of nodes using the same generator.
     uid_gen = guid.SequentialUIDGenerator()
     root = _remap_variables(root, uid_gen)
+    # Remap variables creates too mayn new
+    # root = rewrite.select_pullup(root, prefer_source_names=False)
     root = typing.cast(nodes.ResultNode, rewrite.defer_selection(root))
 
     # Have to bind schema as the final step before compilation.

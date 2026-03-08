@@ -12,13 +12,27 @@ WITH `bfcte_0` AS (
   FROM `bfcte_0`
 ), `bfcte_3` AS (
   SELECT
-    MIN(`bfcol_4`) AS `bfcol_8`
-  FROM `bfcte_2`
+    `bfcol_1` AS `bfcol_5`,
+    `bfcol_2` AS `bfcol_6`,
+    `bfcol_3` AS `bfcol_7`
+  FROM `bfcte_1`
 ), `bfcte_4` AS (
   SELECT
-    *
-  FROM `bfcte_3`
+    MIN(`bfcol_4`) AS `bfcol_8`
+  FROM `bfcte_2`
 ), `bfcte_5` AS (
+  SELECT
+    `bfcol_6` AS `bfcol_11`,
+    `bfcol_7` AS `bfcol_12`,
+    CAST(FLOOR(
+      IEEE_DIVIDE(
+        UNIX_MICROS(CAST(`bfcol_5` AS TIMESTAMP)) - UNIX_MICROS(CAST(CAST(`bfcol_8` AS DATE) AS TIMESTAMP)),
+        7000000
+      )
+    ) AS INT64) AS `bfcol_13`
+  FROM `bfcte_3`
+  CROSS JOIN `bfcte_4`
+), `bfcte_6` AS (
   SELECT
     CAST(FLOOR(
       IEEE_DIVIDE(
@@ -28,19 +42,19 @@ WITH `bfcte_0` AS (
     ) AS INT64) AS `bfcol_14`
   FROM `bfcte_2`
   CROSS JOIN `bfcte_4`
-), `bfcte_6` AS (
-  SELECT
-    MAX(`bfcol_14`) AS `bfcol_15`
-  FROM `bfcte_5`
 ), `bfcte_7` AS (
   SELECT
-    MIN(`bfcol_14`) AS `bfcol_16`
-  FROM `bfcte_5`
+    MAX(`bfcol_14`) AS `bfcol_15`
+  FROM `bfcte_6`
 ), `bfcte_8` AS (
   SELECT
+    MIN(`bfcol_14`) AS `bfcol_16`
+  FROM `bfcte_6`
+), `bfcte_9` AS (
+  SELECT
     `bfcol_27` AS `bfcol_17`
-  FROM `bfcte_7`
-  CROSS JOIN `bfcte_6`
+  FROM `bfcte_8`
+  CROSS JOIN `bfcte_7`
   CROSS JOIN UNNEST(GENERATE_ARRAY(`bfcol_16`, `bfcol_15`, 1)) AS `bfcol_27`
 )
 SELECT
@@ -52,28 +66,10 @@ SELECT
 FROM (
   SELECT
     *
-  FROM `bfcte_8`
+  FROM `bfcte_9`
   CROSS JOIN `bfcte_4`
 )
-LEFT JOIN (
-  SELECT
-    `bfcol_6` AS `bfcol_11`,
-    `bfcol_7` AS `bfcol_12`,
-    CAST(FLOOR(
-      IEEE_DIVIDE(
-        UNIX_MICROS(CAST(`bfcol_5` AS TIMESTAMP)) - UNIX_MICROS(CAST(CAST(`bfcol_8` AS DATE) AS TIMESTAMP)),
-        7000000
-      )
-    ) AS INT64) AS `bfcol_13`
-  FROM (
-    SELECT
-      `bfcol_1` AS `bfcol_5`,
-      `bfcol_2` AS `bfcol_6`,
-      `bfcol_3` AS `bfcol_7`
-    FROM `bfcte_1`
-  )
-  CROSS JOIN `bfcte_4`
-)
+LEFT JOIN `bfcte_5`
   ON `bfcol_17` = `bfcol_13`
 ORDER BY
   `bfcol_17` ASC NULLS LAST
