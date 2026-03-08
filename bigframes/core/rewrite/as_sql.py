@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import dataclasses
+import itertools
 from typing import Optional, Sequence, Union
 
 from bigframes.core import (
@@ -240,11 +241,23 @@ def _insert_cte_markers(root: nodes.BigFrameNode) -> nodes.BigFrameNode:
     wrapped_nodes = set(
         node.child for node in root.unique_nodes() if isinstance(node, nodes.CteNode)
     )
+    # don't wrap child nodes of ConcatNode
+    union_child_nodes = set(
+        itertools.chain.from_iterable(
+            node.child_nodes
+            for node in root.unique_nodes()
+            if isinstance(node, nodes.ConcatNode)
+        )
+    )
 
     def maybe_insert_cte_marker(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
         if node == root:
             return node
-        if isinstance(node, _LOGICAL_NODE_TYPES_TO_WRAP) and node not in wrapped_nodes:
+        if (
+            isinstance(node, _LOGICAL_NODE_TYPES_TO_WRAP)
+            and node not in wrapped_nodes
+            and node not in union_child_nodes
+        ):
             wrapped_nodes.add(node)
             return nodes.CteNode(node)
         return node
