@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import abc
 import dataclasses
 import datetime
 import functools
@@ -39,22 +38,7 @@ except ImportError:
     to_wkt = dumps
 
 
-class SelectableFragment(abc.ABC):
-    """
-    Represent a grammar fragment that can be converted to a SELECT or FROM item.
-    """
-
-    def as_select_all(self) -> sge.Select:
-        ...
-
-    def select(self, *items: sge.Expression) -> sge.Select:
-        ...
-
-    def as_from_item(self) -> sge.FromItem:
-        ...
-
-
-class SelectFragment(SelectableFragment):
+class SelectFragment:
     def __init__(self, select_expr: sge.Select):
         self.select_expr = select_expr
 
@@ -64,11 +48,11 @@ class SelectFragment(SelectableFragment):
     def select(self, *items: sge.Expression) -> sge.Select:
         return sge.Select().select(*items).from_(self.select_expr.subquery())
 
-    def as_from_item(self) -> sge.FromItem:
+    def as_from_item(self) -> sge.Expression:
         return self.select_expr.subquery()
 
 
-class TableFragment(SelectableFragment):
+class TableFragment:
     def __init__(self, table: sge.Table | sge.Unnest):
         self.table = table
 
@@ -78,11 +62,11 @@ class TableFragment(SelectableFragment):
     def select(self, *items: sge.Expression) -> sge.Select:
         return sge.Select().select(*items).from_(self.table)
 
-    def as_from_item(self) -> sge.FromItem:
+    def as_from_item(self) -> sge.Expression:
         return self.table
 
 
-class DeferredSelectFragment(SelectableFragment):
+class DeferredSelectFragment:
     def __init__(self, select_supplier: typing.Callable[[sge.Select], sge.Select]):
         self.select_supplier = select_supplier
 
@@ -92,22 +76,22 @@ class DeferredSelectFragment(SelectableFragment):
     def select(self, *items: sge.Expression) -> sge.Select:
         return self.select_supplier(sge.Select().select(*items))
 
-    def as_from_item(self) -> sge.FromItem:
+    def as_from_item(self) -> sge.Expression:
         return self.select_supplier(sge.Select().select(sge.Star())).subquery()
+
+
+ExprT = SelectFragment | TableFragment | DeferredSelectFragment
 
 
 @dataclasses.dataclass(frozen=True)
 class SQLGlotIR:
     """Helper class to build SQLGlot Query and generate SQL string."""
 
-    expr: SelectableFragment
+    expr: ExprT
     """The SQLGlot expression representing the query."""
 
     uid_gen: guid.SequentialUIDGenerator = guid.SequentialUIDGenerator()
     """Generator for unique identifiers."""
-
-    def __post_init__(self):
-        assert isinstance(self.expr, SelectableFragment)
 
     @property
     def sql(self) -> str:
