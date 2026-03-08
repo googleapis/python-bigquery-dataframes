@@ -27,7 +27,7 @@ class ExperimentOptions:
     def __init__(self):
         self._semantic_operators: bool = False
         self._ai_operators: bool = False
-        self._sql_compiler: Literal["legacy", "stable", "experimental"] = "stable"
+        self._sql_compiler: Literal["legacy", "stable", "experimental"] = "experimental"
 
     @property
     def semantic_operators(self) -> bool:
