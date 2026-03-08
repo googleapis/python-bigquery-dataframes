@@ -1,6 +1,4 @@
-SELECT
-  `bfcol_1` AS `int64_col`
-FROM (
+WITH `bfcte_0` AS (
   SELECT
     APPROX_TOP_COUNT(`int64_col`, 10) AS `bfcol_1`
   FROM (
@@ -9,3 +7,6 @@ FROM (
     FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   )
 )
+SELECT
+  `bfcol_1` AS `int64_col`
+FROM `bfcte_0`

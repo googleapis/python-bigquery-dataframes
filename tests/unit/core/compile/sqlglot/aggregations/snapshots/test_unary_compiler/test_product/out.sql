@@ -1,6 +1,4 @@
-SELECT
-  `bfcol_1` AS `int64_col`
-FROM (
+WITH `bfcte_0` AS (
   SELECT
     CASE
       WHEN LOGICAL_OR(`int64_col` = 0)
@@ -13,3 +11,6 @@ FROM (
     FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   )
 )
+SELECT
+  `bfcol_1` AS `int64_col`
+FROM `bfcte_0`

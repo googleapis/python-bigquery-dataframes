@@ -5,13 +5,7 @@ WITH `bfcte_0` AS (
     `int64_col` AS `bfcol_5`,
     `string_col` AS `bfcol_6`
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-)
-SELECT
-  `bfcol_23` AS `rowindex`,
-  `bfcol_24` AS `rowindex_1`,
-  `bfcol_25` AS `int64_col`,
-  `bfcol_26` AS `string_col`
-FROM (
+), `bfcte_1` AS (
   SELECT
     `bfcol_17` AS `bfcol_23`,
     `bfcol_18` AS `bfcol_24`,
@@ -43,6 +37,12 @@ FROM (
     )
   )
 )
+SELECT
+  `bfcol_23` AS `rowindex`,
+  `bfcol_24` AS `rowindex_1`,
+  `bfcol_25` AS `int64_col`,
+  `bfcol_26` AS `string_col`
+FROM `bfcte_1`
 ORDER BY
   `bfcol_27` ASC NULLS LAST,
   `bfcol_28` ASC NULLS LAST

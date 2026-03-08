@@ -1,9 +1,4 @@
-SELECT
-  `bfcol_12` AS `int64_col`,
-  `bfcol_13` AS `bool_col`,
-  `bfcol_14` AS `duration_col`,
-  `bfcol_15` AS `int64_col_w_floor`
-FROM (
+WITH `bfcte_0` AS (
   SELECT
     AVG(`bfcol_6`) AS `bfcol_12`,
     AVG(CAST(`bfcol_7` AS INT64)) AS `bfcol_13`,
@@ -20,3 +15,9 @@ FROM (
     FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   )
 )
+SELECT
+  `bfcol_12` AS `int64_col`,
+  `bfcol_13` AS `bool_col`,
+  `bfcol_14` AS `duration_col`,
+  `bfcol_15` AS `int64_col_w_floor`
+FROM `bfcte_0`

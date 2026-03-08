@@ -1,6 +1,4 @@
-SELECT
-  `bfcol_1` AS `string_col`
-FROM (
+WITH `bfcte_0` AS (
   SELECT
     COALESCE(
       STRING_AGG(`string_col`, ','
@@ -15,3 +13,6 @@ FROM (
     FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   )
 )
+SELECT
+  `bfcol_1` AS `string_col`
+FROM `bfcte_0`

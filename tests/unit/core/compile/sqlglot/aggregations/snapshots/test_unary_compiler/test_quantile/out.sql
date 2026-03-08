@@ -1,8 +1,4 @@
-SELECT
-  `bfcol_4` AS `int64`,
-  `bfcol_5` AS `bool`,
-  `bfcol_6` AS `int64_w_floor`
-FROM (
+WITH `bfcte_0` AS (
   SELECT
     PERCENTILE_CONT(`int64_col`, 0.5) OVER () AS `bfcol_4`,
     PERCENTILE_CONT(CAST(`bool_col` AS INT64), 0.5) OVER () AS `bfcol_5`,
@@ -14,3 +10,8 @@ FROM (
     FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   )
 )
+SELECT
+  `bfcol_4` AS `int64`,
+  `bfcol_5` AS `bool`,
+  `bfcol_6` AS `int64_w_floor`
+FROM `bfcte_0`

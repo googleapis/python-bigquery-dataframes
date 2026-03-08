@@ -1,7 +1,4 @@
-SELECT
-  `bfcol_4` AS `int64_col`,
-  `bfcol_5` AS `bool_col`
-FROM (
+WITH `bfcte_0` AS (
   SELECT
     COALESCE(SUM(`int64_col`), 0) AS `bfcol_4`,
     COALESCE(SUM(CAST(`bool_col` AS INT64)), 0) AS `bfcol_5`
@@ -12,3 +9,7 @@ FROM (
     FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   )
 )
+SELECT
+  `bfcol_4` AS `int64_col`,
+  `bfcol_5` AS `bool_col`
+FROM `bfcte_0`

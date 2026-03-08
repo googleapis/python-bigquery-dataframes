@@ -113,7 +113,8 @@ def _compile_result_node(root: nodes.ResultNode) -> str:
     # Probably, should defer even further
     root = typing.cast(nodes.ResultNode, schema_binding.bind_schema_to_tree(root))
 
-    sqlglot_ir_obj = compile_node(rewrite.as_sql_nodes(root), uid_gen)
+    # TODO: Bake all IDs in tree, stop passing uid_gen to emitters
+    sqlglot_ir_obj = compile_node(rewrite.as_sql_nodes(root, uid_gen), uid_gen)
     return sqlglot_ir_obj.sql
 
 

@@ -10,11 +10,7 @@ WITH `bfcte_0` AS (
   FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
   WHERE
     `bool_col`
-)
-SELECT
-  `bfcol_33` AS `float64_col`,
-  `bfcol_34` AS `int64_col`
-FROM (
+), `bfcte_2` AS (
   SELECT
     `bfcol_21` AS `bfcol_33`,
     `bfcol_22` AS `bfcol_34`,
@@ -58,6 +54,10 @@ FROM (
     )
   )
 )
+SELECT
+  `bfcol_33` AS `float64_col`,
+  `bfcol_34` AS `int64_col`
+FROM `bfcte_2`
 ORDER BY
   `bfcol_35` ASC NULLS LAST,
   `bfcol_36` ASC NULLS LAST
