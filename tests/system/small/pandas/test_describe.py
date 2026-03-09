@@ -371,3 +371,22 @@ def test_describe_json_and_obj_ref_returns_count(session):
     assert "count" in res.index
     assert res.loc["count", "json_col"] == 1.0
     assert res.loc["count", "obj_ref_col"] == 1.0
+
+
+def test_describe_with_unsupported_type_returns_empty_dataframe(session):
+    df = session.read_gbq("SELECT ST_GEOGPOINT(1.0, 2.0) AS geo_col")
+
+    res = df.describe().to_pandas()
+
+    assert len(res.columns) == 0
+    assert len(res.index) == 1
+
+
+def test_describe_empty_dataframe_returns_empty_dataframe(session):
+    df = session.read_gbq("SELECT 1 AS int_col LIMIT 0")
+    df = df.drop(columns=["int_col"])
+
+    res = df.describe().to_pandas()
+
+    assert len(res.columns) == 0
+    assert len(res.index) == 1

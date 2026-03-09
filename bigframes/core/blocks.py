@@ -3417,6 +3417,11 @@ def unpivot(
         joined_array, (labels_mapping, column_mapping) = labels_array.relational_join(
             array_value, type="cross"
         )
+
+    if not labels_array.column_ids:
+        # A valid unpivot operation requires at least one row label to disambiguate the output rows.
+        raise ValueError("unpivot requires non-empty row_labels")
+
     new_passthrough_cols = [column_mapping[col] for col in passthrough_columns]
     # Last column is offsets
     index_col_ids = [labels_mapping[col] for col in labels_array.column_ids[:-1]]
