@@ -4301,6 +4301,32 @@ class DataFrame:
         result_table = result.query_job.destination
         assert result_table is not None
 
+        obj_ref_dest_cols = []
+        for col_id in id_overrides.keys():
+            try:
+                if (
+                    export_array.get_column_type(col_id)
+                    == bigframes.dtypes.OBJ_REF_DTYPE
+                ):
+                    obj_ref_dest_cols.append(id_overrides[col_id])
+            except Exception:
+                pass
+
+        if obj_ref_dest_cols:
+            table = self._session.bqclient.get_table(result_table)
+            new_schema = []
+            for field in table.schema:
+                if field.name in obj_ref_dest_cols:
+                    field_dict = field.to_api_repr()
+                    field_dict["description"] = "bigframes_dtype: OBJ_REF_DTYPE"
+                    new_schema.append(
+                        google.cloud.bigquery.SchemaField.from_api_repr(field_dict)
+                    )
+                else:
+                    new_schema.append(field)
+            table.schema = new_schema
+            self._session.bqclient.update_table(table, ["schema"])
+
         if temp_table_ref:
             bigframes.session._io.bigquery.set_table_expiration(
                 self._session.bqclient,
