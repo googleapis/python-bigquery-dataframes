@@ -72,7 +72,7 @@ def remap_variables(
         visible to the parent node.
     """
     # step 1: defined remappings for each individual unique node
-    # step 2: bottom up traversal to apply remappings
+    # step 2: top down traversal to apply remappings (mappings are value-based, so bottom-up doesn't work)
 
     id_def_remaps: dict[
         nodes.BigFrameNode, dict[identifiers.ColumnId, identifiers.ColumnId]

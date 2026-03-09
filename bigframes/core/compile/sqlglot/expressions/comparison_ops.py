@@ -37,6 +37,7 @@ def _(expr: TypedExpr, op: ops.IsInOp) -> sge.Expression:
     must_upcast_bools = dtypes.is_numeric(expr.dtype, include_bool=False) or any(
         dtypes.is_numeric(dtypes.bigframes_type(type(value)), include_bool=False)
         for value in op.values
+        if not _is_null(value)
     )
     for value in op.values:
         if _is_null(value):
