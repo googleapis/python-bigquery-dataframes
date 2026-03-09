@@ -49,22 +49,24 @@ def _(expr: TypedExpr, op: ops.IsInOp) -> sge.Expression:
             values.append(sge.convert(value))
 
     if expr.dtype == dtypes.BOOL_DTYPE and must_upcast_bools:
-        expr = TypedExpr(sge.cast(expr.expr, "INT64"), dtypes.INT_DTYPE)
+        sg_lexpr = sge.cast(expr.expr, "INT64")
+    else:
+        sg_lexpr = expr.expr
 
     if op.match_nulls:
         contains_nulls = any(_is_null(value) for value in op.values)
         if contains_nulls:
             if len(values) == 0:
-                return sge.Is(this=expr.expr, expression=sge.Null())
-            return sge.Is(this=expr.expr, expression=sge.Null()) | sge.In(
-                this=expr.expr, expressions=values
+                return sge.Is(this=sg_lexpr, expression=sge.Null())
+            return sge.Is(this=sg_lexpr, expression=sge.Null()) | sge.In(
+                this=sg_lexpr, expressions=values
             )
 
     if len(values) == 0:
         return sge.convert(False)
 
     return sge.func(
-        "COALESCE", sge.In(this=expr.expr, expressions=values), sge.convert(False)
+        "COALESCE", sge.In(this=sg_lexpr, expressions=values), sge.convert(False)
     )
 
 
