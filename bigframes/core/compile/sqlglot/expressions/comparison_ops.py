@@ -33,12 +33,22 @@ register_binary_op = expression_compiler.expression_compiler.register_binary_op
 @register_unary_op(ops.IsInOp, pass_op=True)
 def _(expr: TypedExpr, op: ops.IsInOp) -> sge.Expression:
     values = []
+    # bools are not comparable to non-bools in SQL, so we need to cast the expression to INT64 if the values contain non-bools.
+    must_upcast_bools = dtypes.is_numeric(expr.dtype, include_bool=False) or any(
+        dtypes.is_numeric(dtypes.bigframes_type(type(value)), include_bool=False)
+        for value in op.values
+    )
     for value in op.values:
         if _is_null(value):
             continue
         dtype = dtypes.bigframes_type(type(value))
         if dtypes.can_compare(expr.dtype, dtype):
+            if must_upcast_bools and dtype == dtypes.BOOL_DTYPE:
+                value = int(value)
             values.append(sge.convert(value))
+
+    if expr.dtype == dtypes.BOOL_DTYPE and must_upcast_bools:
+        expr = TypedExpr(sge.cast(expr.expr, "INT64"), dtypes.INT_DTYPE)
 
     if op.match_nulls:
         contains_nulls = any(_is_null(value) for value in op.values)

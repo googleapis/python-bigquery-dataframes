@@ -351,16 +351,26 @@ class SQLGlotIR:
 
         new_column: sge.Expression
         if joins_nulls:
+            force_float_domain = False
+            if (
+                conditions[0].dtype == dtypes.FLOAT_DTYPE
+                or conditions[1].dtype == dtypes.FLOAT_DTYPE
+            ):
+                force_float_domain = True
             part1_id = sql.identifier(next(self.uid_gen.get_uid_stream("bfpart1_")))
             part2_id = sql.identifier(next(self.uid_gen.get_uid_stream("bfpart2_")))
-            left_expr1, left_expr2 = _value_to_non_null_identity(conditions[0])
+            left_expr1, left_expr2 = _value_to_non_null_identity(
+                conditions[0], force_float_domain
+            )
             left_as_struct = sge.Struct(
                 expressions=[
                     sge.PropertyEQ(this=part1_id, expression=left_expr1),
                     sge.PropertyEQ(this=part2_id, expression=left_expr2),
                 ]
             )
-            right_expr1, right_expr2 = _value_to_non_null_identity(conditions[1])
+            right_expr1, right_expr2 = _value_to_non_null_identity(
+                conditions[1], force_float_domain
+            )
             right_select = right.expr.select(
                 *[
                     sge.Struct(
@@ -593,8 +603,12 @@ def _join_condition(
     """
     if not joins_nulls:
         return sge.EQ(this=left.expr, expression=right.expr)
-    left_expr1, left_expr2 = _value_to_non_null_identity(left)
-    right_expr1, right_expr2 = _value_to_non_null_identity(right)
+
+    force_float_domain = False
+    if left.dtype == dtypes.FLOAT_DTYPE or right.dtype == dtypes.FLOAT_DTYPE:
+        force_float_domain = True
+    left_expr1, left_expr2 = _value_to_non_null_identity(left, force_float_domain)
+    right_expr1, right_expr2 = _value_to_non_null_identity(right, force_float_domain)
     return sge.And(
         this=sge.EQ(this=left_expr1, expression=right_expr1),
         expression=sge.EQ(this=left_expr2, expression=right_expr2),
@@ -602,18 +616,23 @@ def _join_condition(
 
 
 def _value_to_non_null_identity(
-    value: typed_expr.TypedExpr,
+    value: typed_expr.TypedExpr, force_float_domain: bool = False
 ) -> tuple[sge.Expression, sge.Expression]:
     # normal_value -> (normal_value, normal_value)
     # null_value -> (0, 1)
     # nan_value -> (2, 3)
     if dtypes.is_numeric(value.dtype, include_bool=False):
-        expr1 = sge.func("COALESCE", value.expr, sql.literal(0, value.dtype))
-        expr2 = sge.func("COALESCE", value.expr, sql.literal(1, value.dtype))
+        dtype = dtypes.FLOAT_DTYPE if force_float_domain else value.dtype
+        expr1 = sge.func(
+            "COALESCE", value.expr, sql.literal(0.0 if force_float_domain else 0, dtype)
+        )
+        expr2 = sge.func(
+            "COALESCE", value.expr, sql.literal(1.0 if force_float_domain else 1, dtype)
+        )
         if value.dtype == dtypes.FLOAT_DTYPE:
             expr1 = sge.If(
                 this=sge.IsNan(this=value.expr),
-                true=sql.literal(2, value.dtype),
+                true=sql.literal(2.0, value.dtype),
                 false=expr1,
             )
             expr2 = sge.If(
