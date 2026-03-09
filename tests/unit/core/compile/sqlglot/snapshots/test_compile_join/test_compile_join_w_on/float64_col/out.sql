@@ -20,5 +20,5 @@ SELECT
   `bfcol_2` AS `rowindex_y`
 FROM `bfcte_2`
 INNER JOIN `bfcte_1`
-  ON IF(IS_NAN(`bfcol_5`), 2, COALESCE(`bfcol_5`, 0)) = IF(IS_NAN(`bfcol_3`), 2, COALESCE(`bfcol_3`, 0))
-  AND IF(IS_NAN(`bfcol_5`), 3, COALESCE(`bfcol_5`, 1)) = IF(IS_NAN(`bfcol_3`), 3, COALESCE(`bfcol_3`, 1))
+  ON IF(IS_NAN(`bfcol_5`), 2.0, COALESCE(`bfcol_5`, 0.0)) = IF(IS_NAN(`bfcol_3`), 2.0, COALESCE(`bfcol_3`, 0.0))
+  AND IF(IS_NAN(`bfcol_5`), 3, COALESCE(`bfcol_5`, 1.0)) = IF(IS_NAN(`bfcol_3`), 3, COALESCE(`bfcol_3`, 1.0))

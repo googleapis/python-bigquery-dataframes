@@ -357,8 +357,8 @@ class SQLGlotIR:
                 or conditions[1].dtype == dtypes.FLOAT_DTYPE
             ):
                 force_float_domain = True
-            part1_id = sql.identifier(next(self.uid_gen.get_uid_stream("bfpart1_")))
-            part2_id = sql.identifier(next(self.uid_gen.get_uid_stream("bfpart2_")))
+            part1_id = sql.identifier("bfpart1")
+            part2_id = sql.identifier("bfpart2")
             left_expr1, left_expr2 = _value_to_non_null_identity(
                 conditions[0], force_float_domain
             )
