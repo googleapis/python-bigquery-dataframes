@@ -51,7 +51,7 @@ def test_ai_operators_set_true_shows_warning():
 def test_sql_compiler_default_stable():
     options = experiment_options.ExperimentOptions()
 
-    assert options.sql_compiler == "experimental"
+    assert options.sql_compiler == "stable"
 
 
 def test_sql_compiler_set_experimental_shows_warning():
