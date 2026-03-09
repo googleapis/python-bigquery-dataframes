@@ -48,10 +48,9 @@ def _(expr: TypedExpr, op: ops.IsInOp) -> sge.Expression:
                 value = int(value)
             values.append(sge.convert(value))
 
+    sg_lexpr: sge.Expression = expr.expr
     if expr.dtype == dtypes.BOOL_DTYPE and must_upcast_bools:
         sg_lexpr = sge.cast(expr.expr, "INT64")
-    else:
-        sg_lexpr = expr.expr
 
     if op.match_nulls:
         contains_nulls = any(_is_null(value) for value in op.values)
