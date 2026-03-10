@@ -56,7 +56,7 @@ def test_join_with_index(
         how=how,
     )
 
-    bigframes.testing.assert_frame_equal(
+    bigframes.testing.utils.assert_frame_equal(
         bf_result, pd_result, check_dtype=False, check_index_type=False
     )
 
