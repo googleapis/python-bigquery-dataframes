@@ -3418,11 +3418,6 @@ def unpivot(
             array_value, type="cross"
         )
 
-    if not labels_array.column_ids:
-        import traceback
-
-        traceback.print_stack()
-
     new_passthrough_cols = [column_mapping[col] for col in passthrough_columns]
     # Last column is offsets
     index_col_ids = [labels_mapping[col] for col in labels_array.column_ids[:-1]]
