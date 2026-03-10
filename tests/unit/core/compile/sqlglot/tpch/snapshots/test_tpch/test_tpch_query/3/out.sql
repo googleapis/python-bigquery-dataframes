@@ -1,52 +1,41 @@
-WITH `bfcte_3` AS (
+WITH `bfcte_0` AS (
   SELECT
-    `C_CUSTKEY` AS `bfcol_6`
-  FROM `bigframes-dev`.`tpch`.`CUSTOMER` AS `bft_2` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
+    `O_ORDERKEY` AS `bfcol_32`,
+    `O_CUSTKEY` AS `bfcol_33`,
+    `O_ORDERDATE` AS `bfcol_34`,
+    `O_SHIPPRIORITY` AS `bfcol_35`
+  FROM `bigframes-dev`.`tpch`.`ORDERS` AS `bft_2` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
   WHERE
-    `C_MKTSEGMENT` = 'BUILDING'
-), `bfcte_0` AS (
+    `O_ORDERDATE` < CAST('1995-03-15' AS DATE)
+), `bfcte_1` AS (
   SELECT
-    `L_ORDERKEY` AS `bfcol_19`,
-    `L_EXTENDEDPRICE` AS `bfcol_20`,
-    `L_DISCOUNT` AS `bfcol_21`
+    `L_ORDERKEY` AS `bfcol_36`,
+    `L_EXTENDEDPRICE` AS `bfcol_37`,
+    `L_DISCOUNT` AS `bfcol_38`
   FROM `bigframes-dev`.`tpch`.`LINEITEM` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
   WHERE
     `L_SHIPDATE` > CAST('1995-03-15' AS DATE)
-), `bfcte_1` AS (
-  SELECT
-    `O_ORDERKEY` AS `bfcol_36`,
-    `O_CUSTKEY` AS `bfcol_37`,
-    `O_ORDERDATE` AS `bfcol_38`,
-    `O_SHIPPRIORITY` AS `bfcol_39`
-  FROM `bigframes-dev`.`tpch`.`ORDERS` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    `O_ORDERDATE` < CAST('1995-03-15' AS DATE)
 ), `bfcte_2` AS (
   SELECT
-    *
-  FROM `bfcte_0`
-  INNER JOIN `bfcte_1`
-    ON COALESCE(`bfcol_19`, 0) = COALESCE(`bfcol_36`, 0)
-    AND COALESCE(`bfcol_19`, 1) = COALESCE(`bfcol_36`, 1)
+    `C_CUSTKEY` AS `bfcol_39`
+  FROM `bigframes-dev`.`tpch`.`CUSTOMER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
+  WHERE
+    `C_MKTSEGMENT` = 'BUILDING'
+), `bfcte_3` AS (
+  SELECT
+    `bfcol_37` AS `bfcol_40`,
+    `bfcol_38` AS `bfcol_41`,
+    `bfcol_32` AS `bfcol_42`,
+    `bfcol_33` AS `bfcol_43`,
+    `bfcol_34` AS `bfcol_44`,
+    `bfcol_35` AS `bfcol_45`
+  FROM `bfcte_1`
+  INNER JOIN `bfcte_0`
+    ON COALESCE(`bfcol_36`, 0) = COALESCE(`bfcol_32`, 0)
+    AND COALESCE(`bfcol_36`, 1) = COALESCE(`bfcol_32`, 1)
 ), `bfcte_4` AS (
   SELECT
-    `bfcol_20` AS `bfcol_40`,
-    `bfcol_21` AS `bfcol_41`,
-    `bfcol_36` AS `bfcol_42`,
-    `bfcol_37` AS `bfcol_43`,
-    `bfcol_38` AS `bfcol_44`,
-    `bfcol_39` AS `bfcol_45`
-  FROM `bfcte_2`
-), `bfcte_5` AS (
-  SELECT
-    *
-  FROM `bfcte_3`
-  INNER JOIN `bfcte_4`
-    ON COALESCE(`bfcol_6`, 0) = COALESCE(`bfcol_43`, 0)
-    AND COALESCE(`bfcol_6`, 1) = COALESCE(`bfcol_43`, 1)
-), `bfcte_6` AS (
-  SELECT
-    `bfcol_6`,
+    `bfcol_39`,
     `bfcol_40`,
     `bfcol_41`,
     `bfcol_42`,
@@ -59,14 +48,17 @@ WITH `bfcte_3` AS (
     `bfcol_40` * (
       1 - `bfcol_41`
     ) AS `bfcol_54`
-  FROM `bfcte_5`
-), `bfcte_7` AS (
+  FROM `bfcte_2`
+  INNER JOIN `bfcte_3`
+    ON COALESCE(`bfcol_39`, 0) = COALESCE(`bfcol_43`, 0)
+    AND COALESCE(`bfcol_39`, 1) = COALESCE(`bfcol_43`, 1)
+), `bfcte_5` AS (
   SELECT
     `bfcol_51`,
     `bfcol_52`,
     `bfcol_53`,
     COALESCE(SUM(`bfcol_54`), 0) AS `bfcol_59`
-  FROM `bfcte_6`
+  FROM `bfcte_4`
   WHERE
     NOT `bfcol_51` IS NULL AND NOT `bfcol_52` IS NULL AND NOT `bfcol_53` IS NULL
   GROUP BY
@@ -79,7 +71,7 @@ SELECT
   `bfcol_59` AS `REVENUE`,
   `bfcol_52` AS `O_ORDERDATE`,
   `bfcol_53` AS `O_SHIPPRIORITY`
-FROM `bfcte_7`
+FROM `bfcte_5`
 ORDER BY
   `bfcol_59` DESC,
   `bfcol_52` ASC NULLS LAST,

@@ -15,11 +15,12 @@
 import datetime
 import unittest.mock as mock
 
-import freezegun  # type: ignore
 from google.cloud import bigquery
 import pytest
 
 import bigframes.testing.mocks as mocks
+
+freezegun = pytest.importorskip("freezegun")
 
 TPCH_SCHEMAS = {
     "LINEITEM": [
@@ -102,12 +103,6 @@ TPCH_SCHEMAS = {
 }
 
 
-@pytest.fixture(autouse=True, scope="session")
-def freeze_time():
-    with freezegun.freeze_time("2026-03-10 18:00:00"):
-        yield
-
-
 @pytest.fixture(scope="session")
 def tpch_session():
     from bigframes.testing import compiler_session
@@ -115,38 +110,39 @@ def tpch_session():
     anonymous_dataset = bigquery.DatasetReference.from_string("bigframes-dev.tpch")
     location = "us-central1"
 
-    session = mocks.create_bigquery_session(
-        anonymous_dataset=anonymous_dataset,
-        location=location,
-    )
+    with freezegun.freeze_time("2026-03-10 18:00:00"):
+        session = mocks.create_bigquery_session(
+            anonymous_dataset=anonymous_dataset,
+            location=location,
+        )
 
-    def get_table_mock(table_ref):
-        if isinstance(table_ref, str):
-            table_ref = bigquery.TableReference.from_string(table_ref)
+        def get_table_mock(table_ref):
+            if isinstance(table_ref, str):
+                table_ref = bigquery.TableReference.from_string(table_ref)
 
-        table_id = table_ref.table_id
-        schema = TPCH_SCHEMAS.get(table_id, [])
+            table_id = table_ref.table_id
+            schema = TPCH_SCHEMAS.get(table_id, [])
 
-        table = mock.create_autospec(bigquery.Table, instance=True)
-        table._properties = {}
-        # mocks.create_bigquery_session's CURRENT_TIMESTAMP() returns offset-naive datetime.now()
-        # So we should also use offset-naive here to avoid comparison errors.
-        now = datetime.datetime.now()
-        type(table).schema = mock.PropertyMock(return_value=schema)
-        type(table).project = table_ref.project
-        type(table).dataset_id = table_ref.dataset_id
-        type(table).table_id = table_id
-        type(table).num_rows = mock.PropertyMock(return_value=1000000)
-        type(table).num_bytes = mock.PropertyMock(return_value=1000000)
-        type(table).location = mock.PropertyMock(return_value=location)
-        type(table).table_type = mock.PropertyMock(return_value="TABLE")
-        type(table).created = mock.PropertyMock(return_value=now)
-        type(table).modified = mock.PropertyMock(return_value=now)
-        type(table).range_partitioning = mock.PropertyMock(return_value=None)
-        type(table).time_partitioning = mock.PropertyMock(return_value=None)
-        type(table).clustering_fields = mock.PropertyMock(return_value=None)
-        return table
+            table = mock.create_autospec(bigquery.Table, instance=True)
+            table._properties = {}
+            # mocks.create_bigquery_session's CURRENT_TIMESTAMP() returns offset-naive datetime.now()
+            # So we should also use offset-naive here to avoid comparison errors.
+            now = datetime.datetime.now()
+            type(table).schema = mock.PropertyMock(return_value=schema)
+            type(table).project = table_ref.project
+            type(table).dataset_id = table_ref.dataset_id
+            type(table).table_id = table_id
+            type(table).num_rows = mock.PropertyMock(return_value=1000000)
+            type(table).num_bytes = mock.PropertyMock(return_value=1000000)
+            type(table).location = mock.PropertyMock(return_value=location)
+            type(table).table_type = mock.PropertyMock(return_value="TABLE")
+            type(table).created = mock.PropertyMock(return_value=now)
+            type(table).modified = mock.PropertyMock(return_value=now)
+            type(table).range_partitioning = mock.PropertyMock(return_value=None)
+            type(table).time_partitioning = mock.PropertyMock(return_value=None)
+            type(table).clustering_fields = mock.PropertyMock(return_value=None)
+            return table
 
-    session.bqclient.get_table.side_effect = get_table_mock
-    session._executor = compiler_session.SQLCompilerExecutor()
-    return session
+        session.bqclient.get_table.side_effect = get_table_mock
+        session._executor = compiler_session.SQLCompilerExecutor()
+        return session
