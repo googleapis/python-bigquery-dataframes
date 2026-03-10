@@ -14,6 +14,7 @@
 
 import datetime
 import decimal
+import re
 
 import numpy as np
 import pandas as pd
@@ -59,9 +60,6 @@ import bigframes.core.compile.sqlglot.sql.base as sql
             "CAST('2025-01-02T03:45:06.789123+00:00' AS TIMESTAMP)",
             id="timestamp",
         ),
-        pytest.param(
-            shapely.geometry.Point(0, 1), "ST_GEOGFROMTEXT('POINT (0 1)')", id="geo"
-        ),
         pytest.param(np.int64(123), "123", id="np_int64"),
         pytest.param(np.float64(123.75), "123.75", id="np_float64"),
         pytest.param(float("inf"), "CAST('Infinity' AS FLOAT64)", id="inf"),
@@ -75,6 +73,13 @@ import bigframes.core.compile.sqlglot.sql.base as sql
 def test_literal(value, expected_pattern):
     got = sql.to_sql(sql.literal(value))
     assert got == expected_pattern
+
+
+def test_literal_for_geo():
+    value = shapely.geometry.Point(0, 1)
+    expected_pattern = r"ST_GEOGFROMTEXT\('POINT \(0[.]?0* 1[.]?0*\)'\)"
+    got = sql.to_sql(sql.literal(value))
+    assert re.match(expected_pattern, got) is not None
 
 
 @pytest.mark.parametrize(

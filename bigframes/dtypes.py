@@ -724,10 +724,6 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
     # Maybe also normalize literal to canonical python representation to remove this burden from compilers?
     if isinstance(literal, pa.Scalar):
         return arrow_dtype_to_bigframes_dtype(literal.type)
-    if pd.api.types.is_list_like(literal):
-        element_types = [infer_literal_type(i) for i in literal]
-        common_type = lcd_type(*element_types)
-        return list_type(common_type)
     if pd.api.types.is_dict_like(literal):
         fields = []
         for key in literal.keys():
@@ -738,6 +734,10 @@ def infer_literal_type(literal) -> typing.Optional[Dtype]:
                 pa.field(key, field_type, nullable=(not pa.types.is_list(field_type)))
             )
         return pd.ArrowDtype(pa.struct(fields))
+    if pd.api.types.is_list_like(literal):
+        element_types = [infer_literal_type(i) for i in literal]
+        common_type = lcd_type(*element_types)
+        return list_type(common_type)
     if pd.isna(literal):
         return None  # Null value without a definite type
     # Make sure to check datetime before date as datetimes are also dates
