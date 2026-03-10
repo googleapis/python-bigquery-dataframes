@@ -118,6 +118,21 @@ LOCAL_SCALAR_TYPE = Union[
 ]
 LOCAL_SCALAR_TYPES = typing.get_args(LOCAL_SCALAR_TYPE)
 
+SUPPORTED_LITERAL_TYPE = typing.Union[
+    bytes,
+    str,
+    int,
+    bool,
+    float,
+    datetime.datetime,
+    datetime.date,
+    datetime.time,
+    decimal.Decimal,
+    list,
+    shapely.geometry.base.BaseGeometry,
+]
+SUPPORTED_LITERAL_TYPES = typing.get_args(SUPPORTED_LITERAL_TYPE)
+
 
 # Will have a few dtype variants: simple(eg. int, string, bool), complex (eg. list, struct), and virtual (eg. micro intervals, categorical)
 @dataclass(frozen=True)
@@ -900,11 +915,16 @@ def is_compatible(scalar: typing.Any, dtype: Dtype) -> typing.Optional[Dtype]:
 def lcd_type(*dtypes: Dtype) -> Dtype:
     if len(dtypes) < 1:
         raise ValueError("at least one dypes should be provided")
-    if len(dtypes) == 1:
-        return dtypes[0]
+
     unique_dtypes = set(dtypes)
+    if None in unique_dtypes:
+        unique_dtypes.remove(None)
+
+    if len(unique_dtypes) == 0:
+        return None
     if len(unique_dtypes) == 1:
-        return unique_dtypes.pop()
+        return next(iter(unique_dtypes))
+
     # Implicit conversion currently only supported for numeric types
     hierarchy: list[Dtype] = [
         BOOL_DTYPE,
@@ -913,9 +933,9 @@ def lcd_type(*dtypes: Dtype) -> Dtype:
         BIGNUMERIC_DTYPE,
         FLOAT_DTYPE,
     ]
-    if any([dtype not in hierarchy for dtype in dtypes]):
+    if any([dtype not in hierarchy for dtype in unique_dtypes]):
         return None
-    lcd_index = max([hierarchy.index(dtype) for dtype in dtypes])
+    lcd_index = max([hierarchy.index(dtype) for dtype in unique_dtypes])
     return hierarchy[lcd_index]
 
 
