@@ -1822,9 +1822,9 @@ class Block:
         Arguments correspond to pandas.melt arguments.
         """
         # TODO: Implement col_level and ignore_index
-        value_labels: pd.Index = pd.Index(
-            [self.col_id_to_label[col_id] for col_id in value_vars]
-        )
+        value_labels: pd.Index = self.column_labels[
+            [self.value_columns.index(col_id) for col_id in value_vars]
+        ]
         id_labels = [self.col_id_to_label[col_id] for col_id in id_vars]
 
         unpivot_expr, (var_col_ids, unpivot_out, passthrough_cols) = unpivot(
