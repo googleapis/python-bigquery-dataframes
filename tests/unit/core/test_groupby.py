@@ -18,7 +18,7 @@ import pytest
 
 import bigframes.core.utils as utils
 import bigframes.pandas as bpd
-import bigframes.testing
+import bigframes.testing.utils
 
 pytest.importorskip("polars")
 pytest.importorskip("pandas", minversion="2.0.0")

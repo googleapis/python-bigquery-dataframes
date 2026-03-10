@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 from bigframes import dtypes
-import bigframes.testing
+import bigframes.testing.utils
 
 
 def test_date_diff_between_series(session):

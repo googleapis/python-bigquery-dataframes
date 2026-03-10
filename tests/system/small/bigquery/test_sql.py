@@ -17,7 +17,7 @@ import pytest
 import bigframes.bigquery as bbq
 import bigframes.dtypes as dtypes
 import bigframes.pandas as bpd
-import bigframes.testing
+import bigframes.testing.utils
 
 
 def test_sql_scalar_for_all_scalar_types(scalars_df_null_index):

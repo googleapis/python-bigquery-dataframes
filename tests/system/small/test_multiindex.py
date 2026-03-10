@@ -17,7 +17,7 @@ import pandas
 import pytest
 
 import bigframes.pandas as bpd
-import bigframes.testing
+import bigframes.testing.utils
 
 # Sample MultiIndex for testing DataFrames where() method.
 _MULTI_INDEX = pandas.MultiIndex.from_tuples(

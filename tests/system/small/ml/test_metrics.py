@@ -20,7 +20,7 @@ import pytest
 
 import bigframes
 from bigframes.ml import metrics
-import bigframes.testing
+import bigframes.testing.utils
 
 
 def test_r2_score_perfect_fit(session):

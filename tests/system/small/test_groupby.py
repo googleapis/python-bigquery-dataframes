@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 
 import bigframes.pandas as bpd
-import bigframes.testing
+import bigframes.testing.utils
 
 # =================
 # DataFrame.groupby

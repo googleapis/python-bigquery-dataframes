@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from bigframes import dtypes
-import bigframes.testing
+import bigframes.testing.utils
 
 
 @pytest.fixture(scope="module")

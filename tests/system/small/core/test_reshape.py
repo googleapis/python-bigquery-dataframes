@@ -17,7 +17,7 @@ import pytest
 
 from bigframes import session
 from bigframes.core.reshape import merge
-import bigframes.testing
+import bigframes.testing.utils
 
 
 @pytest.mark.parametrize(

@@ -23,7 +23,7 @@ import pyarrow as pa
 import pytest
 
 from bigframes import dtypes
-import bigframes.testing
+import bigframes.testing.utils
 
 # Some methods/features used by this test don't exist in pandas 1.x
 pytest.importorskip("pandas", minversion="2.0.0")

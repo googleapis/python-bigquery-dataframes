@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import bigframes.ml.utils as utils
-import bigframes.testing
+import bigframes.testing.utils
 
 _DATA_FRAME = pd.DataFrame({"column": [1, 2, 3]})
 _SERIES = pd.Series([1, 2, 3], name="column")

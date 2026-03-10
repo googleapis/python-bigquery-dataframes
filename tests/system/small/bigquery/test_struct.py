@@ -16,7 +16,7 @@ import pytest
 
 import bigframes.bigquery as bbq
 import bigframes.series as series
-import bigframes.testing
+import bigframes.testing.utils
 
 
 @pytest.mark.parametrize(

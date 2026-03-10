@@ -32,7 +32,7 @@ from bigframes.bigquery import st_length
 import bigframes.bigquery as bbq
 import bigframes.geopandas
 import bigframes.session
-import bigframes.testing
+import bigframes.testing.utils
 
 
 def test_geo_st_area(session: bigframes.session.Session):
