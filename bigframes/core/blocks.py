@@ -1822,9 +1822,9 @@ class Block:
         Arguments correspond to pandas.melt arguments.
         """
         # TODO: Implement col_level and ignore_index
-        value_labels: pd.Index = pd.Index(
-            [self.col_id_to_label[col_id] for col_id in value_vars]
-        )
+        value_labels: pd.Index = self.column_labels[
+            [self.value_columns.index(col_id) for col_id in value_vars]
+        ]
         id_labels = [self.col_id_to_label[col_id] for col_id in id_vars]
 
         unpivot_expr, (var_col_ids, unpivot_out, passthrough_cols) = unpivot(
@@ -3417,11 +3417,6 @@ def unpivot(
         joined_array, (labels_mapping, column_mapping) = labels_array.relational_join(
             array_value, type="cross"
         )
-
-    if not labels_array.column_ids:
-        import traceback
-
-        traceback.print_stack()
 
     new_passthrough_cols = [column_mapping[col] for col in passthrough_columns]
     # Last column is offsets
