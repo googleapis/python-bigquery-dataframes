@@ -508,6 +508,7 @@ def docs(session):
         "sphinx==8.2.3",
         "sphinx-sitemap==2.9.0",
         "myst-parser==4.0.1",
+        "myst-nb==1.4.0",
         "pydata-sphinx-theme==0.16.1",
     )
 

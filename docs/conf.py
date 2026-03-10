@@ -59,7 +59,15 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_sitemap",
-    "myst_parser",
+    "myst_nb",
+]
+
+# myst-nb configuration
+nb_execution_mode = "off"
+
+# Suppress warnings
+suppress_warnings = [
+    "myst.header",
 ]
 
 # autodoc/autosummary flags
