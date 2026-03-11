@@ -1037,7 +1037,7 @@ def timedelta_floor_op_impl(x: ibis_types.NumericValue):
 @scalar_op_compiler.register_unary_op(ops.RemoteFunctionOp, pass_op=True)
 def remote_function_op_impl(x: ibis_types.Value, op: ops.RemoteFunctionOp):
     udf_sig = op.function_def.signature
-    ibis_py_sig = (udf_sig.py_input_types, udf_sig.py_output_type)
+    ibis_py_sig = ((arg.py_type for arg in udf_sig.inputs), udf_sig.output.py_type)
 
     @ibis_udf.scalar.builtin(
         name=str(op.function_def.routine_ref), signature=ibis_py_sig
@@ -1056,7 +1056,7 @@ def binary_remote_function_op_impl(
     x: ibis_types.Value, y: ibis_types.Value, op: ops.BinaryRemoteFunctionOp
 ):
     udf_sig = op.function_def.signature
-    ibis_py_sig = (udf_sig.py_input_types, udf_sig.py_output_type)
+    ibis_py_sig = ((arg.py_type for arg in udf_sig.inputs), udf_sig.output.py_type)
 
     @ibis_udf.scalar.builtin(
         name=str(op.function_def.routine_ref), signature=ibis_py_sig
@@ -1073,8 +1073,8 @@ def nary_remote_function_op_impl(
     *operands: ibis_types.Value, op: ops.NaryRemoteFunctionOp
 ):
     udf_sig = op.function_def.signature
-    ibis_py_sig = (udf_sig.py_input_types, udf_sig.py_output_type)
-    arg_names = tuple(arg.name for arg in udf_sig.input_types)
+    ibis_py_sig = ((arg.py_type for arg in udf_sig.inputs), udf_sig.output.py_type)
+    arg_names = tuple(arg.name for arg in udf_sig.inputs)
 
     @ibis_udf.scalar.builtin(
         name=str(op.function_def.routine_ref),

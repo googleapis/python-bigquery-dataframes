@@ -19,21 +19,17 @@ import logging
 import os
 import re
 import textwrap
-from typing import Tuple
 
 import cloudpickle
+
+from bigframes.functions import udf_def
 
 logger = logging.getLogger(__name__)
 
 
-# Protocol version 4 is available in python version 3.4 and above
-# https://docs.python.org/3/library/pickle.html#data-stream-format
-_pickle_protocol_version = 4
-
-
 # Placeholder variables for testing.
-input_types = ("STRING",)
-output_type = "STRING"
+input_sql_types = ("STRING",)
+output_sql_type = "STRING"
 
 
 # Convert inputs to BigQuery JSON. See:
@@ -156,7 +152,7 @@ def udf(*args):
 # }
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
 def udf_http(request):
-    global input_types, output_type
+    global input_sql_types, output_sql_type
     import json
     import traceback
 
@@ -168,7 +164,7 @@ def udf_http(request):
         replies = []
         for call in calls:
             reply = convert_to_bq_json(
-                output_type, udf(*convert_call(input_types, call))
+                output_sql_type, udf(*convert_call(input_sql_types, call))
             )
             if type(reply) is list:
                 # Since the BQ remote function does not support array yet,
@@ -182,7 +178,7 @@ def udf_http(request):
 
 
 def udf_http_row_processor(request):
-    global output_type
+    global output_sql_type
     import json
     import math
     import traceback
@@ -196,7 +192,7 @@ def udf_http_row_processor(request):
         replies = []
         for call in calls:
             reply = convert_to_bq_json(
-                output_type, udf(get_pd_series(call[0]), *call[1:])
+                output_sql_type, udf(get_pd_series(call[0]), *call[1:])
             )
             if type(reply) is list:
                 # Since the BQ remote function does not support array yet,
@@ -228,38 +224,35 @@ def udf_http_row_processor(request):
         return jsonify({"errorMessage": traceback.format_exc()}), 400
 
 
-def generate_udf_code(def_, directory):
+def generate_udf_code(code_def: udf_def.CodeDef, directory: str):
     """Generate serialized code using cloudpickle given a udf."""
     udf_code_file_name = "udf.py"
     udf_pickle_file_name = "udf.cloudpickle"
 
     # original code, only for debugging purpose
-    udf_code = textwrap.dedent(inspect.getsource(def_))
     udf_code_file_path = os.path.join(directory, udf_code_file_name)
     with open(udf_code_file_path, "w") as f:
-        f.write(udf_code)
+        f.write(code_def.function_source)
 
     # serialized udf
     udf_pickle_file_path = os.path.join(directory, udf_pickle_file_name)
     # TODO(b/345433300): try io.BytesIO to avoid writing to the file system
     with open(udf_pickle_file_path, "wb") as f:
-        cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
+        f.write(code_def.pickled_code)
 
     return udf_code_file_name, udf_pickle_file_name
 
 
 def generate_cloud_function_main_code(
-    def_,
-    directory,
+    code_def: udf_def.CodeDef,
+    directory: str,
     *,
-    input_types: Tuple[str],
-    output_type: str,
-    is_row_processor=False,
+    udf_signature: udf_def.UdfSignature,
 ):
     """Get main.py code for the cloud function for the given user defined function."""
 
     # Pickle the udf with all its dependencies
-    udf_code_file, udf_pickle_file = generate_udf_code(def_, directory)
+    udf_code_file, udf_pickle_file = generate_udf_code(code_def, directory)
 
     code_blocks = [
         f"""\
@@ -270,15 +263,15 @@ import cloudpickle
 with open("{udf_pickle_file}", "rb") as f:
     udf = cloudpickle.load(f)
 
-input_types = {repr(input_types)}
-output_type = {repr(output_type)}
+input_types = {repr(input_sql_types)}
+output_type = {repr(output_sql_type)}
 """
     ]
 
     # For converting scalar outputs to the correct type.
     code_blocks.append(inspect.getsource(convert_to_bq_json))
 
-    if is_row_processor:
+    if udf_signature.is_row_processor:
         code_blocks.append(inspect.getsource(get_pd_series))
         handler_func_name = "udf_http_row_processor"
         code_blocks.append(inspect.getsource(udf_http_row_processor))
@@ -308,8 +301,6 @@ def generate_managed_function_code(
         # This code path ensures that if the udf body contains any
         # references to variables and/or imports outside the body, they are
         # captured as well.
-        import cloudpickle
-
         pickled = cloudpickle.dumps(def_)
         func_code = textwrap.dedent(
             f"""

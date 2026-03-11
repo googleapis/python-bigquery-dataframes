@@ -14,16 +14,27 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
+import hashlib
 import inspect
-from typing import cast, Optional
+import io
+import os
+import textwrap
+from typing import Any, cast, get_args, get_origin, Sequence, Type
 import warnings
 
+import cloudpickle
 from google.cloud import bigquery
+import pandas as pd
 
 import bigframes.dtypes
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as bf_formatting
 from bigframes.functions import function_typing
+
+# Protocol version 4 is available in python version 3.4 and above
+# https://docs.python.org/3/library/pickle.html#data-stream-format
+_pickle_protocol_version = 4
 
 
 class ReturnTypeMissingError(ValueError):
@@ -31,93 +42,244 @@ class ReturnTypeMissingError(ValueError):
 
 
 @dataclasses.dataclass(frozen=True)
-class UdfField:
+class UdfArg:
     name: str = dataclasses.field()
-    dtype: bigquery.StandardSqlDataType = dataclasses.field(hash=False, compare=False)
+    dtype: DirectScalarType | RowSeriesInputFieldV1
+
+    def __post_init__(self):
+        assert isinstance(self.name, str)
+        assert isinstance(self.dtype, (DirectScalarType, RowSeriesInputFieldV1))
 
     @classmethod
-    def from_sdk(cls, arg: bigquery.RoutineArgument) -> UdfField:
+    def from_py_param(cls, param: inspect.Parameter) -> UdfArg:
+        if param.annotation == pd.Series:
+            return cls(param.name, RowSeriesInputFieldV1())
+        return cls(param.name, DirectScalarType(param.annotation))
+
+    @classmethod
+    def from_sdk(cls, arg: bigquery.RoutineArgument) -> UdfArg:
         assert arg.name is not None
-        assert arg.data_type is not None
-        return cls(arg.name, arg.data_type)
+
+        if arg.data_type is None:
+            msg = bfe.format_message(
+                "The function has one or more missing input data types. BigQuery DataFrames "
+                f"will assume default data type {function_typing.DEFAULT_RF_TYPE} for them."
+            )
+            warnings.warn(msg, category=bfe.UnknownDataTypeWarning)
+            sdk_type = function_typing.DEFAULT_RF_TYPE
+        else:
+            sdk_type = arg.data_type
+        return cls(arg.name, DirectScalarType.from_sdk_type(sdk_type))
+
+    @property
+    def py_type(self) -> type:
+        return self.dtype.py_type
+
+    @property
+    def bf_type(self) -> bigframes.dtypes.Dtype:
+        return self.dtype.bf_type
+
+    @property
+    def sql_type(self) -> str:
+        return self.dtype.sql_type
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        hash_val.update(self.name.encode())
+        hash_val.update(self.dtype.stable_hash())
+        return hash_val.digest()
+
+
+@dataclasses.dataclass(frozen=True)
+class DirectScalarType:
+    _py_type: type
+
+    @property
+    def py_type(self) -> type:
+        return self._py_type
+
+    @property
+    def bf_type(self) -> bigframes.dtypes.Dtype:
+        return function_typing.sdk_type_to_bf_type(
+            function_typing.sdk_type_from_python_type(self._py_type)
+        )
+
+    @property
+    def sql_type(self) -> str:
+        return function_typing.sdk_type_from_python_type(self._py_type).type_kind.name
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        hash_val.update(self._py_type.__name__.encode())
+        return hash_val.digest()
+
+    @classmethod
+    def from_sdk_type(cls, sdk_type: bigquery.StandardSqlDataType) -> DirectScalarType:
+        return cls(function_typing.sdk_type_to_py_type(sdk_type))
+
+
+@dataclasses.dataclass(frozen=True)
+class VirtualListTypeV1:
+    _PROTOCOL_ID = "virtual_list_v1"
+
+    inner_dtype: DirectScalarType
+
+    @property
+    def py_type(self) -> Type[list[Any]]:
+        return list[function_typing.sdk_type_to_py_type(self.inner_dtype)]  # type: ignore
+
+    # TODO: Specify emulating type and mapping expressions between said types
+    @property
+    def bf_type(self) -> bigframes.dtypes.Dtype:
+        return bigframes.dtypes.list_type(
+            function_typing.sdk_type_to_bf_type(self.inner_dtype)
+        )
+
+    @property
+    def emulating_type(self) -> DirectScalarType:
+        # Regardless of list inner type, string is used to emulate the list in the remote function.
+        return DirectScalarType(str)
+
+    def out_expr(
+        self, expr: bigframes.core.expression.Expression
+    ) -> bigframes.core.expression.Expression:
+        import bigframes.operations as ops
+
+        # convert json string to array of underlying type
+        return ops.JSONValueArray(json_path="$").as_expr(expr)
+
+    @property
+    def sql_type(self) -> str:
+        return f"ARRAY<{self.inner_dtype.sql_type}>"
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        hash_val.update(self._PROTOCOL_ID.encode())
+        hash_val.update(self.inner_dtype.stable_hash())
+        return hash_val.digest()
+
+
+@dataclasses.dataclass(frozen=True)
+class RowSeriesInputFieldV1:
+    """
+    Used to handle functions that logically take a series as an input, but handled via a string protocol in the remote function.
+    """
+
+    _PROTOCOL_ID = "row_series_input_v1"
+
+    @property
+    def py_type(self) -> type:
+        return pd.Series
+
+    @property
+    def bf_type(self) -> bigframes.dtypes.Dtype:
+        # Code paths shouldn't hit this.
+        raise ValueError("Series does not have a corresponding BigFrames type.")
+
+    @property
+    def sql_type(self) -> str:
+        return "STRING"
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        hash_val.update(self._PROTOCOL_ID.encode())
+        return hash_val.digest()
 
 
 @dataclasses.dataclass(frozen=True)
 class UdfSignature:
-    input_types: tuple[UdfField, ...] = dataclasses.field()
-    output_bq_type: bigquery.StandardSqlDataType = dataclasses.field(
-        hash=False, compare=False
-    )
+    """
+    Represents the mapping of input types from bigframes to sql to python and back.
+    """
+
+    inputs: tuple[UdfArg, ...] = dataclasses.field()
+    output: DirectScalarType | VirtualListTypeV1
+
+    def __post_init__(self):
+        if any(isinstance(arg, RowSeriesInputFieldV1) for arg in self.inputs):
+            if len(self.inputs) != 1:
+                raise ValueError("Row processor functions must have exactly one input.")
+        assert all(isinstance(arg, UdfArg) for arg in self.inputs)
+        assert isinstance(self.output, (DirectScalarType, VirtualListTypeV1))
+
+    def to_sql_input_signature(self) -> str:
+        return ",".join(f"{field.name} {field.sql_type}" for field in self.inputs)
 
     @property
-    def bf_input_types(self) -> tuple[bigframes.dtypes.Dtype, ...]:
-        return tuple(
-            function_typing.sdk_type_to_bf_type(arg.dtype) for arg in self.input_types
+    def protocol_metadata(self) -> str:
+        import bigframes.functions._utils
+
+        # TODO: The output field itself should handle this, to handle protocol versioning.
+        return bigframes.functions._utils.get_bigframes_metadata(
+            python_output_type=self.output.py_type
         )
 
     @property
-    def bf_output_type(self) -> bigframes.dtypes.Dtype:
-        return function_typing.sdk_type_to_bf_type(self.output_bq_type)
+    def is_row_processor(self) -> bool:
+        return any(isinstance(arg, RowSeriesInputFieldV1) for arg in self.inputs)
 
-    @property
-    def py_input_types(self) -> tuple[type, ...]:
-        return tuple(
-            function_typing.sdk_type_to_py_type(arg.dtype) for arg in self.input_types
+    def with_devirtualize(self) -> UdfSignature:
+        if isinstance(self.output, DirectScalarType):
+            return self
+        assert isinstance(self.output, VirtualListTypeV1)
+        return UdfSignature(
+            inputs=self.inputs,
+            output=self.output.emulating_type,
         )
-
-    @property
-    def py_output_type(self) -> type:
-        return function_typing.sdk_type_to_py_type(self.output_bq_type)
-
-    @property
-    def sql_input_types(self) -> tuple[str, ...]:
-        return tuple(
-            function_typing.sdk_type_to_sql_string(arg.dtype)
-            for arg in self.input_types
-        )
-
-    @property
-    def sql_output_type(self) -> str:
-        return function_typing.sdk_type_to_sql_string(self.output_bq_type)
 
     @classmethod
     def from_routine(cls, routine: bigquery.Routine) -> UdfSignature:
+        import bigframes.functions._utils
+
+        ## Handle return type
         if routine.return_type is None:
             raise ReturnTypeMissingError
+
         bq_return_type = cast(bigquery.StandardSqlDataType, routine.return_type)
 
+        return_type: DirectScalarType | VirtualListTypeV1 = (
+            DirectScalarType.from_sdk_type(bq_return_type)
+        )
+        if python_output_type := bigframes.functions._utils.get_python_output_type_from_bigframes_metadata(
+            routine.description
+        ):
+            if routine.return_type is None or bq_return_type.type_kind != "STRING":
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError,
+                    "An explicit output_type should be provided only for a BigQuery function with STRING output.",
+                )
+
+            if get_origin(python_output_type) is list:
+                inner_type = get_args(python_output_type)[0]
+                return_type = VirtualListTypeV1(DirectScalarType(inner_type))
+            else:
+                raise bf_formatting.create_exception_with_feedback_link(
+                    TypeError,
+                    "Currently only list of "
+                    "a type is supported as python output type.",
+                )
+
         if (
-            bq_return_type.type_kind is None
-            or bq_return_type.type_kind
+            return_type.sql_type
             not in function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS
         ):
             raise ValueError(
                 f"Remote function must have one of the following supported output types: {function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS}"
             )
 
+        ## Handle input types
         udf_fields = []
         for argument in routine.arguments:
-            if argument.data_type is None:
-                msg = bfe.format_message(
-                    "The function has one or more missing input data types. BigQuery DataFrames "
-                    f"will assume default data type {function_typing.DEFAULT_RF_TYPE} for them."
-                )
-                warnings.warn(msg, category=bfe.UnknownDataTypeWarning)
-                assert argument.name is not None
-                udf_fields.append(
-                    UdfField(argument.name, function_typing.DEFAULT_RF_TYPE)
-                )
-            else:
-                udf_fields.append(UdfField.from_sdk(argument))
+            udf_fields.append(UdfArg.from_sdk(argument))
 
         return cls(
-            input_types=tuple(udf_fields),
-            output_bq_type=bq_return_type,
+            inputs=tuple(udf_fields),
+            output=return_type,
         )
 
     @classmethod
     def from_py_signature(cls, signature: inspect.Signature):
-        input_types: list[UdfField] = []
+        input_types: list[UdfArg] = []
         for parameter in signature.parameters.values():
             if parameter.annotation is inspect.Signature.empty:
                 raise bf_formatting.create_exception_with_feedback_link(
@@ -126,8 +288,8 @@ class UdfSignature:
                     f"'{parameter.name}' is missing a type annotation. "
                     "Types are required to use @remote_function.",
                 )
-            bq_type = function_typing.sdk_type_from_python_type(parameter.annotation)
-            input_types.append(UdfField(parameter.name, bq_type))
+
+            input_types.append(UdfArg.from_py_param(parameter))
 
         if signature.return_annotation is inspect.Signature.empty:
             raise bf_formatting.create_exception_with_feedback_link(
@@ -136,26 +298,38 @@ class UdfSignature:
                 "return type annotation. Types are required to use "
                 "@remote_function.",
             )
-        output_bq_type = function_typing.sdk_type_from_python_type(
-            signature.return_annotation,
-            allow_lists=True,
-        )
-        return cls(tuple(input_types), output_bq_type)
+
+        if get_origin(signature.return_annotation) is list:
+            inner_py_type = get_args(signature.return_annotation)[0]
+            virtual_list_output_type = VirtualListTypeV1(
+                DirectScalarType(inner_py_type)
+            )
+            return cls(tuple(input_types), virtual_list_output_type)
+        else:
+            direct_output_type = DirectScalarType(signature.return_annotation)
+            return cls(tuple(input_types), direct_output_type)
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        for input_type in self.inputs:
+            hash_val.update(input_type.stable_hash())
+        hash_val.update(self.output.stable_hash())
+        return hash_val.digest()
 
 
 @dataclasses.dataclass(frozen=True)
 class BigqueryUdf:
+    """
+    Represents the information needed to call a BigQuery remote function - not a full spec.
+    """
+
     routine_ref: bigquery.RoutineReference = dataclasses.field()
     signature: UdfSignature
-    # Used to provide alternative interpretations of output bq type, eg interpret int as timestamp
-    output_type_override: Optional[bigframes.dtypes.Dtype] = dataclasses.field(
-        default=None
-    )
 
-    @property
-    def bigframes_output_type(self) -> bigframes.dtypes.Dtype:
-        return self.output_type_override or function_typing.sdk_type_to_bf_type(
-            self.signature.output_bq_type
+    def with_devirtualize(self) -> BigqueryUdf:
+        return BigqueryUdf(
+            routine_ref=self.routine_ref,
+            signature=self.signature.with_devirtualize(),
         )
 
     @classmethod
@@ -163,11 +337,127 @@ class BigqueryUdf:
         signature = UdfSignature.from_routine(routine)
 
         if (
-            signature.output_bq_type.type_kind is None
-            or signature.output_bq_type.type_kind
+            signature.output.sql_type is None
+            or signature.output.sql_type
             not in function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS
         ):
             raise ValueError(
                 f"Remote function must have one of the following supported output types: {function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS}"
             )
         return cls(routine.reference, signature=signature)
+
+
+@dataclasses.dataclass(frozen=True)
+class CodeDef:
+    # Produced by cloudpickle, not compatible across python versions
+    pickled_code: bytes
+    # This is just the function itself, and does not include referenced objects/functions/modules
+    function_source: str
+    package_requirements: tuple[str, ...]
+
+    @classmethod
+    def from_func(cls, func, package_requirements: Sequence[str] | None = None):
+        bytes_io = io.BytesIO()
+        cloudpickle.dump(func, bytes_io, protocol=_pickle_protocol_version)
+        # this is hacky, but works for some nested functions
+        source = textwrap.dedent(inspect.getsource(func))
+        return cls(
+            pickled_code=bytes_io.getvalue(),
+            function_source=source,
+            package_requirements=tuple(package_requirements or []),
+        )
+
+    @functools.cache
+    def stable_hash(self) -> bytes:
+        # There is a known cell-id sensitivity of the cloudpickle serialization in
+        # notebooks https://github.com/cloudpipe/cloudpickle/issues/538. Because of
+        # this, if a cell contains a udf decorated with @remote_function, a unique
+        # cloudpickle code is generated every time the cell is run, creating new
+        # cloud artifacts every time. This is slow and wasteful.
+        # A workaround of the same can be achieved by replacing the filename in the
+        # code object to a static value
+        # https://github.com/cloudpipe/cloudpickle/issues/120#issuecomment-338510661.
+        #
+        # To respect the user code/environment let's make this modification on a
+        # copy of the udf, not on the original udf itself.
+        def_copy = cloudpickle.loads(self.pickled_code)
+        def_copy.__code__ = def_copy.__code__.replace(
+            co_filename="bigframes_place_holder_filename"
+        )
+
+        normalized_pickled_code = cloudpickle.dumps(
+            def_copy, protocol=_pickle_protocol_version
+        )
+
+        hash_val = hashlib.md5()
+        hash_val.update(normalized_pickled_code)
+
+        if self.package_requirements:
+            for p in sorted(self.package_requirements):
+                hash_val.update(p.encode())
+
+        return hash_val.digest()
+
+
+@dataclasses.dataclass(frozen=True)
+class CloudRunFunctionConfig:
+    code: CodeDef
+    signature: UdfSignature
+    timeout_seconds: int | None
+    max_instance_count: int | None
+    vpc_connector: str | None
+    vpc_connector_egress_settings: str
+    memory_mib: int | None
+    cpus: float | None
+    ingress_settings: str
+    workers: int | None
+    threads: int | None
+    concurrency: int | None
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        hash_val.update(self.code.stable_hash())
+        hash_val.update(self.signature.stable_hash())
+        hash_val.update(str(self.timeout_seconds).encode())
+        hash_val.update(str(self.max_instance_count).encode())
+        hash_val.update(str(self.vpc_connector).encode())
+        hash_val.update(str(self.vpc_connector_egress_settings).encode())
+        hash_val.update(str(self.memory_mib).encode())
+        hash_val.update(str(self.cpus).encode())
+        hash_val.update(str(self.ingress_settings).encode())
+        hash_val.update(str(self.workers).encode())
+        hash_val.update(str(self.threads).encode())
+        hash_val.update(str(self.concurrency).encode())
+        return hash_val.digest()
+
+
+@dataclasses.dataclass(frozen=True)
+class RemoteFunctionConfig:
+    """
+    Represents the information needed to create a BigQuery remote function.
+    """
+
+    endpoint: str
+    signature: UdfSignature
+    connection_id: str
+    max_batching_rows: int
+    bq_metadata: str | None = None
+
+    @classmethod
+    def from_bq_routine(cls, routine: bigquery.Routine) -> RemoteFunctionConfig:
+        return cls(
+            endpoint=routine.remote_function_options.endpoint,
+            connection_id=os.path.basename(routine.remote_function_options.connection),
+            signature=UdfSignature.from_routine(routine),
+            max_batching_rows=routine.remote_function_options.max_batching_rows,
+            bq_metadata=routine.description,
+        )
+
+    def stable_hash(self) -> bytes:
+        hash_val = hashlib.md5()
+        hash_val.update(self.endpoint.encode())
+        hash_val.update(self.signature.stable_hash())
+        hash_val.update(self.connection_id.encode())
+        hash_val.update(str(self.max_batching_rows).encode())
+        hash_val.update(str(self.bq_metadata).encode())
+        return hash_val.digest()

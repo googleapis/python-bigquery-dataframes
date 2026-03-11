@@ -20,6 +20,7 @@ import os.path
 import shutil
 import tempfile
 import textwrap
+import uuid
 import warnings
 
 import google.api_core.exceptions
@@ -529,9 +530,7 @@ def test_remote_function_restore_with_bigframes_series(
         # Expected cloud function name for the unique udf
         package_requirements = bff_utils.get_updated_package_requirements()
         add_one_uniq_hash = bff_utils.get_hash(add_one_uniq, package_requirements)
-        add_one_uniq_cf_name = bff_utils.get_cloud_function_name(
-            add_one_uniq_hash, session.session_id
-        )
+        add_one_uniq_cf_name = f"bff_{add_one_uniq_hash}_{session.session_id}"
 
         # There should be no cloud function yet for the unique udf
         cloud_functions = list(
@@ -1691,6 +1690,50 @@ def test_remote_function_max_instances(
         cleanup_function_assets(
             square_remote, session.bqclient, session.cloudfunctionsclient
         )
+
+
+@pytest.mark.flaky(retries=2, delay=120)
+def test_remote_function_reflects_config_change_with_reuse(session):
+    square_remote = None
+    square_remote_2 = None
+    try:
+
+        def square(x):
+            return x * x
+
+        deploy_name = str(uuid.uuid4())
+        square_remote = session.remote_function(
+            input_types=[int],
+            name=deploy_name,
+            output_type=int,
+            reuse=True,
+            cloud_function_service_account="default",
+            cloud_function_cpus=1,
+        )(square)
+        square_remote_2 = session.remote_function(
+            input_types=[int],
+            name=deploy_name,
+            output_type=int,
+            reuse=True,
+            cloud_function_service_account="default",
+            cloud_function_cpus=2,
+        )(square)
+
+        # Assert that the GCF is created with the intended max instance count
+        gcf = session.cloudfunctionsclient.get_function(
+            name=square_remote_2.bigframes_cloud_function
+        )
+        assert gcf.service_config.available_cpu == 2.0
+    finally:
+        # clean up the gcp assets created for the remote function
+        if square_remote is not None:
+            cleanup_function_assets(
+                square_remote, session.bqclient, session.cloudfunctionsclient
+            )
+        if square_remote_2 is not None:
+            cleanup_function_assets(
+                square_remote_2, session.bqclient, session.cloudfunctionsclient
+            )
 
 
 @pytest.mark.flaky(retries=2, delay=120)
