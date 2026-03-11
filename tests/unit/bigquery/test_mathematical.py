@@ -12,10 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""[Experimental] Utilities for testing BigQuery DataFrames.
+import bigframes.bigquery as bbq
+import bigframes.core.col as col
+import bigframes.core.expression as ex
+import bigframes.dtypes as dtypes
+import bigframes.operations as ops
 
-These modules are provided for testing the BigQuery DataFrames package. The
-interface is not considered stable.
-"""
 
-# Do not import modules contains pytest. (b/490160312)
+def test_rand_returns_expression():
+    expr = bbq.rand()
+
+    assert isinstance(expr, col.Expression)
+    node = expr._value
+    assert isinstance(node, ex.OpExpression)
+    op = node.op
+    assert isinstance(op, ops.SqlScalarOp)
+    assert op.sql_template == "RAND()"
+    assert op._output_type == dtypes.FLOAT_DTYPE
+    assert not op.is_deterministic
+    assert len(node.inputs) == 0

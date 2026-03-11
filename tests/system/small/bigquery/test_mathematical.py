@@ -12,10 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""[Experimental] Utilities for testing BigQuery DataFrames.
+import bigframes.bigquery as bbq
 
-These modules are provided for testing the BigQuery DataFrames package. The
-interface is not considered stable.
-"""
 
-# Do not import modules contains pytest. (b/490160312)
+def test_rand(scalars_df_index):
+    df = scalars_df_index
+
+    # Apply rand
+    df = df.assign(random=bbq.rand())
+    result = df["random"]
+
+    # Eagerly evaluate
+    result_pd = result.to_pandas()
+
+    # Check length
+    assert len(result_pd) == len(df)
+
+    # Check values in [0, 1)
+    assert (result_pd >= 0).all()
+    assert (result_pd < 1).all()
+
+    # Check not all values are equal (unlikely collision for random)
+    if len(result_pd) > 1:
+        assert result_pd.nunique() > 1
