@@ -383,8 +383,9 @@ def test_describe_with_unsupported_type_returns_empty_dataframe(session):
 
 
 def test_describe_empty_dataframe_returns_empty_dataframe(session):
-    df = session.read_gbq("SELECT 1 AS int_col LIMIT 0")
-    df = df.drop(columns=["int_col"])
+    import bigframes.pandas as bpd
+
+    df = bpd.DataFrame()
 
     res = df.describe().to_pandas()
 
