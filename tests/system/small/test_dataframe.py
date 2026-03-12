@@ -5902,6 +5902,31 @@ def test_to_gbq_table_labels(scalars_df_index):
     assert table.labels["test"] == "labels"
 
 
+def test_to_gbq_obj_ref_persists(session):
+    # Test that saving and loading an Object Reference retains its dtype
+    bdf = session.from_glob_path(
+        "gs://cloud-samples-data/vision/ocr/*.jpg", name="uris"
+    ).head(1)
+
+    destination_table = "bigframes-dev.bigframes_tests_sys.test_obj_ref_persistence"
+    bdf.to_gbq(destination_table, if_exists="replace")
+
+    loaded_df = session.read_gbq(destination_table)
+    assert loaded_df["uris"].dtype == dtypes.OBJ_REF_DTYPE
+
+
+def test_dataframe_melt_multiindex(session):
+    # Tests that `melt` operations via count do not cause MultiIndex drops in Arrow
+    df = pd.DataFrame({"A": [1], "B": ["string"], "C": [3]})
+    df.columns = pd.MultiIndex.from_tuples(
+        [("Group1", "A"), ("Group2", "B"), ("Group1", "C")]
+    )
+    bdf = session.read_pandas(df)
+
+    count_df = bdf.count().to_pandas()
+    assert count_df.shape[0] == 3
+
+
 @pytest.mark.parametrize(
     ("col_names", "ignore_index"),
     [
