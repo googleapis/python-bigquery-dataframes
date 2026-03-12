@@ -505,9 +505,9 @@ def docs(session):
     """Build the docs for this library."""
     session.install("-e", ".[scikit-learn]")
     session.install(
-        "sphinx==8.2.3",
+        "sphinx==9.1.0",
         "sphinx-sitemap==2.9.0",
-        "myst-parser==4.0.1",
+        "myst-parser==5.0.0",
         "myst-nb==1.4.0",
         "pydata-sphinx-theme==0.16.1",
     )
