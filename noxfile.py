@@ -737,11 +737,7 @@ def notebook(session: nox.Session):
     notebooks_reg = {
         "regionalized.ipynb": [
             "asia-southeast1",
-            "eu",
-            "europe-west4",
-            "southamerica-west1",
             "us",
-            "us-central1",
         ]
     }
     notebooks_reg = {
