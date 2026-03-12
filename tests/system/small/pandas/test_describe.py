@@ -15,6 +15,8 @@
 import pandas.testing
 import pytest
 
+import bigframes.pandas as bpd
+
 
 def test_df_describe_non_temporal(scalars_dfs):
     # TODO: supply a reason why this isn't compatible with pandas 1.x
@@ -383,8 +385,6 @@ def test_describe_with_unsupported_type_returns_empty_dataframe(session):
 
 
 def test_describe_empty_dataframe_returns_empty_dataframe(session):
-    import bigframes.pandas as bpd
-
     df = bpd.DataFrame()
 
     res = df.describe().to_pandas()
