@@ -390,7 +390,8 @@ intersphinx_mapping = {
     "grpc": ("https://grpc.github.io/grpc/python/", None),
     "proto-plus": ("https://proto-plus-python.readthedocs.io/en/latest/", None),
     "protobuf": ("https://googleapis.dev/python/protobuf/latest/", None),
-    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
+    # TODO(tswast): re-enable if we can get temporary failures to be ignored.
+    # "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
     "pydata-google-auth": (
         "https://pydata-google-auth.readthedocs.io/en/latest/",
         None,
