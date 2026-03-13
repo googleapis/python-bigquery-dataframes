@@ -32,9 +32,29 @@ def compiler() -> Any:
         return ibis_compiler
 
 
+def compile_sql(
+    request: CompileRequest,
+    compiler_name: Optional[Literal["legacy", "stable", "experimental"]] = None,
+) -> CompileResult:
+    """Compiles a BigFrameNode according to the request into SQL."""
+    if compiler_name is None:
+        compiler_name = options.experiments.sql_compiler
+
+    # Use sqlglot compiler first if experimental mode is enabled.
+    if compiler_name == "experimental":
+        import bigframes.core.compile.sqlglot.compiler as sqlglot_compiler
+
+        return sqlglot_compiler.compile_sql(request)
+
+    import bigframes.core.compile.ibis_compiler.ibis_compiler as ibis_compiler
+
+    return ibis_compiler.compile_sql(request)
+
+
 __all__ = [
     "test_only_ibis_inferred_schema",
     "CompileRequest",
     "CompileResult",
     "compiler",
+    "compile_sql",
 ]
