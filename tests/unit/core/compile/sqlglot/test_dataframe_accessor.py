@@ -24,8 +24,9 @@ def test_sql_scalar(scalar_types_df: bpd.DataFrame, snapshot, monkeypatch):
     session = mock.create_autospec(bigframes.session.Session)
     session.read_pandas.return_value = scalar_types_df
 
-    def to_pandas(series, ordered=True):
-        sql, _, _ = series.to_frame()._to_sql_query(include_index=True, ordered=ordered)
+    def to_pandas(series, *, ordered):
+        assert ordered is True
+        sql, _, _ = series.to_frame()._to_sql_query(include_index=True)
         return sql
 
     monkeypatch.setattr(bpd.Series, "to_pandas", to_pandas)

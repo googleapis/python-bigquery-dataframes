@@ -2666,11 +2666,7 @@ class Block:
         )
 
     def to_sql_query(
-        self,
-        include_index: bool,
-        enable_cache: bool = True,
-        *,
-        ordered=False,
+        self, include_index: bool, enable_cache: bool = True
     ) -> Tuple[str, list[str], list[Label]]:
         """
         Compiles this DataFrame's expression tree to SQL, optionally
@@ -2692,9 +2688,7 @@ class Block:
         # Note: this uses the sql from the executor, so is coupled tightly to execution
         # implementaton. It will reference cached tables instead of original data sources.
         # Maybe should just compile raw BFET? Depends on user intent.
-        sql = self.session._executor.to_sql(
-            array_value, enable_cache=enable_cache, ordered=ordered
-        )
+        sql = self.session._executor.to_sql(array_value, enable_cache=enable_cache)
         return (
             sql,
             idx_ids,
