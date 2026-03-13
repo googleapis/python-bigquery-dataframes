@@ -772,6 +772,13 @@ def convert_schema_field(
 ) -> typing.Tuple[str, Dtype]:
     is_repeated = field.mode == "REPEATED"
     if field.field_type == "RECORD":
+        if field.description == "bigframes_dtype: OBJ_REF_DTYPE":
+            bf_dtype = OBJ_REF_DTYPE  # type: ignore
+            if is_repeated:
+                pa_type = pa.list_(bigframes_dtype_to_arrow_dtype(bf_dtype))
+                bf_dtype = pd.ArrowDtype(pa_type)
+            return field.name, bf_dtype
+
         mapped_fields = map(convert_schema_field, field.fields)
         fields = []
         for name, dtype in mapped_fields:
