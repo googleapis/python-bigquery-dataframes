@@ -183,6 +183,24 @@ def clean_up_by_session_id(
             pass
 
 
+def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> str:
+    return f"`{routine_ref.project}.{routine_ref.dataset_id}`.{routine_ref.routine_id}"
+
+
+def get_managed_function_name(
+    function_hash: str,
+    session_id: str | None = None,
+):
+    """Get a name for the bigframes managed function for the given user defined function."""
+    # TODO: Move over to logic used by remote functions
+    parts = [_BIGFRAMES_FUNCTION_PREFIX]
+    if session_id:
+        parts.append(session_id)
+    parts.append(function_hash)
+    return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
+
+
+# Deprecated: Use CodeDef.stable_hash() instead.
 def get_hash(def_, package_requirements=None):
     "Get hash (32 digits alphanumeric) of a function."
     # There is a known cell-id sensitivity of the cloudpickle serialization in
@@ -208,46 +226,28 @@ def get_hash(def_, package_requirements=None):
     return hashlib.md5(def_repr).hexdigest()
 
 
-def routine_ref_to_string_for_query(routine_ref: bigquery.RoutineReference) -> str:
-    return f"`{routine_ref.project}.{routine_ref.dataset_id}`.{routine_ref.routine_id}"
-
-
-def get_cloud_function_name(function_hash, session_id=None, uniq_suffix=None):
-    "Get a name for the cloud function for the given user defined function."
-    parts = [_BIGFRAMES_FUNCTION_PREFIX]
-    if session_id:
-        parts.append(session_id)
-    parts.append(function_hash)
-    if uniq_suffix:
-        parts.append(uniq_suffix)
-    return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
-
-
-def get_bigframes_function_name(function_hash, session_id, uniq_suffix=None):
-    "Get a name for the bigframes function for the given user defined function."
-    parts = [_BIGFRAMES_FUNCTION_PREFIX, session_id, function_hash]
-    if uniq_suffix:
-        parts.append(uniq_suffix)
-    return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
+def get_python_output_type_str_from_bigframes_metadata(
+    metadata_text: str,
+) -> Optional[str]:
+    try:
+        metadata_dict = json.loads(metadata_text)
+    except (TypeError, json.decoder.JSONDecodeError):
+        return None
+    try:
+        return metadata_dict["value"]["python_array_output_type"]
+    except KeyError:
+        return None
 
 
 def get_python_output_type_from_bigframes_metadata(
     metadata_text: str,
 ) -> Optional[type]:
-    try:
-        metadata_dict = json.loads(metadata_text)
-    except (TypeError, json.decoder.JSONDecodeError):
-        return None
-
-    try:
-        output_type = metadata_dict["value"]["python_array_output_type"]
-    except KeyError:
-        return None
+    output_type_str = get_python_output_type_str_from_bigframes_metadata(metadata_text)
 
     for (
         python_output_array_type
     ) in function_typing.RF_SUPPORTED_ARRAY_OUTPUT_PYTHON_TYPES:
-        if python_output_array_type.__name__ == output_type:
+        if python_output_array_type.__name__ == output_type_str:
             return list[python_output_array_type]  # type: ignore
 
     return None

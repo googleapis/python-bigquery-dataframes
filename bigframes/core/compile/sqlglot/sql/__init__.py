@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from bigframes.core.compile.sqlglot.sql.base import (
     cast,
-    escape_chars,
     identifier,
     is_null_literal,
     literal,
@@ -27,7 +26,6 @@ from bigframes.core.compile.sqlglot.sql.dml import insert, replace
 __all__ = [
     # From base.py
     "cast",
-    "escape_chars",
     "identifier",
     "is_null_literal",
     "literal",
