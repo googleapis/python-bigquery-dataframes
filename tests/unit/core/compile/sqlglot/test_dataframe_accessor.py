@@ -15,9 +15,12 @@
 import unittest.mock as mock
 
 import pandas as pd
+import pytest
 
 import bigframes.pandas as bpd
 import bigframes.session
+
+pytest.importorskip("pytest_snapshot")
 
 
 def test_sql_scalar(scalar_types_df: bpd.DataFrame, snapshot, monkeypatch):
