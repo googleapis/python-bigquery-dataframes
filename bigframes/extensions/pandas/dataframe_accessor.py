@@ -32,7 +32,7 @@ class BigQueryDataFrameAccessor:
     def __init__(self, pandas_obj: pandas.DataFrame):
         self._obj = pandas_obj
 
-    def sql_scalar(self, sql_template: str, session=None):
+    def sql_scalar(self, sql_template: str, *, output_dtype=None, session=None):
         """
         Compute a new pandas Series by applying a SQL scalar function to the DataFrame.
 
@@ -44,6 +44,9 @@ class BigQueryDataFrameAccessor:
             sql_template (str):
                 A SQL format string with Python-style {0}, {1}, etc. placeholders for each of
                 the columns in the DataFrame (in the order they appear in ``df.columns``).
+            output_dtype (a BigQuery DataFrames compatible dtype, optional):
+                If provided, BigQuery DataFrames uses this to determine the output
+                of the returned Series. This avoids a dry run query.
             session (bigframes.session.Session, optional):
                 The BigFrames session to use. If not provided, the default global session is used.
 
@@ -51,15 +54,14 @@ class BigQueryDataFrameAccessor:
             pandas.Series:
                 The result of the SQL scalar function as a pandas Series.
         """
+        # Import bigframes.bigquery here to avoid circular imports
+        import bigframes.bigquery
+
         if session is None:
             session = bf_session.get_global_session()
 
         bf_df = cast(bpd.DataFrame, session.read_pandas(self._obj))
-
-        # Import bigframes.bigquery here to avoid circular imports
-        import bigframes.bigquery
-
-        columns = [cast(bpd.Series, bf_df[col]) for col in bf_df.columns]
-        result = bigframes.bigquery.sql_scalar(sql_template, columns)
-
-        return result.to_pandas()
+        result = bigframes.bigquery.sql_scalar(
+            sql_template, bf_df, output_dtype=output_dtype
+        )
+        return result.to_pandas(ordered=True)
