@@ -160,14 +160,10 @@ class BigqueryCallableRoutine:
         *,
         local_func: Optional[Callable] = None,
         cloud_function_ref: Optional[str] = None,
-        post_routine: Optional[
-            Callable[[bigframes.series.Series], bigframes.series.Series]
-        ] = None,
         is_managed: bool = False,
     ):
         self._udf_def = udf_def
         self._session = session
-        self._post_routine = post_routine
         self._local_fun = local_func
         self._cloud_function = cloud_function_ref
         self._is_managed = is_managed

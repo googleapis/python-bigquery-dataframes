@@ -106,9 +106,9 @@ class DirectScalarType:
 
     @property
     def sql_type(self) -> str:
-        type_kind = function_typing.sdk_type_from_python_type(self._py_type)
-        assert type_kind is not None
-        return type_kind.name
+        sdk_type = function_typing.sdk_type_from_python_type(self._py_type)
+        assert sdk_type.type_kind is not None
+        return sdk_type.type_kind.name
 
     def stable_hash(self) -> bytes:
         hash_val = hashlib.md5()
@@ -233,7 +233,9 @@ class UdfSignature:
 
         ## Handle return type
         if routine.return_type is None:
-            raise ReturnTypeMissingError
+            raise ReturnTypeMissingError(
+                f"Routine {routine} has no return type. Routine properties: {routine._properties}"
+            )
 
         bq_return_type = cast(bigquery.StandardSqlDataType, routine.return_type)
 

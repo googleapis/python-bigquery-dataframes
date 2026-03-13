@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 # Placeholder variables for testing.
-input_sql_types = ("STRING",)
-output_sql_type = "STRING"
+input_types = ("STRING",)
+output_type = "STRING"
 
 
 # Convert inputs to BigQuery JSON. See:
@@ -152,7 +152,7 @@ def udf(*args):
 # }
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#input_format
 def udf_http(request):
-    global input_sql_types, output_sql_type
+    global input_types, output_type
     import json
     import traceback
 
@@ -164,7 +164,7 @@ def udf_http(request):
         replies = []
         for call in calls:
             reply = convert_to_bq_json(
-                output_sql_type, udf(*convert_call(input_sql_types, call))
+                output_type, udf(*convert_call(input_types, call))
             )
             if type(reply) is list:
                 # Since the BQ remote function does not support array yet,
@@ -178,7 +178,7 @@ def udf_http(request):
 
 
 def udf_http_row_processor(request):
-    global output_sql_type
+    global output_type
     import json
     import math
     import traceback
@@ -192,7 +192,7 @@ def udf_http_row_processor(request):
         replies = []
         for call in calls:
             reply = convert_to_bq_json(
-                output_sql_type, udf(get_pd_series(call[0]), *call[1:])
+                output_type, udf(get_pd_series(call[0]), *call[1:])
             )
             if type(reply) is list:
                 # Since the BQ remote function does not support array yet,
@@ -254,6 +254,9 @@ def generate_cloud_function_main_code(
     # Pickle the udf with all its dependencies
     udf_code_file, udf_pickle_file = generate_udf_code(code_def, directory)
 
+    input_types = tuple(arg.sql_type for arg in udf_signature.inputs)
+    output_type = udf_signature.output.sql_type
+
     code_blocks = [
         f"""\
 import cloudpickle
@@ -263,8 +266,8 @@ import cloudpickle
 with open("{udf_pickle_file}", "rb") as f:
     udf = cloudpickle.load(f)
 
-input_types = {repr(input_sql_types)}
-output_type = {repr(output_sql_type)}
+input_types = {repr(input_types)}
+output_type = {repr(output_type)}
 """
     ]
 
