@@ -596,7 +596,9 @@ class FunctionSession:
                 session=session,  # type: ignore
             )
 
-            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
+            udf_sig = udf_def.UdfSignature.from_py_signature(
+                py_sig
+            ).to_remote_function_compatible()
 
             (
                 rf_name,

@@ -177,7 +177,6 @@ class FunctionClient:
 
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
-        bq_function_return_type = udf_def.signature.output.sql_type
 
         remote_function_options = {
             "endpoint": udf_def.endpoint,
@@ -203,7 +202,7 @@ class FunctionClient:
         bq_function_name_escaped = bigframes.core.sql.identifier(sql_func_legal_name)
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name_escaped}({udf_def.signature.to_sql_input_signature()})
-            RETURNS {bq_function_return_type}
+            RETURNS {udf_def.signature.with_devirtualize().output.sql_type}
             REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
             OPTIONS ({remote_function_options_str})"""
 
@@ -658,6 +657,7 @@ class FunctionClient:
             connection_id=self._bq_connection_id,
             max_batching_rows=max_batching_rows,
             signature=func_signature,
+            bq_metadata=func_signature.protocol_metadata,
         )
         remote_function_name = name or get_bigframes_function_name(
             intended_rf_spec,

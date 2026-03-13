@@ -30,14 +30,14 @@ class LowerRemoteFunctionRule(op_lowering.OpLoweringRule):
     def lower(self, expr: expression.OpExpression) -> expression.Expression:
         assert isinstance(expr.op, ops.RemoteFunctionOp)
         func_def = expr.op.function_def
-        if isinstance(func_def.signature.output, udf_def.DirectScalarType):
-            return expr.op.as_expr(*expr.children)
-        assert isinstance(func_def.signature.output, udf_def.VirtualListTypeV1)
         devirtualized_expr = ops.RemoteFunctionOp(
             func_def.with_devirtualize(),
             apply_on_null=expr.op.apply_on_null,
         ).as_expr(*expr.children)
-        return func_def.signature.output.out_expr(devirtualized_expr)
+        if isinstance(func_def.signature.output, udf_def.VirtualListTypeV1):
+            return func_def.signature.output.out_expr(devirtualized_expr)
+        else:
+            return devirtualized_expr
 
 
 @dataclasses.dataclass
@@ -49,14 +49,13 @@ class LowerBinaryRemoteFunctionRule(op_lowering.OpLoweringRule):
     def lower(self, expr: expression.OpExpression) -> expression.Expression:
         assert isinstance(expr.op, ops.BinaryRemoteFunctionOp)
         func_def = expr.op.function_def
-
-        if isinstance(func_def.signature.output, udf_def.DirectScalarType):
-            return expr.op.as_expr(*expr.children)
-        assert isinstance(func_def.signature.output, udf_def.VirtualListTypeV1)
         devirtualized_expr = ops.BinaryRemoteFunctionOp(
             func_def.with_devirtualize(),
         ).as_expr(*expr.children)
-        return func_def.signature.output.out_expr(devirtualized_expr)
+        if isinstance(func_def.signature.output, udf_def.VirtualListTypeV1):
+            return func_def.signature.output.out_expr(devirtualized_expr)
+        else:
+            return devirtualized_expr
 
 
 @dataclasses.dataclass
@@ -68,13 +67,13 @@ class LowerNaryRemoteFunctionRule(op_lowering.OpLoweringRule):
     def lower(self, expr: expression.OpExpression) -> expression.Expression:
         assert isinstance(expr.op, ops.NaryRemoteFunctionOp)
         func_def = expr.op.function_def
-        if isinstance(func_def.signature.output, udf_def.DirectScalarType):
-            return expr.op.as_expr(*expr.children)
-        assert isinstance(func_def.signature.output, udf_def.VirtualListTypeV1)
         devirtualized_expr = ops.NaryRemoteFunctionOp(
             func_def.with_devirtualize(),
         ).as_expr(*expr.children)
-        return func_def.signature.output.out_expr(devirtualized_expr)
+        if isinstance(func_def.signature.output, udf_def.VirtualListTypeV1):
+            return func_def.signature.output.out_expr(devirtualized_expr)
+        else:
+            return devirtualized_expr
 
 
 UDF_LOWERING_RULES = (

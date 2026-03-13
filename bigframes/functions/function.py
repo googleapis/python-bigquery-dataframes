@@ -235,7 +235,7 @@ class BigqueryCallableRowRoutine:
         cloud_function_ref: Optional[str] = None,
         is_managed: bool = False,
     ):
-        assert self.udf_def.signature.is_row_processor
+        assert udf_def.signature.is_row_processor
         self._udf_def = udf_def
         self._session = session
         self._local_fun = local_func

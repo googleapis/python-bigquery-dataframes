@@ -92,6 +92,12 @@ class UdfArg:
 
 @dataclasses.dataclass(frozen=True)
 class DirectScalarType:
+    """
+    Represents a scalar value that is passed directly to the remote function.
+
+    For these values, BigQuery handles the serialization and deserialization without any additional processing.
+    """
+
     _py_type: type
 
     @property
@@ -119,16 +125,26 @@ class DirectScalarType:
     def from_sdk_type(cls, sdk_type: bigquery.StandardSqlDataType) -> DirectScalarType:
         return cls(function_typing.sdk_type_to_py_type(sdk_type))
 
+    @property
+    def emulating_type(self) -> DirectScalarType:
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
 class VirtualListTypeV1:
+    """
+    Represents a list of scalar values that is emulated as a JSON array string in the remote function.
+
+    Only works as output paramter right now where array -> string in function runtime, and then string -> array in SQL post-processing (defined in out_expr()).
+    """
+
     _PROTOCOL_ID = "virtual_list_v1"
 
     inner_dtype: DirectScalarType
 
     @property
     def py_type(self) -> Type[list[Any]]:
-        return list[function_typing.sdk_type_to_py_type(self.inner_dtype)]  # type: ignore
+        return list[self.inner_dtype.py_type]  # type: ignore
 
     # TODO: Specify emulating type and mapping expressions between said types
     @property
@@ -163,6 +179,8 @@ class VirtualListTypeV1:
 class RowSeriesInputFieldV1:
     """
     Used to handle functions that logically take a series as an input, but handled via a string protocol in the remote function.
+
+    For these, the serialization is dependent on index metadata, which must be provided by the caller.
     """
 
     _PROTOCOL_ID = "row_series_input_v1"
@@ -180,6 +198,11 @@ class RowSeriesInputFieldV1:
     def sql_type(self) -> str:
         return "STRING"
 
+    @property
+    def emulating_type(self) -> DirectScalarType:
+        # Regardless of list inner type, string is used to emulate the list in the remote function.
+        return DirectScalarType(str)
+
     def stable_hash(self) -> bytes:
         hash_val = hashlib.md5()
         hash_val.update(self._PROTOCOL_ID.encode())
@@ -196,14 +219,14 @@ class UdfSignature:
     output: DirectScalarType | VirtualListTypeV1
 
     def __post_init__(self):
-        if any(isinstance(arg, RowSeriesInputFieldV1) for arg in self.inputs):
-            if len(self.inputs) != 1:
-                raise ValueError("Row processor functions must have exactly one input.")
         assert all(isinstance(arg, UdfArg) for arg in self.inputs)
         assert isinstance(self.output, (DirectScalarType, VirtualListTypeV1))
 
     def to_sql_input_signature(self) -> str:
-        return ",".join(f"{field.name} {field.sql_type}" for field in self.inputs)
+        return ",".join(
+            f"{field.name} {field.sql_type}"
+            for field in self.with_devirtualize().inputs
+        )
 
     @property
     def protocol_metadata(self) -> str:
@@ -215,15 +238,19 @@ class UdfSignature:
         )
 
     @property
+    def is_virtual(self) -> bool:
+        dtypes = (self.output,) + tuple(arg.dtype for arg in self.inputs)
+        return not all(isinstance(dtype, DirectScalarType) for dtype in dtypes)
+
+    @property
     def is_row_processor(self) -> bool:
-        return any(isinstance(arg, RowSeriesInputFieldV1) for arg in self.inputs)
+        return any(isinstance(arg.dtype, RowSeriesInputFieldV1) for arg in self.inputs)
 
     def with_devirtualize(self) -> UdfSignature:
-        if isinstance(self.output, DirectScalarType):
-            return self
-        assert isinstance(self.output, VirtualListTypeV1)
         return UdfSignature(
-            inputs=self.inputs,
+            inputs=tuple(
+                UdfArg(arg.name, arg.dtype.emulating_type) for arg in self.inputs
+            ),
             output=self.output.emulating_type,
         )
 
@@ -245,7 +272,7 @@ class UdfSignature:
         if python_output_type := bigframes.functions._utils.get_python_output_type_from_bigframes_metadata(
             routine.description
         ):
-            if routine.return_type is None or bq_return_type.type_kind != "STRING":
+            if bq_return_type.type_kind != "STRING":
                 raise bf_formatting.create_exception_with_feedback_link(
                     TypeError,
                     "An explicit output_type should be provided only for a BigQuery function with STRING output.",
@@ -280,7 +307,7 @@ class UdfSignature:
                     ValueError,
                     "'input_types' was not set and parameter "
                     f"'{parameter.name}' is missing a type annotation. "
-                    "Types are required to use @remote_function.",
+                    "Types are required to use udfs.",
                 )
 
             input_types.append(UdfArg.from_py_param(parameter))
@@ -290,18 +317,22 @@ class UdfSignature:
                 ValueError,
                 "'output_type' was not set and function is missing a "
                 "return type annotation. Types are required to use "
-                "@remote_function.",
+                "udfs.",
             )
 
-        if get_origin(signature.return_annotation) is list:
-            inner_py_type = get_args(signature.return_annotation)[0]
-            virtual_list_output_type = VirtualListTypeV1(
-                DirectScalarType(inner_py_type)
-            )
-            return cls(tuple(input_types), virtual_list_output_type)
-        else:
-            direct_output_type = DirectScalarType(signature.return_annotation)
-            return cls(tuple(input_types), direct_output_type)
+        output_type = DirectScalarType(signature.return_annotation)
+        return cls(tuple(input_types), output_type)
+
+    def to_remote_function_compatible(self) -> UdfSignature:
+        # need to virtualize list outputs
+        if isinstance(self.output, DirectScalarType):
+            if get_origin(self.output.py_type) is list:
+                inner_py_type = get_args(self.output.py_type)[0]
+                return UdfSignature(
+                    inputs=self.inputs,
+                    output=VirtualListTypeV1(DirectScalarType(inner_py_type)),
+                )
+        return self
 
     def stable_hash(self) -> bytes:
         hash_val = hashlib.md5()
@@ -321,6 +352,8 @@ class BigqueryUdf:
     signature: UdfSignature
 
     def with_devirtualize(self) -> BigqueryUdf:
+        if not self.signature.is_virtual:
+            return self
         return BigqueryUdf(
             routine_ref=self.routine_ref,
             signature=self.signature.with_devirtualize(),
