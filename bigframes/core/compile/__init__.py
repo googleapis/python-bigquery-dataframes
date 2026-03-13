@@ -22,14 +22,14 @@ from bigframes.core.compile.configs import CompileRequest, CompileResult
 
 def compiler() -> Any:
     """Returns the appropriate compiler module based on session options."""
-    if options.experiments.sql_compiler == "experimental":
-        import bigframes.core.compile.sqlglot.compiler as sqlglot_compiler
-
-        return sqlglot_compiler
-    else:
+    if options.experiments.sql_compiler == "legacy":
         import bigframes.core.compile.ibis_compiler.ibis_compiler as ibis_compiler
 
         return ibis_compiler
+    else:
+        import bigframes.core.compile.sqlglot.compiler as sqlglot_compiler
+
+        return sqlglot_compiler
 
 
 __all__ = [
