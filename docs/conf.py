@@ -280,6 +280,8 @@ suppress_warnings = [
     # See https://github.com/sphinx-doc/sphinx/blob
     # /2a65ffeef5c107c19084fabdd706cdff3f52d93c/sphinx/domains/python.py#L843
     "ref.python",
+    # Allow external websites to be down occasionally.
+    "intersphinx.external",
 ]
 
 # -- Options for LaTeX output ---------------------------------------------
