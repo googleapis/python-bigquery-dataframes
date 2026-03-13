@@ -106,7 +106,9 @@ class DirectScalarType:
 
     @property
     def sql_type(self) -> str:
-        return function_typing.sdk_type_from_python_type(self._py_type).type_kind.name
+        type_kind = function_typing.sdk_type_from_python_type(self._py_type)
+        assert type_kind is not None
+        return type_kind.name
 
     def stable_hash(self) -> bytes:
         hash_val = hashlib.md5()
@@ -131,9 +133,7 @@ class VirtualListTypeV1:
     # TODO: Specify emulating type and mapping expressions between said types
     @property
     def bf_type(self) -> bigframes.dtypes.Dtype:
-        return bigframes.dtypes.list_type(
-            function_typing.sdk_type_to_bf_type(self.inner_dtype)
-        )
+        return bigframes.dtypes.list_type(self.inner_dtype.bf_type)
 
     @property
     def emulating_type(self) -> DirectScalarType:
@@ -259,14 +259,6 @@ class UdfSignature:
                     "a type is supported as python output type.",
                 )
 
-        if (
-            return_type.sql_type
-            not in function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS
-        ):
-            raise ValueError(
-                f"Remote function must have one of the following supported output types: {function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS}"
-            )
-
         ## Handle input types
         udf_fields = []
         for argument in routine.arguments:
@@ -335,15 +327,6 @@ class BigqueryUdf:
     @classmethod
     def from_routine(cls, routine: bigquery.Routine) -> BigqueryUdf:
         signature = UdfSignature.from_routine(routine)
-
-        if (
-            signature.output.sql_type is None
-            or signature.output.sql_type
-            not in function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS
-        ):
-            raise ValueError(
-                f"Remote function must have one of the following supported output types: {function_typing.RF_SUPPORTED_IO_BIGQUERY_TYPEKINDS}"
-            )
         return cls(routine.reference, signature=signature)
 
 

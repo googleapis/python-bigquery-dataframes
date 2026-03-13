@@ -641,7 +641,7 @@ class FunctionClient:
         cloud_function_name = get_cloud_function_name(
             cloud_func_spec,
             session_id=self._session.session_id if (name is None) else None,
-            uniq_suffix=random_suffix if reuse is False else None,
+            uniq_suffix=random_suffix if (not reuse) else None,
         )
 
         cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
@@ -659,32 +659,29 @@ class FunctionClient:
             max_batching_rows=max_batching_rows,
             signature=func_signature,
         )
-        # Override value-derived name if reuse is False, or if name is explicitly provided.
-        # If reuse is False, then attach a unique suffix to the intended
-        # function name to make it unique.
-        rf_name = get_bigframes_function_name(
+        remote_function_name = name or get_bigframes_function_name(
             intended_rf_spec,
-            self._session.session_id if (name is None) else None,
-            random_suffix if reuse is False else None,
+            self._session.session_id,
+            random_suffix if (not reuse) else None,
         )
 
         if reuse:
-            existing_rf_spec = self.get_remote_function_specs(rf_name)
+            existing_rf_spec = self.get_remote_function_specs(remote_function_name)
             # Create the BQ remote function in following circumstances:
             # 1. It does not exist
             # 2. It exists but the existing remote function has different
             #    configuration than intended
             created_new = False
             if not existing_rf_spec or (existing_rf_spec != intended_rf_spec):
-                self.create_bq_remote_function(rf_name, intended_rf_spec)
+                self.create_bq_remote_function(remote_function_name, intended_rf_spec)
                 created_new = True
             else:
-                logger.info(f"Remote function {rf_name} already exists.")
+                logger.info(f"Remote function {remote_function_name} already exists.")
 
-            return rf_name, cloud_function_name, created_new
+            return remote_function_name, cloud_function_name, created_new
         else:
-            self.create_bq_remote_function(rf_name, intended_rf_spec)
-            return rf_name, cloud_function_name, True
+            self.create_bq_remote_function(remote_function_name, intended_rf_spec)
+            return remote_function_name, cloud_function_name, True
 
     def get_remote_function_specs(
         self, remote_function_name: str
