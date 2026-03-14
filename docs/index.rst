@@ -25,7 +25,7 @@ Core Components of BigFrames
 BigQuery DataFrames is organized into specialized modules designed for the modern data stack:
 
 1.  :mod:`bigframes.pandas`: A high-performance, pandas-compatible API for scalable data exploration, cleaning, and transformation.
-2.  :mod:`bigframes.bigquery``: Specialized utilities for direct BigQuery resource management, including integrations with Gemini and other AI models in the :mod:`bigframes.bigquery.ai` submodule.
+2.  :mod:`bigframes.bigquery`: Specialized utilities for direct BigQuery resource management, including integrations with Gemini and other AI models in the :mod:`bigframes.bigquery.ai` submodule.
 
 
 Quickstart: Scalable Data Analysis in Seconds
