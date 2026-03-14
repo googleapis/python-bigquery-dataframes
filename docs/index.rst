@@ -1,7 +1,7 @@
 .. BigQuery DataFrames documentation main file
 
 Scalable Python Data Analysis with BigQuery DataFrames (BigFrames)
-=================================================================
+==================================================================
 
 .. meta::
    :description: BigQuery DataFrames (BigFrames) provides a scalable, pandas-compatible Python API for data analysis and machine learning on petabyte-scale datasets using the BigQuery engine.
