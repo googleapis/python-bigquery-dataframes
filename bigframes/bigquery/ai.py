@@ -43,10 +43,14 @@ Key capabilities include:
     >>> import bigframes.pandas as bpd
     >>> import bigframes.bigquery as bbq
 
-    >>> df = bpd.DataFrame({"text_input": ["Is this a positive review?", "The food was terrible."]})  # doctest: +SKIP
+    >>> df = bpd.DataFrame({
+    ...     "text_input": [
+    ...         "Is this a positive review? The food was terrible.",
+    ...     ],
+    ... })  # doctest: +SKIP
 
     >>> # Assuming a Gemini model has been created in BigQuery as 'my_gemini_model'
-    >>> result = bq.ai.generate_text(df["text_input"], model_name="my_gemini_model")  # doctest: +SKIP
+    >>> result = bq.ai.generate_text("my_gemini_model", df["text_input"])  # doctest: +SKIP
 
 For more information on the underlying BigQuery ML syntax, see:
 https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-generate-bool
