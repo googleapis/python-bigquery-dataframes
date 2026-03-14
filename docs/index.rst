@@ -68,14 +68,14 @@ Explore the Documentation
     user_guide/index
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
     :caption: API Reference
 
     reference/index
     supported_pandas_apis
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
     :caption: Community & Updates
 
     changelog
