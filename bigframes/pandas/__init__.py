@@ -31,12 +31,12 @@ using familiar pandas syntax while the computations are executed in the cloud.
   :class:`~bigframes.pandas.DataFrame` objects.
 * **Direct BigQuery Integration:** Read from and write to BigQuery tables and
   queries with :func:`bigframes.pandas.read_gbq` and
-  :func:`bigframes.pandas.to_gbq`.
+  :func:`bigframes.pandas.DataFrame.to_gbq`.
 * **User-defined Functions (UDFs):** Effortlessly deploy Python functions
   functions using the :func:`bigframes.pandas.remote_function` and
   :func:`bigframes.pandas.udf` decorators.
 * **Data Ingestion:** Support for various formats including CSV, Parquet, JSON,
-  and Arrow via :func:`bigrames.pandas.read_csv`,
+  and Arrow via :func:`bigframes.pandas.read_csv`,
   :func:`bigframes.pandas.read_parquet`, etc., which are automatically uploaded
   to BigQuery for processing. Convert any pandas DataFrame into a BigQuery
   DataFrame using :func:`bigframes.pandas.read_pandas`.
