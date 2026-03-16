@@ -834,11 +834,16 @@ def convert_to_schema_field(
                     convert_to_schema_field(field.name, inner_bf_type, overrides)
                 )
 
-            description = (
-                OBJ_REF_DESCRIPTION_TAG if bigframes_dtype == OBJ_REF_DTYPE else None
-            )
+            if bigframes_dtype == OBJ_REF_DTYPE:
+                return google.cloud.bigquery.SchemaField(
+                    name,
+                    "RECORD",
+                    fields=inner_fields,
+                    description=OBJ_REF_DESCRIPTION_TAG,
+                )
+
             return google.cloud.bigquery.SchemaField(
-                name, "RECORD", fields=inner_fields, description=description
+                name, "RECORD", fields=inner_fields
             )
         if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
             # Timedeltas are represented as integers in microseconds.
