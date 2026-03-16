@@ -1256,7 +1256,7 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
             output_type=int,
             reuse=False,
             cloud_function_service_account=gcf_service_account,
-            cloud_function_ingress_settings="all",
+            cloud_function_ingress_settings="internal-and-gclb",
         )
         def double_num(x):
             if x is None:
@@ -1329,7 +1329,7 @@ def test_remote_function_via_session_custom_build_sa(
             reuse=False,
             cloud_function_service_account="default",
             cloud_build_service_account=set_build_service_account,
-            cloud_function_ingress_settings="all",
+            cloud_function_ingress_settings="internal-and-gclb",
         )
         def double_num(x):
             if x is None:
@@ -1475,7 +1475,7 @@ def test_remote_function_via_session_vpc(scalars_dfs):
             cloud_function_service_account="default",
             cloud_function_vpc_connector=gcf_vpc_connector,
             cloud_function_vpc_connector_egress_settings="all",
-            cloud_function_ingress_settings="all",
+            cloud_function_ingress_settings="internal-and-gclb",
         )(double_num)
 
         gcf = rf_session.cloudfunctionsclient.get_function(
