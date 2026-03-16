@@ -46,8 +46,9 @@ def test_sql_scalar(scalar_types_df: bpd.DataFrame, snapshot, monkeypatch):
 
 
 def test_ai_forecast(snapshot, monkeypatch):
-    import bigframes.session
     import bigframes.bigquery.ai
+    import bigframes.session
+
     session = mock.create_autospec(bigframes.session.Session)
     bf_df = mock.create_autospec(bpd.DataFrame)
     session.read_pandas.return_value = bf_df
@@ -59,6 +60,7 @@ def test_ai_forecast(snapshot, monkeypatch):
         return result_df
 
     import bigframes.bigquery.ai
+
     monkeypatch.setattr(bigframes.bigquery.ai, "forecast", mock_ai_forecast)
 
     df = pd.DataFrame({"date": ["2020-01-01"], "value": [1.0]})
