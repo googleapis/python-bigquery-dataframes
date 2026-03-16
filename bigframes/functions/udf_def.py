@@ -255,8 +255,11 @@ class UdfSignature:
             output=self.output.emulating_type,
         )
 
+    # TODO(493293086): Deprecate is_row_processor.
     @classmethod
-    def from_routine(cls, routine: bigquery.Routine) -> UdfSignature:
+    def from_routine(
+        cls, routine: bigquery.Routine, is_row_processor: bool = False
+    ) -> UdfSignature:
         import bigframes.functions._utils
 
         ## Handle return type
@@ -291,7 +294,20 @@ class UdfSignature:
 
         ## Handle input types
         udf_fields = []
+
+        if is_row_processor:
+            if len(routine.arguments) != 1:
+                raise ValueError(
+                    "Row processor functions must have exactly one input argument."
+                )
+
         for argument in routine.arguments:
+            if is_row_processor:
+                if argument.data_type.type_kind != "STRING":
+                    raise ValueError(
+                        "Row processor functions must have STRING input type."
+                    )
+                udf_fields.append(UdfArg(argument.name, RowSeriesInputFieldV1()))
             udf_fields.append(UdfArg.from_sdk(argument))
 
         return cls(
@@ -361,8 +377,12 @@ class BigqueryUdf:
         )
 
     @classmethod
-    def from_routine(cls, routine: bigquery.Routine) -> BigqueryUdf:
-        signature = UdfSignature.from_routine(routine)
+    def from_routine(
+        cls, routine: bigquery.Routine, is_row_processor: bool = False
+    ) -> BigqueryUdf:
+        signature = UdfSignature.from_routine(
+            routine, is_row_processor=is_row_processor
+        )
         return cls(routine.reference, signature=signature)
 
 

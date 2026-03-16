@@ -91,16 +91,21 @@ def _try_import_routine(
 def _try_import_row_routine(
     routine: bigquery.Routine, session: bigframes.Session
 ) -> BigqueryCallableRowRoutine:
-    udf_def = _routine_as_udf_def(routine)
+    udf_def = _routine_as_udf_def(routine, is_row_processor=True)
+
     is_remote = (
         hasattr(routine, "remote_function_options") and routine.remote_function_options
     )
     return BigqueryCallableRowRoutine(udf_def, session, is_managed=not is_remote)
 
 
-def _routine_as_udf_def(routine: bigquery.Routine) -> udf_def.BigqueryUdf:
+def _routine_as_udf_def(
+    routine: bigquery.Routine, is_row_processor: bool = False
+) -> udf_def.BigqueryUdf:
     try:
-        return udf_def.BigqueryUdf.from_routine(routine)
+        return udf_def.BigqueryUdf.from_routine(
+            routine, is_row_processor=is_row_processor
+        )
     except udf_def.ReturnTypeMissingError:
         raise bf_formatting.create_exception_with_feedback_link(
             ValueError, "Function return type must be specified."
@@ -140,6 +145,7 @@ def read_gbq_function(
             ValueError, f"Unknown function '{routine_ref}'."
         )
 
+    # TODO(493293086): Deprecate is_row_processor.
     if is_row_processor:
         return _try_import_row_routine(routine, session)
     else:

@@ -1723,7 +1723,7 @@ def test_remote_function_reflects_config_change_with_reuse(session):
         gcf = session.cloudfunctionsclient.get_function(
             name=square_remote_2.bigframes_cloud_function
         )
-        assert gcf.service_config.available_cpu == 2.0
+        assert float(gcf.service_config.available_cpu) == 2.0
     finally:
         # clean up the gcp assets created for the remote function
         if square_remote is not None:

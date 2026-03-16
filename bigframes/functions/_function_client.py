@@ -687,19 +687,17 @@ class FunctionClient:
         self, remote_function_name: str
     ) -> udf_def.RemoteFunctionConfig | None:
         """Check whether a remote function already exists for the udf."""
-        routines = self._bq_client.list_routines(
-            f"{self._gcp_project_id}.{self._bq_dataset}"
-        )
         try:
-            for routine in routines:
-                routine = cast(bigquery.Routine, routine)
-                if routine.reference.routine_id == remote_function_name:
-                    try:
-                        return udf_def.RemoteFunctionConfig.from_bq_routine(routine)
-                    except udf_def.ReturnTypeMissingError:
-                        # The remote function exists, but it's missing a return type.
-                        # Something is wrong with the function, so we should replace it.
-                        return None
+            routine = self._bq_client.get_routine(
+                f"{self._gcp_project_id}.{self._bq_dataset}.{remote_function_name}"
+            )
+            if routine.reference.routine_id == remote_function_name:
+                try:
+                    return udf_def.RemoteFunctionConfig.from_bq_routine(routine)
+                except udf_def.ReturnTypeMissingError:
+                    # The remote function exists, but it's missing a return type.
+                    # Something is wrong with the function, so we should replace it.
+                    return None
         except google.api_core.exceptions.NotFound:
             # The dataset might not exist, in which case the remote function doesn't, either.
             # Note: list_routines doesn't make an API request until we iterate on the response object.
