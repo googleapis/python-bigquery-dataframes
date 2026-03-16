@@ -39,14 +39,13 @@ class AIAccessor:
         horizon: int = 10,
         confidence_level: float = 0.95,
         context_window: Optional[int] = None,
+        output_historical_time_series: bool = False,
         session=None,
     ) -> pandas.DataFrame:
         """
         Forecast time series at future horizon using BigQuery AI.FORECAST.
 
-        The DataFrame is converted to BigFrames by calling ``read_pandas``, then the forecast
-        is generated using ``bigframes.bigquery.ai.forecast``, and the result is
-        converted back to a pandas DataFrame using ``to_pandas``.
+        See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-forecast
 
         Args:
             data_col (str):
@@ -57,7 +56,7 @@ class AIAccessor:
                 The time points column provides the time points used to generate the forecast.
                 The time points column must use one of the following data types: TIMESTAMP, DATE and DATETIME
             model (str, default "TimesFM 2.0"):
-                A str value that specifies the name of the model. TimesFM 2.0 is the only supported value, and is the default value.
+                A str value that specifies the name of the model. "TimesFM 2.0" and "TimesFM 2.5" are supported.
             id_cols (Iterable[str], optional):
                 An iterable of str value that specifies the names of one or more ID columns. Each ID identifies a unique time series to forecast.
                 Specify one or more values for this argument in order to forecast multiple time series using a single query.
@@ -72,6 +71,8 @@ class AIAccessor:
                 The context window length determines how many of the most recent data points from the input time series are use by the model.
                 If you don't specify a value, the AI.FORECAST function automatically chooses the smallest possible context window length to use
                 that is still large enough to cover the number of time series data points in your input data.
+            output_historical_time_series (bool, default False):
+                A boolean value that determines whether to include the input time series history in the forecast.
             session (bigframes.session.Session, optional):
                 The BigFrames session to use. If not provided, the default global session is used.
 
@@ -94,6 +95,7 @@ class AIAccessor:
             horizon=horizon,
             confidence_level=confidence_level,
             context_window=context_window,
+            output_historical_time_series=output_historical_time_series,
         )
         return result.to_pandas(ordered=True)
 

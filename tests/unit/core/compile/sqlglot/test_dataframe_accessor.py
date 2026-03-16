@@ -78,4 +78,5 @@ def test_ai_forecast(snapshot, monkeypatch):
         "horizon": 5,
         "confidence_level": 0.95,
         "context_window": None,
+        "output_historical_time_series": False,
     }
