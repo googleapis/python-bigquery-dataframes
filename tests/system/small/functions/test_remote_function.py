@@ -106,7 +106,7 @@ def get_bq_connection_id_path_format(connection_id_dot_format):
     return f"projects/{fields[0]}/locations/{fields[1]}/connections/{fields[2]}"
 
 
-# @pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
     bigquery_client,
     bigqueryconnection_client,

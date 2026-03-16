@@ -586,7 +586,7 @@ class FunctionClient:
         cloud_function_vpc_connector_egress_settings: str | None,
         cloud_function_memory_mib: int | None,
         cloud_function_cpus: float | None,
-        cloud_function_ingress_settings: str | None,
+        cloud_function_ingress_settings: str,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
@@ -620,7 +620,7 @@ class FunctionClient:
             or "private-ranges-only",
             memory_mib=cloud_function_memory_mib,
             cpus=cloud_function_cpus,
-            ingress_settings=cloud_function_ingress_settings or "internal_only",
+            ingress_settings=cloud_function_ingress_settings,
             workers=workers,
             threads=threads,
             concurrency=concurrency,

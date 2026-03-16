@@ -113,8 +113,7 @@ class DirectScalarType:
     @property
     def sql_type(self) -> str:
         sdk_type = function_typing.sdk_type_from_python_type(self._py_type)
-        assert sdk_type.type_kind is not None
-        return sdk_type.type_kind.name
+        return function_typing.sdk_type_to_sql_string(sdk_type)
 
     def stable_hash(self) -> bytes:
         hash_val = hashlib.md5()
@@ -229,13 +228,15 @@ class UdfSignature:
         )
 
     @property
-    def protocol_metadata(self) -> str:
+    def protocol_metadata(self) -> str | None:
         import bigframes.functions._utils
 
         # TODO: The output field itself should handle this, to handle protocol versioning.
-        return bigframes.functions._utils.get_bigframes_metadata(
-            python_output_type=self.output.py_type
-        )
+        if isinstance(self.output, VirtualListTypeV1):
+            return bigframes.functions._utils.get_bigframes_metadata(
+                python_output_type=self.output.py_type
+            )
+        return None
 
     @property
     def is_virtual(self) -> bool:
