@@ -1012,16 +1012,13 @@ def test_to_gbq_obj_ref(session, dataset_id: str, bigquery_client):
     df["obj_ref_col"] = df["uri_col"].str.to_blob()
     df = df.drop(columns=["uri_col"])
 
-    # Save the dataframe to bigquery
     df.to_gbq(destination_table)
 
-    # Verify the table schema description is added
     table = bigquery_client.get_table(destination_table)
     obj_ref_field = next(f for f in table.schema if f.name == "obj_ref_col")
     assert obj_ref_field.field_type == "RECORD"
     assert obj_ref_field.description == "bigframes_dtype: OBJ_REF_DTYPE"
 
-    # Verify reloading it correctly restores the dtype
     reloaded_df = session.read_gbq(destination_table)
     assert reloaded_df["obj_ref_col"].dtype == dtypes.OBJ_REF_DTYPE
     assert len(reloaded_df) == 1

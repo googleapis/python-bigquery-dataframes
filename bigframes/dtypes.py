@@ -772,7 +772,7 @@ def convert_schema_field(
 ) -> typing.Tuple[str, Dtype]:
     is_repeated = field.mode == "REPEATED"
     if field.field_type == "RECORD":
-        if field.description == "bigframes_dtype: OBJ_REF_DTYPE":
+        if field.description == OBJ_REF_DESCRIPTION_TAG:
             bf_dtype = OBJ_REF_DTYPE  # type: ignore
             if is_repeated:
                 pa_type = pa.list_(bigframes_dtype_to_arrow_dtype(bf_dtype))
@@ -834,8 +834,11 @@ def convert_to_schema_field(
                     convert_to_schema_field(field.name, inner_bf_type, overrides)
                 )
 
+            description = (
+                OBJ_REF_DESCRIPTION_TAG if bigframes_dtype == OBJ_REF_DTYPE else None
+            )
             return google.cloud.bigquery.SchemaField(
-                name, "RECORD", fields=inner_fields
+                name, "RECORD", fields=inner_fields, description=description
             )
         if bigframes_dtype.pyarrow_dtype == pa.duration("us"):
             # Timedeltas are represented as integers in microseconds.
@@ -978,6 +981,7 @@ def lcd_type_or_throw(dtype1: Dtype, dtype2: Dtype) -> Dtype:
 
 
 TIMEDELTA_DESCRIPTION_TAG = "#microseconds"
+OBJ_REF_DESCRIPTION_TAG = "bigframes_dtype: OBJ_REF_DTYPE"
 
 
 def contains_db_dtypes_json_arrow_type(type_):
