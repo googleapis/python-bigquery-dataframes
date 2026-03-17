@@ -822,7 +822,11 @@ def convert_to_schema_field(
             )
             inner_field = convert_to_schema_field(name, inner_type, overrides)
             return google.cloud.bigquery.SchemaField(
-                name, inner_field.field_type, mode="REPEATED", fields=inner_field.fields
+                name,
+                inner_field.field_type,
+                mode="REPEATED",
+                fields=inner_field.fields,
+                description=inner_field.description,
             )
         if pa.types.is_struct(bigframes_dtype.pyarrow_dtype):
             inner_fields: list[google.cloud.bigquery.SchemaField] = []
