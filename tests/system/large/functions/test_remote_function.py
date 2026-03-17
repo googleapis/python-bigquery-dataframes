@@ -1229,7 +1229,7 @@ def test_remote_function_anonymous_dataset(session, scalars_dfs):
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_via_session_custom_sa(scalars_dfs):
+def test_remote_function_via_session_custom_sa(scalars_pandas_df_index):
     # TODO(shobs): Automate the following set-up during testing in the test project.
     #
     # For upfront convenience, the following set up has been statically created
@@ -1248,14 +1248,13 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
     rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
 
     try:
-        # TODO(shobs): Figure out why the default ingress setting
-        # (internal-only) does not work here
+
         @rf_session.remote_function(
             input_types=[int],
             output_type=int,
             reuse=False,
             cloud_function_service_account=gcf_service_account,
-            cloud_function_ingress_settings="all",
+            cloud_function_ingress_settings="internal-and-gclb",
         )
         def double_num(x):
             if x is None:
@@ -1269,13 +1268,12 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
         assert gcf.service_config.service_account_email == gcf_service_account
 
         # assert that the function works as expected on data
-        scalars_df, scalars_pandas_df = scalars_dfs
 
-        bf_int64_col = scalars_df["int64_col"]
+        bf_int64_col = rf_session.read_pandas(scalars_pandas_df_index.int64_col)
         bf_result_col = bf_int64_col.apply(double_num)
         bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
 
-        pd_int64_col = scalars_pandas_df["int64_col"]
+        pd_int64_col = scalars_pandas_df_index.int64_col
         pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x + x)
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
@@ -1302,7 +1300,7 @@ def test_remote_function_via_session_custom_sa(scalars_dfs):
 )
 @pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_via_session_custom_build_sa(
-    scalars_dfs, set_build_service_account
+    set_build_service_account, scalars_pandas_df_index
 ):
     # TODO(shobs): Automate the following set-up during testing in the test project.
     #
@@ -1320,15 +1318,14 @@ def test_remote_function_via_session_custom_build_sa(
     rf_session = bigframes.Session(context=bigframes.BigQueryOptions(project=project))
 
     try:
-        # TODO(shobs): Figure out why the default ingress setting
-        # (internal-only) does not work here
+
         @rf_session.remote_function(
             input_types=[int],
             output_type=int,
             reuse=False,
             cloud_function_service_account="default",
             cloud_build_service_account=set_build_service_account,
-            cloud_function_ingress_settings="all",
+            cloud_function_ingress_settings="internal-and-gclb",
         )
         def double_num(x):
             if x is None:
@@ -1341,14 +1338,11 @@ def test_remote_function_via_session_custom_build_sa(
         )
         assert gcf.build_config.service_account == expected_build_service_account
 
-        # assert that the function works as expected on data
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
+        bf_int64_col = rf_session.read_pandas(scalars_pandas_df_index.int64_col)
         bf_result_col = bf_int64_col.apply(double_num)
         bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
 
-        pd_int64_col = scalars_pandas_df["int64_col"]
+        pd_int64_col = scalars_pandas_df_index.int64_col
         pd_result_col = pd_int64_col.apply(lambda x: x if x is None else x + x)
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
@@ -1435,7 +1429,7 @@ def test_remote_function_with_gcf_cmek():
 
 
 @pytest.mark.flaky(retries=2, delay=120)
-def test_remote_function_via_session_vpc(scalars_dfs):
+def test_remote_function_via_session_vpc(scalars_pandas_df_index):
     # TODO(shobs): Automate the following set-up during testing in the test project.
     #
     # For upfront convenience, the following set up has been statically created
@@ -1465,8 +1459,6 @@ def test_remote_function_via_session_vpc(scalars_dfs):
                 return x
             return x + x
 
-        # TODO(shobs): See if the test vpc can be configured to make this flow
-        # work with the default ingress setting (internal-only)
         double_num_remote = rf_session.remote_function(
             input_types=[int],
             output_type=int,
@@ -1474,7 +1466,7 @@ def test_remote_function_via_session_vpc(scalars_dfs):
             cloud_function_service_account="default",
             cloud_function_vpc_connector=gcf_vpc_connector,
             cloud_function_vpc_connector_egress_settings="all",
-            cloud_function_ingress_settings="all",
+            cloud_function_ingress_settings="internal-and-gclb",
         )(double_num)
 
         gcf = rf_session.cloudfunctionsclient.get_function(
@@ -1488,15 +1480,12 @@ def test_remote_function_via_session_vpc(scalars_dfs):
         # cloud_function_vpc_connector_egress_settings="all" earlier.
         assert gcf.service_config.vpc_connector_egress_settings == 2
 
-        # assert that the function works as expected on data
-        scalars_df, scalars_pandas_df = scalars_dfs
-
-        bf_int64_col = scalars_df["int64_col"]
+        bf_int64_col = rf_session.read_pandas(scalars_pandas_df_index.int64_col)
         bf_result_col = bf_int64_col.apply(double_num_remote)
         bf_result = bf_int64_col.to_frame().assign(result=bf_result_col).to_pandas()
 
-        pd_int64_col = scalars_pandas_df["int64_col"]
-        pd_result_col = pd_int64_col.apply(double_num).astype("Int64")
+        pd_int64_col = scalars_pandas_df_index.int64_col
+        pd_result_col = pd_int64_col.apply(double_num)
         pd_result = pd_int64_col.to_frame().assign(result=pd_result_col)
 
         assert_frame_equal(bf_result, pd_result, check_dtype=False)
