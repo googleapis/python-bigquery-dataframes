@@ -19,6 +19,7 @@ import inspect
 import logging
 import os
 import random
+import re
 import shutil
 import string
 import tempfile
@@ -196,10 +197,8 @@ class FunctionClient:
         import bigframes.core.utils
 
         # removes anything that isn't letter, number or underscore
-        sql_func_legal_name = bigframes.core.utils.label_to_identifier(
-            name, strict=True
-        )
-        bq_function_name_escaped = bigframes.core.sql.identifier(sql_func_legal_name)
+        _validate_routine_name(name)
+        bq_function_name_escaped = bigframes.core.sql.identifier(name)
         create_function_ddl = f"""
             CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name_escaped}({udf_def.signature.to_sql_input_signature()})
             RETURNS {udf_def.signature.with_devirtualize().output.sql_type}
@@ -263,7 +262,10 @@ class FunctionClient:
         # Augment user package requirements with any internal package
         # requirements.
         packages = _utils.get_updated_package_requirements(
-            packages, is_row_processor, capture_references, ignore_package_version=True
+            packages or [],
+            is_row_processor,
+            capture_references,
+            ignore_package_version=True,
         )
         if packages:
             managed_function_options["packages"] = packages
@@ -579,7 +581,7 @@ class FunctionClient:
         reuse: bool,
         name: str | None,
         package_requirements: tuple[str, ...],
-        max_batching_rows: int,
+        max_batching_rows: int | None,
         cloud_function_timeout: int | None,
         cloud_function_max_instance_count: int | None,
         cloud_function_vpc_connector: str | None,
@@ -591,7 +593,7 @@ class FunctionClient:
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
         # requirements
-        package_requirements = _utils.get_updated_package_requirements(
+        full_package_requirements = _utils.get_updated_package_requirements(
             package_requirements, func_signature.is_row_processor
         )
 
@@ -611,7 +613,7 @@ class FunctionClient:
         concurrency = (workers * threads) if (expected_milli_cpus >= 1000) else 1
 
         cloud_func_spec = udf_def.CloudRunFunctionConfig(
-            code=udf_def.CodeDef.from_func(def_, package_requirements),
+            code=udf_def.CodeDef.from_func(def_, full_package_requirements),
             signature=func_signature,
             timeout_seconds=cloud_function_timeout,
             max_instance_count=cloud_function_max_instance_count,
@@ -655,7 +657,7 @@ class FunctionClient:
         intended_rf_spec = udf_def.RemoteFunctionConfig(
             endpoint=cf_endpoint,
             connection_id=self._bq_connection_id,
-            max_batching_rows=max_batching_rows,
+            max_batching_rows=max_batching_rows or 1000,
             signature=func_signature,
             bq_metadata=func_signature.protocol_metadata,
         )
@@ -726,6 +728,15 @@ def get_bigframes_function_name(
     if uniq_suffix:
         parts.append(uniq_suffix)
     return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
+
+
+def _validate_routine_name(name: str) -> None:
+    """Validate that the given name is a valid BigQuery routine name."""
+    # Routine IDs can contain only letters (a-z, A-Z), numbers (0-9), or underscores (_)
+    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+        raise ValueError(
+            "Routine ID can contain only letters (a-z, A-Z), numbers (0-9), or underscores (_)"
+        )
 
 
 def _infer_milli_cpus_from_memory(memory_mib: int) -> int:

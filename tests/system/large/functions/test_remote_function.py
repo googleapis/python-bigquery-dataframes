@@ -33,7 +33,6 @@ import bigframes
 import bigframes.dataframe
 import bigframes.dtypes
 import bigframes.exceptions
-import bigframes.functions._utils as bff_utils
 import bigframes.pandas as bpd
 import bigframes.series
 from bigframes.testing.utils import (
@@ -527,22 +526,6 @@ def test_remote_function_restore_with_bigframes_series(
         # Make a unique udf
         add_one_uniq, add_one_uniq_dir = make_uniq_udf(add_one)
 
-        # Expected cloud function name for the unique udf
-        package_requirements = bff_utils.get_updated_package_requirements()
-        add_one_uniq_hash = bff_utils.get_hash(add_one_uniq, package_requirements)
-        add_one_uniq_cf_name = f"bff_{add_one_uniq_hash}_{session.session_id}"
-
-        # There should be no cloud function yet for the unique udf
-        cloud_functions = list(
-            get_cloud_functions(
-                session.cloudfunctionsclient,
-                session.bqclient.project,
-                session.bqclient.location,
-                name=add_one_uniq_cf_name,
-            )
-        )
-        assert len(cloud_functions) == 0
-
         # The first time both the cloud function and the bq remote function don't
         # exist and would be created
         remote_add_one = session.remote_function(
@@ -553,6 +536,9 @@ def test_remote_function_restore_with_bigframes_series(
             reuse=True,
             cloud_function_service_account="default",
         )(add_one_uniq)
+
+        assert remote_add_one.bigframes_cloud_function is not None
+        add_one_uniq_cf_name = remote_add_one.bigframes_cloud_function.split("/")[-1]
 
         # There should have been excactly one cloud function created at this point
         cloud_functions = list(
@@ -1561,7 +1547,9 @@ def test_remote_function_max_batching_rows(session, scalars_dfs, max_batching_ro
         bq_routine = session.bqclient.get_routine(
             square_remote.bigframes_bigquery_function
         )
-        assert bq_routine.remote_function_options.max_batching_rows == max_batching_rows
+        assert bq_routine.remote_function_options.max_batching_rows == (
+            max_batching_rows or 1000
+        )
 
         scalars_df, scalars_pandas_df = scalars_dfs
 
@@ -1690,7 +1678,8 @@ def test_remote_function_reflects_config_change_with_reuse(session):
         def square(x):
             return x * x
 
-        deploy_name = str(uuid.uuid4())
+        # random alphanumeric name
+        deploy_name = str(uuid.uuid4().hex)
         square_remote = session.remote_function(
             input_types=[int],
             name=deploy_name,

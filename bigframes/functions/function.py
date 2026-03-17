@@ -222,7 +222,7 @@ class BigqueryCallableRoutine:
 
     @property
     def bigframes_bigquery_function_output_dtype(self):
-        return self.output_dtype
+        return self.udf_def.signature.output.emulating_type.bf_type
 
 
 class BigqueryCallableRowRoutine:
@@ -296,4 +296,4 @@ class BigqueryCallableRowRoutine:
 
     @property
     def bigframes_bigquery_function_output_dtype(self):
-        return self.output_dtype
+        return self.udf_def.signature.output.emulating_type.bf_type

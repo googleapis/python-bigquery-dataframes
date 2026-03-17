@@ -295,19 +295,14 @@ class UdfSignature:
         ## Handle input types
         udf_fields = []
 
-        if is_row_processor:
-            if len(routine.arguments) != 1:
-                raise ValueError(
-                    "Row processor functions must have exactly one input argument."
-                )
-
-        for argument in routine.arguments:
-            if is_row_processor:
-                if argument.data_type.type_kind != "STRING":
+        for i, argument in enumerate(routine.arguments):
+            if is_row_processor and i == 0:
+                if argument.data_type.type_kind == "STRING":
+                    udf_fields.append(UdfArg(argument.name, RowSeriesInputFieldV1()))
+                else:
                     raise ValueError(
-                        "Row processor functions must have STRING input type."
+                        "Row processor functions must have STRING input type as first argument."
                     )
-                udf_fields.append(UdfArg(argument.name, RowSeriesInputFieldV1()))
             udf_fields.append(UdfArg.from_sdk(argument))
 
         return cls(
@@ -317,6 +312,8 @@ class UdfSignature:
 
     @classmethod
     def from_py_signature(cls, signature: inspect.Signature):
+        import bigframes.series
+
         input_types: list[UdfArg] = []
         for parameter in signature.parameters.values():
             if parameter.annotation is inspect.Signature.empty:
@@ -325,6 +322,10 @@ class UdfSignature:
                     "'input_types' was not set and parameter "
                     f"'{parameter.name}' is missing a type annotation. "
                     "Types are required to use udfs.",
+                )
+            if parameter.annotation is bigframes.series.Series:
+                raise TypeError(
+                    "Argument type hint must be Pandas Series, not BigFrames Series."
                 )
 
             input_types.append(UdfArg.from_py_param(parameter))

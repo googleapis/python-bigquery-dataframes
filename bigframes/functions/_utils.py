@@ -75,12 +75,12 @@ def _package_existed(package_requirements: list[str], package: str) -> bool:
 
 
 def get_updated_package_requirements(
-    package_requirements=None,
-    is_row_processor=False,
-    capture_references=True,
-    ignore_package_version=False,
-):
-    requirements = []
+    package_requirements: Sequence[str] = (),
+    is_row_processor: bool = False,
+    capture_references: bool = True,
+    ignore_package_version: bool = False,
+) -> Sequence[str]:
+    requirements: list[str] = []
     if capture_references:
         requirements.append(f"cloudpickle=={cloudpickle.__version__}")
 
@@ -110,13 +110,12 @@ def get_updated_package_requirements(
     if not requirements:
         return package_requirements
 
-    if not package_requirements:
-        package_requirements = []
+    result = list(package_requirements)
     for package in requirements:
-        if not _package_existed(package_requirements, package):
-            package_requirements.append(package)
+        if not _package_existed(result, package):
+            result.append(package)
 
-    return sorted(package_requirements)
+    return sorted(result)
 
 
 def clean_up_by_session_id(
