@@ -292,20 +292,6 @@ def get_python_version(is_compat: bool = False) -> str:
     return f"python{major}{minor}" if is_compat else f"python-{major}.{minor}"
 
 
-def build_unnest_post_routine(py_list_type: type[list]):
-    sdk_type = function_typing.sdk_array_output_type_from_python_type(py_list_type)
-    assert sdk_type.array_element_type is not None
-    inner_sdk_type = sdk_type.array_element_type
-    result_dtype = function_typing.sdk_type_to_bf_type(inner_sdk_type)
-
-    def post_process(input):
-        import bigframes.bigquery as bbq
-
-        return bbq.json_extract_string_array(input, value_dtype=result_dtype)
-
-    return post_process
-
-
 def has_conflict_input_type(
     signature: inspect.Signature,
     input_types: Sequence[Any],

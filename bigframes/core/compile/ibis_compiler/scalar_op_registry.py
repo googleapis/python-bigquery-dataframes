@@ -1156,6 +1156,13 @@ def array_reduce_op_impl(x: ibis_types.Value, op: ops.ArrayReduceOp):
         )
 
 
+@scalar_op_compiler.register_unary_op(ops.ArrayMapOp, pass_op=True)
+def array_map_op_impl(x: ibis_types.Value, op: ops.ArrayMapOp):
+    return typing.cast(ibis_types.ArrayValue, x).map(
+        lambda arr_vals: scalar_op_compiler.compile_row_op(op.map_op, (arr_vals,))
+    )
+
+
 # JSON Ops
 @scalar_op_compiler.register_binary_op(ops.JSONSet, pass_op=True)
 def json_set_op_impl(x: ibis_types.Value, y: ibis_types.Value, op: ops.JSONSet):

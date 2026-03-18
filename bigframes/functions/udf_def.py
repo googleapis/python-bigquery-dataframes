@@ -158,10 +158,19 @@ class VirtualListTypeV1:
     def out_expr(
         self, expr: bigframes.core.expression.Expression
     ) -> bigframes.core.expression.Expression:
+        # essentially we are undoing json.dumps in sql
         import bigframes.operations as ops
 
-        # convert json string to array of underlying type
-        return ops.JSONValueArray(json_path="$").as_expr(expr)
+        as_str_list = ops.JSONValueArray(json_path="$").as_expr(expr)
+        if self.inner_dtype.py_type is str:
+            return as_str_list
+        elif self.inner_dtype.py_type is bool:
+            # TODO: hack so we don't need to make ArrayMap support general expressions yet
+            return ops.ArrayMapOp(ops.IsInOp(values=("true",))).as_expr(as_str_list)
+        else:
+            return ops.ArrayMapOp(ops.AsTypeOp(self.inner_dtype.bf_type)).as_expr(
+                as_str_list
+            )
 
     @property
     def sql_type(self) -> str:
