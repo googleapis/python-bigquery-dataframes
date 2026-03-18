@@ -22,6 +22,7 @@ from google.cloud import bigquery
 
 @dataclasses.dataclass(frozen=True)
 class ExecutionSpec:
+    # This could probably be a set of side effects, rather than a single destination_spec
     destination_spec: Union[TableOutputSpec, GcsOutputSpec, CacheSpec, None] = None
     peek: Optional[int] = None
     ordered: bool = (
