@@ -1678,8 +1678,8 @@ def test_remote_function_reflects_config_change_with_reuse(session):
         def square(x):
             return x * x
 
-        # random alphanumeric name
-        deploy_name = str(uuid.uuid4().hex)
+        # random alphanumeric name starting with a letter
+        deploy_name = "a" + str(uuid.uuid4().hex)
         square_remote = session.remote_function(
             input_types=[int],
             name=deploy_name,

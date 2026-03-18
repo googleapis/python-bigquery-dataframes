@@ -733,7 +733,8 @@ def get_bigframes_function_name(
 def _validate_routine_name(name: str) -> None:
     """Validate that the given name is a valid BigQuery routine name."""
     # Routine IDs can contain only letters (a-z, A-Z), numbers (0-9), or underscores (_)
-    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+    # must also start with a letter or underscore only
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
         raise ValueError(
             "Routine ID can contain only letters (a-z, A-Z), numbers (0-9), or underscores (_)"
         )
