@@ -17,7 +17,6 @@ from unittest import mock
 import pytest
 
 import bigframes.bigquery._operations.io
-import bigframes.core.sql.io
 import bigframes.session
 
 
@@ -36,6 +35,6 @@ def test_load_data(get_table_metadata_mock, mock_session):
     )
     mock_session.read_gbq_query.assert_called_once()
     generated_sql = mock_session.read_gbq_query.call_args[0][0]
-    expected = "LOAD DATA INTO my-project.my_dataset.my_table (col1 INT64, col2 STRING) FROM FILES (format = 'CSV', uris = ['gs://bucket/path*'])"
+    expected = "LOAD DATA INTO `my-project.my_dataset.my_table` (\n  `col1` INT64,\n  `col2` STRING\n) FROM FILES (format='CSV', uris=['gs://bucket/path*'])"
     assert generated_sql == expected
     get_table_metadata_mock.assert_called_once()
