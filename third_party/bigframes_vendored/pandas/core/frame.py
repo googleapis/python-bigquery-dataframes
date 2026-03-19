@@ -2210,7 +2210,7 @@ class DataFrame(generic.NDFrame):
         *,
         inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
-        kind: str = "quicksort",
+        kind: str | None = None,
         na_position: Literal["first", "last"] = "last",
     ):
         """Sort by the values along row axis.
@@ -2296,7 +2296,7 @@ class DataFrame(generic.NDFrame):
                 the by.
             inplace (bool, default False):
                 If True, perform operation in-place.
-            kind (str, default 'quicksort'):
+            kind (str, default None):
                 Choice of sorting algorithm. Accepts 'quicksort', 'mergesort',
                 'heapsort', 'stable'. Ignored except when determining whether to
                 sort stably. 'mergesort' or 'stable' will result in stable reorder.
@@ -2320,6 +2320,7 @@ class DataFrame(generic.NDFrame):
         axis: str | int = 0,
         ascending: bool = True,
         inplace: bool = False,
+        kind: str | None = None,
         na_position: Literal["first", "last"] = "last",
     ):
         """Sort object by labels (along an axis).
@@ -2332,6 +2333,10 @@ class DataFrame(generic.NDFrame):
                 Sort ascending vs. descending.
             inplace (bool, default False):
                 Whether to modify the DataFrame rather than creating a new one.
+            kind (str, default None):
+                Choice of sorting algorithm. Accepts 'quicksort', 'mergesort',
+                'heapsort', 'stable'. Ignored except when determining whether to
+                sort stably. 'mergesort' or 'stable' will result in stable reorder.
             na_position ({'first', 'last'}, default 'last'):
                 Puts NaNs at the beginning if `first`; `last` puts NaNs at the end.
                 Not implemented for MultiIndex.

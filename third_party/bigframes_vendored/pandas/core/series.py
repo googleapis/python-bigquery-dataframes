@@ -1458,7 +1458,7 @@ class Series(NDFrame):  # type: ignore[misc]
         axis: Axis = 0,
         inplace: bool = False,
         ascending: bool | int | Sequence[bool] | Sequence[int] = True,
-        kind: str = "quicksort",
+        kind: str | None = None,
         na_position: str = "last",
     ):
         """
@@ -1535,7 +1535,7 @@ class Series(NDFrame):  # type: ignore[misc]
                 Whether to modify the Series rather than creating a new one.
             ascending (bool or list of bools, default True):
                 If True, sort values in ascending order, otherwise descending.
-            kind (str, default to 'quicksort'):
+            kind (str, default to None):
                 Choice of sorting algorithm. Accepts quicksort', 'mergesort',
                 'heapsort', 'stable'. Ignored except when determining whether to
                 sort stably. 'mergesort' or 'stable' will result in stable reorder
@@ -1555,6 +1555,7 @@ class Series(NDFrame):  # type: ignore[misc]
         axis: Axis = 0,
         inplace: bool = False,
         ascending: bool | Sequence[bool] = True,
+        kind: str | None = None,
         na_position: NaPosition = "last",
     ):
         """
@@ -1602,6 +1603,10 @@ class Series(NDFrame):  # type: ignore[misc]
             ascending (bool or list-like of bools, default True):
                 Sort ascending vs. descending. When the index is a MultiIndex the
                 sort direction can be controlled for each level individually.
+            kind (str, default None):
+                Choice of sorting algorithm. Accepts 'quicksort', 'mergesort',
+                'heapsort', 'stable'. Ignored except when determining whether to
+                sort stably. 'mergesort' or 'stable' will result in stable reorder.
             na_position ({'first', 'last'}, default 'last'):
                 If 'first' puts NaNs at the beginning, 'last' puts NaNs at the end.
                 Not implemented for MultiIndex.

@@ -436,6 +436,7 @@ class Index:
         *,
         inplace: bool = False,
         ascending: bool = True,
+        kind: __builtins__.str | None = None,
         na_position: __builtins__.str = "last",
     ) -> Index:
         if na_position not in ["first", "last"]:
@@ -448,7 +449,8 @@ class Index:
             else order.descending_over(column, na_last)
             for column in index_columns
         ]
-        return Index(self._block.order_by(ordering))
+        is_stable = (kind or constants.DEFAULT_SORT_KIND) in ["stable", "mergesort"]
+        return Index(self._block.order_by(ordering, stable=is_stable))
 
     def astype(
         self,
