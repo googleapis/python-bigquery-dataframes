@@ -35,14 +35,14 @@ class ExecutionCache:
         self._cached_executions: weakref.WeakKeyDictionary[
             nodes.BigFrameNode, bq_data.BigqueryDataSource
         ] = weakref.WeakKeyDictionary()
-        # This is state, but probably should be handled by some storage manager rather than by the general plan caching?
+        # This upload cache is entirely independent of the plan cache.
         self._uploaded_local_data: weakref.WeakKeyDictionary[
             local_data.ManagedArrowTable,
             UploadedLocalData,
         ] = weakref.WeakKeyDictionary()
 
     def subsitute_cached_subplans(self, root: nodes.BigFrameNode) -> nodes.BigFrameNode:
-        def maybe_replace_node(node):
+        def replace_if_cached(node: nodes.BigFrameNode) -> nodes.BigFrameNode:
             if node not in self._cached_executions:
                 return node
             # Assumption: GBQ cached table uses field name as bq column name
@@ -59,7 +59,7 @@ class ExecutionCache:
             assert node.schema == cached_replacement.schema
             return cached_replacement
 
-        return nodes.top_down(root, maybe_replace_node)
+        return nodes.top_down(root, replace_if_cached)
 
     def cache_results_table(
         self,
