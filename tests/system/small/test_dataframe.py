@@ -6287,7 +6287,6 @@ def test_agg_with_dict_containing_non_existing_col_raise_key_error(scalars_dfs):
 
 def test_dataframe_count_empty_selection_succeeds(session):
     # Tests that aggregate ops on empty selections don't trigger invalid empty SELECT syntax
-    df = session.read_gbq("SELECT 1 AS int_col")
-    empty_df = df[[]]
+    empty_df = bpd.DataFrame()
     count_series = empty_df.count().to_pandas()
     assert len(count_series) == 0
