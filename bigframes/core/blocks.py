@@ -3477,11 +3477,7 @@ def _pd_index_to_array_value(
         row[offset_id] = row_offset
         rows.append(row)
 
-    import pyarrow as pa
-
     if not rows:
-        from bigframes.dtypes import bigframes_dtype_to_arrow_dtype
-
         dtypes_list = getattr(index, "dtypes", None)
         if dtypes_list is None:
             dtypes_list = (
@@ -3491,7 +3487,7 @@ def _pd_index_to_array_value(
         fields = []
         for col_id, dtype in zip(col_ids, dtypes_list):
             try:
-                pa_type = bigframes_dtype_to_arrow_dtype(dtype)
+                pa_type = bigframes.dtypes.bigframes_dtype_to_arrow_dtype(dtype)
             except Exception:
                 pa_type = pa.string()
             fields.append(pa.field(col_id, pa_type))

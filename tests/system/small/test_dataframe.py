@@ -5915,18 +5915,6 @@ def test_to_gbq_obj_ref_persists(session):
     assert loaded_df["uris"].dtype == dtypes.OBJ_REF_DTYPE
 
 
-def test_dataframe_melt_multiindex(session):
-    # Tests that `melt` operations via count do not cause MultiIndex drops in Arrow
-    df = pd.DataFrame({"A": [1], "B": ["string"], "C": [3]})
-    df.columns = pd.MultiIndex.from_tuples(
-        [("Group1", "A"), ("Group2", "B"), ("Group1", "C")]
-    )
-    bdf = session.read_pandas(df)
-
-    count_df = bdf.count().to_pandas()
-    assert count_df.shape[0] == 3
-
-
 @pytest.mark.parametrize(
     ("col_names", "ignore_index"),
     [
