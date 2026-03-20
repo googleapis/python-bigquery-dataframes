@@ -1492,6 +1492,25 @@ def test_multiindex_eq_const(scalars_df_index, scalars_pandas_df_index):
     )
 
 
+def test_count_empty_multiindex_columns(session):
+    df = pandas.DataFrame(
+        [], index=[1, 2], columns=pandas.MultiIndex.from_tuples([], names=["a", "b"])
+    )
+    bdf = session.read_pandas(df)
+
+    # count() operation unpivots columns, triggering the empty MultiIndex bug internally
+    count_df = bdf.count()
+
+    # The local fix ensures that empty unpivoted columns generate properly typed NULLs
+    # rather than failing syntax validation downstream in BigQuery.
+    # We compile to `.sql` to verify it succeeds locally without evaluating on BigQuery natively.
+    _ = count_df.to_frame().sql
+
+    # Assert structural layout is correct
+    assert count_df.index.nlevels == 2
+    assert list(count_df.index.names) == ["a", "b"]
+
+
 def test_dataframe_melt_multiindex(session):
     # Tests that `melt` operations via count do not cause MultiIndex drops in Arrow
     df = pandas.DataFrame({"A": [1], "B": ["string"], "C": [3]})
