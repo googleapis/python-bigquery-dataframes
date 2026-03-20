@@ -3429,7 +3429,7 @@ def unpivot(
     for input_ids in unpivot_columns:
         col_expr: ex.Expression
         if not input_ids:
-            col_expr = ex.const(None)
+            col_expr = ex.const(None, dtype=bigframes.dtypes.INT_DTYPE)
         else:
             # row explode offset used to choose the input column
             # we use offset instead of label as labels are not necessarily unique
