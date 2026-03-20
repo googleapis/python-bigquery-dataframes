@@ -1503,3 +1503,15 @@ def test_count_empty_multiindex_columns(session):
     assert count_df.shape == (0,)
     assert count_df.index.nlevels == 2
     assert list(count_df.index.names) == ["a", "b"]
+
+
+def test_dataframe_melt_multiindex(session):
+    # Tests that `melt` operations via count do not cause MultiIndex drops in Arrow
+    df = pandas.DataFrame({"A": [1], "B": ["string"], "C": [3]})
+    df.columns = pandas.MultiIndex.from_tuples(
+        [("Group1", "A"), ("Group2", "B"), ("Group1", "C")]
+    )
+    bdf = session.read_pandas(df)
+
+    count_df = bdf.count().to_pandas()
+    assert count_df.shape[0] == 3
