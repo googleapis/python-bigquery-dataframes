@@ -1490,3 +1490,16 @@ def test_multiindex_eq_const(scalars_df_index, scalars_pandas_df_index):
     bigframes.testing.utils.assert_index_equal(
         pandas.Index(pd_result, dtype="boolean"), bf_result.to_pandas()
     )
+
+
+def test_count_empty_multiindex_columns(session):
+    df = pandas.DataFrame(
+        [], index=[1, 2], columns=pandas.MultiIndex.from_tuples([], names=["a", "b"])
+    )
+    bdf = session.read_pandas(df)
+
+    # count() operation unpivots columns, triggering the empty MultiIndex bug internally
+    count_df = bdf.count().to_pandas()
+    assert count_df.shape == (0,)
+    assert count_df.index.nlevels == 2
+    assert list(count_df.index.names) == ["a", "b"]
