@@ -277,6 +277,7 @@ class Session(
             storage_manager=self._temp_storage_manager,
             metrics=self._metrics,
             enable_polars_execution=context.enable_polars_execution,
+            enable_datafusion_execution=context.enable_datafusion_execution,
             publisher=self._publisher,
             labels=labels,
         )
