@@ -33,3 +33,17 @@ def import_polars() -> ModuleType:
             f"Imported polars version is likely below the minimum version: {POLARS_MIN_VERSION}"
         )
     return polars_module
+
+
+DATAFUSION_MIN_VERSION = version.Version("52.0.0")
+
+
+def import_datafusion() -> ModuleType:
+    datafusion_module = importlib.import_module("datafusion")
+    # Add any version checks if necessary, for now just check it imports
+    df_version = version.Version(datafusion_module.__version__)
+    if df_version < DATAFUSION_MIN_VERSION:
+        raise ImportError(
+            f"Imported datafusion version {df_version} is below the minimum version: {DATAFUSION_MIN_VERSION}"
+        )
+    return datafusion_module

@@ -78,6 +78,7 @@ class BigQueryCachingExecutor(executor.Executor):
         *,
         metrics: Optional[bigframes.session.metrics.ExecutionMetrics] = None,
         enable_polars_execution: bool = False,
+        enable_datafusion_execution: bool = False,
         publisher: bigframes.core.events.Publisher,
         labels: Mapping[str, str] = {},
     ):
@@ -88,6 +89,7 @@ class BigQueryCachingExecutor(executor.Executor):
         self.loader = loader
         self.bqstoragereadclient = bqstoragereadclient
         self._enable_polars_execution = enable_polars_execution
+        self._enable_datafusion_execution = enable_datafusion_execution
         self._publisher = publisher
         self._labels = labels
 
@@ -105,6 +107,13 @@ class BigQueryCachingExecutor(executor.Executor):
             self._semi_executors = (
                 *self._semi_executors,
                 polars_executor.PolarsExecutor(),
+            )
+        if enable_datafusion_execution:
+            from bigframes.session import datafusion_executor
+
+            self._semi_executors = (
+                *self._semi_executors,
+                datafusion_executor.DataFusionExecutor(),
             )
         self._upload_lock = threading.Lock()
 

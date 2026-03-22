@@ -96,6 +96,7 @@ class BigQueryOptions:
             Tuple[str, requests.adapters.BaseAdapter]
         ] = (),
         enable_polars_execution: bool = False,
+        enable_datafusion_execution: bool = False,
     ):
         self._credentials = credentials
         self._project = project
@@ -118,6 +119,10 @@ class BigQueryOptions:
         if enable_polars_execution:
             bigframes._importing.import_polars()
         self._enable_polars_execution = enable_polars_execution
+
+        if enable_datafusion_execution:
+            bigframes._importing.import_datafusion()
+        self._enable_datafusion_execution = enable_datafusion_execution
 
     @property
     def application_name(self) -> Optional[str]:
@@ -503,3 +508,29 @@ class BigQueryOptions:
             warnings.warn(msg, category=bfe.PreviewWarning)
             bigframes._importing.import_polars()
         self._enable_polars_execution = value
+
+    @property
+    def enable_datafusion_execution(self) -> bool:
+        """If True, will use datafusion to execute some simple query plans locally.
+
+        **Examples:**
+
+            >>> import bigframes.pandas as bpd
+            >>> bpd.options.bigquery.enable_datafusion_execution = True  # doctest: +SKIP
+
+        """
+        return self._enable_datafusion_execution
+
+    @enable_datafusion_execution.setter
+    def enable_datafusion_execution(self, value: bool):
+        if self._session_started and self._enable_datafusion_execution != value:
+            raise ValueError(
+                SESSION_STARTED_MESSAGE.format(attribute="enable_datafusion_execution")
+            )
+        if value is True:
+            msg = bfe.format_message(
+                "DataFusion execution is an experimental feature, and may not be stable. Must have datafusion installed."
+            )
+            warnings.warn(msg, category=bfe.PreviewWarning)
+            bigframes._importing.import_datafusion()
+        self._enable_datafusion_execution = value
