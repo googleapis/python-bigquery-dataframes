@@ -524,23 +524,15 @@ class BigQueryCachingExecutor(executor.Executor):
                 ):
                     needs_upload.append(leaf.local_data_source)
 
-        futures = []
+        futures: dict[concurrent.futures.Future, local_data.ManagedArrowTable] = dict()
         for local_source in needs_upload:
             future = self.loader.read_data_async(
                 local_source, bigframes.core.guid.generate_guid()
             )
-
-            def cache_result(
-                future: concurrent.futures.Future,
-                local: local_data.ManagedArrowTable = local_source,
-            ):
-                self.cache.cache_remote_replacement(local, future.result())
-
-            future.add_done_callback(cache_result)
-            futures.append(future)
+            futures[future] = local_source
         try:
-            for future in concurrent.futures.as_completed(futures):
-                future.result()
+            for future in concurrent.futures.as_completed(futures.keys()):
+                self.cache.cache_remote_replacement(futures[future], future.result())
         except Exception as e:
             # cancel all futures
             for future in futures:
