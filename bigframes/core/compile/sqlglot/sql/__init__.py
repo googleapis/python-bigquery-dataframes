@@ -21,7 +21,7 @@ from bigframes.core.compile.sqlglot.sql.base import (
     table,
     to_sql,
 )
-from bigframes.core.compile.sqlglot.sql.ddl import load_data
+from bigframes.core.compile.sqlglot.sql.ddl import create_external_table, load_data
 from bigframes.core.compile.sqlglot.sql.dml import insert, replace
 
 __all__ = [
@@ -33,6 +33,7 @@ __all__ = [
     "table",
     "to_sql",
     # From ddl.py
+    "create_external_table",
     "load_data",
     # From dml.py
     "insert",
