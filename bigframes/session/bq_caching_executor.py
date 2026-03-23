@@ -29,7 +29,7 @@ import bigframes
 from bigframes import exceptions as bfe
 import bigframes.constants
 import bigframes.core
-from bigframes.core import bq_data, compile, rewrite
+from bigframes.core import bq_data, compile, local_data, rewrite
 from bigframes.core.compile.sqlglot import sql as sg_sql
 from bigframes.core.compile.sqlglot import sqlglot_ir
 import bigframes.core.events
@@ -525,19 +525,21 @@ class BigQueryCachingExecutor(executor.Executor):
                     needs_upload.append(leaf.local_data_source)
 
         futures = []
+        for local_source in needs_upload:
+            future = self.loader.read_data_async(
+                local_source, bigframes.core.guid.generate_guid()
+            )
+
+            def cache_result(
+                future: concurrent.futures.Future,
+                local: local_data.ManagedArrowTable = local_source,
+            ):
+                self.cache.cache_remote_replacement(local, future.result())
+
+            future.add_done_callback(cache_result)
+            futures.append(future)
         try:
-            for local_source in needs_upload:
-                future = self.loader.read_data_async(
-                    local_source, bigframes.core.guid.generate_guid()
-                )
-                future.add_done_callback(
-                    lambda f: self.cache.cache_remote_replacement(
-                        local_source, f.result()
-                    )
-                )
-                futures.append(future)
-            concurrent.futures.wait(futures)
-            for future in futures:
+            for future in concurrent.futures.as_completed(futures):
                 future.result()
         except Exception as e:
             # cancel all futures
