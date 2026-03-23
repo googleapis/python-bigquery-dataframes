@@ -229,6 +229,7 @@ class FunctionClient:
 
         # TODO(b/406283812): Expose the capability to pass down
         # capture_references=True in the public udf API.
+        # TODO(b/495508827): Include all config in the value hash.
         if (
             capture_references
             and (python_version := _utils.get_python_version())

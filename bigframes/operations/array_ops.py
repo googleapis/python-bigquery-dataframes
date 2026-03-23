@@ -93,7 +93,7 @@ class ArrayReduceOp(base_ops.UnaryOp):
 @dataclasses.dataclass(frozen=True)
 class ArrayMapOp(base_ops.UnaryOp):
     name: typing.ClassVar[str] = "array_map"
-    # TODO: Generalize to chained expressions
+    # TODO(b/495513753): Generalize to chained expressions
     map_op: base_ops.UnaryOp
 
     def output_type(self, *input_types):

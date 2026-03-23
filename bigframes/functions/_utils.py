@@ -191,7 +191,6 @@ def get_managed_function_name(
     session_id: str | None = None,
 ):
     """Get a name for the bigframes managed function for the given user defined function."""
-    # TODO: Move over to logic used by remote functions
     parts = [_BIGFRAMES_FUNCTION_PREFIX]
     if session_id:
         parts.append(session_id)

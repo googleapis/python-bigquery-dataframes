@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-import hashlib
 import inspect
 import io
 import os
@@ -25,6 +24,7 @@ import warnings
 
 import cloudpickle
 from google.cloud import bigquery
+import google_crc32c
 import pandas as pd
 
 import bigframes.dtypes
@@ -84,7 +84,7 @@ class UdfArg:
         return self.dtype.sql_type
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(self.name.encode())
         hash_val.update(self.dtype.stable_hash())
         return hash_val.digest()
@@ -116,7 +116,7 @@ class DirectScalarType:
         return function_typing.sdk_type_to_sql_string(sdk_type)
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(self._py_type.__name__.encode())
         return hash_val.digest()
 
@@ -145,7 +145,6 @@ class VirtualListTypeV1:
     def py_type(self) -> Type[list[Any]]:
         return list[self.inner_dtype.py_type]  # type: ignore
 
-    # TODO: Specify emulating type and mapping expressions between said types
     @property
     def bf_type(self) -> bigframes.dtypes.Dtype:
         return bigframes.dtypes.list_type(self.inner_dtype.bf_type)
@@ -165,7 +164,8 @@ class VirtualListTypeV1:
         if self.inner_dtype.py_type is str:
             return as_str_list
         elif self.inner_dtype.py_type is bool:
-            # TODO: hack so we don't need to make ArrayMap support general expressions yet
+            # hack so we don't need to make ArrayMap support general expressions yet
+            # with b/495513753 we can map the equality operator instead
             return ops.ArrayMapOp(ops.IsInOp(values=("true",))).as_expr(as_str_list)
         else:
             return ops.ArrayMapOp(ops.AsTypeOp(self.inner_dtype.bf_type)).as_expr(
@@ -177,7 +177,7 @@ class VirtualListTypeV1:
         return f"ARRAY<{self.inner_dtype.sql_type}>"
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(self._PROTOCOL_ID.encode())
         hash_val.update(self.inner_dtype.stable_hash())
         return hash_val.digest()
@@ -212,7 +212,7 @@ class RowSeriesInputFieldV1:
         return DirectScalarType(str)
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(self._PROTOCOL_ID.encode())
         return hash_val.digest()
 
@@ -227,6 +227,7 @@ class UdfSignature:
     output: DirectScalarType | VirtualListTypeV1
 
     def __post_init__(self):
+        # Validate inputs and outputs are of the correct types.
         assert all(isinstance(arg, UdfArg) for arg in self.inputs)
         assert isinstance(self.output, (DirectScalarType, VirtualListTypeV1))
 
@@ -240,7 +241,6 @@ class UdfSignature:
     def protocol_metadata(self) -> str | None:
         import bigframes.functions._utils
 
-        # TODO: The output field itself should handle this, to handle protocol versioning.
         if isinstance(self.output, VirtualListTypeV1):
             return bigframes.functions._utils.get_bigframes_metadata(
                 python_output_type=self.output.py_type
@@ -362,7 +362,7 @@ class UdfSignature:
         return self
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         for input_type in self.inputs:
             hash_val.update(input_type.stable_hash())
         hash_val.update(self.output.stable_hash())
@@ -438,7 +438,7 @@ class CodeDef:
             def_copy, protocol=_pickle_protocol_version
         )
 
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(normalized_pickled_code)
 
         if self.package_requirements:
@@ -464,7 +464,7 @@ class CloudRunFunctionConfig:
     concurrency: int | None
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(self.code.stable_hash())
         hash_val.update(self.signature.stable_hash())
         hash_val.update(str(self.timeout_seconds).encode())
@@ -503,7 +503,7 @@ class RemoteFunctionConfig:
         )
 
     def stable_hash(self) -> bytes:
-        hash_val = hashlib.md5()
+        hash_val = google_crc32c.Checksum()
         hash_val.update(self.endpoint.encode())
         hash_val.update(self.signature.stable_hash())
         hash_val.update(self.connection_id.encode())
