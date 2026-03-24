@@ -6285,9 +6285,14 @@ def test_agg_with_dict_containing_non_existing_col_raise_key_error(scalars_dfs):
         bf_df.agg(agg_funcs)
 
 
-def test_dataframe_count_empty_selection_succeeds(session):
-    # Tests that aggregate ops on empty selections don't trigger invalid empty SELECT syntax
-    df = session.read_gbq("SELECT 1 AS int_col")
-    empty_df = df[[]]
-    count_series = empty_df.count().to_pandas()
-    assert len(count_series) == 0
+def test_empty_agg_projection_succeeds():
+    # Tests that the compiler generates a SELECT 1 fallback for empty aggregations,
+    # protecting against BigQuery syntax errors when both groups and metrics are empty.
+    import third_party.bigframes_vendored.ibis.backends.sql.compilers.bigquery as bq
+    import third_party.bigframes_vendored.sqlglot as sg
+
+    compiler = bq.BigQueryCompiler()
+    res = compiler.visit_Aggregate(
+        "op", parent=sg.table("parent_table"), groups=[], metrics=[]
+    )
+    assert "SELECT 1" in res.sql()
