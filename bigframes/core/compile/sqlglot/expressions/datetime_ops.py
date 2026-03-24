@@ -125,7 +125,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
                 expression=sge.convert(1),
             ),
         )
-    elif rule_code == "ME":  # Monthly
+    elif rule_code in ("M", "ME"):  # Monthly
         x_int = sge.Paren(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
@@ -182,7 +182,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
                 expression=sge.convert(1),
             ),
         )
-    elif rule_code == "QE-DEC":  # Quarterly
+    elif rule_code in ("Q-DEC", "QE-DEC"):  # Quarterly
         x_int = sge.Paren(  # type: ignore
             this=sge.Add(
                 this=sge.Mul(
@@ -239,7 +239,7 @@ def _datetime_to_integer_label_non_fixed_frequency(
                 expression=sge.convert(1),
             ),
         )
-    elif rule_code == "YE-DEC":  # Yearly
+    elif rule_code in ("A-DEC", "Y-DEC", "YE-DEC"):  # Yearly
         x_int = sge.Extract(this=sge.Identifier(this="YEAR"), expression=x.expr)
         first = sge.Extract(this=sge.Identifier(this="YEAR"), expression=y.expr)
         return sge.Case(
@@ -371,7 +371,12 @@ def _(expr: TypedExpr, op: ops.ToDatetimeOp) -> sge.Expression:
         )
         return sge.Cast(this=result, to="DATETIME")
 
-    if expr.dtype in (dtypes.STRING_DTYPE, dtypes.TIMESTAMP_DTYPE):
+    if expr.dtype in (
+        dtypes.STRING_DTYPE,
+        dtypes.TIMESTAMP_DTYPE,
+        dtypes.DATETIME_DTYPE,
+        dtypes.DATE_DTYPE,
+    ):
         return sge.TryCast(this=expr.expr, to="DATETIME")
 
     value = expr.expr
@@ -396,7 +401,12 @@ def _(expr: TypedExpr, op: ops.ToTimestampOp) -> sge.Expression:
             "PARSE_TIMESTAMP", sge.convert(op.format), expr.expr, sge.convert("UTC")
         )
 
-    if expr.dtype in (dtypes.STRING_DTYPE, dtypes.DATETIME_DTYPE):
+    if expr.dtype in (
+        dtypes.STRING_DTYPE,
+        dtypes.DATETIME_DTYPE,
+        dtypes.TIMESTAMP_DTYPE,
+        dtypes.DATE_DTYPE,
+    ):
         return sge.func("TIMESTAMP", expr.expr)
 
     value = expr.expr

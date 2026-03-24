@@ -745,7 +745,7 @@ def if_(
             or pandas Series.
         connection_id (str, optional):
             Specifies the connection to use to communicate with the model. For example, `myproject.us.myconnection`.
-            If not provided, the connection from the current session will be used.
+            If not provided, the query uses your end-user credential.
 
     Returns:
         bigframes.series.Series: A new series of bools.
@@ -756,7 +756,7 @@ def if_(
 
     operator = ai_ops.AIIf(
         prompt_context=tuple(prompt_context),
-        connection_id=_resolve_connection_id(series_list[0], connection_id),
+        connection_id=connection_id,
     )
 
     return series_list[0]._apply_nary_op(operator, series_list[1:])
@@ -800,7 +800,7 @@ def classify(
             Categories to classify the input into.
         connection_id (str, optional):
             Specifies the connection to use to communicate with the model. For example, `myproject.us.myconnection`.
-            If not provided, the connection from the current session will be used.
+            If not provided, the query uses your end-user credential.
 
     Returns:
         bigframes.series.Series: A new series of strings.
@@ -812,7 +812,7 @@ def classify(
     operator = ai_ops.AIClassify(
         prompt_context=tuple(prompt_context),
         categories=tuple(categories),
-        connection_id=_resolve_connection_id(series_list[0], connection_id),
+        connection_id=connection_id,
     )
 
     return series_list[0]._apply_nary_op(operator, series_list[1:])
@@ -853,7 +853,7 @@ def score(
             or pandas Series.
         connection_id (str, optional):
             Specifies the connection to use to communicate with the model. For example, `myproject.us.myconnection`.
-            If not provided, the connection from the current session will be used.
+            If not provided, the query uses your end-user credential.
 
     Returns:
         bigframes.series.Series: A new series of double (float) values.
@@ -864,7 +864,7 @@ def score(
 
     operator = ai_ops.AIScore(
         prompt_context=tuple(prompt_context),
-        connection_id=_resolve_connection_id(series_list[0], connection_id),
+        connection_id=connection_id,
     )
 
     return series_list[0]._apply_nary_op(operator, series_list[1:])
@@ -880,6 +880,7 @@ def forecast(
     id_cols: Iterable[str] | None = None,
     horizon: int = 10,
     confidence_level: float = 0.95,
+    output_historical_time_series: bool = False,
     context_window: int | None = None,
 ) -> dataframe.DataFrame:
     """
@@ -914,6 +915,15 @@ def forecast(
         confidence_level (float, default 0.95):
             A FLOAT64 value that specifies the percentage of the future values that fall in the prediction interval.
             The default value is 0.95. The valid input range is [0, 1).
+        output_historical_time_series (bool, default False):
+            A BOOL value that determines whether the input data is returned
+            along with the forecasted data. Set this argument to TRUE to return
+            input data. The default value is FALSE.
+
+            Returning the input data along with the forecasted data lets you
+            compare the historical value of the data column with the forecasted
+            value of the data column, or chart the change in the data column
+            values over time.
         context_window (int, optional):
             An int value that specifies the context window length used by BigQuery ML's built-in TimesFM model.
             The context window length determines how many of the most recent data points from the input time series are use by the model.
@@ -945,6 +955,7 @@ def forecast(
         "timestamp_col": timestamp_col,
         "model": model,
         "horizon": horizon,
+        "output_historical_time_series": output_historical_time_series,
         "confidence_level": confidence_level,
     }
     if id_cols:
