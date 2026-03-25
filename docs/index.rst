@@ -4,9 +4,9 @@ Scalable Python Data Analysis with BigQuery DataFrames (BigFrames)
 ==================================================================
 
 .. meta::
-   :description: BigQuery DataFrames (BigFrames) provides a scalable, pandas-compatible Python API for data analysis and machine learning on petabyte-scale datasets using the BigQuery engine.
+   :description: BigQuery DataFrames (BigFrames) provides a scalable, pandas-compatible Python API for data analysis and machine learning on petabyte-scale datasets using the BigQuery engine. Designed for data scientists, data engineers, and data analysts.
 
-**BigQuery DataFrames** (``bigframes``) is an open-source Python library that brings the power of **distributed computing** to your data science workflow. By providing a familiar **pandas** and **scikit-learn** compatible API, BigFrames allows you to analyze and model massive datasets where they live—directly in **BigQuery**.
+**BigQuery DataFrames** (``bigframes``) is an open-source Python library that brings the power of **distributed computing** to your data science and data engineering workflows. By providing a familiar **pandas** and **scikit-learn** compatible API, BigFrames allows data scientists, data engineers, and data analysts to analyze, transform, and model massive datasets where they live—directly in **BigQuery**.
 
 Why Choose BigQuery DataFrames?
 -------------------------------
@@ -15,17 +15,17 @@ BigFrames eliminates the "data movement bottleneck." Instead of downloading larg
 
 *   **Petabyte-Scale Scalability:** Effortlessly process datasets that far exceed local memory limits.
 *   **Familiar Python Ecosystem:** Use the same ``read_gbq``, ``groupby``, ``merge``, and ``pivot_table`` functions you already know from pandas.
-*   **Integrated Machine Learning:** Access BigQuery ML's powerful algorithms via a scikit-learn-like interface (``bigframes.ml``), including seamless **Gemini AI** integration.
+*   **Integrated Machine Learning:** Access BigQuery ML's powerful algorithms via a scikit-learn-like interface (``bigframes.ml``), including seamless **Gemini AI** integration for generative AI workflows and MLOps.
 *   **Enterprise-Grade Security:** Maintain data governance and security by keeping your data within the BigQuery perimeter.
 *   **Hybrid Flexibility:** Easily move between distributed BigQuery processing and local pandas analysis with ``to_pandas()``.
 
 Core Components of BigFrames
 ----------------------------
 
-BigQuery DataFrames is organized into specialized modules designed for the modern data stack:
+BigQuery DataFrames is organized into specialized modules designed for the modern data stack, empowering big data analytics, AI/ML pipelines, and data engineering:
 
-1.  :mod:`bigframes.pandas`: A high-performance, pandas-compatible API for scalable data exploration, cleaning, and transformation.
-2.  :mod:`bigframes.bigquery`: Specialized utilities for direct BigQuery resource management, including integrations with Gemini and other AI models in the :mod:`bigframes.bigquery.ai` submodule.
+1.  :mod:`bigframes.pandas`: A high-performance, pandas-compatible API for scalable data exploration, cleaning, and transformation for data analysts.
+2.  :mod:`bigframes.bigquery`: Specialized utilities for direct BigQuery resource management, including integrations with Gemini and other AI models in the :mod:`bigframes.bigquery.ai` submodule for data engineers and AI developers.
 
 
 Quickstart: Scalable Data Analysis in Seconds

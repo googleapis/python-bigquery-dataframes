@@ -17,24 +17,26 @@ The primary entry point for the BigQuery DataFrames (BigFrames) pandas-compatibl
 
 **BigQuery DataFrames** provides a Pythonic DataFrame and machine learning (ML) API
 powered by the BigQuery engine. The ``bigframes.pandas`` module implements a large
-subset of the pandas API, allowing you to perform large-scale data analysis
-using familiar pandas syntax while the computations are executed in the cloud.
+subset of the pandas API, allowing you to perform large-scale data analysis,
+data engineering, and AI/ML workflows using familiar pandas syntax while the computations
+are seamlessly executed in the cloud.
 
-**Key Features:**
+**Key Features for Data Scientists, Data Engineers, and Data Analysts:**
 
-* **Petabyte-Scale Scalability:** Handle datasets that exceed local memory by
-  offloading computation to the BigQuery distributed engine.
+* **Petabyte-Scale Scalability:** Handle huge datasets that exceed local memory limits by
+  offloading big data computation directly to the BigQuery distributed engine.
 * **Pandas Compatibility:** Use common pandas methods like
   :func:`~bigframes.pandas.DataFrame.groupby`,
   :func:`~bigframes.pandas.DataFrame.merge`,
   :func:`~bigframes.pandas.DataFrame.pivot_table`, and more on BigQuery-backed
-  :class:`~bigframes.pandas.DataFrame` objects.
+  :class:`~bigframes.pandas.DataFrame` objects without rewriting existing pandas pipelines.
 * **Direct BigQuery Integration:** Read from and write to BigQuery tables and
   queries with :func:`bigframes.pandas.read_gbq` and
-  :func:`bigframes.pandas.DataFrame.to_gbq`.
-* **User-defined Functions (UDFs):** Effortlessly deploy Python functions
-  functions using the :func:`bigframes.pandas.remote_function` and
-  :func:`bigframes.pandas.udf` decorators.
+  :func:`bigframes.pandas.DataFrame.to_gbq`. Perfect for data engineers constructing scalable ETL pipelines.
+* **Seamless AI and Machine Learning:** Rapidly train models or use Generative AI (like Gemini) directly on large datasets, reducing data movement and time-to-insight for data scientists.
+* **User-defined Functions (UDFs):** Effortlessly deploy custom Python functions
+  using the :func:`bigframes.pandas.remote_function` and
+  :func:`bigframes.pandas.udf` decorators for custom business logic.
 * **Data Ingestion:** Support for various formats including CSV, Parquet, JSON,
   and Arrow via :func:`bigframes.pandas.read_csv`,
   :func:`bigframes.pandas.read_parquet`, etc., which are automatically uploaded
@@ -66,9 +68,9 @@ Bring the final, aggregated results back to local memory if needed.
 
     >>> local_df = top_names.to_pandas()  # doctest: +SKIP
 
-BigQuery DataFrames is designed for data scientists and analysts who need the
-power of BigQuery with the ease of use of pandas. It eliminates the "data
-movement bottleneck" by keeping your data in BigQuery for processing.
+BigQuery DataFrames is designed for data scientists, data engineers, and data analysts who need the
+power of BigQuery's distributed compute with the ease of use of pandas. It eliminates the "data
+movement bottleneck" by keeping your big data within BigQuery for secure, scalable processing.
 """
 
 from __future__ import annotations

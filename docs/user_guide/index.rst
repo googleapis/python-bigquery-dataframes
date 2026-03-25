@@ -1,6 +1,10 @@
 User Guide
 **********
 
+Welcome to the BigQuery DataFrames User Guide! This guide is designed to help data scientists, data engineers, and data analysts build scalable data pipelines, perform advanced analytics, and train machine learning models using BigQuery's distributed compute power, all while staying within the familiar pandas and scikit-learn Python ecosystem.
+
+Whether you're exploring big data, deploying an AI model, integrating with LLMs like Gemini, or architecting robust data engineering workflows, these tutorials and notebooks will provide the practical foundations you need.
+
 .. include:: ../README.rst
 
 .. toctree::

@@ -15,28 +15,30 @@
 """
 Integrate BigQuery built-in AI functions into your BigQuery DataFrames workflow.
 
-The ``bigframes.bigquery.ai`` module provides a Pythonic interface to leverage BigQuery ML's
-generative AI and predictive functions directly on BigQuery DataFrames and Series objects.
-These functions enable you to perform advanced AI tasks at scale without moving data
-out of BigQuery.
+The ``bigframes.bigquery.ai`` module provides a powerful, Pythonic interface for data scientists
+and data engineers to leverage BigQuery ML's Generative AI, Large Language Models (LLMs),
+and predictive functions directly on big data via BigQuery DataFrames and Series objects.
+These functions enable AI developers to construct scalable MLOps pipelines and perform advanced AI
+tasks—such as automated text generation and semantic search—without moving data out of BigQuery's
+secure perimeter.
 
-Key capabilities include:
+Key capabilities for AI workflows include:
 
-* **Generative AI:** Use :func:`bigframes.bigquery.ai.generate` (Gemini) to
-  perform text analysis, translation, or
-  content generation. Specialized versions like
+* **Generative AI & LLMs (Gemini):** Use :func:`bigframes.bigquery.ai.generate`
+  to orchestrate Gemini models for text analysis, translation, summarization, or
+  content generation directly on big data. Specialized versions like
   :func:`~bigframes.bigquery.ai.generate_bool`,
   :func:`~bigframes.bigquery.ai.generate_int`, and
   :func:`~bigframes.bigquery.ai.generate_double` are available for structured
-  outputs.
-* **Embeddings:** Generate vector embeddings for text using
-  :func:`~bigframes.bigquery.ai.generate_embedding`, which are essential for
-  semantic search and retrieval-augmented generation (RAG) workflows.
-* **Classification and Scoring:** Apply machine learning models to your data for
-  predictive tasks with :func:`~bigframes.bigquery.ai.classify` and
-  :func:`~bigframes.bigquery.ai.score`.
+  outputs, perfect for data pipelines.
+* **Embeddings & Semantic Search:** Generate vector embeddings for text using
+  :func:`~bigframes.bigquery.ai.generate_embedding`. Essential for modern data science,
+  enabling robust semantic search and Retrieval-Augmented Generation (RAG) architectures.
+* **Classification and Scoring:** Apply robust machine learning models to your data for
+  predictive analytics with :func:`~bigframes.bigquery.ai.classify` and
+  :func:`~bigframes.bigquery.ai.score`, accelerating the time-to-insight for data analysts.
 * **Forecasting:** Predict future values in time-series data using
-  :func:`~bigframes.bigquery.ai.forecast`.
+  :func:`~bigframes.bigquery.ai.forecast` for advanced analytics and business intelligence.
 
 **Example usage:**
 

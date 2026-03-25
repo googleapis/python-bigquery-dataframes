@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://dataframes.bigquery.dev/</loc>
+  </url>
+  <url>
+    <loc>https://dataframes.bigquery.dev/user_guide/index.html</loc>
+  </url>
+  <url>
+    <loc>https://dataframes.bigquery.dev/reference/index.html</loc>
+  </url>
+  <url>
+    <loc>https://dataframes.bigquery.dev/reference/api/bigframes.pandas.html</loc>
+  </url>
+  <url>
+    <loc>https://dataframes.bigquery.dev/reference/api/bigframes.bigquery.html</loc>
+  </url>
+  <url>
+    <loc>https://dataframes.bigquery.dev/reference/api/bigframes.bigquery.ai.html</loc>
+  </url>
+</urlset>

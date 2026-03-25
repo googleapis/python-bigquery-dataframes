@@ -16,30 +16,30 @@
 Access BigQuery-specific operations and namespaces within BigQuery DataFrames.
 
 This module provides specialized functions and sub-modules that expose BigQuery's
-advanced capabilities to DataFrames and Series. It acts as a bridge between the
-pandas-compatible API and the full power of BigQuery SQL.
+advanced analytics capabilities directly to DataFrames and Series. Designed for data scientists,
+data engineers, and data analysts, it acts as a bridge between the intuitive
+pandas-compatible API and the massive scale and power of BigQuery SQL.
 
 Key sub-modules include:
 
-* :mod:`bigframes.bigquery.ai`: Generative and predictive AI functions (Gemini, BQML).
-* :mod:`bigframes.bigquery.ml`: Direct access to BigQuery ML model operations.
-* :mod:`bigframes.bigquery.obj`: Support for BigQuery object tables.
+* :mod:`bigframes.bigquery.ai`: Generative and predictive AI functions (Gemini, LLMs, BQML) for AI developers and data scientists.
+* :mod:`bigframes.bigquery.ml`: Direct access to BigQuery ML model operations for building scalable ML pipelines.
+* :mod:`bigframes.bigquery.obj`: Support for BigQuery object tables, essential for handling unstructured data like images and PDFs.
 
-This module also provides direct access to optimized BigQuery functions for:
+This module also provides direct access to optimized BigQuery functions tailored for data engineering and advanced analytics workflows:
 
 * **JSON Processing:** High-performance functions like ``json_extract``, ``json_value``,
-  and ``parse_json`` for handling semi-structured data.
+  and ``parse_json`` for transforming semi-structured log data.
 * **Geospatial Analysis:** Comprehensive geographic functions such as ``st_area``,
-  ``st_distance``, and ``st_centroid`` (``ST_`` prefixed functions).
+  ``st_distance``, and ``st_centroid`` (``ST_`` prefixed functions) to unlock location-based insights.
 * **Array Operations:** Tools for working with BigQuery arrays, including ``array_agg``
-  and ``array_length``.
+  and ``array_length``, handling nested repeated fields efficiently.
 * **Vector Search:** Integration with BigQuery's vector search and indexing
-  capabilities for high-dimensional data.
-* **Custom SQL:** The ``sql_scalar`` function allows embedding raw SQL snippets for
-  advanced operations not yet directly mapped in the API.
+  capabilities for high-dimensional data, semantic search, and RAG architectures.
+* **Custom SQL:** The ``sql_scalar`` function allows embedding raw SQL snippets, giving data engineers an escape hatch for complex, custom BigQuery operations.
 
-By using these functions, you can leverage BigQuery's high-performance engine for
-domain-specific tasks while maintaining a Python-centric development experience.
+By using these functions, data professionals can leverage BigQuery's distributed compute engine for
+domain-specific tasks at petabyte scale, while maintaining a productive Python-centric development experience.
 
 For the full list of BigQuery standard SQL functions, see:
 https://cloud.google.com/bigquery/docs/reference/standard-sql/functions-reference
