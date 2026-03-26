@@ -1,151 +1,182 @@
-WITH `bfcte_0` AS (
+SELECT `S_NAME`, `S_ADDRESS` FROM (SELECT
+  `t26`.`S_NAME`,
+  `t26`.`S_ADDRESS`
+FROM (
   SELECT
-    `P_PARTKEY`,
-    `P_NAME`,
-    `P_PARTKEY` AS `bfcol_15`,
-    STARTS_WITH(`P_NAME`, 'forest') AS `bfcol_16`
-  FROM `bigframes-dev`.`tpch`.`PART` AS `bft_4` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    STARTS_WITH(`P_NAME`, 'forest')
-), `bfcte_1` AS (
-  SELECT
-    `PS_PARTKEY` AS `bfcol_2`,
-    `PS_SUPPKEY` AS `bfcol_3`,
-    `PS_AVAILQTY` AS `bfcol_4`
-  FROM `bigframes-dev`.`tpch`.`PARTSUPP` AS `bft_3` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_2` AS (
-  SELECT
-    `L_PARTKEY`,
-    `L_SUPPKEY`,
-    `L_QUANTITY`,
-    `L_SHIPDATE`,
-    `L_PARTKEY` AS `bfcol_17`,
-    `L_SUPPKEY` AS `bfcol_18`,
-    `L_QUANTITY` AS `bfcol_19`,
-    (
-      `L_SHIPDATE` >= CAST('1994-01-01' AS DATE)
-    )
-    AND (
-      `L_SHIPDATE` < CAST('1995-01-01' AS DATE)
-    ) AS `bfcol_20`
-  FROM `bigframes-dev`.`tpch`.`LINEITEM` AS `bft_2` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    (
-      `L_SHIPDATE` >= CAST('1994-01-01' AS DATE)
-    )
-    AND (
-      `L_SHIPDATE` < CAST('1995-01-01' AS DATE)
-    )
-), `bfcte_3` AS (
-  SELECT
-    `N_NATIONKEY` AS `bfcol_35`
-  FROM `bigframes-dev`.`tpch`.`NATION` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    `N_NAME` = 'CANADA'
-), `bfcte_4` AS (
-  SELECT
-    `S_SUPPKEY` AS `bfcol_11`,
-    `S_NAME` AS `bfcol_12`,
-    `S_ADDRESS` AS `bfcol_13`,
-    `S_NATIONKEY` AS `bfcol_14`
-  FROM `bigframes-dev`.`tpch`.`SUPPLIER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_5` AS (
-  SELECT
-    `bfcol_15`
-  FROM `bfcte_0`
-  GROUP BY
-    `bfcol_15`
-), `bfcte_6` AS (
-  SELECT
-    `bfcol_17`,
-    `bfcol_18`,
-    COALESCE(SUM(`bfcol_19`), 0) AS `bfcol_36`
-  FROM `bfcte_2`
-  WHERE
-    NOT `bfcol_17` IS NULL AND NOT `bfcol_18` IS NULL
-  GROUP BY
-    `bfcol_17`,
-    `bfcol_18`
-), `bfcte_7` AS (
-  SELECT
-    `bfcol_11` AS `bfcol_41`,
-    `bfcol_12` AS `bfcol_42`,
-    `bfcol_13` AS `bfcol_43`
-  FROM `bfcte_4`
-  INNER JOIN `bfcte_3`
-    ON COALESCE(`bfcol_14`, 0) = COALESCE(`bfcol_35`, 0)
-    AND COALESCE(`bfcol_14`, 1) = COALESCE(`bfcol_35`, 1)
-), `bfcte_8` AS (
-  SELECT
-    `bfcol_15` AS `bfcol_31`
-  FROM `bfcte_5`
-), `bfcte_9` AS (
-  SELECT
-    `bfcol_17` AS `bfcol_48`,
-    `bfcol_18` AS `bfcol_49`,
-    `bfcol_36` * 0.5 AS `bfcol_50`
-  FROM `bfcte_6`
-), `bfcte_10` AS (
-  SELECT
-    *,
-    STRUCT(COALESCE(`bfcol_2`, 0) AS `bfpart1`, COALESCE(`bfcol_2`, 1) AS `bfpart2`) IN (
-      (
+    `t14`.`S_NAME`,
+    `t14`.`S_ADDRESS`,
+    EXISTS(
+      SELECT
+        1
+      FROM (
         SELECT
-          STRUCT(COALESCE(`bfcol_31`, 0) AS `bfpart1`, COALESCE(`bfcol_31`, 1) AS `bfpart2`)
-        FROM `bfcte_8`
-      )
-    ) AS `bfcol_37`
-  FROM `bfcte_1`
-), `bfcte_11` AS (
-  SELECT
-    `bfcol_2` AS `bfcol_51`,
-    `bfcol_3` AS `bfcol_52`,
-    `bfcol_4` AS `bfcol_53`
-  FROM `bfcte_10`
-  WHERE
-    `bfcol_37`
-), `bfcte_12` AS (
-  SELECT
-    `bfcol_48`,
-    `bfcol_49`,
-    `bfcol_50`,
-    `bfcol_51`,
-    `bfcol_52`,
-    `bfcol_53`,
-    `bfcol_52` AS `bfcol_57`,
-    `bfcol_53` > `bfcol_50` AS `bfcol_58`
-  FROM `bfcte_9`
-  INNER JOIN `bfcte_11`
-    ON `bfcol_49` = `bfcol_52` AND `bfcol_48` = `bfcol_51`
-  WHERE
-    `bfcol_53` > `bfcol_50`
-), `bfcte_13` AS (
-  SELECT
-    `bfcol_57`
-  FROM `bfcte_12`
-  GROUP BY
-    `bfcol_57`
-), `bfcte_14` AS (
-  SELECT
-    `bfcol_57` AS `bfcol_61`
-  FROM `bfcte_13`
-), `bfcte_15` AS (
-  SELECT
-    *,
-    STRUCT(COALESCE(`bfcol_41`, 0) AS `bfpart1`, COALESCE(`bfcol_41`, 1) AS `bfpart2`) IN (
-      (
+          `t23`.`bfuid_col_3812`
+        FROM (
+          SELECT
+            `t22`.`bfuid_col_3812`
+          FROM (
+            SELECT
+              `t21`.`PS_SUPPKEY` AS `bfuid_col_3812`,
+              `t21`.`PS_AVAILQTY` > `t19`.`bfuid_col_3778` AS `bfuid_col_3816`
+            FROM (
+              SELECT
+                `t15`.`bfuid_col_3758` AS `bfuid_col_3776`,
+                `t15`.`bfuid_col_3759` AS `bfuid_col_3777`,
+                `t15`.`bfuid_col_3774` * 0.5 AS `bfuid_col_3778`
+              FROM (
+                SELECT
+                  `t13`.`bfuid_col_3758`,
+                  `t13`.`bfuid_col_3759`,
+                  COALESCE(SUM(`t13`.`bfuid_col_3761`), 0) AS `bfuid_col_3774`
+                FROM (
+                  SELECT
+                    `t11`.`bfuid_col_3758`,
+                    `t11`.`bfuid_col_3759`,
+                    `t11`.`bfuid_col_3761`
+                  FROM (
+                    SELECT
+                      `t2`.`L_PARTKEY` AS `bfuid_col_3758`,
+                      `t2`.`L_SUPPKEY` AS `bfuid_col_3759`,
+                      `t2`.`L_QUANTITY` AS `bfuid_col_3761`,
+                      (
+                        `t2`.`L_SHIPDATE` >= DATE(1994, 1, 1)
+                      )
+                      AND (
+                        `t2`.`L_SHIPDATE` < DATE(1995, 1, 1)
+                      ) AS `bfuid_col_3773`
+                    FROM (
+                      SELECT
+                        `L_PARTKEY`,
+                        `L_SUPPKEY`,
+                        `L_QUANTITY`,
+                        `L_SHIPDATE`
+                      FROM `bigframes-dev.tpch.LINEITEM` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                    ) AS `t2`
+                  ) AS `t11`
+                  WHERE
+                    `t11`.`bfuid_col_3773`
+                ) AS `t13`
+                GROUP BY
+                  1,
+                  2
+              ) AS `t15`
+              WHERE
+                (
+                  `t15`.`bfuid_col_3758`
+                ) IS NOT NULL
+                AND (
+                  `t15`.`bfuid_col_3759`
+                ) IS NOT NULL
+            ) AS `t19`
+            INNER JOIN (
+              SELECT
+                `t17`.`PS_PARTKEY`,
+                `t17`.`PS_SUPPKEY`,
+                `t17`.`PS_AVAILQTY`
+              FROM (
+                SELECT
+                  `t6`.`PS_PARTKEY`,
+                  `t6`.`PS_SUPPKEY`,
+                  `t6`.`PS_AVAILQTY`,
+                  EXISTS(
+                    SELECT
+                      1
+                    FROM (
+                      SELECT
+                        `t9`.`bfuid_col_3787`
+                      FROM (
+                        SELECT
+                          `t4`.`P_PARTKEY` AS `bfuid_col_3787`
+                        FROM (
+                          SELECT
+                            `P_PARTKEY`,
+                            `P_NAME`
+                          FROM `bigframes-dev.tpch.PART` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                        ) AS `t4`
+                        WHERE
+                          STARTS_WITH(`t4`.`P_NAME`, 'forest')
+                      ) AS `t9`
+                      GROUP BY
+                        1
+                    ) AS `t12`
+                    WHERE
+                      (
+                        COALESCE(`t6`.`PS_PARTKEY`, 0) = COALESCE(`t12`.`bfuid_col_3787`, 0)
+                      )
+                      AND (
+                        COALESCE(`t6`.`PS_PARTKEY`, 1) = COALESCE(`t12`.`bfuid_col_3787`, 1)
+                      )
+                  ) AS `bfuid_col_3797`
+                FROM (
+                  SELECT
+                    `t3`.`PS_PARTKEY`,
+                    `t3`.`PS_SUPPKEY`,
+                    `t3`.`PS_AVAILQTY`
+                  FROM (
+                    SELECT
+                      `PS_PARTKEY`,
+                      `PS_SUPPKEY`,
+                      `PS_AVAILQTY`
+                    FROM `bigframes-dev.tpch.PARTSUPP` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                  ) AS `t3`
+                ) AS `t6`
+              ) AS `t17`
+              WHERE
+                `t17`.`bfuid_col_3797`
+            ) AS `t21`
+              ON `t19`.`bfuid_col_3777` = `t21`.`PS_SUPPKEY`
+              AND `t19`.`bfuid_col_3776` = `t21`.`PS_PARTKEY`
+          ) AS `t22`
+          WHERE
+            `t22`.`bfuid_col_3816`
+        ) AS `t23`
+        GROUP BY
+          1
+      ) AS `t24`
+      WHERE
+        (
+          COALESCE(`t14`.`S_SUPPKEY`, 0) = COALESCE(`t24`.`bfuid_col_3812`, 0)
+        )
+        AND (
+          COALESCE(`t14`.`S_SUPPKEY`, 1) = COALESCE(`t24`.`bfuid_col_3812`, 1)
+        )
+    ) AS `bfuid_col_3817`
+  FROM (
+    SELECT
+      `t7`.`S_SUPPKEY`,
+      `t7`.`S_NAME`,
+      `t7`.`S_ADDRESS`
+    FROM (
+      SELECT
+        `t0`.`S_SUPPKEY`,
+        `t0`.`S_NAME`,
+        `t0`.`S_ADDRESS`,
+        `t0`.`S_NATIONKEY`
+      FROM (
         SELECT
-          STRUCT(COALESCE(`bfcol_61`, 0) AS `bfpart1`, COALESCE(`bfcol_61`, 1) AS `bfpart2`)
-        FROM `bfcte_14`
-      )
-    ) AS `bfcol_62`
-  FROM `bfcte_7`
-)
-SELECT
-  `bfcol_42` AS `S_NAME`,
-  `bfcol_43` AS `S_ADDRESS`
-FROM `bfcte_15`
+          `S_SUPPKEY`,
+          `S_NAME`,
+          `S_ADDRESS`,
+          `S_NATIONKEY`
+        FROM `bigframes-dev.tpch.SUPPLIER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+      ) AS `t0`
+    ) AS `t7`
+    INNER JOIN (
+      SELECT
+        `t1`.`N_NATIONKEY` AS `bfuid_col_3781`
+      FROM (
+        SELECT
+          `N_NATIONKEY`,
+          `N_NAME`
+        FROM `bigframes-dev.tpch.NATION` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+      ) AS `t1`
+      WHERE
+        `t1`.`N_NAME` = 'CANADA'
+    ) AS `t10`
+      ON COALESCE(`t7`.`S_NATIONKEY`, 0) = COALESCE(`t10`.`bfuid_col_3781`, 0)
+      AND COALESCE(`t7`.`S_NATIONKEY`, 1) = COALESCE(`t10`.`bfuid_col_3781`, 1)
+  ) AS `t14`
+) AS `t26`
 WHERE
-  `bfcol_62`
-ORDER BY
-  `bfcol_42` ASC NULLS LAST
+  `t26`.`bfuid_col_3817`) AS `t`
+ORDER BY `S_NAME` ASC NULLS LAST

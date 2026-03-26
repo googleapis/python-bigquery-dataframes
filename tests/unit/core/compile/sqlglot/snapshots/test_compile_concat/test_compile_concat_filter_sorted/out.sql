@@ -1,63 +1,98 @@
-WITH `bfcte_0` AS (
+SELECT `float64_col`, `int64_col` FROM (WITH `t1` AS (
   SELECT
-    `float64_col` AS `bfcol_7`,
-    `int64_too` AS `bfcol_8`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+    `t0`.`int64_col`,
+    `t0`.`float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+), `t2` AS (
+  SELECT
+    `t0`.`bool_col`,
+    `t0`.`int64_too`,
+    `t0`.`float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
   WHERE
-    `bool_col`
-), `bfcte_1` AS (
-  SELECT
-    `float64_col` AS `bfcol_5`,
-    `int64_col` AS `bfcol_6`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_21` AS `bfcol_33`,
-    `bfcol_22` AS `bfcol_34`,
-    `bfcol_23` AS `bfcol_35`,
-    `bfcol_24` AS `bfcol_36`
-  FROM (
-    (
-      SELECT
-        `bfcol_5` AS `bfcol_21`,
-        `bfcol_6` AS `bfcol_22`,
-        0 AS `bfcol_23`,
-        ROW_NUMBER() OVER (ORDER BY `bfcol_6` ASC NULLS LAST) - 1 AS `bfcol_24`
-      FROM `bfcte_1`
-    )
-    UNION ALL
-    (
-      SELECT
-        `bfcol_7` AS `bfcol_29`,
-        `bfcol_8` AS `bfcol_30`,
-        1 AS `bfcol_31`,
-        ROW_NUMBER() OVER () - 1 AS `bfcol_32`
-      FROM `bfcte_0`
-    )
-    UNION ALL
-    (
-      SELECT
-        `bfcol_5` AS `bfcol_17`,
-        `bfcol_6` AS `bfcol_18`,
-        2 AS `bfcol_19`,
-        ROW_NUMBER() OVER (ORDER BY `bfcol_6` ASC NULLS LAST) - 1 AS `bfcol_20`
-      FROM `bfcte_1`
-    )
-    UNION ALL
-    (
-      SELECT
-        `bfcol_7` AS `bfcol_25`,
-        `bfcol_8` AS `bfcol_26`,
-        3 AS `bfcol_27`,
-        ROW_NUMBER() OVER () - 1 AS `bfcol_28`
-      FROM `bfcte_0`
-    )
-  )
+    `t0`.`bool_col`
 )
 SELECT
-  `bfcol_33` AS `float64_col`,
-  `bfcol_34` AS `int64_col`
-FROM `bfcte_2`
-ORDER BY
-  `bfcol_35` ASC NULLS LAST,
-  `bfcol_36` ASC NULLS LAST
+  *
+FROM (
+  SELECT
+    *
+  FROM (
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t9`.`float64_col`,
+        `t9`.`int64_col`,
+        `t9`.`bfuid_col_1551` AS `bfuid_col_1559`,
+        `t9`.`bfuid_col_1550` AS `bfuid_col_1558`
+      FROM (
+        SELECT
+          `t3`.`float64_col`,
+          `t3`.`int64_col`,
+          0 AS `bfuid_col_1551`,
+          ROW_NUMBER() OVER (ORDER BY `t3`.`int64_col` IS NULL ASC, `t3`.`int64_col` ASC) - 1 AS `bfuid_col_1550`
+        FROM `t1` AS `t3`
+      ) AS `t9`
+    ) AS `t11`
+    UNION ALL
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t5`.`float64_col`,
+        `t5`.`int64_too` AS `int64_col`,
+        `t5`.`bfuid_col_1553` AS `bfuid_col_1559`,
+        `t5`.`bfuid_col_1552` AS `bfuid_col_1558`
+      FROM (
+        SELECT
+          `t4`.`float64_col`,
+          `t4`.`int64_too`,
+          1 AS `bfuid_col_1553`,
+          ROW_NUMBER() OVER (ORDER BY NULL ASC) - 1 AS `bfuid_col_1552`
+        FROM `t2` AS `t4`
+      ) AS `t5`
+    ) AS `t7`
+  ) AS `t13`
+  UNION ALL
+  SELECT
+    *
+  FROM (
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t10`.`float64_col`,
+        `t10`.`int64_col`,
+        `t10`.`bfuid_col_1555` AS `bfuid_col_1559`,
+        `t10`.`bfuid_col_1554` AS `bfuid_col_1558`
+      FROM (
+        SELECT
+          `t3`.`float64_col`,
+          `t3`.`int64_col`,
+          2 AS `bfuid_col_1555`,
+          ROW_NUMBER() OVER (ORDER BY `t3`.`int64_col` IS NULL ASC, `t3`.`int64_col` ASC) - 1 AS `bfuid_col_1554`
+        FROM `t1` AS `t3`
+      ) AS `t10`
+    ) AS `t12`
+    UNION ALL
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t6`.`float64_col`,
+        `t6`.`int64_too` AS `int64_col`,
+        `t6`.`bfuid_col_1557` AS `bfuid_col_1559`,
+        `t6`.`bfuid_col_1556` AS `bfuid_col_1558`
+      FROM (
+        SELECT
+          `t4`.`float64_col`,
+          `t4`.`int64_too`,
+          3 AS `bfuid_col_1557`,
+          ROW_NUMBER() OVER (ORDER BY NULL ASC) - 1 AS `bfuid_col_1556`
+        FROM `t2` AS `t4`
+      ) AS `t6`
+    ) AS `t8`
+  ) AS `t14`
+) AS `t15`) AS `t`
+ORDER BY `bfuid_col_1559` ASC NULLS LAST ,`bfuid_col_1558` ASC NULLS LAST

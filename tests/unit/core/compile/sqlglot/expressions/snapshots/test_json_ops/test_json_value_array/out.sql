@@ -1,3 +1,7 @@
 SELECT
-  JSON_VALUE_ARRAY(`json_col`, '$') AS `json_col`
-FROM `bigframes-dev`.`sqlglot_test`.`json_types` AS `bft_0`
+  json_value_array(`t1`.`json_col`, '$') AS `json_col`
+FROM (
+  SELECT
+    `t0`.`json_col`
+  FROM `bigframes-dev.sqlglot_test.json_types` AS `t0`
+) AS `t1`

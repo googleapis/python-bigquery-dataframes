@@ -1,23 +1,24 @@
 SELECT
-  `rowindex`,
-  `bool_col`,
-  `int64_col`,
-  `int64_col` ^ `int64_col` AS `int_and_int`,
+  `t0`.`rowindex`,
+  `t0`.`bool_col`,
+  `t0`.`int64_col`,
+  `t0`.`int64_col` ^ `t0`.`int64_col` AS `int_and_int`,
   (
-    `bool_col` AND NOT `bool_col`
-  ) OR (
-    NOT `bool_col` AND `bool_col`
+    `t0`.`bool_col` AND NOT `t0`.`bool_col`
+  )
+  OR (
+    NOT `t0`.`bool_col` AND `t0`.`bool_col`
   ) AS `bool_and_bool`,
   (
-    `bool_col` AND NOT CAST(NULL AS BOOLEAN)
+    `t0`.`bool_col` AND NOT CAST(NULL AS BOOL)
   )
   OR (
-    NOT `bool_col` AND CAST(NULL AS BOOLEAN)
+    NOT `t0`.`bool_col` AND CAST(NULL AS BOOL)
   ) AS `bool_and_null`,
   (
-    `bool_col` AND NOT CAST(NULL AS BOOLEAN)
+    `t0`.`bool_col` AND NOT CAST(NULL AS BOOL)
   )
   OR (
-    NOT `bool_col` AND CAST(NULL AS BOOLEAN)
+    NOT `t0`.`bool_col` AND CAST(NULL AS BOOL)
   ) AS `null_and_bool`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

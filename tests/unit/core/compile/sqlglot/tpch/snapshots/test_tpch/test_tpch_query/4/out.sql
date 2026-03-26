@@ -1,70 +1,80 @@
-WITH `bfcte_0` AS (
+SELECT `O_ORDERPRIORITY`, `ORDER_COUNT` FROM (SELECT
+  `t10`.`bfuid_col_2134` AS `O_ORDERPRIORITY`,
+  `t10`.`bfuid_col_2140` AS `ORDER_COUNT`
+FROM (
   SELECT
-    `O_ORDERKEY` AS `bfcol_0`,
-    `O_ORDERDATE` AS `bfcol_1`,
-    `O_ORDERPRIORITY` AS `bfcol_2`
-  FROM `bigframes-dev`.`tpch`.`ORDERS` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_1` AS (
-  SELECT
-    `L_ORDERKEY` AS `bfcol_3`,
-    `L_COMMITDATE` AS `bfcol_4`,
-    `L_RECEIPTDATE` AS `bfcol_5`
-  FROM `bigframes-dev`.`tpch`.`LINEITEM` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_3`,
-    `bfcol_4`,
-    `bfcol_5`,
-    `bfcol_0`,
-    `bfcol_1`,
-    `bfcol_2`,
-    `bfcol_3` AS `bfcol_11`,
-    `bfcol_4` AS `bfcol_12`,
-    `bfcol_5` AS `bfcol_13`,
-    `bfcol_2` AS `bfcol_14`,
-    (
-      `bfcol_1` >= CAST('1993-07-01' AS DATE)
-    )
-    AND (
-      `bfcol_1` < CAST('1993-10-01' AS DATE)
-    ) AS `bfcol_15`,
-    `bfcol_3` AS `bfcol_25`,
-    `bfcol_2` AS `bfcol_26`,
-    `bfcol_4` < `bfcol_5` AS `bfcol_27`
-  FROM `bfcte_1`
-  INNER JOIN `bfcte_0`
-    ON COALESCE(`bfcol_3`, 0) = COALESCE(`bfcol_0`, 0)
-    AND COALESCE(`bfcol_3`, 1) = COALESCE(`bfcol_0`, 1)
-  WHERE
-    (
-      `bfcol_1` >= CAST('1993-07-01' AS DATE)
-    )
-    AND (
-      `bfcol_1` < CAST('1993-10-01' AS DATE)
-    )
-    AND `bfcol_4` < `bfcol_5`
-), `bfcte_3` AS (
-  SELECT
-    `bfcol_26`,
-    `bfcol_25`,
-    COUNT(1) AS `bfcol_33`
-  FROM `bfcte_2`
-  WHERE
-    NOT `bfcol_26` IS NULL AND NOT `bfcol_25` IS NULL
+    `t9`.`bfuid_col_2134`,
+    COUNT(`t9`.`bfuid_col_2113`) AS `bfuid_col_2140`
+  FROM (
+    SELECT
+      `t8`.`bfuid_col_2134`,
+      `t8`.`bfuid_col_2113`
+    FROM (
+      SELECT
+        `t7`.`bfuid_col_2134`,
+        `t7`.`bfuid_col_2113`,
+        COUNT(1) AS `bfuid_col_2139`
+      FROM (
+        SELECT
+          `t6`.`bfuid_col_2084` AS `bfuid_col_2113`,
+          `t6`.`bfuid_col_2105` AS `bfuid_col_2134`
+        FROM (
+          SELECT
+            `t4`.`L_ORDERKEY` AS `bfuid_col_2084`,
+            `t4`.`L_COMMITDATE` AS `bfuid_col_2095`,
+            `t4`.`L_RECEIPTDATE` AS `bfuid_col_2096`,
+            `t5`.`O_ORDERPRIORITY` AS `bfuid_col_2105`,
+            (
+              `t5`.`O_ORDERDATE` >= DATE(1993, 7, 1)
+            )
+            AND (
+              `t5`.`O_ORDERDATE` < DATE(1993, 10, 1)
+            ) AS `bfuid_col_2109`
+          FROM (
+            SELECT
+              `t0`.`L_ORDERKEY`,
+              `t0`.`L_COMMITDATE`,
+              `t0`.`L_RECEIPTDATE`
+            FROM (
+              SELECT
+                `L_ORDERKEY`,
+                `L_COMMITDATE`,
+                `L_RECEIPTDATE`
+              FROM `bigframes-dev.tpch.LINEITEM` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+            ) AS `t0`
+          ) AS `t4`
+          INNER JOIN (
+            SELECT
+              `t1`.`O_ORDERKEY`,
+              `t1`.`O_ORDERDATE`,
+              `t1`.`O_ORDERPRIORITY`
+            FROM (
+              SELECT
+                `O_ORDERKEY`,
+                `O_ORDERDATE`,
+                `O_ORDERPRIORITY`
+              FROM `bigframes-dev.tpch.ORDERS` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+            ) AS `t1`
+          ) AS `t5`
+            ON COALESCE(`t4`.`L_ORDERKEY`, 0) = COALESCE(`t5`.`O_ORDERKEY`, 0)
+            AND COALESCE(`t4`.`L_ORDERKEY`, 1) = COALESCE(`t5`.`O_ORDERKEY`, 1)
+        ) AS `t6`
+        WHERE
+          `t6`.`bfuid_col_2109` AND `t6`.`bfuid_col_2095` < `t6`.`bfuid_col_2096`
+      ) AS `t7`
+      GROUP BY
+        1,
+        2
+    ) AS `t8`
+    WHERE
+      (
+        `t8`.`bfuid_col_2134`
+      ) IS NOT NULL
+      AND (
+        `t8`.`bfuid_col_2113`
+      ) IS NOT NULL
+  ) AS `t9`
   GROUP BY
-    `bfcol_26`,
-    `bfcol_25`
-), `bfcte_4` AS (
-  SELECT
-    `bfcol_26`,
-    COUNT(`bfcol_25`) AS `bfcol_36`
-  FROM `bfcte_3`
-  GROUP BY
-    `bfcol_26`
-)
-SELECT
-  `bfcol_26` AS `O_ORDERPRIORITY`,
-  `bfcol_36` AS `ORDER_COUNT`
-FROM `bfcte_4`
-ORDER BY
-  `bfcol_26` ASC NULLS LAST
+    1
+) AS `t10`) AS `t`
+ORDER BY `O_ORDERPRIORITY` ASC NULLS LAST

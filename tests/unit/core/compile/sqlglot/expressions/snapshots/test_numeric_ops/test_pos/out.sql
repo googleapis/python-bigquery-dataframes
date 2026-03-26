@@ -1,3 +1,3 @@
 SELECT
-  `float64_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  `t0`.`float64_col`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

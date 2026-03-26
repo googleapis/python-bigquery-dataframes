@@ -1,13 +1,24 @@
-SELECT
-  `rowindex`,
+SELECT `rowindex`, `int64_col` FROM (SELECT
+  `t1`.`rowindex`,
   CASE
     WHEN COUNT((
-      `int64_col`
-    ) IS NOT NULL) OVER (ORDER BY `rowindex` ASC NULLS LAST ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) < 5
+      `t1`.`int64_col`
+    ) IS NOT NULL) OVER (
+      ORDER BY `t1`.`rowindex` IS NULL ASC, `t1`.`rowindex` ASC
+      ROWS BETWEEN 4 preceding AND CURRENT ROW
+    ) < 5
     THEN NULL
     WHEN TRUE
-    THEN COUNT(`int64_col`) OVER (ORDER BY `rowindex` ASC NULLS LAST ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)
+    THEN COUNT(`t1`.`int64_col`) OVER (
+      ORDER BY `t1`.`rowindex` IS NULL ASC, `t1`.`rowindex` ASC
+      ROWS BETWEEN 4 preceding AND CURRENT ROW
+    )
+    ELSE CAST(NULL AS INT64)
   END AS `int64_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-ORDER BY
-  `rowindex` ASC NULLS LAST
+FROM (
+  SELECT
+    `t0`.`int64_col`,
+    `t0`.`rowindex`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t1`) AS `t`
+ORDER BY `rowindex` ASC NULLS LAST

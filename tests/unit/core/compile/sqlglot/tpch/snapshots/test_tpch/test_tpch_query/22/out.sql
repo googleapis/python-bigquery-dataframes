@@ -1,136 +1,216 @@
-WITH `bfcte_0` AS (
+SELECT `CNTRYCODE`, `NUMCUST`, `TOTACCTBAL` FROM (SELECT
+  `t25`.`bfuid_col_3962` AS `CNTRYCODE`,
+  `t25`.`bfuid_col_3980` AS `NUMCUST`,
+  `t25`.`bfuid_col_3981` AS `TOTACCTBAL`
+FROM (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_3` STRING, `bfcol_4` INT64, `bfcol_5` INT64>>[STRUCT('C_ACCTBAL', 0, 0)])
-), `bfcte_1` AS (
-  SELECT
-    `O_CUSTKEY`
-  FROM `bigframes-dev`.`tpch`.`ORDERS` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_2` AS (
-  SELECT
-    `C_PHONE`,
-    `C_ACCTBAL`,
-    `C_ACCTBAL` AS `bfcol_9`,
-    SUBSTRING(`C_PHONE`, 1, 2) AS `bfcol_10`,
-    `C_ACCTBAL` AS `bfcol_19`,
-    COALESCE(
-      COALESCE(SUBSTRING(`C_PHONE`, 1, 2) IN ('13', '31', '23', '29', '30', '18', '17'), FALSE),
-      FALSE
-    ) AS `bfcol_20`,
-    `C_ACCTBAL` AS `bfcol_35`,
-    `C_ACCTBAL` > 0.0 AS `bfcol_36`
-  FROM `bigframes-dev`.`tpch`.`CUSTOMER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    COALESCE(
-      COALESCE(SUBSTRING(`C_PHONE`, 1, 2) IN ('13', '31', '23', '29', '30', '18', '17'), FALSE),
-      FALSE
-    )
-    AND `C_ACCTBAL` > 0.0
-), `bfcte_3` AS (
-  SELECT
-    `C_CUSTKEY` AS `bfcol_32`,
-    `C_ACCTBAL` AS `bfcol_33`,
-    SUBSTRING(`C_PHONE`, 1, 2) AS `bfcol_34`
-  FROM `bigframes-dev`.`tpch`.`CUSTOMER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    COALESCE(
-      COALESCE(SUBSTRING(`C_PHONE`, 1, 2) IN ('13', '31', '23', '29', '30', '18', '17'), FALSE),
-      FALSE
-    )
-), `bfcte_4` AS (
-  SELECT
-    `O_CUSTKEY`
-  FROM `bfcte_1`
-  GROUP BY
-    `O_CUSTKEY`
-), `bfcte_5` AS (
-  SELECT
-    AVG(`bfcol_35`) AS `bfcol_40`
-  FROM `bfcte_2`
-), `bfcte_6` AS (
-  SELECT
-    `O_CUSTKEY` AS `bfcol_0`
-  FROM `bfcte_4`
-), `bfcte_7` AS (
-  SELECT
-    `bfcol_40`,
-    0 AS `bfcol_41`
-  FROM `bfcte_5`
-), `bfcte_8` AS (
-  SELECT
-    `bfcol_3`,
-    `bfcol_4`,
-    `bfcol_5`,
-    `bfcol_40`,
-    `bfcol_41`,
-    CASE WHEN `bfcol_5` = 0 THEN `bfcol_40` END AS `bfcol_42`,
-    IF(`bfcol_41` = 0, CASE WHEN `bfcol_5` = 0 THEN `bfcol_40` END, NULL) AS `bfcol_47`
-  FROM `bfcte_0`
-  CROSS JOIN `bfcte_7`
-), `bfcte_9` AS (
-  SELECT
-    `bfcol_3`,
-    `bfcol_4`,
-    ANY_VALUE(`bfcol_47`) AS `bfcol_51`
-  FROM `bfcte_8`
-  WHERE
-    NOT `bfcol_3` IS NULL AND NOT `bfcol_4` IS NULL
-  GROUP BY
-    `bfcol_3`,
-    `bfcol_4`
-), `bfcte_10` AS (
-  SELECT
-    `bfcol_51` AS `bfcol_52`
-  FROM `bfcte_9`
-), `bfcte_11` AS (
-  SELECT
-    `bfcol_32` AS `bfcol_61`,
-    `bfcol_33` AS `bfcol_62`,
-    `bfcol_34` AS `bfcol_63`
-  FROM `bfcte_3`
-  CROSS JOIN `bfcte_10`
-  WHERE
-    `bfcol_33` > `bfcol_52`
-), `bfcte_12` AS (
-  SELECT
-    *,
-    STRUCT(COALESCE(`bfcol_61`, 0) AS `bfpart1`, COALESCE(`bfcol_61`, 1) AS `bfpart2`) IN (
-      (
+    `t24`.`bfuid_col_3962`,
+    COUNT(`t24`.`bfuid_col_3954`) AS `bfuid_col_3980`,
+    COALESCE(SUM(`t24`.`bfuid_col_3959`), 0) AS `bfuid_col_3981`
+  FROM (
+    SELECT
+      `t23`.`bfuid_col_3954`,
+      `t23`.`bfuid_col_3959`,
+      `t23`.`bfuid_col_3962`
+    FROM (
+      SELECT
+        `t21`.`bfuid_col_3954`,
+        `t21`.`bfuid_col_3959`,
+        `t21`.`bfuid_col_3962`,
+        NOT (
+          EXISTS(
+            SELECT
+              1
+            FROM (
+              SELECT
+                `t4`.`O_CUSTKEY`
+              FROM (
+                SELECT
+                  `t1`.`O_CUSTKEY`
+                FROM (
+                  SELECT
+                    `O_CUSTKEY`
+                  FROM `bigframes-dev.tpch.ORDERS` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                ) AS `t1`
+              ) AS `t4`
+              GROUP BY
+                1
+            ) AS `t7`
+            WHERE
+              (
+                COALESCE(`t21`.`bfuid_col_3954`, 0) = COALESCE(`t7`.`O_CUSTKEY`, 0)
+              )
+              AND (
+                COALESCE(`t21`.`bfuid_col_3954`, 1) = COALESCE(`t7`.`O_CUSTKEY`, 1)
+              )
+          )
+        ) AS `bfuid_col_3966`
+      FROM (
         SELECT
-          STRUCT(COALESCE(`bfcol_0`, 0) AS `bfpart1`, COALESCE(`bfcol_0`, 1) AS `bfpart2`)
-        FROM `bfcte_6`
-      )
-    ) AS `bfcol_64`
-  FROM `bfcte_11`
-), `bfcte_13` AS (
-  SELECT
-    `bfcol_61`,
-    `bfcol_62`,
-    `bfcol_63`,
-    `bfcol_64`,
-    NOT (
-      `bfcol_64`
-    ) AS `bfcol_65`
-  FROM `bfcte_12`
-  WHERE
-    NOT (
-      `bfcol_64`
-    )
-), `bfcte_14` AS (
-  SELECT
-    `bfcol_63`,
-    COUNT(`bfcol_61`) AS `bfcol_73`,
-    COALESCE(SUM(`bfcol_62`), 0) AS `bfcol_74`
-  FROM `bfcte_13`
-  WHERE
-    NOT `bfcol_63` IS NULL
+          `t20`.`bfuid_col_3954`,
+          `t20`.`bfuid_col_3959`,
+          `t20`.`bfuid_col_3962`
+        FROM (
+          SELECT
+            `t11`.`bfuid_col_3919` AS `bfuid_col_3954`,
+            `t11`.`bfuid_col_3924` AS `bfuid_col_3959`,
+            `t11`.`bfuid_col_3927` AS `bfuid_col_3962`,
+            `t11`.`bfuid_col_3924` > `t19`.`bfuid_col_3946` AS `bfuid_col_3964`
+          FROM (
+            SELECT
+              `t8`.`bfuid_col_3919`,
+              `t8`.`bfuid_col_3924`,
+              `t8`.`bfuid_col_3927`
+            FROM (
+              SELECT
+                `t0`.`C_CUSTKEY` AS `bfuid_col_3919`,
+                `t0`.`C_ACCTBAL` AS `bfuid_col_3924`,
+                SUBSTRING(
+                  `t0`.`C_PHONE`,
+                  IF(
+                    (
+                      IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0)) + 1
+                    ) >= 1,
+                    IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0)) + 1,
+                    IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0)) + 1 + LENGTH(`t0`.`C_PHONE`)
+                  ),
+                  GREATEST(
+                    0,
+                    IF(2 >= 0, 2, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 2)) - IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0))
+                  )
+                ) AS `bfuid_col_3927`,
+                COALESCE(
+                  COALESCE(
+                    SUBSTRING(
+                      `t0`.`C_PHONE`,
+                      IF(
+                        (
+                          IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0)) + 1
+                        ) >= 1,
+                        IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0)) + 1,
+                        IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0)) + 1 + LENGTH(`t0`.`C_PHONE`)
+                      ),
+                      GREATEST(
+                        0,
+                        IF(2 >= 0, 2, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 2)) - IF(0 >= 0, 0, GREATEST(0, LENGTH(`t0`.`C_PHONE`) + 0))
+                      )
+                    ) IN ('13', '31', '23', '29', '30', '18', '17'),
+                    FALSE
+                  ),
+                  FALSE
+                ) AS `bfuid_col_3928`
+              FROM (
+                SELECT
+                  `C_CUSTKEY`,
+                  `C_PHONE`,
+                  `C_ACCTBAL`
+                FROM `bigframes-dev.tpch.CUSTOMER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+              ) AS `t0`
+            ) AS `t8`
+            WHERE
+              `t8`.`bfuid_col_3928`
+          ) AS `t11`
+          CROSS JOIN (
+            SELECT
+              `t17`.`bfuid_col_3946`
+            FROM (
+              SELECT
+                `t16`.`bfuid_col_3943`,
+                `t16`.`bfuid_col_3944`,
+                ANY_VALUE(`t16`.`bfuid_col_3945`) AS `bfuid_col_3946`
+              FROM (
+                SELECT
+                  `t6`.`col_0` AS `bfuid_col_3943`,
+                  `t6`.`col_1` AS `bfuid_col_3944`,
+                  CASE
+                    WHEN `t15`.`bfuid_col_3941` = 0
+                    THEN CASE
+                      WHEN `t6`.`col_2` = 0
+                      THEN `t15`.`bfuid_col_3935`
+                      ELSE CAST(NULL AS FLOAT64)
+                    END
+                    ELSE CAST(NULL AS FLOAT64)
+                  END AS `bfuid_col_3945`
+                FROM (
+                  SELECT
+                    *
+                  FROM (
+                    SELECT
+                      *
+                    FROM UNNEST(ARRAY<STRUCT<`col_0` STRING, `col_1` INT64, `col_2` INT64>>[STRUCT('C_ACCTBAL', 0, 0)]) AS `col_0`
+                  ) AS `t2`
+                ) AS `t6`
+                CROSS JOIN (
+                  SELECT
+                    `t13`.`bfuid_col_3935`,
+                    0 AS `bfuid_col_3941`
+                  FROM (
+                    SELECT
+                      AVG(`t12`.`bfuid_col_3935`) AS `bfuid_col_3935`
+                    FROM (
+                      SELECT
+                        `t9`.`bfuid_col_3924` AS `bfuid_col_3935`
+                      FROM (
+                        SELECT
+                          `t3`.`C_ACCTBAL` AS `bfuid_col_3924`,
+                          COALESCE(
+                            COALESCE(
+                              SUBSTRING(
+                                `t3`.`C_PHONE`,
+                                IF(
+                                  (
+                                    IF(0 >= 0, 0, GREATEST(0, LENGTH(`t3`.`C_PHONE`) + 0)) + 1
+                                  ) >= 1,
+                                  IF(0 >= 0, 0, GREATEST(0, LENGTH(`t3`.`C_PHONE`) + 0)) + 1,
+                                  IF(0 >= 0, 0, GREATEST(0, LENGTH(`t3`.`C_PHONE`) + 0)) + 1 + LENGTH(`t3`.`C_PHONE`)
+                                ),
+                                GREATEST(
+                                  0,
+                                  IF(2 >= 0, 2, GREATEST(0, LENGTH(`t3`.`C_PHONE`) + 2)) - IF(0 >= 0, 0, GREATEST(0, LENGTH(`t3`.`C_PHONE`) + 0))
+                                )
+                              ) IN ('13', '31', '23', '29', '30', '18', '17'),
+                              FALSE
+                            ),
+                            FALSE
+                          ) AS `bfuid_col_3928`
+                        FROM (
+                          SELECT
+                            `C_PHONE`,
+                            `C_ACCTBAL`
+                          FROM `bigframes-dev.tpch.CUSTOMER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                        ) AS `t3`
+                      ) AS `t9`
+                      WHERE
+                        `t9`.`bfuid_col_3928` AND `t9`.`bfuid_col_3924` > 0.0
+                    ) AS `t12`
+                  ) AS `t13`
+                ) AS `t15`
+              ) AS `t16`
+              GROUP BY
+                1,
+                2
+            ) AS `t17`
+            WHERE
+              (
+                `t17`.`bfuid_col_3943`
+              ) IS NOT NULL
+              AND (
+                `t17`.`bfuid_col_3944`
+              ) IS NOT NULL
+          ) AS `t19`
+        ) AS `t20`
+        WHERE
+          `t20`.`bfuid_col_3964`
+      ) AS `t21`
+    ) AS `t23`
+    WHERE
+      `t23`.`bfuid_col_3966`
+  ) AS `t24`
   GROUP BY
-    `bfcol_63`
-)
-SELECT
-  `bfcol_63` AS `CNTRYCODE`,
-  `bfcol_73` AS `NUMCUST`,
-  `bfcol_74` AS `TOTACCTBAL`
-FROM `bfcte_14`
-ORDER BY
-  `bfcol_63` ASC NULLS LAST
+    1
+) AS `t25`
+WHERE
+  (
+    `t25`.`bfuid_col_3962`
+  ) IS NOT NULL) AS `t`
+ORDER BY `CNTRYCODE` ASC NULLS LAST

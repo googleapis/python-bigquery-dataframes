@@ -1,80 +1,99 @@
-WITH `bfcte_0` AS (
+SELECT `L_ORDERKEY`, `REVENUE`, `O_ORDERDATE`, `O_SHIPPRIORITY` FROM (SELECT
+  `t13`.`bfuid_col_2068` AS `L_ORDERKEY`,
+  `t13`.`bfuid_col_2078` AS `REVENUE`,
+  `t13`.`bfuid_col_2072` AS `O_ORDERDATE`,
+  `t13`.`bfuid_col_2075` AS `O_SHIPPRIORITY`
+FROM (
   SELECT
-    `O_ORDERKEY` AS `bfcol_32`,
-    `O_CUSTKEY` AS `bfcol_33`,
-    `O_ORDERDATE` AS `bfcol_34`,
-    `O_SHIPPRIORITY` AS `bfcol_35`
-  FROM `bigframes-dev`.`tpch`.`ORDERS` AS `bft_2` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    `O_ORDERDATE` < CAST('1995-03-15' AS DATE)
-), `bfcte_1` AS (
-  SELECT
-    `L_ORDERKEY` AS `bfcol_36`,
-    `L_EXTENDEDPRICE` AS `bfcol_37`,
-    `L_DISCOUNT` AS `bfcol_38`
-  FROM `bigframes-dev`.`tpch`.`LINEITEM` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    `L_SHIPDATE` > CAST('1995-03-15' AS DATE)
-), `bfcte_2` AS (
-  SELECT
-    `C_CUSTKEY` AS `bfcol_39`
-  FROM `bigframes-dev`.`tpch`.`CUSTOMER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    `C_MKTSEGMENT` = 'BUILDING'
-), `bfcte_3` AS (
-  SELECT
-    `bfcol_37` AS `bfcol_40`,
-    `bfcol_38` AS `bfcol_41`,
-    `bfcol_32` AS `bfcol_42`,
-    `bfcol_33` AS `bfcol_43`,
-    `bfcol_34` AS `bfcol_44`,
-    `bfcol_35` AS `bfcol_45`
-  FROM `bfcte_1`
-  INNER JOIN `bfcte_0`
-    ON COALESCE(`bfcol_36`, 0) = COALESCE(`bfcol_32`, 0)
-    AND COALESCE(`bfcol_36`, 1) = COALESCE(`bfcol_32`, 1)
-), `bfcte_4` AS (
-  SELECT
-    `bfcol_39`,
-    `bfcol_40`,
-    `bfcol_41`,
-    `bfcol_42`,
-    `bfcol_43`,
-    `bfcol_44`,
-    `bfcol_45`,
-    `bfcol_42` AS `bfcol_51`,
-    `bfcol_44` AS `bfcol_52`,
-    `bfcol_45` AS `bfcol_53`,
-    `bfcol_40` * (
-      1 - `bfcol_41`
-    ) AS `bfcol_54`
-  FROM `bfcte_2`
-  INNER JOIN `bfcte_3`
-    ON COALESCE(`bfcol_39`, 0) = COALESCE(`bfcol_43`, 0)
-    AND COALESCE(`bfcol_39`, 1) = COALESCE(`bfcol_43`, 1)
-), `bfcte_5` AS (
-  SELECT
-    `bfcol_51`,
-    `bfcol_52`,
-    `bfcol_53`,
-    COALESCE(SUM(`bfcol_54`), 0) AS `bfcol_59`
-  FROM `bfcte_4`
-  WHERE
-    NOT `bfcol_51` IS NULL AND NOT `bfcol_52` IS NULL AND NOT `bfcol_53` IS NULL
+    `t12`.`bfuid_col_2068`,
+    `t12`.`bfuid_col_2072`,
+    `t12`.`bfuid_col_2075`,
+    COALESCE(SUM(`t12`.`bfuid_col_2077`), 0) AS `bfuid_col_2078`
+  FROM (
+    SELECT
+      `t11`.`bfuid_col_2012` AS `bfuid_col_2068`,
+      `t11`.`bfuid_col_2016` AS `bfuid_col_2072`,
+      `t11`.`bfuid_col_2019` AS `bfuid_col_2075`,
+      `t11`.`bfuid_col_2028` * (
+        1 - `t11`.`bfuid_col_2029`
+      ) AS `bfuid_col_2077`
+    FROM (
+      SELECT
+        `t0`.`C_CUSTKEY` AS `bfuid_col_2002`
+      FROM (
+        SELECT
+          `C_CUSTKEY`,
+          `C_MKTSEGMENT`
+        FROM `bigframes-dev.tpch.CUSTOMER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+      ) AS `t0`
+      WHERE
+        `t0`.`C_MKTSEGMENT` = 'BUILDING'
+    ) AS `t6`
+    INNER JOIN (
+      SELECT
+        *
+      FROM (
+        SELECT
+          `t7`.`bfuid_col_2028`,
+          `t7`.`bfuid_col_2029`,
+          `t8`.`bfuid_col_2012`,
+          `t8`.`bfuid_col_2013`,
+          `t8`.`bfuid_col_2016`,
+          `t8`.`bfuid_col_2019`
+        FROM (
+          SELECT
+            `t1`.`L_ORDERKEY` AS `bfuid_col_2023`,
+            `t1`.`L_EXTENDEDPRICE` AS `bfuid_col_2028`,
+            `t1`.`L_DISCOUNT` AS `bfuid_col_2029`
+          FROM (
+            SELECT
+              `L_ORDERKEY`,
+              `L_EXTENDEDPRICE`,
+              `L_DISCOUNT`,
+              `L_SHIPDATE`
+            FROM `bigframes-dev.tpch.LINEITEM` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+          ) AS `t1`
+          WHERE
+            `t1`.`L_SHIPDATE` > DATE(1995, 3, 15)
+        ) AS `t7`
+        INNER JOIN (
+          SELECT
+            `t2`.`O_ORDERKEY` AS `bfuid_col_2012`,
+            `t2`.`O_CUSTKEY` AS `bfuid_col_2013`,
+            `t2`.`O_ORDERDATE` AS `bfuid_col_2016`,
+            `t2`.`O_SHIPPRIORITY` AS `bfuid_col_2019`
+          FROM (
+            SELECT
+              `O_ORDERKEY`,
+              `O_CUSTKEY`,
+              `O_ORDERDATE`,
+              `O_SHIPPRIORITY`
+            FROM `bigframes-dev.tpch.ORDERS` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+          ) AS `t2`
+          WHERE
+            `t2`.`O_ORDERDATE` < DATE(1995, 3, 15)
+        ) AS `t8`
+          ON COALESCE(`t7`.`bfuid_col_2023`, 0) = COALESCE(`t8`.`bfuid_col_2012`, 0)
+          AND COALESCE(`t7`.`bfuid_col_2023`, 1) = COALESCE(`t8`.`bfuid_col_2012`, 1)
+      ) AS `t9`
+    ) AS `t11`
+      ON COALESCE(`t6`.`bfuid_col_2002`, 0) = COALESCE(`t11`.`bfuid_col_2013`, 0)
+      AND COALESCE(`t6`.`bfuid_col_2002`, 1) = COALESCE(`t11`.`bfuid_col_2013`, 1)
+  ) AS `t12`
   GROUP BY
-    `bfcol_51`,
-    `bfcol_52`,
-    `bfcol_53`
-)
-SELECT
-  `bfcol_51` AS `L_ORDERKEY`,
-  `bfcol_59` AS `REVENUE`,
-  `bfcol_52` AS `O_ORDERDATE`,
-  `bfcol_53` AS `O_SHIPPRIORITY`
-FROM `bfcte_5`
-ORDER BY
-  `bfcol_59` DESC,
-  `bfcol_52` ASC NULLS LAST,
-  `bfcol_51` ASC NULLS LAST,
-  `bfcol_53` ASC NULLS LAST
+    1,
+    2,
+    3
+) AS `t13`
+WHERE
+  (
+    `t13`.`bfuid_col_2068`
+  ) IS NOT NULL
+  AND (
+    `t13`.`bfuid_col_2072`
+  ) IS NOT NULL
+  AND (
+    `t13`.`bfuid_col_2075`
+  ) IS NOT NULL) AS `t`
+ORDER BY `REVENUE` DESC NULLS LAST ,`O_ORDERDATE` ASC NULLS LAST ,`L_ORDERKEY` ASC NULLS LAST ,`O_SHIPPRIORITY` ASC NULLS LAST
 LIMIT 10

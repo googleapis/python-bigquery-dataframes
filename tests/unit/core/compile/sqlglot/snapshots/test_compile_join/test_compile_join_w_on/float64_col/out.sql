@@ -1,24 +1,18 @@
-WITH `bfcte_0` AS (
-  SELECT
-    `float64_col` AS `bfcol_0`,
-    `rowindex` AS `bfcol_1`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-), `bfcte_1` AS (
-  SELECT
-    `bfcol_1` AS `bfcol_2`,
-    `bfcol_0` AS `bfcol_3`
-  FROM `bfcte_0`
-), `bfcte_2` AS (
-  SELECT
-    `bfcol_1` AS `bfcol_4`,
-    `bfcol_0` AS `bfcol_5`
-  FROM `bfcte_0`
-)
 SELECT
-  `bfcol_4` AS `rowindex_x`,
-  `bfcol_5` AS `float64_col`,
-  `bfcol_2` AS `rowindex_y`
-FROM `bfcte_2`
-INNER JOIN `bfcte_1`
-  ON IF(IS_NAN(`bfcol_5`), 2.0, COALESCE(`bfcol_5`, 0.0)) = IF(IS_NAN(`bfcol_3`), 2.0, COALESCE(`bfcol_3`, 0.0))
-  AND IF(IS_NAN(`bfcol_5`), 3, COALESCE(`bfcol_5`, 1.0)) = IF(IS_NAN(`bfcol_3`), 3, COALESCE(`bfcol_3`, 1.0))
+  `t3`.`rowindex` AS `rowindex_x`,
+  `t3`.`float64_col`,
+  `t4`.`bfuid_col_1663` AS `rowindex_y`
+FROM (
+  SELECT
+    `t0`.`rowindex`,
+    `t0`.`float64_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t3`
+INNER JOIN (
+  SELECT
+    `t0`.`rowindex` AS `bfuid_col_1663`,
+    `t0`.`float64_col` AS `bfuid_col_1664`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
+) AS `t4`
+  ON IF(IS_NAN(`t3`.`float64_col`), 2, COALESCE(`t3`.`float64_col`, 0)) = IF(IS_NAN(`t4`.`bfuid_col_1664`), 2, COALESCE(`t4`.`bfuid_col_1664`, 0))
+  AND IF(IS_NAN(`t3`.`float64_col`), 3, COALESCE(`t3`.`float64_col`, 1)) = IF(IS_NAN(`t4`.`bfuid_col_1664`), 3, COALESCE(`t4`.`bfuid_col_1664`, 1))

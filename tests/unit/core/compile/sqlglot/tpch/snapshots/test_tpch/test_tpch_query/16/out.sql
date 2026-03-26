@@ -1,93 +1,132 @@
-WITH `bfcte_0` AS (
+SELECT `P_BRAND`, `P_TYPE`, `P_SIZE`, `SUPPLIER_CNT` FROM (SELECT
+  `t15`.`bfuid_col_3525` AS `P_BRAND`,
+  `t15`.`bfuid_col_3526` AS `P_TYPE`,
+  `t15`.`bfuid_col_3527` AS `P_SIZE`,
+  `t15`.`bfuid_col_3554` AS `SUPPLIER_CNT`
+FROM (
   SELECT
-    `S_SUPPKEY`,
-    `S_COMMENT`,
-    `S_SUPPKEY` AS `bfcol_8`,
-    NOT (
-      REGEXP_CONTAINS(`S_COMMENT`, 'Customer.*Complaints')
-    ) AS `bfcol_9`
-  FROM `bigframes-dev`.`tpch`.`SUPPLIER` AS `bft_2` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    NOT (
-      REGEXP_CONTAINS(`S_COMMENT`, 'Customer.*Complaints')
-    )
-), `bfcte_1` AS (
-  SELECT
-    `PS_PARTKEY` AS `bfcol_2`,
-    `PS_SUPPKEY` AS `bfcol_3`
-  FROM `bigframes-dev`.`tpch`.`PARTSUPP` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_2` AS (
-  SELECT
-    `P_PARTKEY` AS `bfcol_4`,
-    `P_BRAND` AS `bfcol_5`,
-    `P_TYPE` AS `bfcol_6`,
-    `P_SIZE` AS `bfcol_7`
-  FROM `bigframes-dev`.`tpch`.`PART` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_3` AS (
-  SELECT
-    `bfcol_8`
-  FROM `bfcte_0`
-  GROUP BY
-    `bfcol_8`
-), `bfcte_4` AS (
-  SELECT
-    `bfcol_5` AS `bfcol_55`,
-    `bfcol_6` AS `bfcol_56`,
-    `bfcol_7` AS `bfcol_57`,
-    `bfcol_3` AS `bfcol_58`
-  FROM `bfcte_2`
-  INNER JOIN `bfcte_1`
-    ON COALESCE(`bfcol_4`, 0) = COALESCE(`bfcol_2`, 0)
-    AND COALESCE(`bfcol_4`, 1) = COALESCE(`bfcol_2`, 1)
-  WHERE
-    `bfcol_5` <> 'Brand#45'
-    AND NOT (
-      REGEXP_CONTAINS(`bfcol_6`, 'MEDIUM POLISHED')
-    )
-    AND COALESCE(COALESCE(`bfcol_7` IN (49, 14, 23, 45, 19, 3, 36, 9), FALSE), FALSE)
-), `bfcte_5` AS (
-  SELECT
-    `bfcol_8` AS `bfcol_21`
-  FROM `bfcte_3`
-), `bfcte_6` AS (
-  SELECT
-    *,
-    STRUCT(COALESCE(`bfcol_58`, 0) AS `bfpart1`, COALESCE(`bfcol_58`, 1) AS `bfpart2`) IN (
-      (
+    `t14`.`bfuid_col_3525`,
+    `t14`.`bfuid_col_3526`,
+    `t14`.`bfuid_col_3527`,
+    COUNT(DISTINCT `t14`.`bfuid_col_3532`) AS `bfuid_col_3554`
+  FROM (
+    SELECT
+      `t13`.`bfuid_col_3525`,
+      `t13`.`bfuid_col_3526`,
+      `t13`.`bfuid_col_3527`,
+      `t13`.`bfuid_col_3532`
+    FROM (
+      SELECT
+        `t11`.`bfuid_col_3525`,
+        `t11`.`bfuid_col_3526`,
+        `t11`.`bfuid_col_3527`,
+        `t11`.`bfuid_col_3532`,
+        EXISTS(
+          SELECT
+            1
+          FROM (
+            SELECT
+              `t7`.`bfuid_col_3479`
+            FROM (
+              SELECT
+                `t0`.`S_SUPPKEY` AS `bfuid_col_3479`
+              FROM (
+                SELECT
+                  `S_SUPPKEY`,
+                  `S_COMMENT`
+                FROM `bigframes-dev.tpch.SUPPLIER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+              ) AS `t0`
+              WHERE
+                NOT (
+                  regexp_contains(`t0`.`S_COMMENT`, 'Customer.*Complaints')
+                )
+            ) AS `t7`
+            GROUP BY
+              1
+          ) AS `t8`
+          WHERE
+            (
+              COALESCE(`t11`.`bfuid_col_3532`, 0) = COALESCE(`t8`.`bfuid_col_3479`, 0)
+            )
+            AND (
+              COALESCE(`t11`.`bfuid_col_3532`, 1) = COALESCE(`t8`.`bfuid_col_3479`, 1)
+            )
+        ) AS `bfuid_col_3537`
+      FROM (
         SELECT
-          STRUCT(COALESCE(`bfcol_21`, 0) AS `bfpart1`, COALESCE(`bfcol_21`, 1) AS `bfpart2`)
-        FROM `bfcte_5`
-      )
-    ) AS `bfcol_59`
-  FROM `bfcte_4`
-), `bfcte_7` AS (
-  SELECT
-    *
-  FROM `bfcte_6`
-  WHERE
-    `bfcol_59`
-), `bfcte_8` AS (
-  SELECT
-    `bfcol_55`,
-    `bfcol_56`,
-    `bfcol_57`,
-    COUNT(DISTINCT `bfcol_58`) AS `bfcol_69`
-  FROM `bfcte_7`
-  WHERE
-    NOT `bfcol_55` IS NULL AND NOT `bfcol_56` IS NULL AND NOT `bfcol_57` IS NULL
+          `t10`.`bfuid_col_3525`,
+          `t10`.`bfuid_col_3526`,
+          `t10`.`bfuid_col_3527`,
+          `t10`.`bfuid_col_3532`
+        FROM (
+          SELECT
+            `t9`.`bfuid_col_3491` AS `bfuid_col_3525`,
+            `t9`.`bfuid_col_3492` AS `bfuid_col_3526`,
+            `t9`.`bfuid_col_3493` AS `bfuid_col_3527`,
+            `t9`.`bfuid_col_3498` AS `bfuid_col_3532`,
+            COALESCE(COALESCE(`t9`.`bfuid_col_3493` IN (49, 14, 23, 45, 19, 3, 36, 9), FALSE), FALSE) AS `bfuid_col_3536`
+          FROM (
+            SELECT
+              `t5`.`P_BRAND` AS `bfuid_col_3491`,
+              `t5`.`P_TYPE` AS `bfuid_col_3492`,
+              `t5`.`P_SIZE` AS `bfuid_col_3493`,
+              `t6`.`PS_SUPPKEY` AS `bfuid_col_3498`,
+              `t5`.`P_BRAND` <> 'Brand#45' AS `bfuid_col_3502`
+            FROM (
+              SELECT
+                `t1`.`P_PARTKEY`,
+                `t1`.`P_BRAND`,
+                `t1`.`P_TYPE`,
+                `t1`.`P_SIZE`
+              FROM (
+                SELECT
+                  `P_PARTKEY`,
+                  `P_BRAND`,
+                  `P_TYPE`,
+                  `P_SIZE`
+                FROM `bigframes-dev.tpch.PART` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+              ) AS `t1`
+            ) AS `t5`
+            INNER JOIN (
+              SELECT
+                `t2`.`PS_PARTKEY`,
+                `t2`.`PS_SUPPKEY`
+              FROM (
+                SELECT
+                  `PS_PARTKEY`,
+                  `PS_SUPPKEY`
+                FROM `bigframes-dev.tpch.PARTSUPP` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+              ) AS `t2`
+            ) AS `t6`
+              ON COALESCE(`t5`.`P_PARTKEY`, 0) = COALESCE(`t6`.`PS_PARTKEY`, 0)
+              AND COALESCE(`t5`.`P_PARTKEY`, 1) = COALESCE(`t6`.`PS_PARTKEY`, 1)
+          ) AS `t9`
+          WHERE
+            `t9`.`bfuid_col_3502`
+            AND NOT (
+              regexp_contains(`t9`.`bfuid_col_3492`, 'MEDIUM POLISHED')
+            )
+        ) AS `t10`
+        WHERE
+          `t10`.`bfuid_col_3536`
+      ) AS `t11`
+    ) AS `t13`
+    WHERE
+      `t13`.`bfuid_col_3537`
+  ) AS `t14`
   GROUP BY
-    `bfcol_55`,
-    `bfcol_56`,
-    `bfcol_57`
-)
-SELECT
-  `bfcol_55` AS `P_BRAND`,
-  `bfcol_56` AS `P_TYPE`,
-  `bfcol_57` AS `P_SIZE`,
-  `bfcol_69` AS `SUPPLIER_CNT`
-FROM `bfcte_8`
-ORDER BY
-  `bfcol_69` DESC,
-  `bfcol_55` ASC NULLS LAST,
-  `bfcol_56` ASC NULLS LAST,
-  `bfcol_57` ASC NULLS LAST
+    1,
+    2,
+    3
+) AS `t15`
+WHERE
+  (
+    `t15`.`bfuid_col_3525`
+  ) IS NOT NULL
+  AND (
+    `t15`.`bfuid_col_3526`
+  ) IS NOT NULL
+  AND (
+    `t15`.`bfuid_col_3527`
+  ) IS NOT NULL) AS `t`
+ORDER BY `SUPPLIER_CNT` DESC NULLS LAST ,`P_BRAND` ASC NULLS LAST ,`P_TYPE` ASC NULLS LAST ,`P_SIZE` ASC NULLS LAST

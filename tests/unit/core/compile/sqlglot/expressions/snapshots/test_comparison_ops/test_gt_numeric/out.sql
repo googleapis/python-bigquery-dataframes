@@ -1,10 +1,10 @@
 SELECT
-  `rowindex`,
-  `int64_col`,
-  `bool_col`,
-  `int64_col` > `int64_col` AS `int_gt_int`,
-  `int64_col` > 1 AS `int_gt_1`,
-  NULL AS `null_gt_int`,
-  `int64_col` > CAST(`bool_col` AS INT64) AS `int_gt_bool`,
-  CAST(`bool_col` AS INT64) > `int64_col` AS `bool_gt_int`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  `t0`.`rowindex`,
+  `t0`.`int64_col`,
+  `t0`.`bool_col`,
+  `t0`.`int64_col` > `t0`.`int64_col` AS `int_gt_int`,
+  `t0`.`int64_col` > 1 AS `int_gt_1`,
+  CAST(NULL AS BOOL) AS `null_gt_int`,
+  `t0`.`int64_col` > CAST(`t0`.`bool_col` AS INT64) AS `int_gt_bool`,
+  CAST(`t0`.`bool_col` AS INT64) > `t0`.`int64_col` AS `bool_gt_int`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

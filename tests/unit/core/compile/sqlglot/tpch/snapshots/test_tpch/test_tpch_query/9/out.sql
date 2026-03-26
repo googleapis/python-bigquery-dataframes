@@ -1,150 +1,191 @@
-WITH `bfcte_0` AS (
+SELECT `NATION`, `O_YEAR`, `SUM_PROFIT` FROM (SELECT
+  `t32`.`bfuid_col_3032` AS `NATION`,
+  `t32`.`bfuid_col_3035` AS `O_YEAR`,
+  ROUND(`t32`.`bfuid_col_3037`, 2) AS `SUM_PROFIT`,
+  `t32`.`bfuid_col_3035` AS `bfuid_col_3045`,
+  `t32`.`bfuid_col_3032` AS `bfuid_col_3046`
+FROM (
   SELECT
-    `N_NATIONKEY` AS `bfcol_0`,
-    `N_NAME` AS `bfcol_1`
-  FROM `bigframes-dev`.`tpch`.`NATION` AS `bft_5` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_1` AS (
-  SELECT
-    `O_ORDERKEY` AS `bfcol_2`,
-    `O_ORDERDATE` AS `bfcol_3`
-  FROM `bigframes-dev`.`tpch`.`ORDERS` AS `bft_4` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_2` AS (
-  SELECT
-    `S_SUPPKEY` AS `bfcol_4`,
-    `S_NATIONKEY` AS `bfcol_5`
-  FROM `bigframes-dev`.`tpch`.`SUPPLIER` AS `bft_3` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_3` AS (
-  SELECT
-    `PS_PARTKEY` AS `bfcol_6`,
-    `PS_SUPPKEY` AS `bfcol_7`,
-    `PS_SUPPLYCOST` AS `bfcol_8`
-  FROM `bigframes-dev`.`tpch`.`PARTSUPP` AS `bft_2` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_4` AS (
-  SELECT
-    `L_ORDERKEY` AS `bfcol_9`,
-    `L_PARTKEY` AS `bfcol_10`,
-    `L_SUPPKEY` AS `bfcol_11`,
-    `L_QUANTITY` AS `bfcol_12`,
-    `L_EXTENDEDPRICE` AS `bfcol_13`,
-    `L_DISCOUNT` AS `bfcol_14`
-  FROM `bigframes-dev`.`tpch`.`LINEITEM` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_5` AS (
-  SELECT
-    `P_PARTKEY` AS `bfcol_15`,
-    `P_NAME` AS `bfcol_16`
-  FROM `bigframes-dev`.`tpch`.`PART` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_6` AS (
-  SELECT
-    `bfcol_16` AS `bfcol_17`,
-    `bfcol_9` AS `bfcol_18`,
-    `bfcol_10` AS `bfcol_19`,
-    `bfcol_11` AS `bfcol_20`,
-    `bfcol_12` AS `bfcol_21`,
-    `bfcol_13` AS `bfcol_22`,
-    `bfcol_14` AS `bfcol_23`
-  FROM `bfcte_5`
-  INNER JOIN `bfcte_4`
-    ON COALESCE(`bfcol_15`, 0) = COALESCE(`bfcol_10`, 0)
-    AND COALESCE(`bfcol_15`, 1) = COALESCE(`bfcol_10`, 1)
-), `bfcte_7` AS (
-  SELECT
-    `bfcol_17` AS `bfcol_24`,
-    `bfcol_18` AS `bfcol_25`,
-    `bfcol_20` AS `bfcol_26`,
-    `bfcol_21` AS `bfcol_27`,
-    `bfcol_22` AS `bfcol_28`,
-    `bfcol_23` AS `bfcol_29`,
-    `bfcol_8` AS `bfcol_30`
-  FROM `bfcte_6`
-  INNER JOIN `bfcte_3`
-    ON COALESCE(`bfcol_20`, 0) = COALESCE(`bfcol_7`, 0)
-    AND COALESCE(`bfcol_20`, 1) = COALESCE(`bfcol_7`, 1)
-    AND COALESCE(`bfcol_19`, 0) = COALESCE(`bfcol_6`, 0)
-    AND COALESCE(`bfcol_19`, 1) = COALESCE(`bfcol_6`, 1)
-), `bfcte_8` AS (
-  SELECT
-    `bfcol_24` AS `bfcol_31`,
-    `bfcol_25` AS `bfcol_32`,
-    `bfcol_27` AS `bfcol_33`,
-    `bfcol_28` AS `bfcol_34`,
-    `bfcol_29` AS `bfcol_35`,
-    `bfcol_30` AS `bfcol_36`,
-    `bfcol_5` AS `bfcol_37`
-  FROM `bfcte_7`
-  INNER JOIN `bfcte_2`
-    ON COALESCE(`bfcol_26`, 0) = COALESCE(`bfcol_4`, 0)
-    AND COALESCE(`bfcol_26`, 1) = COALESCE(`bfcol_4`, 1)
-), `bfcte_9` AS (
-  SELECT
-    `bfcol_31` AS `bfcol_38`,
-    `bfcol_33` AS `bfcol_39`,
-    `bfcol_34` AS `bfcol_40`,
-    `bfcol_35` AS `bfcol_41`,
-    `bfcol_36` AS `bfcol_42`,
-    `bfcol_37` AS `bfcol_43`,
-    `bfcol_3` AS `bfcol_44`
-  FROM `bfcte_8`
-  INNER JOIN `bfcte_1`
-    ON COALESCE(`bfcol_32`, 0) = COALESCE(`bfcol_2`, 0)
-    AND COALESCE(`bfcol_32`, 1) = COALESCE(`bfcol_2`, 1)
-), `bfcte_10` AS (
-  SELECT
-    `bfcol_38`,
-    `bfcol_39`,
-    `bfcol_40`,
-    `bfcol_41`,
-    `bfcol_42`,
-    `bfcol_43`,
-    `bfcol_44`,
-    `bfcol_0`,
-    `bfcol_1`,
-    `bfcol_39` AS `bfcol_52`,
-    `bfcol_40` AS `bfcol_53`,
-    `bfcol_41` AS `bfcol_54`,
-    `bfcol_42` AS `bfcol_55`,
-    `bfcol_44` AS `bfcol_56`,
-    `bfcol_1` AS `bfcol_57`,
-    REGEXP_CONTAINS(`bfcol_38`, 'green') AS `bfcol_58`,
-    `bfcol_39` AS `bfcol_72`,
-    `bfcol_40` AS `bfcol_73`,
-    `bfcol_41` AS `bfcol_74`,
-    `bfcol_42` AS `bfcol_75`,
-    `bfcol_1` AS `bfcol_76`,
-    EXTRACT(YEAR FROM `bfcol_44`) AS `bfcol_77`,
-    `bfcol_1` AS `bfcol_84`,
-    EXTRACT(YEAR FROM `bfcol_44`) AS `bfcol_85`,
-    (
-      `bfcol_40` * (
-        1 - `bfcol_41`
-      )
-    ) - (
-      `bfcol_42` * `bfcol_39`
-    ) AS `bfcol_86`
-  FROM `bfcte_9`
-  INNER JOIN `bfcte_0`
-    ON COALESCE(`bfcol_43`, 0) = COALESCE(`bfcol_0`, 0)
-    AND COALESCE(`bfcol_43`, 1) = COALESCE(`bfcol_0`, 1)
-  WHERE
-    REGEXP_CONTAINS(`bfcol_38`, 'green')
-), `bfcte_11` AS (
-  SELECT
-    `bfcol_84`,
-    `bfcol_85`,
-    COALESCE(SUM(`bfcol_86`), 0) AS `bfcol_90`
-  FROM `bfcte_10`
-  WHERE
-    NOT `bfcol_84` IS NULL AND NOT `bfcol_85` IS NULL
+    `t31`.`bfuid_col_3032`,
+    `t31`.`bfuid_col_3035`,
+    COALESCE(SUM(`t31`.`bfuid_col_3036`), 0) AS `bfuid_col_3037`
+  FROM (
+    SELECT
+      `t30`.`bfuid_col_2919` AS `bfuid_col_3032`,
+      EXTRACT(year FROM `t30`.`bfuid_col_2913`) AS `bfuid_col_3035`,
+      (
+        `t30`.`bfuid_col_2886` * (
+          1 - `t30`.`bfuid_col_2887`
+        )
+      ) - (
+        `t30`.`bfuid_col_2900` * `t30`.`bfuid_col_2885`
+      ) AS `bfuid_col_3036`
+    FROM (
+      SELECT
+        `t29`.`L_QUANTITY` AS `bfuid_col_2885`,
+        `t29`.`L_EXTENDEDPRICE` AS `bfuid_col_2886`,
+        `t29`.`L_DISCOUNT` AS `bfuid_col_2887`,
+        `t29`.`PS_SUPPLYCOST` AS `bfuid_col_2900`,
+        `t29`.`O_ORDERDATE` AS `bfuid_col_2913`,
+        `t12`.`N_NAME` AS `bfuid_col_2919`,
+        regexp_contains(`t29`.`P_NAME`, 'green') AS `bfuid_col_2922`
+      FROM (
+        SELECT
+          *
+        FROM (
+          SELECT
+            `t26`.`P_NAME`,
+            `t26`.`L_QUANTITY`,
+            `t26`.`L_EXTENDEDPRICE`,
+            `t26`.`L_DISCOUNT`,
+            `t26`.`PS_SUPPLYCOST`,
+            `t26`.`S_NATIONKEY`,
+            `t13`.`O_ORDERDATE`
+          FROM (
+            SELECT
+              *
+            FROM (
+              SELECT
+                `t23`.`P_NAME`,
+                `t23`.`L_ORDERKEY`,
+                `t23`.`L_QUANTITY`,
+                `t23`.`L_EXTENDEDPRICE`,
+                `t23`.`L_DISCOUNT`,
+                `t23`.`PS_SUPPLYCOST`,
+                `t14`.`S_NATIONKEY`
+              FROM (
+                SELECT
+                  *
+                FROM (
+                  SELECT
+                    `t20`.`P_NAME`,
+                    `t20`.`L_ORDERKEY`,
+                    `t20`.`L_SUPPKEY`,
+                    `t20`.`L_QUANTITY`,
+                    `t20`.`L_EXTENDEDPRICE`,
+                    `t20`.`L_DISCOUNT`,
+                    `t15`.`PS_SUPPLYCOST`
+                  FROM (
+                    SELECT
+                      *
+                    FROM (
+                      SELECT
+                        `t16`.`P_NAME`,
+                        `t17`.`L_ORDERKEY`,
+                        `t17`.`L_PARTKEY`,
+                        `t17`.`L_SUPPKEY`,
+                        `t17`.`L_QUANTITY`,
+                        `t17`.`L_EXTENDEDPRICE`,
+                        `t17`.`L_DISCOUNT`
+                      FROM (
+                        SELECT
+                          `t4`.`P_PARTKEY`,
+                          `t4`.`P_NAME`
+                        FROM (
+                          SELECT
+                            `P_PARTKEY`,
+                            `P_NAME`
+                          FROM `bigframes-dev.tpch.PART` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                        ) AS `t4`
+                      ) AS `t16`
+                      INNER JOIN (
+                        SELECT
+                          `t5`.`L_ORDERKEY`,
+                          `t5`.`L_PARTKEY`,
+                          `t5`.`L_SUPPKEY`,
+                          `t5`.`L_QUANTITY`,
+                          `t5`.`L_EXTENDEDPRICE`,
+                          `t5`.`L_DISCOUNT`
+                        FROM (
+                          SELECT
+                            `L_ORDERKEY`,
+                            `L_PARTKEY`,
+                            `L_SUPPKEY`,
+                            `L_QUANTITY`,
+                            `L_EXTENDEDPRICE`,
+                            `L_DISCOUNT`
+                          FROM `bigframes-dev.tpch.LINEITEM` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                        ) AS `t5`
+                      ) AS `t17`
+                        ON COALESCE(`t16`.`P_PARTKEY`, 0) = COALESCE(`t17`.`L_PARTKEY`, 0)
+                        AND COALESCE(`t16`.`P_PARTKEY`, 1) = COALESCE(`t17`.`L_PARTKEY`, 1)
+                    ) AS `t18`
+                  ) AS `t20`
+                  INNER JOIN (
+                    SELECT
+                      `t3`.`PS_PARTKEY`,
+                      `t3`.`PS_SUPPKEY`,
+                      `t3`.`PS_SUPPLYCOST`
+                    FROM (
+                      SELECT
+                        `PS_PARTKEY`,
+                        `PS_SUPPKEY`,
+                        `PS_SUPPLYCOST`
+                      FROM `bigframes-dev.tpch.PARTSUPP` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                    ) AS `t3`
+                  ) AS `t15`
+                    ON COALESCE(`t20`.`L_SUPPKEY`, 0) = COALESCE(`t15`.`PS_SUPPKEY`, 0)
+                    AND COALESCE(`t20`.`L_SUPPKEY`, 1) = COALESCE(`t15`.`PS_SUPPKEY`, 1)
+                    AND COALESCE(`t20`.`L_PARTKEY`, 0) = COALESCE(`t15`.`PS_PARTKEY`, 0)
+                    AND COALESCE(`t20`.`L_PARTKEY`, 1) = COALESCE(`t15`.`PS_PARTKEY`, 1)
+                ) AS `t21`
+              ) AS `t23`
+              INNER JOIN (
+                SELECT
+                  `t2`.`S_SUPPKEY`,
+                  `t2`.`S_NATIONKEY`
+                FROM (
+                  SELECT
+                    `S_SUPPKEY`,
+                    `S_NATIONKEY`
+                  FROM `bigframes-dev.tpch.SUPPLIER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                ) AS `t2`
+              ) AS `t14`
+                ON COALESCE(`t23`.`L_SUPPKEY`, 0) = COALESCE(`t14`.`S_SUPPKEY`, 0)
+                AND COALESCE(`t23`.`L_SUPPKEY`, 1) = COALESCE(`t14`.`S_SUPPKEY`, 1)
+            ) AS `t24`
+          ) AS `t26`
+          INNER JOIN (
+            SELECT
+              `t1`.`O_ORDERKEY`,
+              `t1`.`O_ORDERDATE`
+            FROM (
+              SELECT
+                `O_ORDERKEY`,
+                `O_ORDERDATE`
+              FROM `bigframes-dev.tpch.ORDERS` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+            ) AS `t1`
+          ) AS `t13`
+            ON COALESCE(`t26`.`L_ORDERKEY`, 0) = COALESCE(`t13`.`O_ORDERKEY`, 0)
+            AND COALESCE(`t26`.`L_ORDERKEY`, 1) = COALESCE(`t13`.`O_ORDERKEY`, 1)
+        ) AS `t27`
+      ) AS `t29`
+      INNER JOIN (
+        SELECT
+          `t0`.`N_NATIONKEY`,
+          `t0`.`N_NAME`
+        FROM (
+          SELECT
+            `N_NATIONKEY`,
+            `N_NAME`
+          FROM `bigframes-dev.tpch.NATION` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+        ) AS `t0`
+      ) AS `t12`
+        ON COALESCE(`t29`.`S_NATIONKEY`, 0) = COALESCE(`t12`.`N_NATIONKEY`, 0)
+        AND COALESCE(`t29`.`S_NATIONKEY`, 1) = COALESCE(`t12`.`N_NATIONKEY`, 1)
+    ) AS `t30`
+    WHERE
+      `t30`.`bfuid_col_2922`
+  ) AS `t31`
   GROUP BY
-    `bfcol_84`,
-    `bfcol_85`
-)
-SELECT
-  `bfcol_84` AS `NATION`,
-  `bfcol_85` AS `O_YEAR`,
-  ROUND(`bfcol_90`, 2) AS `SUM_PROFIT`
-FROM `bfcte_11`
-ORDER BY
-  `bfcol_84` ASC NULLS LAST,
-  `bfcol_85` DESC,
-  `bfcol_84` ASC NULLS LAST,
-  `bfcol_85` ASC NULLS LAST
+    1,
+    2
+) AS `t32`
+WHERE
+  (
+    `t32`.`bfuid_col_3032`
+  ) IS NOT NULL
+  AND (
+    `t32`.`bfuid_col_3035`
+  ) IS NOT NULL) AS `t`
+ORDER BY `NATION` ASC NULLS LAST ,`O_YEAR` DESC NULLS LAST ,`bfuid_col_3046` ASC NULLS LAST ,`bfuid_col_3045` ASC NULLS LAST

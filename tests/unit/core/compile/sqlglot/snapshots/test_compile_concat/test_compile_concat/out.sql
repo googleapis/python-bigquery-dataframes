@@ -1,48 +1,55 @@
-WITH `bfcte_0` AS (
+SELECT `rowindex`, `rowindex_1`, `int64_col`, `string_col` FROM (WITH `t1` AS (
   SELECT
-    `rowindex` AS `bfcol_3`,
-    `rowindex` AS `bfcol_4`,
-    `int64_col` AS `bfcol_5`,
-    `string_col` AS `bfcol_6`
-  FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
-), `bfcte_1` AS (
-  SELECT
-    `bfcol_17` AS `bfcol_23`,
-    `bfcol_18` AS `bfcol_24`,
-    `bfcol_19` AS `bfcol_25`,
-    `bfcol_20` AS `bfcol_26`,
-    `bfcol_21` AS `bfcol_27`,
-    `bfcol_22` AS `bfcol_28`
-  FROM (
-    (
-      SELECT
-        `bfcol_3` AS `bfcol_17`,
-        `bfcol_4` AS `bfcol_18`,
-        `bfcol_5` AS `bfcol_19`,
-        `bfcol_6` AS `bfcol_20`,
-        0 AS `bfcol_21`,
-        ROW_NUMBER() OVER () - 1 AS `bfcol_22`
-      FROM `bfcte_0`
-    )
-    UNION ALL
-    (
-      SELECT
-        `bfcol_3` AS `bfcol_11`,
-        `bfcol_4` AS `bfcol_12`,
-        `bfcol_5` AS `bfcol_13`,
-        `bfcol_6` AS `bfcol_14`,
-        1 AS `bfcol_15`,
-        ROW_NUMBER() OVER () - 1 AS `bfcol_16`
-      FROM `bfcte_0`
-    )
-  )
+    `t0`.`int64_col`,
+    `t0`.`rowindex`,
+    `t0`.`string_col`
+  FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`
 )
 SELECT
-  `bfcol_23` AS `rowindex`,
-  `bfcol_24` AS `rowindex_1`,
-  `bfcol_25` AS `int64_col`,
-  `bfcol_26` AS `string_col`
-FROM `bfcte_1`
-ORDER BY
-  `bfcol_27` ASC NULLS LAST,
-  `bfcol_28` ASC NULLS LAST
+  *
+FROM (
+  SELECT
+    *
+  FROM (
+    SELECT
+      `t3`.`bfuid_col_1` AS `rowindex`,
+      `t3`.`rowindex` AS `rowindex_1`,
+      `t3`.`int64_col`,
+      `t3`.`string_col`,
+      `t3`.`bfuid_col_1543` AS `bfuid_col_1547`,
+      `t3`.`bfuid_col_1542` AS `bfuid_col_1546`
+    FROM (
+      SELECT
+        `t2`.`rowindex` AS `bfuid_col_1`,
+        `t2`.`rowindex`,
+        `t2`.`int64_col`,
+        `t2`.`string_col`,
+        0 AS `bfuid_col_1543`,
+        ROW_NUMBER() OVER (ORDER BY NULL ASC) - 1 AS `bfuid_col_1542`
+      FROM `t1` AS `t2`
+    ) AS `t3`
+  ) AS `t5`
+  UNION ALL
+  SELECT
+    *
+  FROM (
+    SELECT
+      `t4`.`bfuid_col_1` AS `rowindex`,
+      `t4`.`rowindex` AS `rowindex_1`,
+      `t4`.`int64_col`,
+      `t4`.`string_col`,
+      `t4`.`bfuid_col_1545` AS `bfuid_col_1547`,
+      `t4`.`bfuid_col_1544` AS `bfuid_col_1546`
+    FROM (
+      SELECT
+        `t2`.`rowindex` AS `bfuid_col_1`,
+        `t2`.`rowindex`,
+        `t2`.`int64_col`,
+        `t2`.`string_col`,
+        1 AS `bfuid_col_1545`,
+        ROW_NUMBER() OVER (ORDER BY NULL ASC) - 1 AS `bfuid_col_1544`
+      FROM `t1` AS `t2`
+    ) AS `t4`
+  ) AS `t6`
+) AS `t7`) AS `t`
+ORDER BY `bfuid_col_1547` ASC NULLS LAST ,`bfuid_col_1546` ASC NULLS LAST

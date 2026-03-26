@@ -1,3 +1,3 @@
 SELECT
-  LENGTH(`string_col`) AS `string_col`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+  LENGTH(`t0`.`string_col`) AS `string_col`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

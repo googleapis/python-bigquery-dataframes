@@ -1,17 +1,48 @@
 SELECT
-  SUBSTRING(`string_col`, 2, 4) AS `string_slice`,
+  IF(
+    SUBSTRING(
+      `t0`.`string_col`,
+      IF(
+        (
+          IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1)) + 1
+        ) >= 1,
+        IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1)) + 1,
+        IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1)) + 1 + LENGTH(`t0`.`string_col`)
+      ),
+      GREATEST(
+        0,
+        IF(5 >= 0, 5, GREATEST(0, LENGTH(`t0`.`string_col`) + 5)) - IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1))
+      )
+    ) <> '',
+    SUBSTRING(
+      `t0`.`string_col`,
+      IF(
+        (
+          IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1)) + 1
+        ) >= 1,
+        IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1)) + 1,
+        IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1)) + 1 + LENGTH(`t0`.`string_col`)
+      ),
+      GREATEST(
+        0,
+        IF(5 >= 0, 5, GREATEST(0, LENGTH(`t0`.`string_col`) + 5)) - IF(1 >= 0, 1, GREATEST(0, LENGTH(`t0`.`string_col`) + 1))
+      )
+    ),
+    NULL
+  ) AS `string_slice`,
   ARRAY(
     SELECT
       el
-    FROM UNNEST([`int64_col`, `int64_too`]) AS el WITH OFFSET AS slice_idx
+    FROM UNNEST([`t0`.`int64_col`, `t0`.`int64_too`]) AS el WITH OFFSET AS bq_arr_slice
     WHERE
-      slice_idx >= 1
+      bq_arr_slice >= IF(1 < 0, ARRAY_LENGTH([`t0`.`int64_col`, `t0`.`int64_too`]) + 1, 1)
   ) AS `slice_only_start`,
   ARRAY(
     SELECT
       el
-    FROM UNNEST([`int64_col`, `int64_too`]) AS el WITH OFFSET AS slice_idx
+    FROM UNNEST([`t0`.`int64_col`, `t0`.`int64_too`]) AS el WITH OFFSET AS bq_arr_slice
     WHERE
-      slice_idx >= 1 AND slice_idx < 5
+      bq_arr_slice >= IF(1 < 0, ARRAY_LENGTH([`t0`.`int64_col`, `t0`.`int64_too`]) + 1, 1)
+      AND bq_arr_slice < IF(5 < 0, ARRAY_LENGTH([`t0`.`int64_col`, `t0`.`int64_too`]) + 5, 5)
   ) AS `slice_start_stop`
-FROM `bigframes-dev`.`sqlglot_test`.`scalar_types` AS `bft_0`
+FROM `bigframes-dev.sqlglot_test.scalar_types` AS `t0`

@@ -1,116 +1,202 @@
-WITH `bfcte_0` AS (
+SELECT `S_SUPPKEY`, `S_NAME`, `S_ADDRESS`, `S_PHONE`, `TOTAL_REVENUE` FROM (SELECT
+  `t26`.`bfuid_col_3466` AS `S_SUPPKEY`,
+  `t26`.`bfuid_col_3467` AS `S_NAME`,
+  `t26`.`bfuid_col_3468` AS `S_ADDRESS`,
+  `t26`.`bfuid_col_3470` AS `S_PHONE`,
+  `t26`.`bfuid_col_3474` AS `TOTAL_REVENUE`
+FROM (
   SELECT
-    *
-  FROM UNNEST(ARRAY<STRUCT<`bfcol_5` STRING, `bfcol_6` INT64, `bfcol_7` INT64>>[STRUCT('TOTAL_REVENUE', 0, 0)])
-), `bfcte_1` AS (
-  SELECT
-    `L_SUPPKEY`,
-    `L_EXTENDEDPRICE`,
-    `L_DISCOUNT`,
-    `L_SHIPDATE`,
-    `L_SUPPKEY` AS `bfcol_12`,
-    `L_EXTENDEDPRICE` AS `bfcol_13`,
-    `L_DISCOUNT` AS `bfcol_14`,
-    (
-      `L_SHIPDATE` >= CAST('1996-01-01' AS DATE)
-    )
-    AND (
-      `L_SHIPDATE` < CAST('1996-04-01' AS DATE)
-    ) AS `bfcol_15`,
-    `L_SUPPKEY` AS `bfcol_23`,
-    `L_EXTENDEDPRICE` * (
-      1 - `L_DISCOUNT`
-    ) AS `bfcol_24`
-  FROM `bigframes-dev`.`tpch`.`LINEITEM` AS `bft_1` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-  WHERE
-    (
-      `L_SHIPDATE` >= CAST('1996-01-01' AS DATE)
-    )
-    AND (
-      `L_SHIPDATE` < CAST('1996-04-01' AS DATE)
-    )
-), `bfcte_2` AS (
-  SELECT
-    `S_SUPPKEY` AS `bfcol_4`
-  FROM `bigframes-dev`.`tpch`.`SUPPLIER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_3` AS (
-  SELECT
-    `S_SUPPKEY` AS `bfcol_8`,
-    `S_NAME` AS `bfcol_9`,
-    `S_ADDRESS` AS `bfcol_10`,
-    `S_PHONE` AS `bfcol_11`
-  FROM `bigframes-dev`.`tpch`.`SUPPLIER` AS `bft_0` FOR SYSTEM_TIME AS OF '2026-03-10T18:00:00'
-), `bfcte_4` AS (
-  SELECT
-    `bfcol_23`,
-    COALESCE(SUM(`bfcol_24`), 0) AS `bfcol_27`
-  FROM `bfcte_1`
-  WHERE
-    NOT `bfcol_23` IS NULL
-  GROUP BY
-    `bfcol_23`
-), `bfcte_5` AS (
-  SELECT
-    `bfcol_23` AS `bfcol_30`,
-    ROUND(`bfcol_27`, 2) AS `bfcol_31`
-  FROM `bfcte_4`
-), `bfcte_6` AS (
-  SELECT
-    MAX(`bfcol_31`) AS `bfcol_38`
-  FROM `bfcte_2`
-  INNER JOIN `bfcte_5`
-    ON `bfcol_4` = `bfcol_30`
-), `bfcte_7` AS (
-  SELECT
-    `bfcol_8` AS `bfcol_33`,
-    `bfcol_9` AS `bfcol_34`,
-    `bfcol_10` AS `bfcol_35`,
-    `bfcol_11` AS `bfcol_36`,
-    `bfcol_31` AS `bfcol_37`
-  FROM `bfcte_3`
-  INNER JOIN `bfcte_5`
-    ON `bfcol_8` = `bfcol_30`
-), `bfcte_8` AS (
-  SELECT
-    `bfcol_38`,
-    0 AS `bfcol_39`
-  FROM `bfcte_6`
-), `bfcte_9` AS (
-  SELECT
-    `bfcol_5`,
-    `bfcol_6`,
-    `bfcol_7`,
-    `bfcol_38`,
-    `bfcol_39`,
-    CASE WHEN `bfcol_7` = 0 THEN `bfcol_38` END AS `bfcol_40`,
-    IF(`bfcol_39` = 0, CASE WHEN `bfcol_7` = 0 THEN `bfcol_38` END, NULL) AS `bfcol_45`
-  FROM `bfcte_0`
-  CROSS JOIN `bfcte_8`
-), `bfcte_10` AS (
-  SELECT
-    `bfcol_5`,
-    `bfcol_6`,
-    ANY_VALUE(`bfcol_45`) AS `bfcol_49`
-  FROM `bfcte_9`
-  WHERE
-    NOT `bfcol_5` IS NULL AND NOT `bfcol_6` IS NULL
-  GROUP BY
-    `bfcol_5`,
-    `bfcol_6`
-), `bfcte_11` AS (
-  SELECT
-    `bfcol_49` AS `bfcol_50`
-  FROM `bfcte_10`
-)
-SELECT
-  `bfcol_33` AS `S_SUPPKEY`,
-  `bfcol_34` AS `S_NAME`,
-  `bfcol_35` AS `S_ADDRESS`,
-  `bfcol_36` AS `S_PHONE`,
-  `bfcol_37` AS `TOTAL_REVENUE`
-FROM `bfcte_7`
-CROSS JOIN `bfcte_11`
+    `t18`.`S_SUPPKEY` AS `bfuid_col_3466`,
+    `t18`.`S_NAME` AS `bfuid_col_3467`,
+    `t18`.`S_ADDRESS` AS `bfuid_col_3468`,
+    `t18`.`S_PHONE` AS `bfuid_col_3470`,
+    `t18`.`bfuid_col_3450` AS `bfuid_col_3474`,
+    `t18`.`bfuid_col_3450` = `t25`.`bfuid_col_3458` AS `bfuid_col_3476`
+  FROM (
+    SELECT
+      *
+    FROM (
+      SELECT
+        `t7`.`S_SUPPKEY`,
+        `t7`.`S_NAME`,
+        `t7`.`S_ADDRESS`,
+        `t7`.`S_PHONE`,
+        `t14`.`bfuid_col_3450`
+      FROM (
+        SELECT
+          `t0`.`S_SUPPKEY`,
+          `t0`.`S_NAME`,
+          `t0`.`S_ADDRESS`,
+          `t0`.`S_PHONE`
+        FROM (
+          SELECT
+            `S_SUPPKEY`,
+            `S_NAME`,
+            `S_ADDRESS`,
+            `S_PHONE`
+          FROM `bigframes-dev.tpch.SUPPLIER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+        ) AS `t0`
+      ) AS `t7`
+      INNER JOIN (
+        SELECT
+          `t12`.`bfuid_col_3432` AS `bfuid_col_3449`,
+          ROUND(`t12`.`bfuid_col_3447`, 2) AS `bfuid_col_3450`
+        FROM (
+          SELECT
+            `t11`.`bfuid_col_3432`,
+            COALESCE(SUM(`t11`.`bfuid_col_3446`), 0) AS `bfuid_col_3447`
+          FROM (
+            SELECT
+              `t10`.`bfuid_col_3411` AS `bfuid_col_3432`,
+              `t10`.`bfuid_col_3414` * (
+                1 - `t10`.`bfuid_col_3415`
+              ) AS `bfuid_col_3446`
+            FROM (
+              SELECT
+                `t2`.`L_SUPPKEY` AS `bfuid_col_3411`,
+                `t2`.`L_EXTENDEDPRICE` AS `bfuid_col_3414`,
+                `t2`.`L_DISCOUNT` AS `bfuid_col_3415`,
+                (
+                  `t2`.`L_SHIPDATE` >= DATE(1996, 1, 1)
+                )
+                AND (
+                  `t2`.`L_SHIPDATE` < DATE(1996, 4, 1)
+                ) AS `bfuid_col_3425`
+              FROM (
+                SELECT
+                  `L_SUPPKEY`,
+                  `L_EXTENDEDPRICE`,
+                  `L_DISCOUNT`,
+                  `L_SHIPDATE`
+                FROM `bigframes-dev.tpch.LINEITEM` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+              ) AS `t2`
+            ) AS `t10`
+            WHERE
+              `t10`.`bfuid_col_3425`
+          ) AS `t11`
+          GROUP BY
+            1
+        ) AS `t12`
+        WHERE
+          (
+            `t12`.`bfuid_col_3432`
+          ) IS NOT NULL
+      ) AS `t14`
+        ON `t7`.`S_SUPPKEY` = `t14`.`bfuid_col_3449`
+    ) AS `t15`
+  ) AS `t18`
+  CROSS JOIN (
+    SELECT
+      `t23`.`bfuid_col_3458`
+    FROM (
+      SELECT
+        `t22`.`bfuid_col_3455`,
+        `t22`.`bfuid_col_3456`,
+        ANY_VALUE(`t22`.`bfuid_col_3457`) AS `bfuid_col_3458`
+      FROM (
+        SELECT
+          `t8`.`col_0` AS `bfuid_col_3455`,
+          `t8`.`col_1` AS `bfuid_col_3456`,
+          CASE
+            WHEN `t21`.`bfuid_col_3453` = 0
+            THEN CASE
+              WHEN `t8`.`col_2` = 0
+              THEN `t21`.`bfuid_col_3450`
+              ELSE CAST(NULL AS FLOAT64)
+            END
+            ELSE CAST(NULL AS FLOAT64)
+          END AS `bfuid_col_3457`
+        FROM (
+          SELECT
+            *
+          FROM (
+            SELECT
+              *
+            FROM UNNEST(ARRAY<STRUCT<`col_0` STRING, `col_1` INT64, `col_2` INT64>>[STRUCT('TOTAL_REVENUE', 0, 0)]) AS `col_0`
+          ) AS `t1`
+        ) AS `t8`
+        CROSS JOIN (
+          SELECT
+            `t19`.`bfuid_col_3450`,
+            0 AS `bfuid_col_3453`
+          FROM (
+            SELECT
+              MAX(`t16`.`bfuid_col_3450`) AS `bfuid_col_3450`
+            FROM (
+              SELECT
+                `t14`.`bfuid_col_3450`
+              FROM (
+                SELECT
+                  `t3`.`S_SUPPKEY`
+                FROM (
+                  SELECT
+                    `S_SUPPKEY`
+                  FROM `bigframes-dev.tpch.SUPPLIER` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                ) AS `t3`
+              ) AS `t9`
+              INNER JOIN (
+                SELECT
+                  `t12`.`bfuid_col_3432` AS `bfuid_col_3449`,
+                  ROUND(`t12`.`bfuid_col_3447`, 2) AS `bfuid_col_3450`
+                FROM (
+                  SELECT
+                    `t11`.`bfuid_col_3432`,
+                    COALESCE(SUM(`t11`.`bfuid_col_3446`), 0) AS `bfuid_col_3447`
+                  FROM (
+                    SELECT
+                      `t10`.`bfuid_col_3411` AS `bfuid_col_3432`,
+                      `t10`.`bfuid_col_3414` * (
+                        1 - `t10`.`bfuid_col_3415`
+                      ) AS `bfuid_col_3446`
+                    FROM (
+                      SELECT
+                        `t2`.`L_SUPPKEY` AS `bfuid_col_3411`,
+                        `t2`.`L_EXTENDEDPRICE` AS `bfuid_col_3414`,
+                        `t2`.`L_DISCOUNT` AS `bfuid_col_3415`,
+                        (
+                          `t2`.`L_SHIPDATE` >= DATE(1996, 1, 1)
+                        )
+                        AND (
+                          `t2`.`L_SHIPDATE` < DATE(1996, 4, 1)
+                        ) AS `bfuid_col_3425`
+                      FROM (
+                        SELECT
+                          `L_SUPPKEY`,
+                          `L_EXTENDEDPRICE`,
+                          `L_DISCOUNT`,
+                          `L_SHIPDATE`
+                        FROM `bigframes-dev.tpch.LINEITEM` FOR SYSTEM_TIME AS OF CAST('2026-03-10T18:00:00' AS DATETIME)
+                      ) AS `t2`
+                    ) AS `t10`
+                    WHERE
+                      `t10`.`bfuid_col_3425`
+                  ) AS `t11`
+                  GROUP BY
+                    1
+                ) AS `t12`
+                WHERE
+                  (
+                    `t12`.`bfuid_col_3432`
+                  ) IS NOT NULL
+              ) AS `t14`
+                ON `t9`.`S_SUPPKEY` = `t14`.`bfuid_col_3449`
+            ) AS `t16`
+          ) AS `t19`
+        ) AS `t21`
+      ) AS `t22`
+      GROUP BY
+        1,
+        2
+    ) AS `t23`
+    WHERE
+      (
+        `t23`.`bfuid_col_3455`
+      ) IS NOT NULL
+      AND (
+        `t23`.`bfuid_col_3456`
+      ) IS NOT NULL
+  ) AS `t25`
+) AS `t26`
 WHERE
-  `bfcol_37` = `bfcol_50`
-ORDER BY
-  `bfcol_33` ASC NULLS LAST
+  `t26`.`bfuid_col_3476`) AS `t`
+ORDER BY `S_SUPPKEY` ASC NULLS LAST
