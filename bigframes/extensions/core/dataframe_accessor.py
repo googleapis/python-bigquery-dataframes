@@ -65,57 +65,8 @@ class AIAccessor(AbstractBigQueryDataFrameAccessor[T, S]):
         """
         Forecast time series at future horizon using BigQuery AI.FORECAST.
 
-        See: https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-ai-forecast
-
-        Args:
-            data_col (str):
-                A str value that specifies the name of the data column. The data column contains the data to forecast.
-                The data column must use one of the following data types: INT64, NUMERIC and FLOAT64
-            timestamp_col (str):
-                A str value that specified the name of the time points column.
-                The time points column provides the time points used to generate the forecast.
-                The time points column must use one of the following data types: TIMESTAMP, DATE and DATETIME
-            model (str, default "TimesFM 2.0"):
-                A str value that specifies the name of the model. "TimesFM 2.0" and "TimesFM 2.5" are supported.
-            id_cols (Iterable[str], optional):
-                An iterable of str value that specifies the names of one or more ID columns. Each ID identifies a unique time series to forecast.
-                Specify one or more values for this argument in order to forecast multiple time series using a single query.
-                The columns that you specify must use one of the following data types: STRING, INT64, ARRAY<STRING> and ARRAY<INT64>
-            horizon (int, default 10):
-                An int value that specifies the number of time points to forecast. The default value is 10. The valid input range is [1, 10,000].
-            confidence_level (float, default 0.95):
-                A FLOAT64 value that specifies the percentage of the future values that fall in the prediction interval.
-                The default value is 0.95. The valid input range is [0, 1).
-            context_window (int, optional):
-                An int value that specifies the context window length used by BigQuery ML's built-in TimesFM model.
-                The context window length determines how many of the most recent data points from the input time series are use by the model.
-                If you don't specify a value, the AI.FORECAST function automatically chooses the smallest possible context window length to use
-                that is still large enough to cover the number of time series data points in your input data.
-            output_historical_time_series (bool, default False):
-                A boolean value that determines whether to include the input time series history in the forecast.
-            session (bigframes.session.Session, optional):
-                The BigFrames session to use. If not provided, the default global session is used.
-
-        Returns:
-            The forecast result DataFrame.
-
-        Examples:
-            Forecast using a pandas DataFrame:
-
-            >>> import pandas as pd
-            >>> import bigframes.pandas as bpd
-            >>> df = pd.DataFrame({"value": [1, 2, 3], "time": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"])})
-            >>> bpd.options.display.progress_bar = None # doctest: +SKIP
-            >>> forecasted_pandas_df = df.bigquery.ai.forecast(data_col="value", timestamp_col="time", horizon=2) # doctest: +SKIP
-            >>> type(forecasted_pandas_df) # doctest: +SKIP
-            <class 'pandas.core.frame.DataFrame'>
-
-            Forecast using a BigFrames DataFrame:
-
-            >>> bf_df = bpd.DataFrame({"value": [1, 2, 3], "time": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"])})
-            >>> forecasted_bf_df = bf_df.bigquery.ai.forecast(data_col="value", timestamp_col="time", horizon=2) # doctest: +SKIP
-            >>> type(forecasted_bf_df) # doctest: +SKIP
-            <class 'bigframes.dataframe.DataFrame'>
+        This is an accessor for :func:`bigframes.bigquery.ai.forecast`. See that
+        function's documentation for detailed parameter descriptions and examples.
         """
         import bigframes.bigquery.ai
 
@@ -162,38 +113,8 @@ class BigQueryDataFrameAccessor(AbstractBigQueryDataFrameAccessor[T, S]):
         """
         Compute a new Series by applying a SQL scalar function to the DataFrame.
 
-        The SQL template is applied using ``bigframes.bigquery.sql_scalar``.
-
-        Args:
-            sql_template (str):
-                A SQL format string with Python-style {0}, {1}, etc. placeholders for each of
-                the columns in the DataFrame (in the order they appear in ``df.columns``).
-            output_dtype (a BigQuery DataFrames compatible dtype, optional):
-                If provided, BigQuery DataFrames uses this to determine the output
-                of the returned Series. This avoids a dry run query.
-            session (bigframes.session.Session, optional):
-                The BigFrames session to use. If not provided, the default global session is used.
-
-        Returns:
-            The result of the SQL scalar function as a Series.
-
-        Examples:
-            Compute SQL scalar using a pandas DataFrame:
-
-            >>> import pandas as pd
-            >>> import bigframes.pandas as bpd
-            >>> df = pd.DataFrame({"x": [1, 2, 3]})
-            >>> bpd.options.display.progress_bar = None # doctest: +SKIP
-            >>> pandas_s = df.bigquery.sql_scalar("POW({0}, 2)") # doctest: +SKIP
-            >>> type(pandas_s) # doctest: +SKIP
-            <class 'pandas.core.series.Series'>
-
-            Compute SQL scalar using a BigFrames DataFrame:
-
-            >>> bf_df = bpd.DataFrame({"x": [1, 2, 3]})
-            >>> bf_s = bf_df.bigquery.sql_scalar("POW({0}, 2)") # doctest: +SKIP
-            >>> type(bf_s) # doctest: +SKIP
-            <class 'bigframes.series.Series'>
+        This is an accessor for :func:`bigframes.bigquery.sql_scalar`. See that
+        function's documentation for detailed parameter descriptions and examples.
         """
         import bigframes.bigquery
 
