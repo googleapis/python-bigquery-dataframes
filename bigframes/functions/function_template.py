@@ -19,16 +19,10 @@ import logging
 import os
 import re
 import textwrap
-from typing import Tuple
 
-import cloudpickle
+from bigframes.functions import udf_def
 
 logger = logging.getLogger(__name__)
-
-
-# Protocol version 4 is available in python version 3.4 and above
-# https://docs.python.org/3/library/pickle.html#data-stream-format
-_pickle_protocol_version = 4
 
 
 # Placeholder variables for testing.
@@ -228,38 +222,39 @@ def udf_http_row_processor(request):
         return jsonify({"errorMessage": traceback.format_exc()}), 400
 
 
-def generate_udf_code(def_, directory):
+def generate_udf_code(code_def: udf_def.CodeDef, directory: str):
     """Generate serialized code using cloudpickle given a udf."""
     udf_code_file_name = "udf.py"
     udf_pickle_file_name = "udf.cloudpickle"
 
     # original code, only for debugging purpose
-    udf_code = textwrap.dedent(inspect.getsource(def_))
-    udf_code_file_path = os.path.join(directory, udf_code_file_name)
-    with open(udf_code_file_path, "w") as f:
-        f.write(udf_code)
+    if code_def.function_source:
+        udf_code_file_path = os.path.join(directory, udf_code_file_name)
+        with open(udf_code_file_path, "w") as f:
+            f.write(code_def.function_source)
 
     # serialized udf
     udf_pickle_file_path = os.path.join(directory, udf_pickle_file_name)
     # TODO(b/345433300): try io.BytesIO to avoid writing to the file system
     with open(udf_pickle_file_path, "wb") as f:
-        cloudpickle.dump(def_, f, protocol=_pickle_protocol_version)
+        f.write(code_def.pickled_code)
 
     return udf_code_file_name, udf_pickle_file_name
 
 
 def generate_cloud_function_main_code(
-    def_,
-    directory,
+    code_def: udf_def.CodeDef,
+    directory: str,
     *,
-    input_types: Tuple[str],
-    output_type: str,
-    is_row_processor=False,
+    udf_signature: udf_def.UdfSignature,
 ):
     """Get main.py code for the cloud function for the given user defined function."""
 
     # Pickle the udf with all its dependencies
-    udf_code_file, udf_pickle_file = generate_udf_code(def_, directory)
+    udf_code_file, udf_pickle_file = generate_udf_code(code_def, directory)
+
+    input_types = tuple(arg.sql_type for arg in udf_signature.inputs)
+    output_type = udf_signature.output.sql_type
 
     code_blocks = [
         f"""\
@@ -278,7 +273,7 @@ output_type = {repr(output_type)}
     # For converting scalar outputs to the correct type.
     code_blocks.append(inspect.getsource(convert_to_bq_json))
 
-    if is_row_processor:
+    if udf_signature.is_row_processor:
         code_blocks.append(inspect.getsource(get_pd_series))
         handler_func_name = "udf_http_row_processor"
         code_blocks.append(inspect.getsource(udf_http_row_processor))
@@ -297,37 +292,37 @@ output_type = {repr(output_type)}
 
 
 def generate_managed_function_code(
-    def_,
-    udf_name: str,
-    is_row_processor: bool,
+    code_def: udf_def.CodeDef,
+    signature: udf_def.UdfSignature,
     capture_references: bool,
 ) -> str:
     """Generates the Python code block for managed Python UDF."""
 
+    udf_name = "unpickled_udf"
     if capture_references:
         # This code path ensures that if the udf body contains any
         # references to variables and/or imports outside the body, they are
         # captured as well.
-        import cloudpickle
-
-        pickled = cloudpickle.dumps(def_)
         func_code = textwrap.dedent(
             f"""
             import cloudpickle
-            {udf_name} = cloudpickle.loads({pickled})
+            {udf_name} = cloudpickle.loads({code_def.pickled_code!r})
         """
         )
     else:
         # This code path ensures that if the udf body is self contained,
         # i.e. there are no references to variables or imports outside the
         # body.
-        func_code = textwrap.dedent(inspect.getsource(def_))
+        assert code_def.function_source is not None
+        assert code_def.entry_point is not None
+        func_code = code_def.function_source
+        udf_name = code_def.entry_point
         match = re.search(r"^def ", func_code, flags=re.MULTILINE)
         if match is None:
             raise ValueError("The UDF is not defined correctly.")
         func_code = func_code[match.start() :]
 
-    if is_row_processor:
+    if signature.is_row_processor:
         udf_code = textwrap.dedent(inspect.getsource(get_pd_series))
         udf_code = udf_code[udf_code.index("def") :]
         bigframes_handler_code = textwrap.dedent(
@@ -337,20 +332,19 @@ def generate_managed_function_code(
             """
         )
 
-        sig = inspect.signature(def_)
-        params = list(sig.parameters.values())
+        params = list(arg.name for arg in signature.inputs)
         additional_params = params[1:]
 
         # Build the parameter list for the new handler function definition.
         # e.g., "str_arg, y: bool, z"
         handler_def_parts = ["str_arg"]
-        handler_def_parts.extend(str(p) for p in additional_params)
+        handler_def_parts.extend(additional_params)
         handler_def_str = ", ".join(handler_def_parts)
 
         # Build the argument list for the call to the original UDF.
         # e.g., "get_pd_series(str_arg), y, z"
         udf_call_parts = [f"{get_pd_series.__name__}(str_arg)"]
-        udf_call_parts.extend(p.name for p in additional_params)
+        udf_call_parts.extend(additional_params)
         udf_call_str = ", ".join(udf_call_parts)
 
         bigframes_handler_code = textwrap.dedent(
@@ -370,7 +364,7 @@ def generate_managed_function_code(
         )
 
     udf_code_block = []
-    if not capture_references and is_row_processor:
+    if not capture_references and signature.is_row_processor:
         # Enable postponed evaluation of type annotations. This converts all
         # type hints to strings at runtime, which is necessary for correctly
         # handling the type annotation of pandas.Series after the UDF code is

@@ -24,7 +24,6 @@ from typing import (
     Any,
     cast,
     Dict,
-    get_origin,
     Literal,
     Mapping,
     Optional,
@@ -51,7 +50,6 @@ from bigframes.functions import udf_def
 if TYPE_CHECKING:
     from bigframes.session import Session
 
-import pandas
 
 from bigframes.functions import _function_client, _utils
 
@@ -241,7 +239,7 @@ class FunctionSession:
         cloud_function_service_account: str,
         cloud_function_kms_key_name: Optional[str] = None,
         cloud_function_docker_repository: Optional[str] = None,
-        max_batching_rows: Optional[int] = 1000,
+        max_batching_rows: Optional[int] = None,
         cloud_function_timeout: Optional[int] = 600,
         cloud_function_max_instances: Optional[int] = None,
         cloud_function_vpc_connector: Optional[str] = None,
@@ -558,41 +556,13 @@ class FunctionSession:
                 func,
                 **signature_kwargs,
             )
-            if input_types is not None:
-                if not isinstance(input_types, collections.abc.Sequence):
-                    input_types = [input_types]
-                if _utils.has_conflict_input_type(py_sig, input_types):
-                    msg = bfe.format_message(
-                        "Conflicting input types detected, using the one from the decorator."
-                    )
-                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
-                py_sig = py_sig.replace(
-                    parameters=[
-                        par.replace(annotation=itype)
-                        for par, itype in zip(py_sig.parameters.values(), input_types)
-                    ]
-                )
-            if output_type:
-                if _utils.has_conflict_output_type(py_sig, output_type):
-                    msg = bfe.format_message(
-                        "Conflicting return type detected, using the one from the decorator."
-                    )
-                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
-                py_sig = py_sig.replace(return_annotation=output_type)
-
-            # The function will actually be receiving a pandas Series, but allow
-            # both BigQuery DataFrames and pandas object types for compatibility.
-            is_row_processor = False
-            if new_sig := _convert_row_processor_sig(py_sig):
-                py_sig = new_sig
-                is_row_processor = True
+            py_sig = _resolve_signature(py_sig, input_types, output_type)
 
             remote_function_client = _function_client.FunctionClient(
                 dataset_ref.project,
                 bq_location,
                 dataset_ref.dataset_id,
                 bigquery_client,
-                bq_connection_id,
                 bq_connection_manager,
                 cloud_function_region,
                 cloud_functions_client,
@@ -605,25 +575,9 @@ class FunctionSession:
                 session=session,  # type: ignore
             )
 
-            # resolve the output type that can be supported in the bigframes,
-            # ibis, BQ remote functions and cloud functions integration.
-            bqrf_metadata = None
-            post_process_routine = None
-            if get_origin(py_sig.return_annotation) is list:
-                # TODO(b/284515241): remove this special handling to support
-                # array output types once BQ remote functions support ARRAY.
-                # Until then, use json serialized strings at the cloud function
-                # and BQ level, and parse that to the intended output type at
-                # the bigframes level.
-                bqrf_metadata = _utils.get_bigframes_metadata(
-                    python_output_type=py_sig.return_annotation
-                )
-                post_process_routine = _utils.build_unnest_post_routine(
-                    py_sig.return_annotation
-                )
-                py_sig = py_sig.replace(return_annotation=str)
-
-            udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
+            udf_sig = udf_def.UdfSignature.from_py_signature(
+                py_sig
+            ).to_remote_function_compatible()
 
             (
                 rf_name,
@@ -631,21 +585,19 @@ class FunctionSession:
                 created_new,
             ) = remote_function_client.provision_bq_remote_function(
                 func,
-                input_types=udf_sig.sql_input_types,
-                output_type=udf_sig.sql_output_type,
-                reuse=reuse,
+                func_signature=udf_sig,
+                reuse=reuse or False,
                 name=name,
-                package_requirements=packages,
-                max_batching_rows=max_batching_rows,
+                package_requirements=tuple(packages) if packages else tuple(),
+                max_batching_rows=max_batching_rows or 1000,
                 cloud_function_timeout=cloud_function_timeout,
                 cloud_function_max_instance_count=cloud_function_max_instances,
-                is_row_processor=is_row_processor,
                 cloud_function_vpc_connector=cloud_function_vpc_connector,
                 cloud_function_vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
                 cloud_function_memory_mib=cloud_function_memory_mib,
                 cloud_function_cpus=cloud_function_cpus,
                 cloud_function_ingress_settings=cloud_function_ingress_settings,
-                bq_metadata=bqrf_metadata,
+                bq_connection_id=bq_connection_id,
             )
 
             bigframes_cloud_function = (
@@ -676,12 +628,13 @@ class FunctionSession:
                 signature=udf_sig,
             )
             decorator = functools.wraps(func)
-            if is_row_processor:
+            if udf_sig.is_row_processor:
+                msg = bfe.format_message("input_types=Series is in preview.")
+                warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
                 return decorator(
                     bq_functions.BigqueryCallableRowRoutine(
                         udf_definition,
                         session,
-                        post_routine=post_process_routine,
                         cloud_function_ref=bigframes_cloud_function,
                         local_func=func,
                         is_managed=False,
@@ -692,7 +645,6 @@ class FunctionSession:
                     bq_functions.BigqueryCallableRoutine(
                         udf_definition,
                         session,
-                        post_routine=post_process_routine,
                         cloud_function_ref=bigframes_cloud_function,
                         local_func=func,
                         is_managed=False,
@@ -868,34 +820,10 @@ class FunctionSession:
                 func,
                 **signature_kwargs,
             )
-            if input_types is not None:
-                if not isinstance(input_types, collections.abc.Sequence):
-                    input_types = [input_types]
-                if _utils.has_conflict_input_type(py_sig, input_types):
-                    msg = bfe.format_message(
-                        "Conflicting input types detected, using the one from the decorator."
-                    )
-                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
-                py_sig = py_sig.replace(
-                    parameters=[
-                        par.replace(annotation=itype)
-                        for par, itype in zip(py_sig.parameters.values(), input_types)
-                    ]
-                )
-            if output_type:
-                if _utils.has_conflict_output_type(py_sig, output_type):
-                    msg = bfe.format_message(
-                        "Conflicting return type detected, using the one from the decorator."
-                    )
-                    warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
-                py_sig = py_sig.replace(return_annotation=output_type)
+            py_sig = _resolve_signature(py_sig, input_types, output_type)
 
             # The function will actually be receiving a pandas Series, but allow
             # both BigQuery DataFrames and pandas object types for compatibility.
-            is_row_processor = False
-            if new_sig := _convert_row_processor_sig(py_sig):
-                py_sig = new_sig
-                is_row_processor = True
 
             udf_sig = udf_def.UdfSignature.from_py_signature(py_sig)
 
@@ -904,22 +832,22 @@ class FunctionSession:
                 bq_location,
                 dataset_ref.dataset_id,
                 bigquery_client,
-                bq_connection_id,
                 bq_connection_manager,
                 session=session,  # type: ignore
             )
-
-            bq_function_name = managed_function_client.provision_bq_managed_function(
-                func=func,
-                input_types=udf_sig.sql_input_types,
-                output_type=udf_sig.sql_output_type,
-                name=name,
-                packages=packages,
+            config = udf_def.ManagedFunctionConfig(
+                code=udf_def.CodeDef.from_func(func),
+                signature=udf_sig,
                 max_batching_rows=max_batching_rows,
                 container_cpu=container_cpu,
                 container_memory=container_memory,
-                is_row_processor=is_row_processor,
                 bq_connection_id=bq_connection_id,
+                capture_references=False,
+            )
+
+            bq_function_name = managed_function_client.provision_bq_managed_function(
+                name=name,
+                config=config,
             )
             full_rf_name = (
                 managed_function_client.get_remote_function_fully_qualilfied_name(
@@ -936,13 +864,17 @@ class FunctionSession:
                 self._update_temp_artifacts(full_rf_name, "")
 
             decorator = functools.wraps(func)
-            if is_row_processor:
+            if udf_sig.is_row_processor:
+                msg = bfe.format_message("input_types=Series is in preview.")
+                warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
+                assert session is not None  # appease mypy
                 return decorator(
                     bq_functions.BigqueryCallableRowRoutine(
                         udf_definition, session, local_func=func, is_managed=True
                     )
                 )
             else:
+                assert session is not None  # appease mypy
                 return decorator(
                     bq_functions.BigqueryCallableRoutine(
                         udf_definition,
@@ -981,31 +913,31 @@ class FunctionSession:
         return self.udf(**kwargs)(func)
 
 
-def _convert_row_processor_sig(
-    signature: inspect.Signature,
-) -> Optional[inspect.Signature]:
-    import bigframes.series as bf_series
+def _resolve_signature(
+    py_sig: inspect.Signature,
+    input_types: Union[None, type, Sequence[type]] = None,
+    output_type: Optional[type] = None,
+) -> inspect.Signature:
+    if input_types is not None:
+        if not isinstance(input_types, collections.abc.Sequence):
+            input_types = [input_types]
+        if _utils.has_conflict_input_type(py_sig, input_types):
+            msg = bfe.format_message(
+                "Conflicting input types detected, using the one from the decorator."
+            )
+            warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
+        py_sig = py_sig.replace(
+            parameters=[
+                par.replace(annotation=itype)
+                for par, itype in zip(py_sig.parameters.values(), input_types)
+            ]
+        )
+    if output_type:
+        if _utils.has_conflict_output_type(py_sig, output_type):
+            msg = bfe.format_message(
+                "Conflicting return type detected, using the one from the decorator."
+            )
+            warnings.warn(msg, category=bfe.FunctionConflictTypeHintWarning)
+        py_sig = py_sig.replace(return_annotation=output_type)
 
-    if len(signature.parameters) >= 1:
-        first_param = next(iter(signature.parameters.values()))
-        param_type = first_param.annotation
-        # Type hints for Series inputs should use pandas.Series because the
-        # underlying serialization process converts the input to a string
-        # representation of a pandas Series (not bigframes Series). Using
-        # bigframes Series will lead to TypeError when creating the function
-        # remotely. See more from b/445182819.
-        if param_type == bf_series.Series:
-            raise bf_formatting.create_exception_with_feedback_link(
-                TypeError,
-                "Argument type hint must be Pandas Series, not BigFrames Series.",
-            )
-        if param_type == pandas.Series:
-            msg = bfe.format_message("input_types=Series is in preview.")
-            warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
-            return signature.replace(
-                parameters=[
-                    p.replace(annotation=str) if i == 0 else p
-                    for i, p in enumerate(signature.parameters.values())
-                ]
-            )
-    return None
+    return py_sig
