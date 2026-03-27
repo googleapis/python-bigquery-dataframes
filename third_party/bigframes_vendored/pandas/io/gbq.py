@@ -72,7 +72,6 @@ class GBQIOMixin:
 
         Preserve ordering in a query input.
 
-            >>> bpd.options.display.progress_bar = None
             >>> df = bpd.read_gbq('''
             ...    SELECT
             ...       -- Instead of an ORDER BY clause on the query, use
@@ -87,11 +86,9 @@ class GBQIOMixin:
             ...     WHERE year = 2016
             ...     GROUP BY pitcherFirstName, pitcherLastName
             ... ''', index_col="rowindex")
-            >>> print("START_OF_OUTPUT"); df.head(2) # doctest: +ELLIPSIS,+NORMALIZE_WHITESPACE
-            START_OF_OUTPUT
-            ...
+            >>> df.head(2)
                      pitcherFirstName pitcherLastName  averagePitchSpeed
-            ...
+            rowindex
             1                Albertin         Chapman          96.514113
             2                 Zachary         Britton          94.591039
             <BLANKLINE>
