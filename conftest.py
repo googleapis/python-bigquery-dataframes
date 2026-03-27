@@ -21,8 +21,6 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-import bigframes._config
-
 # Make sure SettingWithCopyWarning is ignored if it exists.
 # It was removed in pandas 3.0.
 if hasattr(pd.errors, "SettingWithCopyWarning"):
@@ -54,7 +52,6 @@ def default_doctest_imports(doctest_namespace, polars_session_or_bpd):
     doctest_namespace["pd"] = pd
     doctest_namespace["pa"] = pa
     doctest_namespace["bpd"] = polars_session_or_bpd
-    bigframes._config.options.display.progress_bar = None
 
     # TODO(tswast): Consider setting the numpy printoptions here for better
     # compatibility across numpy versions.
