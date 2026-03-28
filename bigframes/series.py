@@ -2029,7 +2029,13 @@ class Series:
                 " are supported."
             )
 
-        if isinstance(func, bigframes.functions.BigqueryCallableRoutine):
+        if isinstance(
+            func,
+            (
+                bigframes.functions.BigqueryCallableRoutine,
+                bigframes.functions.UdfRoutine,
+            ),
+        ):
             # We are working with bigquery function at this point
             if args:
                 result_series = self._apply_nary_op(
@@ -2090,7 +2096,13 @@ class Series:
                 " are supported."
             )
 
-        if isinstance(func, bigframes.functions.BigqueryCallableRoutine):
+        if isinstance(
+            func,
+            (
+                bigframes.functions.BigqueryCallableRoutine,
+                bigframes.functions.UdfRoutine,
+            ),
+        ):
             result_series = self._apply_binary_op(
                 other, ops.BinaryRemoteFunctionOp(function_def=func.udf_def)
             )

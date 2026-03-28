@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from bigframes.session import Session
     import bigframes.series
 
+import dataclasses
+import functools
+
 import google.api_core.exceptions
 from google.cloud import bigquery
 
@@ -90,13 +93,13 @@ def _try_import_routine(
 
 def _try_import_row_routine(
     routine: bigquery.Routine, session: bigframes.Session
-) -> BigqueryCallableRowRoutine:
+) -> BigqueryCallableRoutine:
     udf_def = _routine_as_udf_def(routine, is_row_processor=True)
 
     is_remote = (
         hasattr(routine, "remote_function_options") and routine.remote_function_options
     )
-    return BigqueryCallableRowRoutine(udf_def, session, is_managed=not is_remote)
+    return BigqueryCallableRoutine(udf_def, session, is_managed=not is_remote)
 
 
 def _routine_as_udf_def(
@@ -117,7 +120,6 @@ def _routine_as_udf_def(
         )
 
 
-# TODO(b/399894805): Support managed function.
 def read_gbq_function(
     function_name: str,
     *,
@@ -202,7 +204,7 @@ class BigqueryCallableRoutine:
 
     @property
     def is_row_processor(self) -> bool:
-        return False
+        return self.udf_def.signature.is_row_processor
 
     @property
     def udf_def(self) -> udf_def.BigqueryUdf:
@@ -225,75 +227,17 @@ class BigqueryCallableRoutine:
         return self.udf_def.signature.output.emulating_type.bf_type
 
 
-class BigqueryCallableRowRoutine:
-    """
-    A reference to a routine in the context of a session.
+@dataclasses.dataclass(frozen=True)
+class UdfRoutine:
+    func: Callable
+    # Try not to depend on this, bq managed function creation will be deferred later
+    # And this ref will be replaced with requirements rather to support lazy creation
+    _udf_def: udf_def.BigqueryUdf
 
-    Can be used both directly as a callable, or as an input to dataframe ops that take a callable.
-    """
-
-    def __init__(
-        self,
-        udf_def: udf_def.BigqueryUdf,
-        session: bigframes.Session,
-        *,
-        local_func: Optional[Callable] = None,
-        cloud_function_ref: Optional[str] = None,
-        is_managed: bool = False,
-    ):
-        assert udf_def.signature.is_row_processor
-        self._udf_def = udf_def
-        self._session = session
-        self._local_fun = local_func
-        self._cloud_function = cloud_function_ref
-        self._is_managed = is_managed
-
+    @functools.partial
     def __call__(self, *args, **kwargs):
-        if self._local_fun:
-            return self._local_fun(*args, **kwargs)
-        # avoid circular imports
-        from bigframes.core.compile.sqlglot import sql as sg_sql
-        import bigframes.session._io.bigquery as bf_io_bigquery
-
-        args_string = ", ".join([sg_sql.to_sql(sg_sql.literal(v)) for v in args])
-        sql = f"SELECT `{str(self._udf_def.routine_ref)}`({args_string})"
-        iter, job = bf_io_bigquery.start_query_with_client(
-            self._session.bqclient,
-            sql=sql,
-            query_with_job=True,
-            job_config=bigquery.QueryJobConfig(),
-            publisher=self._session._publisher,
-        )  # type: ignore
-        return list(iter.to_arrow().to_pydict().values())[0][0]
-
-    @property
-    def bigframes_bigquery_function(self) -> str:
-        return str(self._udf_def.routine_ref)
-
-    @property
-    def bigframes_remote_function(self):
-        return None if self._is_managed else str(self._udf_def.routine_ref)
-
-    @property
-    def is_row_processor(self) -> bool:
-        return True
+        return self.func(*args, **kwargs)
 
     @property
     def udf_def(self) -> udf_def.BigqueryUdf:
         return self._udf_def
-
-    @property
-    def bigframes_cloud_function(self) -> Optional[str]:
-        return self._cloud_function
-
-    @property
-    def input_dtypes(self):
-        return tuple(arg.bf_type for arg in self.udf_def.signature.inputs)
-
-    @property
-    def output_dtype(self):
-        return self.udf_def.signature.output.bf_type
-
-    @property
-    def bigframes_bigquery_function_output_dtype(self):
-        return self.udf_def.signature.output.emulating_type.bf_type

@@ -4662,7 +4662,13 @@ class DataFrame:
         return array_value, id_overrides
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
-        if not isinstance(func, bigframes.functions.BigqueryCallableRoutine):
+        if not isinstance(
+            func,
+            (
+                bigframes.functions.BigqueryCallableRoutine,
+                bigframes.functions.UdfRoutine,
+            ),
+        ):
             raise TypeError("the first argument must be callable")
 
         if na_action not in {None, "ignore"}:
@@ -4690,14 +4696,14 @@ class DataFrame:
                 func,
                 (
                     bigframes.functions.BigqueryCallableRoutine,
-                    bigframes.functions.BigqueryCallableRowRoutine,
+                    bigframes.functions.UdfRoutine,
                 ),
             ):
                 raise ValueError(
                     "For axis=1 a BigFrames BigQuery function must be used."
                 )
 
-            if func.is_row_processor:
+            if func.udf_def.signature.is_row_processor:
                 # Early check whether the dataframe dtypes are currently supported
                 # in the bigquery function
                 # NOTE: Keep in sync with the value converters used in the gcf code
