@@ -48,6 +48,7 @@ Whether you're exploring big data, deploying an AI model, integrating with LLMs 
    :maxdepth: 1
 
    AI Functions <../notebooks/generative_ai/ai_functions.ipynb>
+   AI Functions for Poster Analysis <../notebooks/generative_ai/ai_movie_poster.ipynb>
    AI Forecast <../notebooks/generative_ai/bq_dataframes_ai_forecast.ipynb>
    LLM Code Generation <../notebooks/generative_ai/bq_dataframes_llm_code_generation.ipynb>
    LLM KMeans <../notebooks/generative_ai/bq_dataframes_llm_kmeans.ipynb>
