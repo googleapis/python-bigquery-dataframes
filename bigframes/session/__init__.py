@@ -1424,23 +1424,23 @@ class Session(
         self,
         path: str | IO["bytes"],
         *,
-        engine: str = "default",
+        engine: str = "auto",
     ) -> dataframe.DataFrame:
         """Load an Avro file to a BigQuery DataFrames DataFrame.
 
         Args:
             path (str or IO):
                 The path or buffer to the Avro file. Can be a local path or Google Cloud Storage URI.
-            engine (str, default "default"):
+            engine (str, default "auto"):
                 The engine used to read the file. Only `bigquery` is supported for Avro.
 
         Returns:
             bigframes.dataframe.DataFrame:
                 A new DataFrame representing the data from the Avro file.
         """
-        if engine not in ("default", "bigquery"):
+        if engine not in ("auto", "bigquery"):
             raise ValueError(
-                f"Unsupported engine: {repr(engine)}. Supported values: 'default', 'bigquery'."
+                f"Unsupported engine: {repr(engine)}. Supported values: 'auto', 'bigquery'."
             )
 
         job_config = bigquery.LoadJobConfig()

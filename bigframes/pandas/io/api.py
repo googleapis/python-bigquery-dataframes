@@ -620,14 +620,12 @@ read_orc.__doc__ = inspect.getdoc(bigframes.session.Session.read_orc)
 def read_avro(
     path: str | IO["bytes"],
     *,
-    engine: str = "bigquery",
-    write_engine: constants.WriteEngineType = "default",
+    engine: str = "auto",
 ) -> bigframes.dataframe.DataFrame:
     return global_session.with_default_session(
         bigframes.session.Session.read_avro,
         path,
         engine=engine,
-        write_engine=write_engine,
     )
 
 
