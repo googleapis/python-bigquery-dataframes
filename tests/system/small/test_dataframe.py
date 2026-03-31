@@ -6304,9 +6304,9 @@ def test_empty_agg_projection_succeeds():
     import importlib
 
     bq = importlib.import_module(
-        "third_party.bigframes_vendored.ibis.backends.sql.compilers.bigquery"
+        "bigframes_vendored.ibis.backends.sql.compilers.bigquery"
     )
-    sg = importlib.import_module("third_party.bigframes_vendored.sqlglot")
+    sg = importlib.import_module("bigframes_vendored.sqlglot")
 
     compiler = bq.BigQueryCompiler()
     res = compiler.visit_Aggregate(
