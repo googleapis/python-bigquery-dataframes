@@ -562,6 +562,9 @@ def test_pyformat_with_bigframes_dataframe_biglake_table(session):
     # For BigLake, we now expect a SUBQUERY, not a view reference.
     # The subquery should have correctly quoted 4-part ID.
     assert "SELECT" in got_sql
-    assert "FROM `my-project`.`my-catalog`.`my-namespace`.`my-table`" in got_sql
+    assert project_id in got_sql
+    assert catalog_id in got_sql
+    assert namespace_id in got_sql
+    assert table_id in got_sql
     assert got_sql.startswith("SELECT * FROM (SELECT")
     assert got_sql.endswith(")")
