@@ -851,14 +851,19 @@ class FunctionSession:
                 signature=udf_sig,
             )
 
-            if not name:
-                self._update_temp_artifacts(full_rf_name, "")
-
             if udf_sig.is_row_processor:
                 msg = bfe.format_message("input_types=Series is in preview.")
                 warnings.warn(msg, stacklevel=1, category=bfe.PreviewWarning)
 
-            return bq_functions.UdfRoutine(func=func, _udf_def=udf_definition)
+            if not name:  # session-managed resource
+                self._update_temp_artifacts(full_rf_name, "")
+                return bq_functions.UdfRoutine(func=func, _udf_def=udf_definition)
+
+            # user-managed permanent resource
+            else:
+                return bq_functions.BigqueryCallableRoutine(
+                    udf_definition, session, local_func=func, is_managed=True
+                )
 
         return wrapper
 

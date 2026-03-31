@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional, TYPE_CHECKING
+from typing import Callable, Optional, Protocol, runtime_checkable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -30,6 +30,9 @@ from google.cloud import bigquery
 import bigframes.formatting_helpers as bf_formatting
 from bigframes.functions import _function_session as bff_session
 from bigframes.functions import function_typing, udf_def
+
+if TYPE_CHECKING:
+    import bigframes.core.col
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +155,13 @@ def read_gbq_function(
         return _try_import_row_routine(routine, session)
     else:
         return _try_import_routine(routine, session)
+
+
+@runtime_checkable
+class Udf(Protocol):
+    @property
+    def udf_def(self) -> udf_def.BigqueryUdf:
+        ...
 
 
 class BigqueryCallableRoutine:

@@ -2843,7 +2843,7 @@ class DataFrame:
         """Executes the possible callable condition as needed."""
         if callable(condition):
             # When it's a bigframes function.
-            if hasattr(condition, "bigframes_bigquery_function"):
+            if isinstance(condition, bigframes.functions.Udf):
                 return self.apply(condition, axis=1)
 
             # When it's a plain Python function.
@@ -4662,13 +4662,7 @@ class DataFrame:
         return array_value, id_overrides
 
     def map(self, func, na_action: Optional[str] = None) -> DataFrame:
-        if not isinstance(
-            func,
-            (
-                bigframes.functions.BigqueryCallableRoutine,
-                bigframes.functions.UdfRoutine,
-            ),
-        ):
+        if not isinstance(func, bigframes.functions.Udf):
             raise TypeError("the first argument must be callable")
 
         if na_action not in {None, "ignore"}:
@@ -4692,13 +4686,7 @@ class DataFrame:
             )
             warnings.warn(msg, category=bfe.FunctionAxisOnePreviewWarning)
 
-            if not isinstance(
-                func,
-                (
-                    bigframes.functions.BigqueryCallableRoutine,
-                    bigframes.functions.UdfRoutine,
-                ),
-            ):
+            if not isinstance(func, bigframes.functions.Udf):
                 raise ValueError(
                     "For axis=1 a BigFrames BigQuery function must be used."
                 )
@@ -4832,7 +4820,7 @@ class DataFrame:
 
         # At this point column-wise or element-wise bigquery function operation will
         # be performed (not supported).
-        if hasattr(func, "bigframes_bigquery_function"):
+        if isinstance(func, bigframes.functions.Udf):
             raise formatter.create_exception_with_feedback_link(
                 NotImplementedError,
                 "BigFrames DataFrame '.apply()' does not support BigFrames "
