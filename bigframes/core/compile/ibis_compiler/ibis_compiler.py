@@ -221,18 +221,15 @@ def _table_to_ibis(
     physical_schema = ibis_bigquery.BigQuerySchema.to_ibis(
         list(source.table.physical_schema)
     )
-    if source.at_time is not None or source.sql_predicate is not None:
-        import bigframes.session._io.bigquery
+    import bigframes.session._io.bigquery
 
-        sql = bigframes.session._io.bigquery.to_query(
-            full_table_name,
-            columns=scan_cols,
-            sql_predicate=source.sql_predicate,
-            time_travel_timestamp=source.at_time,
-        )
-        return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
-    else:
-        return ibis_api.table(physical_schema, full_table_name).select(scan_cols)
+    sql = bigframes.session._io.bigquery.to_query(
+        full_table_name,
+        columns=scan_cols,
+        sql_predicate=source.sql_predicate,
+        time_travel_timestamp=source.at_time,
+    )
+    return ibis_bigquery.Backend().sql(schema=physical_schema, query=sql)
 
 
 @_compile_node.register
