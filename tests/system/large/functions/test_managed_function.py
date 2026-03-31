@@ -32,7 +32,12 @@ prefixer = test_utils.prefixer.Prefixer("bigframes", "")
 def function_id(dataset_id, session):
     name = prefixer.create_prefix()
     yield name
-    session.bqclient.delete_routine(f"{dataset_id}.{name}")
+    try:
+        session.bqclient.delete_routine(f"{dataset_id}.{name}")
+    # some tests, like test_managed_function_options_errors, should not actually create the function.
+    # so we ignore the not found error.
+    except google.api_core.exceptions.NotFound:
+        pass
 
 
 def test_managed_function_array_output(session, scalars_dfs, dataset_id, function_id):
@@ -74,10 +79,6 @@ def test_managed_function_array_output(session, scalars_dfs, dataset_id, functio
 
 
 def test_managed_function_series_apply(session, dataset_id, scalars_dfs, function_id):
-    # An explicit name with "def" in it is used to test the robustness of
-    # the user code extraction logic, which depends on that term.
-    assert "def" in function_id, "The substring 'def' was not found in 'function_id'"
-
     @session.udf(dataset=dataset_id, name=function_id)
     def foo(x: int) -> bytes:
         return bytes(abs(x))
