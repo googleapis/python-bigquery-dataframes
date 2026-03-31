@@ -15,16 +15,16 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 import os
 import random
+import re
 import shutil
 import string
 import tempfile
 import textwrap
 import types
-from typing import Any, cast, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import Any, cast, Optional, TYPE_CHECKING
 import warnings
 
 import requests
@@ -32,6 +32,7 @@ import requests
 import bigframes.exceptions as bfe
 import bigframes.formatting_helpers as bf_formatting
 import bigframes.functions.function_template as bff_template
+import bigframes.functions.udf_def as udf_def
 
 if TYPE_CHECKING:
     from bigframes.session import Session
@@ -40,7 +41,12 @@ import google.api_core.exceptions
 import google.api_core.retry
 from google.cloud import bigquery, functions_v2
 
-from . import _utils
+from bigframes.functions import _utils
+from bigframes.functions._utils import (
+    _BIGFRAMES_FUNCTION_PREFIX,
+    _BQ_FUNCTION_NAME_SEPERATOR,
+    _GCF_FUNCTION_NAME_SEPERATOR,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +86,6 @@ class FunctionClient:
         bq_location,
         bq_dataset,
         bq_client,
-        bq_connection_id,
         bq_connection_manager,
         cloud_function_region=None,
         cloud_functions_client=None,
@@ -95,7 +100,6 @@ class FunctionClient:
         self._bq_location = bq_location
         self._bq_dataset = bq_dataset
         self._bq_client = bq_client
-        self._bq_connection_id = bq_connection_id
         self._bq_connection_manager = bq_connection_manager
         self._session = session
 
@@ -107,12 +111,12 @@ class FunctionClient:
         self._cloud_function_docker_repository = cloud_function_docker_repository
         self._cloud_build_service_account = cloud_build_service_account
 
-    def _create_bq_connection(self) -> None:
+    def _create_bq_connection(self, connection_id: str) -> None:
         if self._bq_connection_manager:
             self._bq_connection_manager.create_bq_connection(
                 self._gcp_project_id,
                 self._bq_location,
-                self._bq_connection_id,
+                connection_id,
                 "run.invoker",
             )
 
@@ -162,45 +166,40 @@ class FunctionClient:
 
     def create_bq_remote_function(
         self,
-        input_args: Sequence[str],
-        input_types: Sequence[str],
-        output_type: str,
-        endpoint: str,
-        bq_function_name: str,
-        max_batching_rows: int,
-        metadata: str,
+        name: str,
+        udf_def: udf_def.RemoteFunctionConfig,
     ):
         """Create a BigQuery remote function given the artifacts of a user defined
         function and the http endpoint of a corresponding cloud function."""
-        self._create_bq_connection()
+        self._create_bq_connection(udf_def.connection_id)
 
         # Create BQ function
         # https://cloud.google.com/bigquery/docs/reference/standard-sql/remote-functions#create_a_remote_function_2
-        bq_function_args = []
-        bq_function_return_type = output_type
-
-        # We are expecting the input type annotations to be 1:1 with the input args
-        for name, type_ in zip(input_args, input_types):
-            bq_function_args.append(f"{name} {type_}")
 
         remote_function_options = {
-            "endpoint": endpoint,
-            "max_batching_rows": max_batching_rows,
+            "endpoint": udf_def.endpoint,
+            "max_batching_rows": udf_def.max_batching_rows,
         }
 
-        if metadata:
+        if udf_def.bq_metadata:
             # We are using the description field to store this structured
             # bigframes specific metadata for the lack of a better option
-            remote_function_options["description"] = metadata
+            remote_function_options["description"] = udf_def.bq_metadata
 
         remote_function_options_str = self._format_function_options(
             remote_function_options
         )
 
+        import bigframes.core.sql
+        import bigframes.core.utils
+
+        # removes anything that isn't letter, number or underscore
+        _validate_routine_name(name)
+        bq_function_name_escaped = bigframes.core.sql.identifier(name)
         create_function_ddl = f"""
-            CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}({','.join(bq_function_args)})
-            RETURNS {bq_function_return_type}
-            REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`
+            CREATE OR REPLACE FUNCTION `{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name_escaped}({udf_def.signature.to_sql_input_signature()})
+            RETURNS {udf_def.signature.with_devirtualize().output.sql_type}
+            REMOTE WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{udf_def.connection_id}`
             OPTIONS ({remote_function_options_str})"""
 
         logger.info(f"Creating BQ remote function: {create_function_ddl}")
@@ -210,25 +209,15 @@ class FunctionClient:
 
     def provision_bq_managed_function(
         self,
-        func,
-        input_types: Sequence[str],
-        output_type: str,
         name: Optional[str],
-        packages: Optional[Sequence[str]],
-        max_batching_rows: Optional[int],
-        container_cpu: Optional[float],
-        container_memory: Optional[str],
-        is_row_processor: bool,
-        bq_connection_id,
-        *,
-        capture_references: bool = False,
+        config: udf_def.ManagedFunctionConfig,
     ):
         """Create a BigQuery managed function."""
 
         # TODO(b/406283812): Expose the capability to pass down
         # capture_references=True in the public udf API.
         if (
-            capture_references
+            config.capture_references
             and (python_version := _utils.get_python_version())
             != _MANAGED_FUNC_PYTHON_VERSION
         ):
@@ -238,29 +227,27 @@ class FunctionClient:
             )
 
         # Create BQ managed function.
-        bq_function_args = []
-        bq_function_return_type = output_type
-
-        input_args = inspect.getargs(func.__code__).args
-        # We expect the input type annotations to be 1:1 with the input args.
-        for name_, type_ in zip(input_args, input_types):
-            bq_function_args.append(f"{name_} {type_}")
+        bq_function_args = config.signature.to_sql_input_signature()
+        bq_function_return_type = config.signature.with_devirtualize().output.sql_type
 
         managed_function_options: dict[str, Any] = {
             "runtime_version": _MANAGED_FUNC_PYTHON_VERSION,
             "entry_point": "bigframes_handler",
         }
-        if max_batching_rows:
-            managed_function_options["max_batching_rows"] = max_batching_rows
-        if container_cpu:
-            managed_function_options["container_cpu"] = container_cpu
-        if container_memory:
-            managed_function_options["container_memory"] = container_memory
+        if config.max_batching_rows:
+            managed_function_options["max_batching_rows"] = config.max_batching_rows
+        if config.container_cpu:
+            managed_function_options["container_cpu"] = config.container_cpu
+        if config.container_memory:
+            managed_function_options["container_memory"] = config.container_memory
 
         # Augment user package requirements with any internal package
         # requirements.
         packages = _utils.get_updated_package_requirements(
-            packages, is_row_processor, capture_references, ignore_package_version=True
+            config.code.package_requirements or [],
+            config.signature.is_row_processor,
+            config.capture_references,
+            ignore_package_version=True,
         )
         if packages:
             managed_function_options["packages"] = packages
@@ -268,27 +255,22 @@ class FunctionClient:
             managed_function_options
         )
 
-        session_id = None if name else self._session.session_id
         bq_function_name = name
         if not bq_function_name:
-            # Compute a unique hash representing the user code.
-            function_hash = _utils.get_hash(func, packages)
-            bq_function_name = _utils.get_bigframes_function_name(
-                function_hash,
-                session_id,
+            # Compute a unique hash representing the artifact definition.
+            bq_function_name = get_managed_function_name(
+                config, self._session.session_id
             )
 
         persistent_func_id = (
             f"`{self._gcp_project_id}.{self._bq_dataset}`.{bq_function_name}"
         )
 
-        udf_name = func.__name__
-
         with_connection_clause = (
             (
-                f"WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{self._bq_connection_id}`"
+                f"WITH CONNECTION `{self._gcp_project_id}.{self._bq_location}.{config.bq_connection_id}`"
             )
-            if bq_connection_id
+            if config.bq_connection_id
             else ""
         )
 
@@ -296,13 +278,13 @@ class FunctionClient:
         # including the user's function, necessary imports, and the BigQuery
         # handler wrapper.
         python_code_block = bff_template.generate_managed_function_code(
-            func, udf_name, is_row_processor, capture_references
+            config.code, config.signature, config.capture_references
         )
 
         create_function_ddl = (
             textwrap.dedent(
                 f"""
-                CREATE OR REPLACE FUNCTION {persistent_func_id}({','.join(bq_function_args)})
+                CREATE OR REPLACE FUNCTION {persistent_func_id}({bq_function_args})
                 RETURNS {bq_function_return_type}
                 LANGUAGE python
                 {with_connection_clause}
@@ -337,7 +319,7 @@ class FunctionClient:
         "Get the fully qualilfied name for a BQ remote function."
         return f"{self._gcp_project_id}.{self._bq_dataset}.{name}"
 
-    def get_cloud_function_endpoint(self, name):
+    def get_cloud_function_endpoint(self, name) -> str | None:
         """Get the http endpoint of a cloud function if it exists."""
         fully_qualified_name = self.get_cloud_function_fully_qualified_name(name)
         try:
@@ -351,29 +333,24 @@ class FunctionClient:
 
     def generate_cloud_function_code(
         self,
-        def_,
+        code_def: udf_def.CodeDef,
         directory,
         *,
-        input_types: Tuple[str],
-        output_type: str,
-        package_requirements=None,
-        is_row_processor=False,
+        udf_signature: udf_def.UdfSignature,
     ):
         """Generate the cloud function code for a given user defined function."""
 
         # requirements.txt
-        if package_requirements:
+        if code_def.package_requirements:
             requirements_txt = os.path.join(directory, "requirements.txt")
             with open(requirements_txt, "w") as f:
-                f.write("\n".join(package_requirements))
+                f.write("\n".join(code_def.package_requirements))
 
         # main.py
         entry_point = bff_template.generate_cloud_function_main_code(
-            def_,
+            code_def,
             directory,
-            input_types=input_types,
-            output_type=output_type,
-            is_row_processor=is_row_processor,
+            udf_signature=udf_signature,
         )
         return entry_point
 
@@ -393,35 +370,19 @@ class FunctionClient:
 
     def create_cloud_function(
         self,
-        def_,
-        *,
-        random_name,
-        input_types: Tuple[str],
-        output_type: str,
-        package_requirements=None,
-        timeout_seconds=600,
-        max_instance_count=None,
-        is_row_processor=False,
-        vpc_connector=None,
-        vpc_connector_egress_settings="private-ranges-only",
-        memory_mib=None,
-        cpus=None,
-        ingress_settings="internal-only",
-        workers=None,
-        threads=None,
-        concurrency=None,
-    ):
+        name: str,
+        func_def: udf_def.CloudRunFunctionConfig,
+    ) -> str:
         """Create a cloud function from the given user defined function."""
+
+        config = func_def
 
         # Build and deploy folder structure containing cloud function
         with tempfile.TemporaryDirectory() as directory:
             entry_point = self.generate_cloud_function_code(
-                def_,
+                config.code,
                 directory,
-                package_requirements=package_requirements,
-                input_types=input_types,
-                output_type=output_type,
-                is_row_processor=is_row_processor,
+                udf_signature=config.signature,
             )
             archive_path = shutil.make_archive(directory, "zip", directory)
 
@@ -461,9 +422,9 @@ class FunctionClient:
             create_function_request.parent = (
                 self.get_cloud_function_fully_qualified_parent()
             )
-            create_function_request.function_id = random_name
+            create_function_request.function_id = name
             function = functions_v2.Function()
-            function.name = self.get_cloud_function_fully_qualified_name(random_name)
+            function.name = self.get_cloud_function_fully_qualified_name(name)
             function.build_config = functions_v2.BuildConfig()
             function.build_config.runtime = python_version
             function.build_config.entry_point = entry_point
@@ -490,33 +451,34 @@ class FunctionClient:
                 )
 
             function.service_config = functions_v2.ServiceConfig()
-            if memory_mib is not None:
-                function.service_config.available_memory = f"{memory_mib}Mi"
-            if cpus is not None:
-                function.service_config.available_cpu = str(cpus)
-            if timeout_seconds is not None:
-                if timeout_seconds > 1200:
+            if config.memory_mib is not None:
+                function.service_config.available_memory = f"{config.memory_mib}Mi"
+            if config.cpus is not None:
+                function.service_config.available_cpu = str(config.cpus)
+            if config.timeout_seconds is not None:
+                if config.timeout_seconds > 1200:
                     raise bf_formatting.create_exception_with_feedback_link(
                         ValueError,
                         "BigQuery remote function can wait only up to 20 minutes"
                         ", see for more details "
                         "https://cloud.google.com/bigquery/quotas#remote_function_limits.",
                     )
-                function.service_config.timeout_seconds = timeout_seconds
-            if max_instance_count is not None:
-                function.service_config.max_instance_count = max_instance_count
-            if vpc_connector is not None:
-                function.service_config.vpc_connector = vpc_connector
-                if vpc_connector_egress_settings is None:
+                function.service_config.timeout_seconds = config.timeout_seconds
+            if config.max_instance_count is not None:
+                function.service_config.max_instance_count = config.max_instance_count
+            if config.vpc_connector is not None:
+                function.service_config.vpc_connector = config.vpc_connector
+                vpc_connector_egress_settings = config.vpc_connector_egress_settings
+                if config.vpc_connector_egress_settings is None:
                     msg = bfe.format_message(
                         "The 'vpc_connector_egress_settings' was not specified. Defaulting to 'private-ranges-only'.",
                     )
                     warnings.warn(msg, category=UserWarning)
                     vpc_connector_egress_settings = "private-ranges-only"
-                if vpc_connector_egress_settings not in _VPC_EGRESS_SETTINGS_MAP:
+                if config.vpc_connector_egress_settings not in _VPC_EGRESS_SETTINGS_MAP:
                     raise bf_formatting.create_exception_with_feedback_link(
                         ValueError,
-                        f"'{vpc_connector_egress_settings}' is not one of the supported vpc egress settings values: {list(_VPC_EGRESS_SETTINGS_MAP)}",
+                        f"'{config.vpc_connector_egress_settings}' is not one of the supported vpc egress settings values: {list(_VPC_EGRESS_SETTINGS_MAP)}",
                     )
                 function.service_config.vpc_connector_egress_settings = cast(
                     functions_v2.ServiceConfig.VpcConnectorEgressSettings,
@@ -525,28 +487,30 @@ class FunctionClient:
             function.service_config.service_account_email = (
                 self._cloud_function_service_account
             )
-            if concurrency:
-                function.service_config.max_instance_request_concurrency = concurrency
+            if config.concurrency:
+                function.service_config.max_instance_request_concurrency = (
+                    config.concurrency
+                )
 
             # Functions framework use environment variables to pass config to gunicorn
             # See https://github.com/GoogleCloudPlatform/functions-framework-python/issues/241
             # Code: https://github.com/GoogleCloudPlatform/functions-framework-python/blob/v3.10.1/src/functions_framework/_http/gunicorn.py#L37-L43
             env_vars = {}
-            if workers:
-                env_vars["WORKERS"] = str(workers)
-            if threads:
-                env_vars["THREADS"] = str(threads)
+            if config.workers:
+                env_vars["WORKERS"] = str(config.workers)
+            if config.threads:
+                env_vars["THREADS"] = str(config.threads)
             if env_vars:
                 function.service_config.environment_variables = env_vars
 
-            if ingress_settings not in _INGRESS_SETTINGS_MAP:
+            if config.ingress_settings not in _INGRESS_SETTINGS_MAP:
                 raise bf_formatting.create_exception_with_feedback_link(
                     ValueError,
-                    f"'{ingress_settings}' not one of the supported ingress settings values: {list(_INGRESS_SETTINGS_MAP)}",
+                    f"'{config.ingress_settings}' not one of the supported ingress settings values: {list(_INGRESS_SETTINGS_MAP)}",
                 )
             function.service_config.ingress_settings = cast(
                 functions_v2.ServiceConfig.IngressSettings,
-                _INGRESS_SETTINGS_MAP[ingress_settings],
+                _INGRESS_SETTINGS_MAP[config.ingress_settings],
             )
             function.kms_key_name = self._cloud_function_kms_key_name
             create_function_request.function = function
@@ -577,67 +541,38 @@ class FunctionClient:
         # Fetch the endpoint with retries if it wasn't returned by the operation
         if not endpoint:
             try:
-                endpoint = self._get_cloud_function_endpoint_with_retry(random_name)
+                endpoint = self._get_cloud_function_endpoint_with_retry(name)
             except Exception as e:
                 raise bf_formatting.create_exception_with_feedback_link(
                     ValueError, f"Couldn't fetch the http endpoint: {e}"
                 )
 
-        logger.info(
-            f"Successfully created cloud function {random_name} with uri ({endpoint})"
-        )
+        logger.info(f"Successfully created cloud function {name} with uri ({endpoint})")
         return endpoint
 
     def provision_bq_remote_function(
         self,
         def_,
-        input_types,
-        output_type,
-        reuse,
-        name,
-        package_requirements,
-        max_batching_rows,
-        cloud_function_timeout,
-        cloud_function_max_instance_count,
-        is_row_processor,
-        cloud_function_vpc_connector,
-        cloud_function_vpc_connector_egress_settings,
-        cloud_function_memory_mib,
-        cloud_function_cpus,
-        cloud_function_ingress_settings,
-        bq_metadata,
+        func_signature: udf_def.UdfSignature,
+        reuse: bool,
+        name: str | None,
+        package_requirements: tuple[str, ...],
+        max_batching_rows: int | None,
+        cloud_function_timeout: int | None,
+        cloud_function_max_instance_count: int | None,
+        cloud_function_vpc_connector: str | None,
+        cloud_function_vpc_connector_egress_settings: str | None,
+        cloud_function_memory_mib: int | None,
+        cloud_function_cpus: float | None,
+        cloud_function_ingress_settings: str,
+        bq_connection_id: str,
     ):
         """Provision a BigQuery remote function."""
         # Augment user package requirements with any internal package
         # requirements
-        package_requirements = _utils.get_updated_package_requirements(
-            package_requirements, is_row_processor
+        full_package_requirements = _utils.get_updated_package_requirements(
+            package_requirements, func_signature.is_row_processor
         )
-
-        # Compute a unique hash representing the user code
-        function_hash = _utils.get_hash(def_, package_requirements)
-
-        # If reuse of any existing function with the same name (indicated by the
-        # same hash of its source code) is not intended, then attach a unique
-        # suffix to the intended function name to make it unique.
-        uniq_suffix = None
-        if not reuse:
-            # use 4 digits as a unique suffix which should suffice for
-            # uniqueness per session
-            uniq_suffix = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=4)
-            )
-
-        # Derive the name of the cloud function underlying the intended BQ
-        # remote function. Use the session id to identify the GCF for unnamed
-        # functions. The named remote functions are treated as a persistant
-        # artifacts, so let's keep them independent of session id, which also
-        # makes their naming more stable for the same udf code
-        session_id = None if name else self._session.session_id
-        cloud_function_name = _utils.get_cloud_function_name(
-            function_hash, session_id, uniq_suffix
-        )
-        cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
 
         if cloud_function_memory_mib is None:
             cloud_function_memory_mib = _DEFAULT_FUNCTION_MEMORY_MIB
@@ -654,90 +589,144 @@ class FunctionClient:
         # max concurrency==1 for vcpus < 1 hard limit from cloud run
         concurrency = (workers * threads) if (expected_milli_cpus >= 1000) else 1
 
+        cloud_func_spec = udf_def.CloudRunFunctionConfig(
+            code=udf_def.CodeDef.from_func(def_, full_package_requirements),
+            signature=func_signature,
+            timeout_seconds=cloud_function_timeout,
+            max_instance_count=cloud_function_max_instance_count,
+            vpc_connector=cloud_function_vpc_connector,
+            vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings
+            or "private-ranges-only",
+            memory_mib=cloud_function_memory_mib,
+            cpus=cloud_function_cpus,
+            ingress_settings=cloud_function_ingress_settings,
+            workers=workers,
+            threads=threads,
+            concurrency=concurrency,
+        )
+
+        # If reuse of any existing function with the same name (indicated by the
+        # same hash of its source code and config) is not intended, then attach a unique
+        # suffix to the intended function name to make it unique.
+        random_suffix = "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=4)
+        )
+        # Derive the name of the cloud function underlying the intended BQ
+        # remote function. Use the session id to identify the GCF for unnamed
+        # functions. The named remote functions are treated as a persistant
+        # artifacts, so let's keep them independent of session id, which also
+        # makes their naming more stable for the same udf code
+        cloud_function_name = get_cloud_function_name(
+            cloud_func_spec,
+            session_id=self._session.session_id if (name is None) else None,
+            uniq_suffix=random_suffix if (not reuse) else None,
+        )
+
+        cf_endpoint = self.get_cloud_function_endpoint(cloud_function_name)
         # Create the cloud function if it does not exist
         if not cf_endpoint:
             cf_endpoint = self.create_cloud_function(
-                def_,
-                random_name=cloud_function_name,
-                input_types=input_types,
-                output_type=output_type,
-                package_requirements=package_requirements,
-                timeout_seconds=cloud_function_timeout,
-                max_instance_count=cloud_function_max_instance_count,
-                is_row_processor=is_row_processor,
-                vpc_connector=cloud_function_vpc_connector,
-                vpc_connector_egress_settings=cloud_function_vpc_connector_egress_settings,
-                memory_mib=cloud_function_memory_mib,
-                cpus=cloud_function_cpus,
-                ingress_settings=cloud_function_ingress_settings,
-                workers=workers,
-                threads=threads,
-                concurrency=concurrency,
+                cloud_function_name, cloud_func_spec
             )
         else:
             logger.info(f"Cloud function {cloud_function_name} already exists.")
 
-        # Derive the name of the remote function
-        remote_function_name = name
-        if not remote_function_name:
-            remote_function_name = _utils.get_bigframes_function_name(
-                function_hash, self._session.session_id, uniq_suffix
-            )
-        rf_endpoint, rf_conn = self.get_remote_function_specs(remote_function_name)
-
-        # Create the BQ remote function in following circumstances:
-        # 1. It does not exist
-        # 2. It exists but the existing remote function has different
-        #    configuration than intended
-        created_new = False
-        if not rf_endpoint or (
-            rf_endpoint != cf_endpoint or rf_conn != self._bq_connection_id
-        ):
-            input_args = inspect.getargs(def_.__code__).args
-            if len(input_args) != len(input_types):
-                raise bf_formatting.create_exception_with_feedback_link(
-                    ValueError,
-                    "Exactly one type should be provided for every input arg.",
-                )
-            self.create_bq_remote_function(
-                input_args,
-                input_types,
-                output_type,
-                cf_endpoint,
-                remote_function_name,
-                max_batching_rows,
-                bq_metadata,
-            )
-
-            created_new = True
-        else:
-            logger.info(f"Remote function {remote_function_name} already exists.")
-
-        return remote_function_name, cloud_function_name, created_new
-
-    def get_remote_function_specs(self, remote_function_name):
-        """Check whether a remote function already exists for the udf."""
-        http_endpoint = None
-        bq_connection = None
-        routines = self._bq_client.list_routines(
-            f"{self._gcp_project_id}.{self._bq_dataset}"
+        intended_rf_spec = udf_def.RemoteFunctionConfig(
+            endpoint=cf_endpoint,
+            connection_id=bq_connection_id,
+            max_batching_rows=max_batching_rows or 1000,
+            signature=func_signature,
+            bq_metadata=func_signature.protocol_metadata,
         )
+        remote_function_name = name or get_bigframes_function_name(
+            intended_rf_spec,
+            self._session.session_id,
+            random_suffix if (not reuse) else None,
+        )
+
+        if reuse:
+            existing_rf_spec = self.get_remote_function_specs(remote_function_name)
+            # Create the BQ remote function in following circumstances:
+            # 1. It does not exist
+            # 2. It exists but the existing remote function has different
+            #    configuration than intended
+            created_new = False
+            if not existing_rf_spec or (existing_rf_spec != intended_rf_spec):
+                self.create_bq_remote_function(remote_function_name, intended_rf_spec)
+                created_new = True
+            else:
+                logger.info(f"Remote function {remote_function_name} already exists.")
+
+            return remote_function_name, cloud_function_name, created_new
+        else:
+            self.create_bq_remote_function(remote_function_name, intended_rf_spec)
+            return remote_function_name, cloud_function_name, True
+
+    def get_remote_function_specs(
+        self, remote_function_name: str
+    ) -> udf_def.RemoteFunctionConfig | None:
+        """Check whether a remote function already exists for the udf."""
         try:
-            for routine in routines:
-                routine = cast(bigquery.Routine, routine)
-                if routine.reference.routine_id == remote_function_name:
-                    rf_options = routine.remote_function_options
-                    if rf_options:
-                        http_endpoint = rf_options.endpoint
-                        bq_connection = rf_options.connection
-                        if bq_connection:
-                            bq_connection = os.path.basename(bq_connection)
-                    break
+            routine = self._bq_client.get_routine(
+                f"{self._gcp_project_id}.{self._bq_dataset}.{remote_function_name}"
+            )
+            if routine.reference.routine_id == remote_function_name:
+                try:
+                    return udf_def.RemoteFunctionConfig.from_bq_routine(routine)
+                except udf_def.ReturnTypeMissingError:
+                    # The remote function exists, but it's missing a return type.
+                    # Something is wrong with the function, so we should replace it.
+                    return None
         except google.api_core.exceptions.NotFound:
-            # The dataset might not exist, in which case the http_endpoint doesn't, either.
+            # The dataset might not exist, in which case the remote function doesn't, either.
             # Note: list_routines doesn't make an API request until we iterate on the response object.
             pass
-        return (http_endpoint, bq_connection)
+        return None
+
+
+def get_cloud_function_name(
+    function_def: udf_def.CloudRunFunctionConfig, session_id=None, uniq_suffix=None
+):
+    "Get a name for the cloud function for the given user defined function."
+    parts = [_BIGFRAMES_FUNCTION_PREFIX]
+    if session_id:
+        parts.append(session_id)
+    parts.append(function_def.stable_hash().hex())
+    if uniq_suffix:
+        parts.append(uniq_suffix)
+    return _GCF_FUNCTION_NAME_SEPERATOR.join(parts)
+
+
+def get_bigframes_function_name(
+    function: udf_def.RemoteFunctionConfig, session_id, uniq_suffix=None
+):
+    "Get a name for the bigframes function for the given user defined function."
+    parts = [_BIGFRAMES_FUNCTION_PREFIX, session_id, function.stable_hash().hex()]
+    if uniq_suffix:
+        parts.append(uniq_suffix)
+    return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
+
+
+def get_managed_function_name(
+    function_def: udf_def.ManagedFunctionConfig,
+    session_id: str | None = None,
+):
+    """Get a name for the bigframes managed function for the given user defined function."""
+    parts = [_BIGFRAMES_FUNCTION_PREFIX]
+    if session_id:
+        parts.append(session_id)
+    parts.append(function_def.stable_hash().hex())
+    return _BQ_FUNCTION_NAME_SEPERATOR.join(parts)
+
+
+def _validate_routine_name(name: str) -> None:
+    """Validate that the given name is a valid BigQuery routine name."""
+    # Routine IDs can contain only letters (a-z, A-Z), numbers (0-9), or underscores (_)
+    # must also start with a letter or underscore only
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
+        raise ValueError(
+            "Routine ID can contain only letters (a-z, A-Z), numbers (0-9), or underscores (_)"
+        )
 
 
 def _infer_milli_cpus_from_memory(memory_mib: int) -> int:

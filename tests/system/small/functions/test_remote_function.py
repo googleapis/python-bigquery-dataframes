@@ -34,9 +34,23 @@ import bigframes.exceptions
 from bigframes.functions import _utils as bff_utils
 from bigframes.functions import function as bff
 import bigframes.session._io.bigquery
-from bigframes.testing.utils import assert_frame_equal, get_function_name
+from bigframes.testing.utils import assert_frame_equal, assert_series_equal
 
 _prefixer = test_utils.prefixer.Prefixer("bigframes", "")
+
+
+def get_function_name(func, package_requirements=None, is_row_processor=False):
+    """Get a bigframes function name for testing given a udf."""
+    # Augment user package requirements with any internal package
+    # requirements.
+    package_requirements = bff_utils.get_updated_package_requirements(
+        package_requirements or [], is_row_processor
+    )
+
+    # Compute a unique hash representing the user code.
+    function_hash = bff_utils.get_hash(func, package_requirements)
+
+    return f"bigframes_{function_hash}"
 
 
 @pytest.fixture(scope="module")
@@ -102,7 +116,7 @@ def get_bq_connection_id_path_format(connection_id_dot_format):
     return f"projects/{fields[0]}/locations/{fields[1]}/connections/{fields[2]}"
 
 
-# @pytest.mark.flaky(retries=2, delay=120)
+@pytest.mark.flaky(retries=2, delay=120)
 def test_remote_function_direct_no_session_param(
     bigquery_client,
     bigqueryconnection_client,
@@ -617,7 +631,7 @@ def test_series_map_bytes(
     )(bytes_to_hex)
     bf_result = scalars_df.bytes_col.map(remote_bytes_to_hex).to_pandas()
 
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         bf_result,
         pd_result,
     )
@@ -785,7 +799,7 @@ def test_read_gbq_function_runs_existing_udf_array_output(session, routine_id_un
     pd_result = pd_s.apply(func)
     bf_result = bf_s.apply(func)
     assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
     )
 
@@ -826,7 +840,7 @@ def test_read_gbq_function_runs_existing_udf_2_params_array_output(
     pd_result = pd_df["col0"].combine(pd_df["col1"], func)
     bf_result = bf_df["col0"].combine(bf_df["col1"], func)
     assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
     )
 
@@ -881,7 +895,7 @@ def test_read_gbq_function_runs_existing_udf_4_params_array_output(
     )
     bf_result = bf_df.apply(func, axis=1)
     assert bigframes.dtypes.is_array_string_like(bf_result.dtype)
-    pd.testing.assert_series_equal(
+    assert_series_equal(
         pd_result, bf_result.to_pandas(), check_dtype=False, check_index_type=False
     )
 
@@ -1060,9 +1074,7 @@ def test_read_gbq_function_respects_python_output_type(
     actual = s.apply(func).to_pandas()
 
     # ignore type disparities, e.g. "int64" in pandas v/s "Int64" in bigframes
-    pd.testing.assert_series_equal(
-        expected, actual, check_dtype=False, check_index_type=False
-    )
+    assert_series_equal(expected, actual, check_dtype=False, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -1200,9 +1212,7 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     # bf_result.to_numpy() produces an array of numpy.float64's
     # (in system_prerelease tests), while pd_result.to_numpy() produces an
     # array of ints, ignore this mismatch by using check_exact=False.
-    pd.testing.assert_series_equal(
-        pd_result, bf_result, check_dtype=False, check_exact=False
-    )
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_exact=False)
 
     # Read back the deployed BQ remote function using read_gbq_function.
     func_ref = session.read_gbq_function(
@@ -1215,9 +1225,7 @@ def test_df_apply_axis_1(session, scalars_dfs, dataset_id_permanent):
     assert func_ref.bigframes_remote_function == func_ref.bigframes_bigquery_function  # type: ignore
 
     bf_result_gbq = scalars_df[columns].apply(func_ref, axis=1).to_pandas()
-    pd.testing.assert_series_equal(
-        pd_result, bf_result_gbq, check_dtype=False, check_exact=False
-    )
+    assert_series_equal(pd_result, bf_result_gbq, check_dtype=False, check_exact=False)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -1253,9 +1261,7 @@ def test_df_apply_axis_1_ordering(session, scalars_dfs, dataset_id_permanent):
     # bf_result.to_numpy() produces an array of numpy.float64's
     # (in system_prerelease tests), while pd_result.to_numpy() produces an
     # array of ints, ignore this mismatch by using check_exact=False.
-    pd.testing.assert_series_equal(
-        pd_result, bf_result, check_dtype=False, check_exact=False
-    )
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_exact=False)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -1286,9 +1292,7 @@ def test_df_apply_axis_1_multiindex(session, dataset_id_permanent):
     # bf_result.index[0].dtype is 'string[pyarrow]' while
     # pd_result.index[0].dtype is 'object', ignore this mismatch by using
     # check_index_type=False.
-    pd.testing.assert_series_equal(
-        pd_result, bf_result, check_dtype=False, check_index_type=False
-    )
+    assert_series_equal(pd_result, bf_result, check_dtype=False, check_index_type=False)
 
 
 def test_df_apply_axis_1_unsupported_callable(scalars_dfs):
@@ -1452,7 +1456,7 @@ def test_remote_function_unary_applied_after_filter(
     bf_result = bf_method(is_odd_remote).to_pandas()
 
     # ignore any dtype difference
-    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -1501,7 +1505,7 @@ def test_remote_function_binary_applied_after_filter(
     )
 
     # ignore any dtype difference
-    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 @pytest.mark.flaky(retries=2, delay=120)
@@ -1563,7 +1567,7 @@ def test_remote_function_nary_applied_after_filter(
     bf_result = bf_df[bf_filter].apply(add_remote, axis=1).to_pandas()
 
     # ignore any dtype difference
-    pd.testing.assert_series_equal(pd_result, bf_result, check_dtype=False)
+    assert_series_equal(pd_result, bf_result, check_dtype=False)
 
 
 @pytest.mark.parametrize(

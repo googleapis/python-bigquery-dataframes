@@ -203,7 +203,7 @@ class AIAccessor:
         has_blob_column = False
         for column in columns:
             if df[column].dtype == dtypes.OBJ_REF_DTYPE:
-                # Don't cast blob columns to string
+                # Don't cast ObjectRef columns to string
                 has_blob_column = True
                 continue
 
@@ -612,8 +612,11 @@ class AIAccessor:
             >>> df1 = bpd.DataFrame({'animal': ['monkey', 'spider']})
             >>> df2 = bpd.DataFrame({'animal': ['scorpion', 'baboon']})
 
-            >>> df1.ai.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1)
-            animal  animal_1
+            >>> res = df1.ai.sim_join(df2, left_on='animal', right_on='animal', model=model, top_k=1)
+            >>> print("---"); print(res) # doctest: +ELLIPSIS
+            ---
+            ...
+               animal  animal_1
             0  monkey    baboon
             1  spider  scorpion
             <BLANKLINE>

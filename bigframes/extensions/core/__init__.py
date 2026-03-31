@@ -11,31 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
 
-from bigframes.core.compile.sqlglot.sql.base import (
-    cast,
-    identifier,
-    is_null_literal,
-    literal,
-    table,
-    to_sql,
+from bigframes.extensions.core.dataframe_accessor import (
+    AIAccessor,
+    BigQueryDataFrameAccessor,
 )
-from bigframes.core.compile.sqlglot.sql.ddl import create_external_table, load_data
-from bigframes.core.compile.sqlglot.sql.dml import insert, replace
 
-__all__ = [
-    # From base.py
-    "cast",
-    "identifier",
-    "is_null_literal",
-    "literal",
-    "table",
-    "to_sql",
-    # From ddl.py
-    "create_external_table",
-    "load_data",
-    # From dml.py
-    "insert",
-    "replace",
-]
+__all__ = ["AIAccessor", "BigQueryDataFrameAccessor"]
