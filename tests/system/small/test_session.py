@@ -1967,6 +1967,11 @@ def test_read_parquet_gcs(
 def test_read_orc_gcs(
     session: bigframes.Session, scalars_dfs, gcs_folder, engine, filename
 ):
+    pytest.importorskip(
+        "pandas",
+        minversion="2.0.0",
+        reason="pandas<2 does not handle nullable int columns well",
+    )
     scalars_df, _ = scalars_dfs
     write_path = gcs_folder + test_read_orc_gcs.__name__ + "000000000000.orc"
     read_path = gcs_folder + test_read_orc_gcs.__name__ + filename
