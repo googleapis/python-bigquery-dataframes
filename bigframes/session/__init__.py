@@ -109,6 +109,39 @@ MAX_INLINE_DF_BYTES = 5000
 logger = logging.getLogger(__name__)
 
 
+class _ExecutionHistory(pandas.DataFrame):
+    @property
+    def _constructor(self):
+        return _ExecutionHistory
+
+    def _repr_html_(self) -> str | None:
+        try:
+            import bigframes.formatting_helpers as formatter
+
+            if self.empty:
+                return "<div>No executions found.</div>"
+
+            cols = ["job_id", "status", "total_bytes_processed", "job_url"]
+            df_display = self[cols].copy()
+            df_display["total_bytes_processed"] = df_display[
+                "total_bytes_processed"
+            ].apply(formatter.get_formatted_bytes)
+
+            def format_url(url):
+                return f'<a target="_blank" href="{url}">Open Job</a>' if url else ""
+
+            df_display["job_url"] = df_display["job_url"].apply(format_url)
+
+            # Rename job_id to query_id to match user expectations
+            df_display = df_display.rename(columns={"job_id": "query_id"})
+
+            compact_html = df_display.to_html(escape=False, index=False)
+
+            return compact_html
+        except Exception:
+            return super()._repr_html_()  # type: ignore
+
+
 @log_adapter.class_logger
 class Session(
     third_party_pandas_gbq.GBQIOMixin,
@@ -370,6 +403,10 @@ class Session(
     def slot_millis_sum(self):
         """The sum of all slot time used by bigquery jobs in this session."""
         return self._metrics.slot_millis
+
+    def execution_history(self) -> pandas.DataFrame:
+        """Returns a list of underlying BigQuery executions initiated by BigFrames in the current session."""
+        return _ExecutionHistory([job.__dict__ for job in self._metrics.jobs])
 
     @property
     def _allows_ambiguity(self) -> bool:
