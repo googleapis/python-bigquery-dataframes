@@ -91,6 +91,7 @@ User Guide
    :maxdepth: 1
 
    Multimodal Dataframe <../notebooks/multimodal/multimodal_dataframe.ipynb>
+   Embeddings and Vector Search <../notebooks/multimodal/bigframes_embeddings_vector_search.ipynb>
 
 .. toctree::
    :caption: Remote Functions
