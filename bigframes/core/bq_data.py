@@ -23,7 +23,7 @@ import os
 import queue
 import threading
 import typing
-from typing import Any, Iterator, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Iterator, List, Literal, Optional, Sequence, Tuple
 
 import google.cloud.bigquery as bq
 import google.cloud.bigquery_storage_v1.types as bq_storage_types
@@ -31,7 +31,6 @@ import pyarrow as pa
 from google.cloud import bigquery_storage_v1
 from google.protobuf import timestamp_pb2
 
-import bigframes.constants
 import bigframes.core.schema
 from bigframes.core import pyarrow_utils
 
@@ -39,44 +38,9 @@ if typing.TYPE_CHECKING:
     import bigframes.core.ordering as orderings
 
 
-def _resolve_standard_gcp_region(bq_region: str):
-    """
-    Resolve bq regions to standardized
-    """
-    if bq_region.casefold() == "US":
-        return "us-central1"
-    elif bq_region.casefold() == "EU":
-        return "europe-west4"
-    return bq_region
-
-
-def is_irc_table(table_id: str):
-    """
-    Determines if a table id should be resolved through the iceberg rest catalog.
-    """
-    return len(table_id.split(".")) == 4
-
-
-def is_compatible(
-    data_region: Union[GcsRegion, BigQueryRegion], session_location: str
-) -> bool:
+def is_compatible(data_region: BigQueryRegion, session_location: str) -> bool:
     # based on https://docs.cloud.google.com/bigquery/docs/locations#storage-location-considerations
-    if isinstance(data_region, BigQueryRegion):
-        return data_region.name == session_location
-    else:
-        assert isinstance(data_region, GcsRegion)
-        # TODO(b/463675088): Multi-regions don't yet support rest catalog tables
-        if session_location in bigframes.constants.BIGQUERY_MULTIREGIONS:
-            return False
-        return _resolve_standard_gcp_region(session_location) in data_region.included
-
-
-def get_default_bq_region(data_region: Union[GcsRegion, BigQueryRegion]) -> str:
-    if isinstance(data_region, BigQueryRegion):
-        return data_region.name
-    elif isinstance(data_region, GcsRegion):
-        # should maybe try to track and prefer primary replica?
-        return data_region.included[0]
+    return data_region.name == session_location
 
 
 @dataclasses.dataclass(frozen=True)
@@ -84,19 +48,11 @@ class BigQueryRegion:
     name: str
 
 
-@dataclasses.dataclass(frozen=True)
-class GcsRegion:
-    # this is the name of gcs regions, which may be names for multi-regions, so shouldn't be compared with non-gcs locations
-    storage_regions: tuple[str, ...]
-    # this tracks all the included standard, specific regions (eg us-east1), and should be comparable to bq regions (except non-standard US, EU, omni regions)
-    included: tuple[str, ...]
-
-
 # what is the line between metadata and core fields? Mostly metadata fields are optional or unreliable, but its fuzzy
 @dataclasses.dataclass(frozen=True)
 class TableMetadata:
     # this size metadata might be stale, don't use where strict correctness is needed
-    location: Union[BigQueryRegion, GcsRegion]
+    location: BigQueryRegion
     type: Literal["TABLE", "EXTERNAL", "VIEW", "MATERIALIZE_VIEW", "SNAPSHOT"]
     numBytes: Optional[int] = None
     numRows: Optional[int] = None
@@ -215,50 +171,6 @@ class GbqNativeTable:
 
 
 @dataclasses.dataclass(frozen=True)
-class BiglakeIcebergTable:
-    project_id: str = dataclasses.field()
-    catalog_id: str = dataclasses.field()
-    namespace_id: str = dataclasses.field()
-    table_id: str = dataclasses.field()
-    physical_schema: Tuple[bq.SchemaField, ...] = dataclasses.field()
-    cluster_cols: typing.Optional[Tuple[str, ...]]
-    metadata: TableMetadata
-
-    def get_full_id(self, quoted: bool = False) -> str:
-        if quoted:
-            return f"`{self.project_id}`.`{self.catalog_id}`.`{self.namespace_id}`.`{self.table_id}`"
-        return (
-            f"{self.project_id}.{self.catalog_id}.{self.namespace_id}.{self.table_id}"
-        )
-
-    @property
-    @functools.cache
-    def schema_by_id(self):
-        return {col.name: col for col in self.physical_schema}
-
-    @property
-    def partition_col(self) -> Optional[str]:
-        # TODO: Use iceberg partition metadata
-        return None
-
-    @property
-    def dataset_id(self) -> str:
-        """
-        Not a true dataset, but serves as the dataset component of the identifer in sql queries
-        """
-        return f"{self.catalog_id}.{self.namespace_id}"
-
-    @property
-    def primary_key(self) -> Optional[Tuple[str, ...]]:
-        return None
-
-    def get_table_ref(self) -> bq.TableReference:
-        return bq.TableReference(
-            bq.DatasetReference(self.project_id, self.dataset_id), self.table_id
-        )
-
-
-@dataclasses.dataclass(frozen=True)
 class BigqueryDataSource:
     """
     Google BigQuery Data source.
@@ -272,7 +184,7 @@ class BigqueryDataSource:
             self.schema.names
         )
 
-    table: Union[GbqNativeTable, BiglakeIcebergTable]
+    table: GbqNativeTable
     schema: bigframes.core.schema.ArraySchema
     at_time: typing.Optional[datetime.datetime] = None
     # Added for backwards compatibility, not validated

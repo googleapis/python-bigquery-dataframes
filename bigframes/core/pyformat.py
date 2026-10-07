@@ -39,7 +39,7 @@ _BQ_TABLE_TYPES = Union[
 
 
 def _table_to_sql(table: _BQ_TABLE_TYPES) -> str:
-    # BiglakeIcebergTable IDs have 4 parts. BigFrames packs catalog.namespace
+    # Lakehouse table IDs have 4 parts. BigFrames packs catalog.namespace
     # into the dataset_id.
     dataset_parts = table.dataset_id.split(".")
     dataset_sql = ".".join(f"`{part}`" for part in dataset_parts)
@@ -115,10 +115,7 @@ def _field_to_template_value(
             node: nodes.BigFrameNode, child_results: Tuple[bool, ...]
         ) -> bool:
             if isinstance(node, nodes.ReadTableNode):
-                return isinstance(node.source.table, bq_data.BiglakeIcebergTable) or (
-                    isinstance(node.source.table, bq_data.GbqNativeTable)
-                    and node.source.table.kind == bq_data.TableKind.LAKEHOUSE
-                )
+                return node.source.table.kind == bq_data.TableKind.LAKEHOUSE
             return any(child_results)
 
         contains_biglake = value._block.expr.node.reduce_up(is_biglake)

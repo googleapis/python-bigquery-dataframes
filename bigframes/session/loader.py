@@ -38,7 +38,6 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
-    Union,
     cast,
     overload,
 )
@@ -107,8 +106,6 @@ _STREAM_JOB_TYPE_OVERRIDES = {
     # Timedelta is emulated using integer in bq type system
     bigframes.dtypes.TIMEDELTA_DTYPE: "INTEGER",
 }
-
-TABLE_TYPE = Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable]
 
 
 def _to_index_cols(
@@ -299,7 +296,9 @@ class GbqDataLoader:
         self._default_index_type = default_index_type
         self._scan_index_uniqueness = scan_index_uniqueness
         self._force_total_order = force_total_order
-        self._df_snapshot: Dict[str, Tuple[datetime.datetime, TABLE_TYPE]] = {}
+        self._df_snapshot: Dict[
+            str, Tuple[datetime.datetime, bq_data.GbqNativeTable]
+        ] = {}
         self._metrics = metrics
         self._publisher = publisher
         # Unfortunate circular reference, but need to pass reference when constructing objects
@@ -1029,9 +1028,7 @@ class GbqDataLoader:
         default_project: Optional[str],
         bq_time: datetime.datetime,
         use_cache: bool = True,
-    ) -> Tuple[
-        datetime.datetime, Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable]
-    ]:
+    ) -> Tuple[datetime.datetime, bq_data.GbqNativeTable]:
         """Get the table metadata, either from cache or via REST API."""
 
         cached_table = self._df_snapshot.get(table_id)

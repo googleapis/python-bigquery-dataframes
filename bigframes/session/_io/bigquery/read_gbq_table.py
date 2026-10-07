@@ -21,7 +21,7 @@ from __future__ import annotations
 import datetime
 import typing
 import warnings
-from typing import Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterable, Optional, Sequence, Tuple
 
 import bigframes_vendored.constants as constants
 import google.api_core.exceptions
@@ -111,7 +111,7 @@ def is_information_schema(table_id: str):
 
 def is_time_travel_eligible(
     bqclient: bigquery.Client,
-    table: Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable],
+    table: bq_data.GbqNativeTable,
     columns: Optional[Sequence[str]],
     snapshot_time: datetime.datetime,
     filter_str: Optional[str] = None,
@@ -145,41 +145,40 @@ def is_time_travel_eligible(
     # -> is_time_travel_eligible
     stacklevel = 7
 
-    if isinstance(table, bq_data.GbqNativeTable):
-        # Anonymous dataset, does not support snapshot ever
-        if table.dataset_id.startswith("_"):
-            return False
+    # Anonymous dataset, does not support snapshot ever
+    if table.dataset_id.startswith("_"):
+        return False
 
-        # Only true tables support time travel
-        if table.table_id.endswith("*"):
+    # Only true tables support time travel
+    if table.table_id.endswith("*"):
+        if should_warn:
+            msg = bfe.format_message(
+                "Wildcard tables do not support FOR SYSTEM_TIME AS OF queries. "
+                "Attempting query without time travel. Be aware that "
+                "modifications to the underlying data may result in errors or "
+                "unexpected behavior."
+            )
+            warnings.warn(
+                msg, category=bfe.TimeTravelDisabledWarning, stacklevel=stacklevel
+            )
+        return False
+    elif table.metadata.type != "TABLE":
+        if table.metadata.type == "MATERIALIZED_VIEW":
             if should_warn:
                 msg = bfe.format_message(
-                    "Wildcard tables do not support FOR SYSTEM_TIME AS OF queries. "
-                    "Attempting query without time travel. Be aware that "
-                    "modifications to the underlying data may result in errors or "
-                    "unexpected behavior."
+                    "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
+                    "Attempting query without time travel. Be aware that as materialized views "
+                    "are updated periodically, modifications to the underlying data in the view may "
+                    "result in errors or unexpected behavior."
                 )
                 warnings.warn(
-                    msg, category=bfe.TimeTravelDisabledWarning, stacklevel=stacklevel
+                    msg,
+                    category=bfe.TimeTravelDisabledWarning,
+                    stacklevel=stacklevel,
                 )
             return False
-        elif table.metadata.type != "TABLE":
-            if table.metadata.type == "MATERIALIZED_VIEW":
-                if should_warn:
-                    msg = bfe.format_message(
-                        "Materialized views do not support FOR SYSTEM_TIME AS OF queries. "
-                        "Attempting query without time travel. Be aware that as materialized views "
-                        "are updated periodically, modifications to the underlying data in the view may "
-                        "result in errors or unexpected behavior."
-                    )
-                    warnings.warn(
-                        msg,
-                        category=bfe.TimeTravelDisabledWarning,
-                        stacklevel=stacklevel,
-                    )
-                return False
-            elif table.metadata.type == "VIEW":
-                return False
+        elif table.metadata.type == "VIEW":
+            return False
 
     # table might support time travel, lets do a dry-run query with time travel
     if should_dry_run:
@@ -228,7 +227,7 @@ def is_time_travel_eligible(
 
 
 def infer_unique_columns(
-    table: Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable],
+    table: bq_data.GbqNativeTable,
     index_cols: Sequence[str],
 ) -> Tuple[str, ...]:
     """Return a set of columns that can provide a unique row key or empty if none can be inferred.
@@ -251,7 +250,7 @@ def infer_unique_columns(
 
 def check_if_index_columns_are_unique(
     bqclient: bigquery.Client,
-    table: Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable],
+    table: bq_data.GbqNativeTable,
     index_cols: Sequence[str],
     *,
     publisher: bigframes.core.events.Publisher,
@@ -283,7 +282,7 @@ def check_if_index_columns_are_unique(
 
 
 def get_index_cols(
-    table: Union[bq_data.GbqNativeTable, bq_data.BiglakeIcebergTable],
+    table: bq_data.GbqNativeTable,
     index_col: Iterable[str]
     | str
     | Iterable[int]

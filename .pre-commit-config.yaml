@@ -79,7 +79,6 @@ repos:
           - pandas>=1.5.3
           - pluggy
           - polars>=1.21.0,<2.0.0
-          - pyiceberg>=0.7.1
           - pytest-cov
           - pytest-retry
           - pytest-snapshot

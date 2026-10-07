@@ -17,7 +17,7 @@ import datetime
 import functools
 import typing
 from dataclasses import dataclass
-from typing import Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import pandas
 import pyarrow as pa
@@ -90,7 +90,7 @@ class ArrayValue:
     @classmethod
     def from_table(
         cls,
-        table: Union[bq_data.BiglakeIcebergTable, bq_data.GbqNativeTable],
+        table: bq_data.GbqNativeTable,
         session: Session,
         *,
         columns: Optional[Sequence[str]] = None,

@@ -49,9 +49,6 @@ class ReadApiSemiExecutor(semi_executor.SemiExecutor):
         if node.explicitly_ordered and execution_spec.ordered:
             return None
 
-        if not isinstance(node.source.table, bq_data.GbqNativeTable):
-            return None
-
         if not node.source.table.is_physically_stored:
             return None
 
