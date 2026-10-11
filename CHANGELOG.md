@@ -4,6 +4,18 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.51.0](https://github.com/google/bigframes/compare/v2.50.0...v2.51.0) (2026-10-07)
+
+
+### Features
+
+* read BigLake Lakehouse tables through tables.get instead of pyiceberg ([46d4213](https://github.com/google/bigframes/commit/46d42136e275b7572d2371bbfaf404141d3a34c4))
+
+
+### Bug Fixes
+
+* detect the location of INFORMATION_SCHEMA views in read_gbq ([c54ec01](https://github.com/google/bigframes/commit/c54ec01803b9e36cbe4e43a332d1e26c6e37ce1b))
+
 ## [2.50.0](https://github.com/google/bigframes/compare/v2.49.0...v2.50.0) (2026-10-05)
 
 
