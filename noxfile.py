@@ -50,16 +50,6 @@ MYPY_TYPE_DEPENDENCIES = [
     "anywidget",
 ]
 
-# Notebook tests should match colab and BQ Studio.
-# Check with import sys; sys.version_info
-# on a fresh notebook runtime.
-COLAB_AND_BQ_STUDIO_PYTHON_VERSIONS = [
-    # BQ Studio
-    "3.10",
-    # colab.research.google.com
-    "3.11",
-]
-
 PYTEST_VERSION = "pytest==8.4.2"
 SPHINX_VERSION = "sphinx==4.5.0"
 LINT_PATHS = [
@@ -649,7 +639,7 @@ def system_prerelease(session: nox.sessions.Session):
     )
 
 
-@nox.session(python=COLAB_AND_BQ_STUDIO_PYTHON_VERSIONS)
+@nox.session(python=DEFAULT_PYTHON_VERSION)
 def notebook(session: nox.Session):
     google_cloud_project = PROJECT_ID_OVERRIDE or os.getenv("GOOGLE_CLOUD_PROJECT")
     if not google_cloud_project:
