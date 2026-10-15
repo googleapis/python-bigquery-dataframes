@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import time
 from unittest import mock
 
 import google.cloud.bigquery as bigquery
@@ -154,7 +155,6 @@ def test_clean_up_by_session_id():
         pytest.param(bigframes.connect, id="connect-method"),
     ],
 )
-@pytest.mark.flaky(retries=3)
 def test_clean_up_via_context_manager(session_creator):
     # we will create two tables and confirm that they are deleted
     # when the session is closed
@@ -174,10 +174,15 @@ def test_clean_up_via_context_manager(session_creator):
         assert bqclient.get_table(full_id_2).created is not None
 
     # check that the tables are already deleted
+    delay_seconds = [0.0, 1.0, 2.0, 4.0]
     with pytest.raises(google.cloud.exceptions.NotFound):
-        bqclient.delete_table(full_id_1)
+        for delay in delay_seconds:
+            time.sleep(delay)
+            bqclient.get_table(full_id_1)
     with pytest.raises(google.cloud.exceptions.NotFound):
-        bqclient.delete_table(full_id_2)
+        for delay in delay_seconds:
+            time.sleep(delay)
+            bqclient.get_table(full_id_2)
 
 
 def test_cleanup_old_udfs(session: bigframes.Session):
