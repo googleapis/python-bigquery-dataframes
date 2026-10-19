@@ -189,7 +189,7 @@ def _cut_ops_w_int_bins(
         condition: sge.Expression
         if this_bin == bins - 1:
             condition = sge.Is(
-                this=sge.paren(column.expr, copy=False),
+                this=column.expr,
                 expression=sg.not_(sge.Null(), copy=False),
             )
         else:

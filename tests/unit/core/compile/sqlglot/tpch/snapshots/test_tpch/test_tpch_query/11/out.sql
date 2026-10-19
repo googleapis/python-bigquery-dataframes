@@ -86,8 +86,14 @@ WITH `bfcte_0` AS (
     `bfcol_9`,
     `bfcol_44`,
     `bfcol_45`,
-    CASE WHEN `bfcol_9` = 0 THEN `bfcol_44` END AS `bfcol_46`,
-    IF(`bfcol_45` = 0, CASE WHEN `bfcol_9` = 0 THEN `bfcol_44` END, NULL) AS `bfcol_51`
+    CASE WHEN (
+      `bfcol_9` = 0
+    ) THEN `bfcol_44` END AS `bfcol_46`,
+    IF((
+      `bfcol_45` = 0
+    ), CASE WHEN (
+      `bfcol_9` = 0
+    ) THEN `bfcol_44` END, NULL) AS `bfcol_51`
   FROM `bfcte_0`
   CROSS JOIN `bfcte_10`
 ), `bfcte_13` AS (

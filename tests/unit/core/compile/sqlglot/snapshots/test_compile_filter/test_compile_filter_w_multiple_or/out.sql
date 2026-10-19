@@ -14,11 +14,19 @@ WHERE
     )
   )
   AND (
-    IF((
-      `rowindex` = 1
-    ) OR (
-      `int64_col` = 2
-    ), `float64_col` > 0, NULL)
+    IF(
+      (
+        (
+          `rowindex` = 1
+        ) OR (
+          `int64_col` = 2
+        )
+      ),
+      (
+        `float64_col` > 0
+      ),
+      NULL
+    )
     OR (
       `string_col` = 'a'
     )

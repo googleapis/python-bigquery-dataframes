@@ -56,6 +56,8 @@ WITH `bfcte_0` AS (
   FROM `bfcte_2`
 )
 SELECT
-  CASE WHEN `bfcol_0` = 0 THEN `bfcol_41` END AS `REVENUE`
+  CASE WHEN (
+    `bfcol_0` = 0
+  ) THEN `bfcol_41` END AS `REVENUE`
 FROM `bfcte_3`
 CROSS JOIN `bfcte_0`

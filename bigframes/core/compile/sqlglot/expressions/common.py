@@ -54,6 +54,6 @@ def _to_nullable_bool(expr: typed_expr.TypedExpr) -> sge.Expression:
         return sge.GT(this=sge.func("ARRAY_LENGTH", sg_expr), expression=sge.convert(0))
 
     return sge.Is(
-        this=sge.paren(sg_expr, copy=False),
+        this=sg_expr,
         expression=sg.not_(sge.Null(), copy=False),
     )

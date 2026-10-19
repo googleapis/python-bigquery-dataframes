@@ -329,6 +329,14 @@ def test_sub_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
     snapshot.assert_match(bf_df.sql, "out.sql")
 
 
+def test_binary_expr_then_to_timedelta(scalar_types_df: bpd.DataFrame, snapshot):
+    s = scalar_types_df["int64_col"]
+
+    result = bpd.to_timedelta(s + s, unit="s")
+
+    snapshot.assert_match(result.sql, "out.sql")
+
+
 def test_integer_label_to_datetime_fixed(scalar_types_df: bpd.DataFrame, snapshot):
     col_names = ["rowindex", "timestamp_col"]
     bf_df = scalar_types_df[col_names]

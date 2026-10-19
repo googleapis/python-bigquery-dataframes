@@ -75,7 +75,9 @@ WITH `bfcte_0` AS (
       `bfcol_1` * (
         1 - `bfcol_2`
       )
-    ) * CAST(REGEXP_CONTAINS(`bfcol_9`, 'PROMO') AS INT64) AS `bfcol_41`
+    ) * CAST((
+      REGEXP_CONTAINS(`bfcol_9`, 'PROMO')
+    ) AS INT64) AS `bfcol_41`
   FROM `bfcte_4`
   INNER JOIN `bfcte_2`
     ON `bfcol_8` = `bfcol_0`
@@ -111,8 +113,14 @@ WITH `bfcte_0` AS (
     `bfcol_7`,
     `bfcol_54`,
     `bfcol_59`,
-    CASE WHEN `bfcol_7` = 0 THEN `bfcol_54` END AS `bfcol_64`,
-    IF(`bfcol_59` = 0, CASE WHEN `bfcol_7` = 0 THEN `bfcol_54` END, NULL) AS `bfcol_72`
+    CASE WHEN (
+      `bfcol_7` = 0
+    ) THEN `bfcol_54` END AS `bfcol_64`,
+    IF((
+      `bfcol_59` = 0
+    ), CASE WHEN (
+      `bfcol_7` = 0
+    ) THEN `bfcol_54` END, NULL) AS `bfcol_72`
   FROM `bfcte_0`
   CROSS JOIN `bfcte_9`
 ), `bfcte_12` AS (
@@ -122,8 +130,14 @@ WITH `bfcte_0` AS (
     `bfcol_12`,
     `bfcol_47`,
     `bfcol_50`,
-    CASE WHEN `bfcol_12` = 0 THEN `bfcol_47` END AS `bfcol_53`,
-    IF(`bfcol_50` = 0, CASE WHEN `bfcol_12` = 0 THEN `bfcol_47` END, NULL) AS `bfcol_60`
+    CASE WHEN (
+      `bfcol_12` = 0
+    ) THEN `bfcol_47` END AS `bfcol_53`,
+    IF((
+      `bfcol_50` = 0
+    ), CASE WHEN (
+      `bfcol_12` = 0
+    ) THEN `bfcol_47` END, NULL) AS `bfcol_60`
   FROM `bfcte_1`
   CROSS JOIN `bfcte_10`
 ), `bfcte_13` AS (

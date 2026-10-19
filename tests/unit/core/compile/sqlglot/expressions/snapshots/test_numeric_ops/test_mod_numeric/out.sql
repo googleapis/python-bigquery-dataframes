@@ -22,43 +22,33 @@ SELECT
     ELSE MOD(`int64_col`, `int64_col`)
   END AS `int_mod_int`,
   CASE
-    WHEN -(
-      `int64_col`
+    WHEN (
+      -`int64_col`
     ) = CAST(0 AS INT64)
     THEN CAST(0 AS INT64) * `int64_col`
-    WHEN -(
-      `int64_col`
+    WHEN (
+      -`int64_col`
     ) < CAST(0 AS INT64)
     AND (
-      MOD(`int64_col`, -(
-        `int64_col`
-      ))
+      MOD(`int64_col`, -`int64_col`)
     ) > CAST(0 AS INT64)
-    THEN -(
-      `int64_col`
+    THEN (
+      -`int64_col`
     ) + (
-      MOD(`int64_col`, -(
-        `int64_col`
-      ))
+      MOD(`int64_col`, -`int64_col`)
     )
-    WHEN -(
-      `int64_col`
+    WHEN (
+      -`int64_col`
     ) > CAST(0 AS INT64)
     AND (
-      MOD(`int64_col`, -(
-        `int64_col`
-      ))
+      MOD(`int64_col`, -`int64_col`)
     ) < CAST(0 AS INT64)
-    THEN -(
-      `int64_col`
+    THEN (
+      -`int64_col`
     ) + (
-      MOD(`int64_col`, -(
-        `int64_col`
-      ))
+      MOD(`int64_col`, -`int64_col`)
     )
-    ELSE MOD(`int64_col`, -(
-      `int64_col`
-    ))
+    ELSE MOD(`int64_col`, -`int64_col`)
   END AS `int_mod_int_neg`,
   CASE
     WHEN 1 = CAST(0 AS INT64)
@@ -114,42 +104,42 @@ SELECT
     ELSE MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(`float64_col` AS BIGNUMERIC))
   END AS `float_mod_float`,
   CASE
-    WHEN CAST(-(
-      `float64_col`
+    WHEN CAST((
+      -`float64_col`
     ) AS BIGNUMERIC) = CAST(0 AS INT64)
     THEN CAST('NaN' AS FLOAT64) * CAST(`float64_col` AS BIGNUMERIC)
-    WHEN CAST(-(
-      `float64_col`
+    WHEN CAST((
+      -`float64_col`
     ) AS BIGNUMERIC) < CAST(0 AS INT64)
     AND (
-      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(-(
-        `float64_col`
+      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST((
+        -`float64_col`
       ) AS BIGNUMERIC))
     ) > CAST(0 AS INT64)
-    THEN CAST(-(
-      `float64_col`
+    THEN CAST((
+      -`float64_col`
     ) AS BIGNUMERIC) + (
-      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(-(
-        `float64_col`
+      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST((
+        -`float64_col`
       ) AS BIGNUMERIC))
     )
-    WHEN CAST(-(
-      `float64_col`
+    WHEN CAST((
+      -`float64_col`
     ) AS BIGNUMERIC) > CAST(0 AS INT64)
     AND (
-      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(-(
-        `float64_col`
+      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST((
+        -`float64_col`
       ) AS BIGNUMERIC))
     ) < CAST(0 AS INT64)
-    THEN CAST(-(
-      `float64_col`
+    THEN CAST((
+      -`float64_col`
     ) AS BIGNUMERIC) + (
-      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(-(
-        `float64_col`
+      MOD(CAST(`float64_col` AS BIGNUMERIC), CAST((
+        -`float64_col`
       ) AS BIGNUMERIC))
     )
-    ELSE MOD(CAST(`float64_col` AS BIGNUMERIC), CAST(-(
-      `float64_col`
+    ELSE MOD(CAST(`float64_col` AS BIGNUMERIC), CAST((
+      -`float64_col`
     ) AS BIGNUMERIC))
   END AS `float_mod_float_neg`,
   CASE

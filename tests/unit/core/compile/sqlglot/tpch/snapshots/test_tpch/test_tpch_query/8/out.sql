@@ -145,12 +145,20 @@ WITH `bfcte_0` AS (
     `bfcol_67` * (
       1.0 - `bfcol_68`
     ) AS `bfcol_122`,
-    IF(`bfcol_1` = 'BRAZIL', `bfcol_67` * (
-      1.0 - `bfcol_68`
+    IF((
+      `bfcol_1` = 'BRAZIL'
+    ), (
+      `bfcol_67` * (
+        1.0 - `bfcol_68`
+      )
     ), 0) AS `bfcol_123`,
     EXTRACT(YEAR FROM `bfcol_70`) AS `bfcol_127`,
-    IF(`bfcol_1` = 'BRAZIL', `bfcol_67` * (
-      1.0 - `bfcol_68`
+    IF((
+      `bfcol_1` = 'BRAZIL'
+    ), (
+      `bfcol_67` * (
+        1.0 - `bfcol_68`
+      )
     ), 0) AS `bfcol_128`,
     `bfcol_67` * (
       1.0 - `bfcol_68`

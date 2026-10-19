@@ -154,12 +154,12 @@ def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
 def _(left: TypedExpr, right: TypedExpr) -> sge.Expression:
     if sql.is_null_literal(left.expr):
         return sge.Is(
-            this=sge.paren(right.expr, copy=False),
+            this=right.expr,
             expression=sg.not_(sge.Null(), copy=False),
         )
     if sql.is_null_literal(right.expr):
         return sge.Is(
-            this=sge.paren(left.expr, copy=False),
+            this=left.expr,
             expression=sg.not_(sge.Null(), copy=False),
         )
 

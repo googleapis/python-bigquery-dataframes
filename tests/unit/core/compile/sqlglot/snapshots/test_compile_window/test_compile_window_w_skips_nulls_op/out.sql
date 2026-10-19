@@ -1,12 +1,14 @@
 SELECT
   `rowindex`,
   CASE
-    WHEN COALESCE(
-      SUM(CAST((
-        `int64_col`
-      ) IS NOT NULL AS INT64)) OVER (ORDER BY `rowindex` ASC NULLS LAST ROWS BETWEEN 2 PRECEDING AND CURRENT ROW),
-      0
-    ) < 3
+    WHEN (
+      COALESCE(
+        SUM(CAST((
+          `int64_col` IS NOT NULL
+        ) AS INT64)) OVER (ORDER BY `rowindex` ASC NULLS LAST ROWS BETWEEN 2 PRECEDING AND CURRENT ROW),
+        0
+      ) < 3
+    )
     THEN NULL
     WHEN TRUE
     THEN COALESCE(

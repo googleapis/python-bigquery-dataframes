@@ -26,11 +26,12 @@ from bigframes.core.compile.sqlglot.expressions.typed_expr import TypedExpr
 
 
 class ExpressionCompiler:
-    # Mapping of operation name to implemenations
-    _registry: dict[
-        str,
-        typing.Callable[[typing.Sequence[TypedExpr], ops.RowOp], sge.Expression],
-    ] = {}
+    def __init__(self) -> None:
+        # Mapping of operation name to implementations
+        self._registry: dict[
+            str,
+            typing.Callable[[typing.Sequence[TypedExpr], ops.RowOp], sge.Expression],
+        ] = {}
 
     # A set of SQLGlot classes that may need to be parenthesized
     SQLGLOT_NEEDS_PARENS = {
@@ -41,6 +42,7 @@ class ExpressionCompiler:
         sge.Div,
         sge.Mod,
         sge.Pow,
+        sge.Neg,
         # Comparison operations
         sge.GTE,
         sge.GT,
@@ -56,6 +58,7 @@ class ExpressionCompiler:
         sge.And,
         sge.Or,
         sge.Xor,
+        sge.Not,
         # Bitwise operations
         sge.BitwiseAnd,
         sge.BitwiseOr,
@@ -127,10 +130,11 @@ class ExpressionCompiler:
 
         def decorator(impl: typing.Callable[..., sge.Expression]):
             def normalized_impl(args: typing.Sequence[TypedExpr], op: ops.RowOp):
+                arg = self._add_parentheses(args[0])
                 if pass_op:
-                    return impl(args[0], op)
+                    return impl(arg, op)
                 else:
-                    return impl(args[0])
+                    return impl(arg)
 
             self._register(key, normalized_impl)
             return impl
@@ -182,7 +186,10 @@ class ExpressionCompiler:
 
         def decorator(impl: typing.Callable[..., sge.Expression]):
             def normalized_impl(args: typing.Sequence[TypedExpr], op: ops.RowOp):
-                return impl(args[0], args[1], args[2])
+                arg0 = self._add_parentheses(args[0])
+                arg1 = self._add_parentheses(args[1])
+                arg2 = self._add_parentheses(args[2])
+                return impl(arg0, arg1, arg2)
 
             self._register(key, normalized_impl)
             return impl
@@ -206,6 +213,7 @@ class ExpressionCompiler:
 
         def decorator(impl: typing.Callable[..., sge.Expression]):
             def normalized_impl(args: typing.Sequence[TypedExpr], op: ops.RowOp):
+                args = [self._add_parentheses(arg) for arg in args]
                 if pass_op:
                     return impl(*args, op=op)
                 else:

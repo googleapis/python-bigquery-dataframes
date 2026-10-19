@@ -80,8 +80,14 @@ WITH `bfcte_0` AS (
     `bfcol_7`,
     `bfcol_38`,
     `bfcol_39`,
-    CASE WHEN `bfcol_7` = 0 THEN `bfcol_38` END AS `bfcol_40`,
-    IF(`bfcol_39` = 0, CASE WHEN `bfcol_7` = 0 THEN `bfcol_38` END, NULL) AS `bfcol_45`
+    CASE WHEN (
+      `bfcol_7` = 0
+    ) THEN `bfcol_38` END AS `bfcol_40`,
+    IF((
+      `bfcol_39` = 0
+    ), CASE WHEN (
+      `bfcol_7` = 0
+    ) THEN `bfcol_38` END, NULL) AS `bfcol_45`
   FROM `bfcte_0`
   CROSS JOIN `bfcte_8`
 ), `bfcte_10` AS (

@@ -73,8 +73,8 @@ def _(expr: TypedExpr) -> sge.Expression:
 @register_unary_op(ops.invert_op)
 def _(expr: TypedExpr) -> sge.Expression:
     if expr.dtype == dtypes.BOOL_DTYPE:
-        return sge.Not(this=sge.paren(expr.expr))
-    return sge.BitwiseNot(this=sge.paren(expr.expr))
+        return sge.Not(this=expr.expr)
+    return sge.BitwiseNot(this=expr.expr)
 
 
 @register_nary_op(ops.GoogleSqlScalarOp, pass_op=True)
@@ -110,7 +110,7 @@ def _(*operands: TypedExpr, op: ops.SqlScalarOp) -> sge.Expression:
 
 @register_unary_op(ops.isnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
-    return sge.Is(this=sge.paren(expr.expr), expression=sge.Null())
+    return sge.Is(this=expr.expr, expression=sge.Null())
 
 
 @register_unary_op(ops.MapOp, pass_op=True)
@@ -144,7 +144,7 @@ def _(expr: TypedExpr, op: ops.MapOp) -> sge.Expression:
 @register_unary_op(ops.notnull_op)
 def _(expr: TypedExpr) -> sge.Expression:
     return sge.Is(
-        this=sge.paren(expr.expr, copy=False),
+        this=expr.expr,
         expression=sg.not_(sge.Null(), copy=False),
     )
 
