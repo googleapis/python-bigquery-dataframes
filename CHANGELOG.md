@@ -4,6 +4,25 @@
 
 [1]: https://pypi.org/project/bigframes/#history
 
+## [2.51.1](https://github.com/google/bigframes/compare/v2.51.0...v2.51.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* fix failing dataframe and timeseries_analysis notebook tests ([7360f26](https://github.com/google/bigframes/commit/7360f2664e030dcdb5e01d537e44491115ae0274))
+* parenthesize subtrees for SQLGlot expression trees ([c0565ef](https://github.com/google/bigframes/commit/c0565ef9350415c73b4a16264f7492fa327f275c))
+
+
+### Dependencies
+
+* remove the pyiceberg dependency ([268cdae](https://github.com/google/bigframes/commit/268cdae89bccda3b20fac1c913a176f80b1fb593))
+
+
+### Documentation
+
+* add multimodal embeddings and vector search notebook ([d59796e](https://github.com/google/bigframes/commit/d59796e521221a67a0a28ca888c365a434bd66b3))
+* convert remote_function.ipynb to partial ordering mode ([323894d](https://github.com/google/bigframes/commit/323894d1a46a1703461d6787cb91d09a41282a62))
+
 ## [2.51.0](https://github.com/google/bigframes/compare/v2.50.0...v2.51.0) (2026-10-07)
 
 
