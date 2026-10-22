@@ -4760,6 +4760,8 @@ def test_series_apply_python_numeric_fns(scalars_dfs, ufunc, col):
     pd_col = scalars_pandas_df[col]
 
     def wrapped(x):
+        if pd.isna(x):
+            return pd.NA
         try:
             return ufunc(x)
         except ValueError:
