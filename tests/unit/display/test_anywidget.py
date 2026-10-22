@@ -234,6 +234,71 @@ def test_struct_column_with_nested_json_converted_to_string_for_display(
     assert result["nested"].dtype == bigframes.dtypes.STRING_DTYPE
 
 
+def test_duplicate_column_names_preserved_for_display(polars_session):
+    df = polars_session.read_pandas(
+        pd.DataFrame({"home": ["a", "b"], "away": ["c", "d"]})
+    ).rename(columns={"home": "team", "away": "team"})
+
+    result = df._prepare_display_df()
+
+    assert list(result.columns) == ["team", "team"]
+
+
+def test_json_column_with_duplicate_column_names_converted_to_string_for_display(
+    polars_session,
+):
+    series = bigframes.series.Series(
+        ['{"a": 1}', '{"b": 2}'],
+        dtype=bigframes.dtypes.JSON_DTYPE,
+        session=polars_session,
+    )
+    df = series.to_frame("col_json")
+    df["home"] = 1
+    df["away"] = 2
+    df = df.rename(columns={"home": "team", "away": "team"})
+
+    result = df._prepare_display_df()
+
+    assert list(result.columns) == ["col_json", "team", "team"]
+    assert list(result.dtypes) == [
+        bigframes.dtypes.STRING_DTYPE,
+        bigframes.dtypes.INT_DTYPE,
+        bigframes.dtypes.INT_DTYPE,
+    ]
+
+
+def test_json_columns_with_duplicate_names_converted_to_string_for_display(
+    polars_session,
+):
+    series = bigframes.series.Series(
+        ['{"a": 1}', '{"b": 2}'],
+        dtype=bigframes.dtypes.JSON_DTYPE,
+        session=polars_session,
+    )
+    df = series.to_frame("col_json")
+    df["other"] = series
+    df = df.rename(columns={"other": "col_json"})
+
+    result = df._prepare_display_df()
+
+    assert list(result.columns) == ["col_json", "col_json"]
+    assert list(result.dtypes) == [bigframes.dtypes.STRING_DTYPE] * 2
+
+
+def test_json_column_display_does_not_modify_original_dataframe(polars_session):
+    series = bigframes.series.Series(
+        ['{"a": 1}', '{"b": 2}'],
+        dtype=bigframes.dtypes.JSON_DTYPE,
+        session=polars_session,
+    )
+    df = series.to_frame("col_json")
+
+    df._prepare_display_df()
+
+    # Displaying a DataFrame must not convert the caller's JSON columns.
+    assert df["col_json"].dtype == bigframes.dtypes.JSON_DTYPE
+
+
 @pytest.fixture
 def mock_df_deferred():
     with mock.patch("bigframes.display.anywidget._ANYWIDGET_INSTALLED", True):

@@ -849,16 +849,12 @@ class DataFrame:
         # Using TO_JSON_STRING via SqlScalarOp handles complex nested STRUCT
         # types correctly. Use the offset so that we can handle duplicate and
         # non-string column names.
-        json_col_indexes = [
-            col_index
-            for col_index, col in enumerate(df.columns)
-            if bigframes.dtypes.contains_db_dtypes_json_dtype(df[col].dtype)
-        ]
-        if json_col_indexes:
-            df.iloc[:, json_col_indexes] = cast(
-                DataFrame,
-                df.iloc[:, json_col_indexes].apply(bbq.to_json_string),  # type: ignore
-            )
+        for col_index, dtype in enumerate(self._block.dtypes):
+            if bigframes.dtypes.contains_db_dtypes_json_dtype(dtype):
+                column = cast(bigframes.series.Series, df.iloc[:, col_index])
+                df = df._assign_single_item_by_offset(
+                    col_index, bbq.to_json_string(column)
+                )
         return df
 
     def _repr_mimebundle_(self, include=None, exclude=None):
